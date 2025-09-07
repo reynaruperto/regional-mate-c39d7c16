@@ -37,7 +37,7 @@ const WorkPreferences: React.FC = () => {
 
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("v_visa_stage_industries_roles")
         .select("industry_id, industry_name, industry_role_id, role_name, state, area")
         .eq("sub_class", selectedSubclass)
@@ -46,7 +46,7 @@ const WorkPreferences: React.FC = () => {
       if (error) {
         console.error("Error fetching industries:", error);
       } else {
-        setIndustries(data || []);
+        setIndustries((data || []) as IndustryRoleData[]);
       }
     };
 
