@@ -9,6 +9,27 @@ export interface Database extends OriginalDatabase {
         Update: { country_id?: number; name?: string; scheme?: "417" | "462" };
       };
 
+      country_eligibility: {
+        Row: { 
+          eligibility_id: string; 
+          stage_id: number; 
+          country_id: number; 
+          created_at?: string; 
+        };
+        Insert: { 
+          eligibility_id?: string; 
+          stage_id: number; 
+          country_id: number; 
+          created_at?: string; 
+        };
+        Update: { 
+          eligibility_id?: string; 
+          stage_id?: number; 
+          country_id?: number; 
+          created_at?: string; 
+        };
+      };
+
       visa_stage: {
         Row: { stage_id: number; sub_class: "417" | "462"; stage: number; label: string };
         Insert: { stage_id?: number; sub_class: "417" | "462"; stage: number; label: string };
