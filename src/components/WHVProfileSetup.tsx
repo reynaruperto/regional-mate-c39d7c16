@@ -209,7 +209,8 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Save profile to whv_maker (bypass TS with as any)
+    // ✅ Get the selected visa stage to determine visa_type
+    const selectedStage = visaStages.find(stage => stage.stage_id === formData.stageId);
     const selectedCountry = countries.find(c => c.country_id === formData.countryId);
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
@@ -238,10 +239,10 @@ const WHVProfileSetup: React.FC = () => {
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        stage_id: formData.stageId,
+        visa_type: selectedStage?.sub_class, // Use sub_class (417 or 462) as visa_type
         expiry_date: formData.visaExpiry,
       } as any,
-      { onConflict: "user_id,stage_id" }
+      { onConflict: "user_id,visa_type" }
     );
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
