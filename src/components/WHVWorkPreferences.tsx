@@ -394,6 +394,6 @@ const WHVWorkPreferences: React.FC = () => {
   );
 };
 
-export default WHVWorkPreferences.tsx;
+export default WHVWorkPreferences;
 
 
