@@ -13,6 +13,7 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/supabase-extensions";
+import type { User, Session } from "@supabase/supabase-js";
 
 type Country = Database["public"]["Tables"]["country"]["Row"];
 type VisaStage = Database["public"]["Tables"]["visa_stage"]["Row"];
@@ -30,6 +31,11 @@ const australianStates = [
 
 const WHVProfileSetup: React.FC = () => {
   const navigate = useNavigate();
+  
+  // Authentication state
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     givenName: "",
@@ -50,6 +56,35 @@ const WHVProfileSetup: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // ✅ Set up authentication state listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setIsLoading(false);
+        
+        // Redirect to login if not authenticated
+        if (!session?.user) {
+          navigate("/whv/login");
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+      
+      if (!session?.user) {
+        navigate("/whv/login");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   // ✅ Load countries & visa stages from Supabase
   useEffect(() => {
@@ -103,12 +138,10 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Get user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      alert("User not logged in — please restart signup flow.");
+    // ✅ Check if user is authenticated
+    if (!user || !session) {
+      console.error("User not authenticated");
+      navigate("/whv/login");
       return;
     }
 
@@ -161,6 +194,20 @@ const WHVProfileSetup: React.FC = () => {
   const filteredStages = selectedCountry
     ? visaStages.filter((v) => v.sub_class === selectedCountry.scheme)
     : [];
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
