@@ -79,23 +79,112 @@ const WHVProfileSetup: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
+    
+    // Real-time validation for DOB
+    if (name === 'dateOfBirth' && value && formData.stageId) {
+      validateDateOfBirth(value, formData.stageId);
+    }
+    
+    // Real-time validation for visa expiry
+    if (name === 'visaExpiry' && value) {
+      validateVisaExpiry(value);
+    }
   };
 
   const handleSelect = (name: string, value: string | number) => {
     setFormData({ ...formData, [name]: value });
+    
+    // Re-validate DOB when visa type changes
+    if (name === 'stageId' && formData.dateOfBirth && typeof value === 'number') {
+      validateDateOfBirth(formData.dateOfBirth, value);
+    }
+  };
+
+  const validateDateOfBirth = (dateOfBirth: string, stageId: number) => {
+    const selectedStage = visaStages.find(stage => stage.stage_id === stageId);
+    if (!selectedStage) return;
+
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) ? age - 1 : age;
+
+    let maxAge = 35; // Default for 417
+    if (selectedStage.sub_class === '462') {
+      maxAge = 30;
+    }
+
+    const newErrors = { ...errors };
+    if (birthDate >= today) {
+      newErrors.dateOfBirth = "Date of birth cannot be in the future";
+    } else if (actualAge < 18) {
+      newErrors.dateOfBirth = "You must be at least 18 years old";
+    } else if (actualAge > maxAge) {
+      newErrors.dateOfBirth = `You must be ${maxAge} years old or younger for this visa type`;
+    } else {
+      delete newErrors.dateOfBirth;
+    }
+    setErrors(newErrors);
+  };
+
+  const validateVisaExpiry = (visaExpiry: string) => {
+    const expiryDate = new Date(visaExpiry);
+    const today = new Date();
+    
+    const newErrors = { ...errors };
+    if (expiryDate <= today) {
+      newErrors.visaExpiry = "Visa expiry must be in the future";
+    } else {
+      delete newErrors.visaExpiry;
+    }
+    setErrors(newErrors);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: any = {};
 
-    // ✅ Validation
+    // ✅ Enhanced validation
     if (!formData.givenName) newErrors.givenName = "Required";
     if (!formData.familyName) newErrors.familyName = "Required";
-    if (!formData.dateOfBirth) newErrors.dateOfBirth = "Required";
+    if (!formData.dateOfBirth) {
+      newErrors.dateOfBirth = "Required";
+    } else if (formData.stageId) {
+      // Validate age based on visa type
+      const selectedStage = visaStages.find(stage => stage.stage_id === formData.stageId);
+      if (selectedStage) {
+        const birthDate = new Date(formData.dateOfBirth);
+        const today = new Date();
+        const age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) ? age - 1 : age;
+
+        let maxAge = 35; // Default for 417
+        if (selectedStage.sub_class === '462') {
+          maxAge = 30;
+        }
+
+        if (birthDate >= today) {
+          newErrors.dateOfBirth = "Date of birth cannot be in the future";
+        } else if (actualAge < 18) {
+          newErrors.dateOfBirth = "You must be at least 18 years old";
+        } else if (actualAge > maxAge) {
+          newErrors.dateOfBirth = `You must be ${maxAge} years old or younger for this visa type`;
+        }
+      }
+    }
     if (!formData.countryId) newErrors.nationality = "Required";
     if (!formData.stageId) newErrors.visaType = "Required";
-    if (!formData.visaExpiry) newErrors.visaExpiry = "Required";
+    if (!formData.visaExpiry) {
+      newErrors.visaExpiry = "Required";
+    } else {
+      const expiryDate = new Date(formData.visaExpiry);
+      const today = new Date();
+      if (expiryDate <= today) {
+        newErrors.visaExpiry = "Visa expiry must be in the future";
+      }
+    }
     if (!formData.phone) {
       newErrors.phone = "Required";
     } else if (!/^(\+614\d{8}|04\d{8})$/.test(formData.phone)) {
