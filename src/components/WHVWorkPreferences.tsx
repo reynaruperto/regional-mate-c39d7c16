@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft } from "lucide-react";
-
-// Replace with props or context if you already store user selections
-const selectedSubclass = "462"; // example: "417" or "462"
-const selectedStage = 2; // example: 1, 2, or 3
 
 interface IndustryRoleData {
   industry_id: number;
@@ -20,8 +16,17 @@ interface IndustryRoleData {
   area: string;
 }
 
+interface LocationState {
+  countryId: number;
+  stageId: number;
+  subClass: string;
+}
+
 const WorkPreferences: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { countryId, stageId, subClass } = (location.state as LocationState) || {};
+
   const [profileTagline, setProfileTagline] = useState("");
   const [industries, setIndustries] = useState<IndustryRoleData[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
@@ -31,11 +36,14 @@ const WorkPreferences: React.FC = () => {
 
   useEffect(() => {
     const fetchIndustries = async () => {
+      if (!countryId || !stageId || !subClass) return;
+
       const { data, error } = await (supabase as any)
         .from("v_visa_stage_industries_roles")
         .select("industry_id, industry_name, industry_role_id, role_name, state, area")
-        .eq("sub_class", selectedSubclass)
-        .eq("stage", selectedStage);
+        .eq("sub_class", subClass)
+        .eq("stage", stageId)
+        .eq("country_id", countryId);
 
       if (error) {
         console.error("Error fetching industries:", error);
@@ -45,7 +53,55 @@ const WorkPreferences: React.FC = () => {
     };
 
     fetchIndustries();
-  }, []);
+  }, [countryId, stageId, subClass]);
+
+  // Deduplicate for dropdowns
+  const uniqueIndustries = Array.from(
+    new Map(industries.map((item) => [item.industry_id, item])).values()
+  );
+  const uniqueStates = Array.from(new Set(industries.map((i) => i.state))).filter(Boolean);
+  const uniqueAreas = Array.from(new Set(industries.map((i) => i.area))).filter(Boolean);
+
+  const rolesByIndustry = uniqueIndustries.map((ind) => ({
+    ...ind,
+    roles: industries.filter((r) => r.industry_id === ind.industry_id),
+  }));
+
+  const toggleIndustry = (id: number) => {
+    setSelectedIndustries((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length < 3
+        ? [...prev, id]
+        : prev
+    );
+  };
+
+  const toggleRole = (id: number) => {
+    setSelectedRoles((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleState = (state: string) => {
+    setSelectedStates((prev) =>
+      prev.includes(state)
+        ? prev.filter((s) => s !== state)
+        : prev.length < 3
+        ? [...prev, state]
+        : prev
+    );
+  };
+
+  const toggleArea = (area: string) => {
+    setSelectedAreas((prev) =>
+      prev.includes(area)
+        ? prev.filter((a) => a !== area)
+        : prev.length < 3
+        ? [...prev, area]
+        : prev
+    );
+  };
 
   const handleContinue = () => {
     console.log("Profile Tagline:", profileTagline);
@@ -54,25 +110,8 @@ const WorkPreferences: React.FC = () => {
     console.log("Selected States:", selectedStates);
     console.log("Selected Areas:", selectedAreas);
 
-    navigate("/next-step"); // adjust route
+    navigate("/next-step");
   };
-
-  // Deduplicate industries
-  const uniqueIndustries = Array.from(
-    new Map(industries.map((item) => [item.industry_id, item])).values()
-  );
-
-  // Deduplicate states
-  const uniqueStates = Array.from(new Set(industries.map((i) => i.state))).filter(Boolean);
-
-  // Deduplicate areas
-  const uniqueAreas = Array.from(new Set(industries.map((i) => i.area))).filter(Boolean);
-
-  // Roles grouped by industry
-  const rolesByIndustry = uniqueIndustries.map((ind) => ({
-    ...ind,
-    roles: industries.filter((r) => r.industry_id === ind.industry_id),
-  }));
 
   return (
     <div className="p-6 space-y-6 max-w-md mx-auto">
@@ -82,7 +121,7 @@ const WorkPreferences: React.FC = () => {
 
       <h1 className="text-xl font-bold text-center">Work Preferences</h1>
       <p className="text-sm text-gray-500 text-center">
-        Showing industries eligible for your visa ({selectedSubclass}, stage {selectedStage})
+        Eligible industries for {subClass} visa (stage {stageId})
       </p>
 
       <div className="space-y-4">
@@ -101,38 +140,25 @@ const WorkPreferences: React.FC = () => {
           <div className="space-y-4">
             {rolesByIndustry.map((ind) => (
               <div key={ind.industry_id} className="border rounded-md p-3">
-                {/* Industry checkbox */}
                 <label className="flex items-center space-x-2 font-medium">
                   <Checkbox
                     checked={selectedIndustries.includes(ind.industry_id)}
-                    onCheckedChange={(checked) =>
-                      setSelectedIndustries((prev) =>
-                        checked
-                          ? [...prev, ind.industry_id].slice(0, 3)
-                          : prev.filter((id) => id !== ind.industry_id)
-                      )
-                    }
+                    onCheckedChange={() => toggleIndustry(ind.industry_id)}
                   />
                   <span>{ind.industry_name}</span>
                 </label>
 
-                {/* Roles */}
                 {selectedIndustries.includes(ind.industry_id) && (
                   <div className="ml-6 mt-2 space-y-1">
                     {ind.roles.map((role) => (
                       <label
                         key={role.industry_role_id}
                         className="flex items-center space-x-2 text-sm"
+                        title={`Eligible in ${role.state} (${role.area})`}
                       >
                         <Checkbox
                           checked={selectedRoles.includes(role.industry_role_id)}
-                          onCheckedChange={(checked) =>
-                            setSelectedRoles((prev) =>
-                              checked
-                                ? [...prev, role.industry_role_id]
-                                : prev.filter((r) => r !== role.industry_role_id)
-                            )
-                          }
+                          onCheckedChange={() => toggleRole(role.industry_role_id)}
                         />
                         <span>{role.role_name}</span>
                       </label>
@@ -152,13 +178,7 @@ const WorkPreferences: React.FC = () => {
               <label key={state} className="flex items-center space-x-2">
                 <Checkbox
                   checked={selectedStates.includes(state)}
-                  onCheckedChange={(checked) =>
-                    setSelectedStates((prev) =>
-                      checked
-                        ? [...prev, state].slice(0, 3)
-                        : prev.filter((s) => s !== state)
-                    )
-                  }
+                  onCheckedChange={() => toggleState(state)}
                 />
                 <span>{state}</span>
               </label>
@@ -174,13 +194,7 @@ const WorkPreferences: React.FC = () => {
               <label key={area} className="flex items-center space-x-2">
                 <Checkbox
                   checked={selectedAreas.includes(area)}
-                  onCheckedChange={(checked) =>
-                    setSelectedAreas((prev) =>
-                      checked
-                        ? [...prev, area].slice(0, 3)
-                        : prev.filter((a) => a !== area)
-                    )
-                  }
+                  onCheckedChange={() => toggleArea(area)}
                 />
                 <span>{area}</span>
               </label>
