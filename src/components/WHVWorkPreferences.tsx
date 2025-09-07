@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,220 +7,212 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
-// ✅ Props
-interface WorkPreferencesProps {
-  visaType: "417" | "462";
-  visaStage: 1 | 2 | 3;
-}
-
-// ✅ Type for Supabase rows
-type RegionRule = {
-  industry_name: string;
-  state: string;
-  area: string;
-  postcode_range: string;
+type WorkPreferencesProps = {
+  visaType: string;
+  visaStage: string;
+  userId: string;
 };
 
-const WorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage }) => {
+export default function WHVWorkPreferences({ visaType, visaStage, userId }: WorkPreferencesProps) {
+  const { toast } = useToast();
+
   const [industries, setIndustries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
-  const [selectedIndustry, setSelectedIndustry] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [selectedArea, setSelectedArea] = useState("");
-  const [postcode, setPostcode] = useState("");
-  const [tooltip, setTooltip] = useState("");
+  const [postcodes, setPostcodes] = useState<string[]>([]);
 
-  // ✅ Load industries based on visaType & stage
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [selectedPostcodes, setSelectedPostcodes] = useState<string[]>([]);
+
+  // 🔹 Load options + user preferences
   useEffect(() => {
-    const fetchIndustries = async () => {
+    const fetchOptions = async () => {
       const { data, error } = await supabase
-        .from("region_rules")
-        .select("industry_name")
-        .eq("sub_class", visaType)
-        .eq("stage", visaStage);
+        .from("visa_rules")
+        .select("industry_name, state, area, postcode_range")
+        .eq("visa_type", visaType)
+        .eq("visa_stage", visaStage);
 
       if (error) {
-        console.error("Error fetching industries:", error);
+        console.error("Error fetching visa rules:", error.message);
         return;
       }
 
-      const uniqueIndustries = Array.from(
-        new Set((data as RegionRule[]).map((row) => row.industry_name))
-      ).slice(0, 3); // max 3 for prompt length
-
-      setIndustries(uniqueIndustries);
-    };
-
-    fetchIndustries();
-  }, [visaType, visaStage]);
-
-  // ✅ Load states based on selected industry
-  useEffect(() => {
-    if (!selectedIndustry) return;
-
-    const fetchStates = async () => {
-      const { data, error } = await supabase
-        .from("region_rules")
-        .select("state")
-        .eq("industry_name", selectedIndustry)
-        .eq("sub_class", visaType)
-        .eq("stage", visaStage);
-
-      if (error) {
-        console.error("Error fetching states:", error);
-        return;
+      if (data) {
+        setIndustries([...new Set(data.map((d) => d.industry_name))]);
+        setStates([...new Set(data.map((d) => d.state))]);
+        setAreas([...new Set(data.map((d) => d.area))]);
+        setPostcodes([...new Set(data.map((d) => d.postcode_range))]);
       }
-
-      const uniqueStates = Array.from(
-        new Set((data as RegionRule[]).map((row) => row.state))
-      ).slice(0, 3);
-
-      setStates(uniqueStates);
     };
 
-    fetchStates();
-  }, [selectedIndustry, visaType, visaStage]);
-
-  // ✅ Load areas based on selected state
-  useEffect(() => {
-    if (!selectedState) return;
-
-    const fetchAreas = async () => {
+    const fetchUserPrefs = async () => {
       const { data, error } = await supabase
-        .from("region_rules")
-        .select("area")
-        .eq("industry_name", selectedIndustry)
-        .eq("state", selectedState)
-        .eq("sub_class", visaType)
-        .eq("stage", visaStage);
+        .from("user_work_preferences")
+        .select("industries, states, areas, postcodes")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      if (error) {
-        console.error("Error fetching areas:", error);
-        return;
+      if (!error && data) {
+        setSelectedIndustries(data.industries || []);
+        setSelectedStates(data.states || []);
+        setSelectedAreas(data.areas || []);
+        setSelectedPostcodes(data.postcodes || []);
       }
-
-      const uniqueAreas = Array.from(
-        new Set((data as RegionRule[]).map((row) => row.area))
-      ).slice(0, 3);
-
-      setAreas(uniqueAreas);
     };
 
-    fetchAreas();
-  }, [selectedState, selectedIndustry, visaType, visaStage]);
+    fetchOptions();
+    fetchUserPrefs();
+  }, [visaType, visaStage, userId]);
 
-  // ✅ Tooltip check
-  const checkEligibility = async () => {
-    if (!selectedIndustry || !selectedState || !selectedArea || !postcode) {
-      setTooltip("⚠️ Please select all fields.");
-      return;
+  // 🔹 Multi-select logic
+  const handleMultiSelect = (
+    value: string,
+    selected: string[],
+    setSelected: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    if (selected.includes(value)) {
+      setSelected(selected.filter((v) => v !== value));
+    } else if (selected.length < 3) {
+      setSelected([...selected, value]);
+    } else {
+      toast({
+        title: "Limit reached",
+        description: "You can only select up to 3 options.",
+      });
     }
+  };
 
-    const { data, error } = await supabase
-      .from("region_rules")
-      .select("postcode_range")
-      .eq("industry_name", selectedIndustry)
-      .eq("state", selectedState)
-      .eq("area", selectedArea)
-      .eq("sub_class", visaType)
-      .eq("stage", visaStage);
+  // 🔹 Save preferences
+  const savePreferences = async () => {
+    const { error } = await supabase.from("user_work_preferences").upsert(
+      {
+        user_id: userId,
+        industries: selectedIndustries,
+        states: selectedStates,
+        areas: selectedAreas,
+        postcodes: selectedPostcodes,
+        visa_type: visaType,
+        visa_stage: visaStage,
+      },
+      { onConflict: "user_id" }
+    );
 
     if (error) {
-      console.error("Error checking eligibility:", error);
-      setTooltip("⚠️ Error checking eligibility.");
-      return;
+      toast({ title: "Error", description: error.message });
+    } else {
+      toast({ title: "Saved", description: "Preferences updated successfully." });
     }
-
-    const ranges = (data as RegionRule[]).map((row) => row.postcode_range);
-
-    const valid = ranges.some((range) => {
-      if (range === "All postcodes") return true;
-      return range.includes(postcode);
-    });
-
-    setTooltip(
-      valid
-        ? `✅ ${selectedIndustry} counts in ${selectedState} (${selectedArea})`
-        : `⚠️ ${selectedIndustry} does not count in ${selectedState} (${selectedArea})`
-    );
   };
 
   return (
-    <div className="space-y-4 p-6">
-      <h2 className="text-lg font-bold">Work Preferences</h2>
-
-      {/* Industry */}
+    <div className="space-y-6">
+      {/* Industries */}
       <div>
-        <Label>Industry</Label>
-        <Select onValueChange={setSelectedIndustry}>
+        <Label>Industry (max 3)</Label>
+        <Select
+          value={selectedIndustries[0] || ""}
+          onValueChange={(val) => handleMultiSelect(val, selectedIndustries, setSelectedIndustries)}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select industry" />
           </SelectTrigger>
           <SelectContent>
-            {industries.map((industry) => (
-              <SelectItem key={industry} value={industry}>
-                {industry}
+            {industries.map((ind, idx) => (
+              <SelectItem key={idx} value={ind}>
+                {ind}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <p className="text-sm text-gray-500 mt-1">
+          Selected: {selectedIndustries.join(", ") || "None"}
+        </p>
       </div>
 
-      {/* State */}
+      {/* States */}
       <div>
-        <Label>State</Label>
-        <Select onValueChange={setSelectedState}>
+        <Label>State (max 3)</Label>
+        <Select
+          value={selectedStates[0] || ""}
+          onValueChange={(val) => handleMultiSelect(val, selectedStates, setSelectedStates)}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select state" />
           </SelectTrigger>
           <SelectContent>
-            {states.map((st) => (
-              <SelectItem key={st} value={st}>
-                {st}
+            {states.map((s, idx) => (
+              <SelectItem key={idx} value={s}>
+                {s}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <p className="text-sm text-gray-500 mt-1">
+          {selectedStates.length > 0
+            ? selectedStates.map((s) => `Anywhere in ${s}`).join(", ")
+            : "None"}
+        </p>
       </div>
 
-      {/* Area */}
+      {/* Areas */}
       <div>
-        <Label>Area</Label>
-        <Select onValueChange={setSelectedArea}>
+        <Label>Area (max 3)</Label>
+        <Select
+          value={selectedAreas[0] || ""}
+          onValueChange={(val) => handleMultiSelect(val, selectedAreas, setSelectedAreas)}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select area" />
           </SelectTrigger>
           <SelectContent>
-            {areas.map((ar) => (
-              <SelectItem key={ar} value={ar}>
-                {ar}
+            {areas.map((a, idx) => (
+              <SelectItem key={idx} value={a}>
+                {a}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <p className="text-sm text-gray-500 mt-1">
+          Selected: {selectedAreas.join(", ") || "None"}
+        </p>
       </div>
 
-      {/* Postcode */}
+      {/* Postcodes */}
       <div>
-        <Label>Postcode</Label>
-        <Input
-          value={postcode}
-          onChange={(e) => setPostcode(e.target.value)}
-          placeholder="Enter postcode"
-        />
+        <Label>Postcode (max 3)</Label>
+        <Select
+          value={selectedPostcodes[0] || ""}
+          onValueChange={(val) => handleMultiSelect(val, selectedPostcodes, setSelectedPostcodes)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select postcode" />
+          </SelectTrigger>
+          <SelectContent>
+            {postcodes.map((p, idx) => (
+              <SelectItem key={idx} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-gray-500 mt-1">
+          Selected: {selectedPostcodes.join(", ") || "None"}
+        </p>
       </div>
 
-      {/* Button */}
-      <Button onClick={checkEligibility}>Check Eligibility</Button>
-
-      {/* Tooltip */}
-      {tooltip && <p className="mt-2 text-sm">{tooltip}</p>}
+      {/* Save Button */}
+      <Button className="w-full mt-4" onClick={savePreferences}>
+        Save Preferences
+      </Button>
     </div>
   );
-};
-
-export default WorkPreferences;
+}
 
 
