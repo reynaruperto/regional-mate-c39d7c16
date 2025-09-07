@@ -31,9 +31,9 @@ interface Country {
 
 interface VisaStage {
   stage_id: number;
-  label: string;
-  sub_class: "417" | "462";
-  stage: number;
+  label: string;        // e.g. "417 (First Working Holiday Visa)" or "Student Visa (500)"
+  sub_class: string;    // allow any subclass, not just 417/462
+  stage: number | null; // WHV = 1/2/3, other visas = null
 }
 
 interface CountryEligibility {
@@ -100,6 +100,24 @@ const WHVProfileSetup: React.FC = () => {
 
   const isValidExpiry = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date);
 
+  // Flexible visa stage mapping
+  const getVisaEnumValue = (selectedStage: VisaStage): string => {
+    if (selectedStage.sub_class === "417" || selectedStage.sub_class === "462") {
+      const stageText =
+        selectedStage.stage === 1
+          ? "First"
+          : selectedStage.stage === 2
+          ? "Second"
+          : "Third";
+      return selectedStage.sub_class === "417"
+        ? `${stageText} Working Holiday Visa (417)`
+        : `${stageText} Work and Holiday Visa (462)`;
+    }
+
+    // For other visas, just use the label directly
+    return selectedStage.label;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: any = {};
@@ -138,6 +156,15 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     const selectedCountry = countries.find(c => c.country_id === formData.countryId);
+    const selectedStage = visaStages.find(v => v.label === formData.visaType);
+
+    if (!selectedStage) {
+      console.error("No matching stage found for:", formData.visaType);
+      alert("Invalid visa type selected");
+      return;
+    }
+
+    const mappedVisaType = getVisaEnumValue(selectedStage);
 
     // Save WHV profile
     const { error: whvError } = await supabase.from("whv_maker").upsert(
@@ -164,29 +191,13 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // Map visa stage to display string
-    const getVisaEnumValue = (selectedStage: VisaStage): string => {
-      const { sub_class, stage } = selectedStage;
-      const stageText = stage === 1 ? "First" : stage === 2 ? "Second" : "Third";
-      return sub_class === "417"
-        ? `${stageText} Working Holiday Visa (417)`
-        : `${stageText} Work and Holiday Visa (462)`;
-    };
-
-    const selectedStage = visaStages.find(v => v.label === formData.visaType);
-    if (!selectedStage) {
-      console.error("No matching stage found for:", formData.visaType);
-      alert("Invalid visa type selected");
-      return;
-    }
-
-    const mappedVisaType = getVisaEnumValue(selectedStage);
-
+    // Save visa details
     const visaDataToSave = {
       user_id: user.id,
-      visa_type: mappedVisaType,
+      visa_type: mappedVisaType,       // readable text
       expiry_date: formData.visaExpiry,
-      country_id: formData.countryId, // ✅ added this
+      country_id: formData.countryId,  // FK → country
+      stage_id: selectedStage.stage_id // FK → visa_stage
     };
 
     console.log("Visa data to save:", visaDataToSave);
