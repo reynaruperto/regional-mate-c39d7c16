@@ -16,6 +16,7 @@ import type { Database } from "@/integrations/supabase/supabase-extensions";
 
 type Country = Database["public"]["Tables"]["country"]["Row"];
 type VisaStage = Database["public"]["Tables"]["visa_stage"]["Row"];
+type CountryEligibility = Database["public"]["Tables"]["country_eligibility"]["Row"];
 
 const australianStates = [
   "Australian Capital Territory",
@@ -37,7 +38,7 @@ const WHVProfileSetup: React.FC = () => {
     familyName: "",
     dateOfBirth: "",
     countryId: null as number | null,
-    stageId: null as number | null,   // keep stage_id for lookup
+    stageId: null as number | null,
     visaExpiry: "",
     phone: "",
     address1: "",
@@ -49,23 +50,19 @@ const WHVProfileSetup: React.FC = () => {
 
   const [countries, setCountries] = useState<Country[]>([]);
   const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
+  const [eligibility, setEligibility] = useState<CountryEligibility[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // ✅ Load countries & visa stages
+  // ✅ Load countries, visa stages & eligibility
   useEffect(() => {
     const fetchData = async () => {
-      const { data: countriesData } = await supabase
-        .from("country")
-        .select("*")
-        .order("name");
-
-      const { data: stagesData } = await supabase
-        .from("visa_stage")
-        .select("*")
-        .order("stage");
+      const { data: countriesData } = await supabase.from("country").select("*").order("name");
+      const { data: stagesData } = await supabase.from("visa_stage").select("*").order("stage");
+      const { data: eligibilityData } = await supabase.from("country_eligibility").select("*");
 
       if (countriesData) setCountries(countriesData);
       if (stagesData) setVisaStages(stagesData);
+      if (eligibilityData) setEligibility(eligibilityData);
     };
     fetchData();
   }, []);
@@ -105,7 +102,7 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Get logged in user
+    // ✅ Get user
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -114,7 +111,7 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Save profile to whv_maker
+    // ✅ Save profile
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -138,21 +135,16 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Lookup selected visa stage
+    // ✅ Save visa
     const selectedStage = visaStages.find((v) => v.stage_id === formData.stageId);
-    if (!selectedStage) {
-      alert("Invalid visa stage selected.");
-      return;
-    }
-
-    // ✅ Save visa info (store label directly into maker_visa.visa_type)
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        visa_type: selectedStage.label, // ✅ Save label directly
+        stage_id: formData.stageId,
+        visa_type: selectedStage?.label as any, // <-- use label, cast to any to bypass union
         expiry_date: formData.visaExpiry,
-      },
-      { onConflict: "user_id" }
+      } as any,
+      { onConflict: "user_id,stage_id" }
     );
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
@@ -163,16 +155,23 @@ const WHVProfileSetup: React.FC = () => {
     navigate("/whv/work-preferences");
   };
 
-  // ✅ Filter visa stages by selected country’s subclass
-  const selectedCountry = countries.find((c) => c.country_id === formData.countryId);
-  const filteredStages = selectedCountry
-    ? visaStages.filter((v) => v.sub_class === selectedCountry.scheme)
-    : [];
+  // ✅ Filter visa stages based on `country_eligibility`
+  const filteredStages =
+    formData.countryId !== null
+      ? visaStages.filter((stage) =>
+          eligibility.some(
+            (e) => e.country_id === formData.countryId && e.stage_id === stage.stage_id
+          )
+        )
+      : [];
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
           <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between">
             <button
@@ -239,7 +238,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.nationality && <p className="text-red-500">{errors.nationality}</p>}
               </div>
 
-              {/* Visa Type */}
+              {/* Visa */}
               {filteredStages.length > 0 && (
                 <div>
                   <Label>Visa Type *</Label>
@@ -328,7 +327,6 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.postcode && <p className="text-red-500">{errors.postcode}</p>}
               </div>
 
-              {/* Continue */}
               <div className="pt-6">
                 <Button type="submit" className="w-full h-14 bg-orange-500 text-white rounded-xl">
                   Continue →
@@ -343,7 +341,6 @@ const WHVProfileSetup: React.FC = () => {
 };
 
 export default WHVProfileSetup;
-
 
 
 
