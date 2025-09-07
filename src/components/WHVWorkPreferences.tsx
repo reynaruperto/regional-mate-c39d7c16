@@ -5,19 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/supabase-extensions";
 
-type Industry = Database["public"]["Tables"]["industry"]["Row"] & {
-  industry_role: { industry_role_id: number; role: string }[];
+type IndustryWithRoles = {
+  industry_id: number;
+  name: string;
+  roles: { id: number; name: string }[];
 };
-
-enum AreaRestriction {
-  All = "All",
-  Regional = "Regional",
-  Northern = "Northern",
-  Remote = "Remote",
-  VeryRemote = "Very Remote",
-}
 
 const australianStates = [
   "Australian Capital Territory",
@@ -34,35 +27,32 @@ const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ get stageId passed from ProfileSetup
-  const { stageId } = (location.state as { stageId: number }) || { stageId: null };
+  const { subClass, stageId, countryName } =
+    (location.state as { subClass: string; stageId: number; countryName: string }) || {
+      subClass: "462",
+      stageId: 1,
+      countryName: "United States of America (USA)",
+    };
 
   const [tagline, setTagline] = useState("");
-  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [industries, setIndustries] = useState<IndustryWithRoles[]>([]);
+  const [availableAreas, setAvailableAreas] = useState<string[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
 
-  // ==========================
-  // Load industries filtered by eligibility
-  // ==========================
+  // Load industries, roles, and areas
   useEffect(() => {
-    const loadIndustries = async () => {
+    const loadData = async () => {
       if (!stageId) return;
 
       const { data, error } = await supabase
-        .from("maker_visa_eligibility")
-        .select(
-          `
-          industry:industry_id (
-            industry_id,
-            name,
-            industry_role (industry_role_id, role)
-          )
-        `
-        )
-        .eq("stage_id", stageId);
+        .from("v_visa_stage_industries_roles")
+        .select("industry_id, industry_name, industry_role_id, industry_role, area")
+        .eq("sub_class", subClass)
+        .eq("stage", stageId)
+        .eq("country_name", countryName);
 
       if (error) {
         console.error("Failed to load industries:", error);
@@ -70,22 +60,34 @@ const WHVWorkPreferences: React.FC = () => {
       }
 
       if (data) {
-        // Flatten into industry objects
-        const mapped = data.map((d: any) => ({
-          industry_id: d.industry.industry_id,
-          name: d.industry.name,
-          industry_role: d.industry.industry_role || [],
-        }));
-        setIndustries(mapped);
+        const grouped = data.reduce((acc, row) => {
+          if (!acc[row.industry_id]) {
+            acc[row.industry_id] = {
+              industry_id: row.industry_id,
+              name: row.industry_name,
+              roles: [],
+            };
+          }
+          if (row.industry_role) {
+            acc[row.industry_id].roles.push({
+              id: row.industry_role_id,
+              name: row.industry_role,
+            });
+          }
+          return acc;
+        }, {} as Record<number, IndustryWithRoles>);
+
+        setIndustries(Object.values(grouped));
+
+        const uniqueAreas = Array.from(new Set(data.map((row) => row.area).filter(Boolean)));
+        setAvailableAreas(uniqueAreas);
       }
     };
 
-    loadIndustries();
-  }, [stageId]);
+    loadData();
+  }, [subClass, stageId, countryName]);
 
-  // ==========================
   // Toggle helpers
-  // ==========================
   const toggleIndustry = (industryId: number) => {
     if (selectedIndustries.includes(industryId)) {
       setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
@@ -123,9 +125,7 @@ const WHVWorkPreferences: React.FC = () => {
     );
   };
 
-  // ==========================
-  // Save to Supabase
-  // ==========================
+  // Save preferences
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const {
@@ -133,10 +133,8 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // update tagline
     await supabase.from("whv_maker").update({ tagline }).eq("user_id", user.id);
 
-    // insert preferences
     for (const industryId of selectedIndustries) {
       const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
       for (const roleId of rolesForIndustry) {
@@ -155,23 +153,20 @@ const WHVWorkPreferences: React.FC = () => {
     navigate("/whv/work-experience");
   };
 
-  // ==========================
-  // Render
-  // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
+          <div className="px-6 py-6 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
               <button
                 onClick={() => navigate("/whv/profile-setup")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
+                className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center"
               >
-                <ArrowLeft size={20} className="text-gray-600" />
+                <ArrowLeft size={22} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">Work Preferences</h1>
+              <h1 className="text-xl font-semibold text-gray-900">Work Preferences</h1>
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
@@ -179,7 +174,7 @@ const WHVWorkPreferences: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-6">
+          <div className="flex-1 overflow-y-auto px-6 py-6">
             <form onSubmit={handleSubmit} className="space-y-8 pb-20">
               {/* Tagline */}
               <div className="space-y-2">
@@ -223,18 +218,18 @@ const WHVWorkPreferences: React.FC = () => {
                     {industries
                       .filter((i) => selectedIndustries.includes(i.industry_id))
                       .flatMap((ind) =>
-                        ind.industry_role.map((r) => (
+                        ind.roles.map((r) => (
                           <button
                             type="button"
-                            key={r.industry_role_id}
-                            onClick={() => toggleRole(r.industry_role_id)}
+                            key={r.id}
+                            onClick={() => toggleRole(r.id)}
                             className={`px-3 py-1.5 rounded-full text-xs border ${
-                              selectedRoles.includes(r.industry_role_id)
+                              selectedRoles.includes(r.id)
                                 ? "bg-orange-500 text-white border-orange-500"
                                 : "bg-white text-gray-700 border-gray-300"
                             }`}
                           >
-                            {r.role}
+                            {r.name}
                           </button>
                         ))
                       )}
@@ -268,7 +263,7 @@ const WHVWorkPreferences: React.FC = () => {
               <div className="space-y-3">
                 <Label>Preferred Areas (up to 3) *</Label>
                 <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                  {Object.values(AreaRestriction).map((area) => (
+                  {availableAreas.map((area) => (
                     <label key={area} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -287,10 +282,10 @@ const WHVWorkPreferences: React.FC = () => {
               </div>
 
               {/* Continue */}
-              <div className="pt-8">
+              <div className="pt-10">
                 <Button
                   type="submit"
-                  className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
+                  className="w-full h-16 text-base font-semibold rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   Continue →
                 </Button>
@@ -304,6 +299,5 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
-
 
 
