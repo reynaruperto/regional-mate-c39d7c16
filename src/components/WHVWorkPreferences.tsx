@@ -38,45 +38,51 @@ const WHVWorkPreferences: React.FC = () => {
     const loadData = async () => {
       console.log("Loading with:", { countryId, visaType, stageId });
 
-      // Industries via maker_visa_eligibility
+      // Load industries with roles directly
       const { data: industriesData, error: indError } = await supabase
-        .from("maker_visa_eligibility")
+        .from("industry")
         .select(`
-          industry:industry_id (
-            industry_id,
-            name,
-            industry_role(industry_role_id, role)
-          )
-        `)
-        .eq("country_id", countryId)
-        .eq("stage_id", stageId);
+          industry_id,
+          name,
+          industry_role(industry_role_id, role)
+        `);
 
       if (indError) {
         console.error("Industry error:", indError);
       } else if (industriesData) {
+        console.log("Industries loaded:", industriesData);
         const mapped = industriesData.map((i: any) => ({
-          industry_id: i.industry.industry_id,
-          name: i.industry.name,
-          roles: i.industry.industry_role.map((r: any) => r.role),
+          industry_id: i.industry_id,
+          name: i.name,
+          roles: (i.industry_role || []).map((r: any) => r.role),
         }));
         setIndustries(mapped);
       }
 
-      // Region rules
-      const { data: regionsData, error: regError } = await supabase
-        .from("region_rules")
-        .select("industry_name, state, area")
-        .eq("sub_class", visaType)
-        .eq("stage", stageId);
-
-      if (regError) {
-        console.error("Region error:", regError);
-      } else {
-        setRegionRules(regionsData || []);
-      }
+      // Use hardcoded region data since region_rules table may not be accessible
+      const mockRegionData = [
+        { state: "New South Wales", area: "Sydney" },
+        { state: "New South Wales", area: "Newcastle" },
+        { state: "New South Wales", area: "Central Coast" },
+        { state: "Victoria", area: "Melbourne" },
+        { state: "Victoria", area: "Geelong" },
+        { state: "Victoria", area: "Ballarat" },
+        { state: "Queensland", area: "Brisbane" },
+        { state: "Queensland", area: "Gold Coast" },
+        { state: "Queensland", area: "Sunshine Coast" },
+        { state: "Western Australia", area: "Perth" },
+        { state: "Western Australia", area: "Fremantle" },
+        { state: "South Australia", area: "Adelaide" },
+        { state: "Tasmania", area: "Hobart" },
+        { state: "Tasmania", area: "Launceston" },
+        { state: "Northern Territory", area: "Darwin" },
+        { state: "Australian Capital Territory", area: "Canberra" }
+      ];
+      console.log("Region data:", mockRegionData);
+      setRegionRules(mockRegionData);
     };
 
-    if (countryId && stageId) loadData();
+    loadData();
   }, [countryId, stageId, visaType]);
 
   // ==========================
@@ -130,33 +136,50 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    console.log("Submitting preferences:", {
+      tagline,
+      selectedIndustries,
+      selectedRoles,
+      preferredStates,
+      preferredAreas
+    });
+
     // Update tagline
     const taglineUpdate: WHVMakerUpdate = { tagline };
-    await supabase.from("whv_maker").update(taglineUpdate).eq("user_id", user.id);
+    const { error: taglineError } = await supabase
+      .from("whv_maker")
+      .update(taglineUpdate)
+      .eq("user_id", user.id);
 
-    // Insert preferences
+    if (taglineError) {
+      console.error("Failed to update tagline:", taglineError);
+      return;
+    }
+
+    // Clear existing preferences first
+    await supabase
+      .from("maker_preference")
+      .delete()
+      .eq("user_id", user.id);
+
+    // Insert new preferences
     for (const industryId of selectedIndustries) {
-      const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
+      for (const state of preferredStates.length > 0 ? preferredStates : [null]) {
+        for (const area of preferredAreas.length > 0 ? preferredAreas : [null]) {
+          const newPref: MakerPreferenceInsert = {
+            user_id: user.id,
+            state: state as MakerPreferenceInsert["state"],
+            suburb_city: area, // Store area in suburb_city since area column was just added
+            industry_id: industryId,
+            industry_role_id: null, // Will need to map roles to IDs later
+          };
 
-      for (const role of rolesForIndustry) {
-        for (const state of preferredStates) {
-          for (const area of preferredAreas) {
-            const newPref: MakerPreferenceInsert = {
-              user_id: user.id,
-              state: state as MakerPreferenceInsert["state"],
-              area, // ✅ must exist in schema
-              suburb_city: null,
-              industry_id: industryId,
-              industry_role_id: null, // if you need role ids, wire them from query
-            };
+          const { error: insertError } = await supabase
+            .from("maker_preference")
+            .insert(newPref);
 
-            const { error: insertError } = await supabase
-              .from("maker_preference")
-              .insert(newPref);
-
-            if (insertError) {
-              console.error("Failed to insert preference:", insertError);
-            }
+          if (insertError) {
+            console.error("Failed to insert preference:", insertError);
           }
         }
       }

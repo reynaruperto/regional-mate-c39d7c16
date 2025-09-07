@@ -92,15 +92,8 @@ const WHVProfileSetup: React.FC = () => {
       //   .select("visa_stage(stage_id,label,sub_class,stage)")
       //   .eq("country_id", selectedCountry.country_id);
 
-      // For demo purposes, filter by country scheme
-      const filteredByScheme = visaStages.filter((stage) => {
-        if (selectedCountry.scheme === "417") {
-          return stage.sub_class === "417";
-        } else if (selectedCountry.scheme === "462") {
-          return stage.sub_class === "462";
-        }
-        return true;
-      });
+      // For demo purposes, show all visa stages since scheme is not available
+      const filteredByScheme = visaStages;
       
       setFilteredStages(filteredByScheme);
     };

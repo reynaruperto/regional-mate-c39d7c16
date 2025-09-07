@@ -18,19 +18,52 @@ export type Database = {
         Row: {
           country_id: number
           name: string
-          scheme: string
         }
         Insert: {
           country_id?: number
           name: string
-          scheme: string
         }
         Update: {
           country_id?: number
           name?: string
-          scheme?: string
         }
         Relationships: []
+      }
+      country_eligibility: {
+        Row: {
+          country_id: number
+          created_at: string | null
+          eligibility_id: string
+          stage_id: number
+        }
+        Insert: {
+          country_id: number
+          created_at?: string | null
+          eligibility_id?: string
+          stage_id: number
+        }
+        Update: {
+          country_id?: number
+          created_at?: string | null
+          eligibility_id?: string
+          stage_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "country_eligibility_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "country"
+            referencedColumns: ["country_id"]
+          },
+          {
+            foreignKeyName: "country_eligibility_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "visa_stage"
+            referencedColumns: ["stage_id"]
+          },
+        ]
       }
       employer: {
         Row: {
@@ -107,13 +140,6 @@ export type Database = {
           website?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "employer_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "industry"
-            referencedColumns: ["industry_id"]
-          },
           {
             foreignKeyName: "employer_user_id_fkey"
             columns: ["user_id"]
@@ -218,17 +244,17 @@ export type Database = {
       }
       industry_role: {
         Row: {
-          industry_id: number
+          industry_id: number | null
           industry_role_id: number
           role: string
         }
         Insert: {
-          industry_id: number
+          industry_id?: number | null
           industry_role_id?: number
           role: string
         }
         Update: {
-          industry_id?: number
+          industry_id?: number | null
           industry_role_id?: number
           role?: string
         }
@@ -402,6 +428,7 @@ export type Database = {
       }
       maker_preference: {
         Row: {
+          area: string | null
           industry_id: number | null
           industry_role_id: number | null
           preference_id: number
@@ -410,6 +437,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          area?: string | null
           industry_id?: number | null
           industry_role_id?: number | null
           preference_id?: number
@@ -418,6 +446,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          area?: string | null
           industry_id?: number | null
           industry_role_id?: number | null
           preference_id?: number
@@ -426,20 +455,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "maker_preference_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "industry"
-            referencedColumns: ["industry_id"]
-          },
-          {
-            foreignKeyName: "maker_preference_industry_role_id_fkey"
-            columns: ["industry_role_id"]
-            isOneToOne: false
-            referencedRelation: "industry_role"
-            referencedColumns: ["industry_role_id"]
-          },
           {
             foreignKeyName: "maker_preference_user_id_fkey"
             columns: ["user_id"]
@@ -519,38 +534,88 @@ export type Database = {
           },
         ]
       }
+      maker_visa_eligibility: {
+        Row: {
+          country_id: number | null
+          id: string
+          industry_id: number | null
+          stage_id: number | null
+        }
+        Insert: {
+          country_id?: number | null
+          id?: string
+          industry_id?: number | null
+          stage_id?: number | null
+        }
+        Update: {
+          country_id?: number | null
+          id?: string
+          industry_id?: number | null
+          stage_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maker_visa_eligibility_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "country"
+            referencedColumns: ["country_id"]
+          },
+          {
+            foreignKeyName: "maker_visa_eligibility_industry_id_fkey"
+            columns: ["industry_id"]
+            isOneToOne: false
+            referencedRelation: "industry"
+            referencedColumns: ["industry_id"]
+          },
+          {
+            foreignKeyName: "maker_visa_eligibility_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "visa_stage"
+            referencedColumns: ["stage_id"]
+          },
+        ]
+      }
       maker_work_experience: {
         Row: {
-          company: string | null
-          end_date: string | null
-          industry: string | null
+          company: string
+          end_date: string
+          industry_id: number
           location: string | null
-          position: string | null
-          start_date: string | null
+          position: string
+          start_date: string
           user_id: string
           work_experience_id: number
         }
         Insert: {
-          company?: string | null
-          end_date?: string | null
-          industry?: string | null
+          company: string
+          end_date: string
+          industry_id: number
           location?: string | null
-          position?: string | null
-          start_date?: string | null
+          position: string
+          start_date: string
           user_id: string
           work_experience_id?: number
         }
         Update: {
-          company?: string | null
-          end_date?: string | null
-          industry?: string | null
+          company?: string
+          end_date?: string
+          industry_id?: number
           location?: string | null
-          position?: string | null
-          start_date?: string | null
+          position?: string
+          start_date?: string
           user_id?: string
           work_experience_id?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "maker_work_experience_industry_id_fkey"
+            columns: ["industry_id"]
+            isOneToOne: false
+            referencedRelation: "industry"
+            referencedColumns: ["industry_id"]
+          },
           {
             foreignKeyName: "maker_work_experience_user_id_fkey"
             columns: ["user_id"]
@@ -564,6 +629,7 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string
+          encrypt_email: string | null
           id: string
           updated_at: string | null
           user_id: string
@@ -572,6 +638,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           email: string
+          encrypt_email?: string | null
           id?: string
           updated_at?: string | null
           user_id: string
@@ -580,6 +647,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           email?: string
+          encrypt_email?: string | null
           id?: string
           updated_at?: string | null
           user_id?: string
@@ -608,6 +676,60 @@ export type Database = {
         }
         Relationships: []
       }
+      region_rules: {
+        Row: {
+          area: string
+          created_at: string | null
+          id: string
+          industry_name: string
+          postcode_range: string | null
+          stage: string
+          state: string
+          sub_class: string
+        }
+        Insert: {
+          area: string
+          created_at?: string | null
+          id?: string
+          industry_name: string
+          postcode_range?: string | null
+          stage: string
+          state: string
+          sub_class: string
+        }
+        Update: {
+          area?: string
+          created_at?: string | null
+          id?: string
+          industry_name?: string
+          postcode_range?: string | null
+          stage?: string
+          state?: string
+          sub_class?: string
+        }
+        Relationships: []
+      }
+      temp_eligibility: {
+        Row: {
+          country_name: string
+          industry_name: string
+          stage: number
+          sub_class: string
+        }
+        Insert: {
+          country_name: string
+          industry_name: string
+          stage: number
+          sub_class: string
+        }
+        Update: {
+          country_name?: string
+          industry_name?: string
+          stage?: number
+          sub_class?: string
+        }
+        Relationships: []
+      }
       visa_stage: {
         Row: {
           label: string
@@ -631,7 +753,7 @@ export type Database = {
       }
       whv_maker: {
         Row: {
-          address_line1: string | null
+          address_line1: string
           address_line2: string | null
           birth_date: string
           city: string | null
@@ -640,18 +762,18 @@ export type Database = {
           given_name: string
           is_profile_visible: boolean | null
           middle_name: string | null
-          mobile_num: string | null
+          mobile_num: string
           nationality: Database["public"]["Enums"]["nationality"]
-          postcode: string | null
+          postcode: string
           profile_photo: string | null
-          state: Database["public"]["Enums"]["state"] | null
-          suburb: string | null
+          state: Database["public"]["Enums"]["state"]
+          suburb: string
           tagline: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
-          address_line1?: string | null
+          address_line1: string
           address_line2?: string | null
           birth_date: string
           city?: string | null
@@ -660,18 +782,18 @@ export type Database = {
           given_name: string
           is_profile_visible?: boolean | null
           middle_name?: string | null
-          mobile_num?: string | null
+          mobile_num: string
           nationality: Database["public"]["Enums"]["nationality"]
-          postcode?: string | null
+          postcode: string
           profile_photo?: string | null
-          state?: Database["public"]["Enums"]["state"] | null
-          suburb?: string | null
+          state: Database["public"]["Enums"]["state"]
+          suburb: string
           tagline?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
-          address_line1?: string | null
+          address_line1?: string
           address_line2?: string | null
           birth_date?: string
           city?: string | null
@@ -680,12 +802,12 @@ export type Database = {
           given_name?: string
           is_profile_visible?: boolean | null
           middle_name?: string | null
-          mobile_num?: string | null
+          mobile_num?: string
           nationality?: Database["public"]["Enums"]["nationality"]
-          postcode?: string | null
+          postcode?: string
           profile_photo?: string | null
-          state?: Database["public"]["Enums"]["state"] | null
-          suburb?: string | null
+          state?: Database["public"]["Enums"]["state"]
+          suburb?: string
           tagline?: string | null
           updated_at?: string | null
           user_id?: string
@@ -702,7 +824,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_maker_work_history: {
+        Row: {
+          company: string | null
+          location: string | null
+          position: string | null
+          years_of_experience: unknown | null
+        }
+        Insert: {
+          company?: string | null
+          location?: string | null
+          position?: string | null
+          years_of_experience?: never
+        }
+        Update: {
+          company?: string | null
+          location?: string | null
+          position?: string | null
+          years_of_experience?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_profile_photo_url: {
