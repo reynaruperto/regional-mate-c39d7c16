@@ -17,22 +17,28 @@ const WHVWorkPreferences: React.FC = () => {
   const location = useLocation();
 
   const { countryId, visaType, stageId } =
-    (location.state as { countryId: number; visaType: string; stageId: number }) || {};
+    (location.state as { countryId: number; visaType: string; stageId: number }) || {
+      countryId: 0,
+      visaType: "417",
+      stageId: 1,
+    };
 
   const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<any[]>([]);
   const [regionRules, setRegionRules] = useState<any[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
 
   // ==========================
-  // Load industries + region rules
+  // Load industries & region rules
   // ==========================
   useEffect(() => {
     const loadData = async () => {
-      // Get industries eligible for this visa
+      console.log("Loading with:", { countryId, visaType, stageId });
+
+      // Industries via maker_visa_eligibility
       const { data: industriesData, error: indError } = await supabase
         .from("maker_visa_eligibility")
         .select(`
@@ -45,55 +51,33 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("country_id", countryId)
         .eq("stage_id", stageId);
 
-      if (!indError && industriesData) {
+      if (indError) {
+        console.error("Industry error:", indError);
+      } else if (industriesData) {
         const mapped = industriesData.map((i: any) => ({
           industry_id: i.industry.industry_id,
           name: i.industry.name,
-          roles: i.industry.industry_role.map((r: any) => ({
-            id: r.industry_role_id,
-            name: r.role,
-          })),
+          roles: i.industry.industry_role.map((r: any) => r.role),
         }));
         setIndustries(mapped);
       }
 
-      // Get region rules for this visa
+      // Region rules
       const { data: regionsData, error: regError } = await supabase
         .from("region_rules")
-        .select("industry_name, state, area, postcode_range")
+        .select("industry_name, state, area")
         .eq("sub_class", visaType)
         .eq("stage", stageId);
 
-      if (!regError && regionsData) {
-        setRegionRules(regionsData);
+      if (regError) {
+        console.error("Region error:", regError);
+      } else {
+        setRegionRules(regionsData || []);
       }
     };
 
     if (countryId && stageId) loadData();
   }, [countryId, stageId, visaType]);
-
-  // ==========================
-  // Validation tooltip
-  // ==========================
-  const getIndustryTooltip = (
-    industry: string,
-    state: string,
-    area: string
-  ): string => {
-    const rulesForIndustry = regionRules.filter((r) => r.industry_name === industry);
-
-    if (rulesForIndustry.length === 0) {
-      return `⚠️ No rules for ${industry}.`;
-    }
-
-    const valid = rulesForIndustry.some(
-      (r) => r.state === state && r.area === area
-    );
-
-    return valid
-      ? `✅ ${industry} is eligible in ${state} (${area})`
-      : `⚠️ ${industry} not valid in ${state} (${area})`;
-  };
 
   // ==========================
   // Toggle helpers
@@ -107,11 +91,11 @@ const WHVWorkPreferences: React.FC = () => {
     }
   };
 
-  const toggleRole = (roleId: number) => {
+  const toggleRole = (role: string) => {
     setSelectedRoles(
-      selectedRoles.includes(roleId)
-        ? selectedRoles.filter((r) => r !== roleId)
-        : [...selectedRoles, roleId]
+      selectedRoles.includes(role)
+        ? selectedRoles.filter((r) => r !== role)
+        : [...selectedRoles, role]
     );
   };
 
@@ -146,24 +130,24 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Update tagline (typed)
+    // Update tagline
     const taglineUpdate: WHVMakerUpdate = { tagline };
     await supabase.from("whv_maker").update(taglineUpdate).eq("user_id", user.id);
 
-    // Insert preferences (typed)
+    // Insert preferences
     for (const industryId of selectedIndustries) {
       const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
 
-      for (const roleId of rolesForIndustry) {
+      for (const role of rolesForIndustry) {
         for (const state of preferredStates) {
           for (const area of preferredAreas) {
             const newPref: MakerPreferenceInsert = {
               user_id: user.id,
-              state: state as MakerPreferenceInsert["state"], // enum safe
-              area, // ✅ separate column
+              state: state as MakerPreferenceInsert["state"],
+              area, // ✅ must exist in schema
               suburb_city: null,
               industry_id: industryId,
-              industry_role_id: roleId ?? null,
+              industry_role_id: null, // if you need role ids, wire them from query
             };
 
             const { error: insertError } = await supabase
@@ -197,9 +181,12 @@ const WHVWorkPreferences: React.FC = () => {
               >
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Work Preferences
-              </h1>
+              <div className="text-center flex-1">
+                <h1 className="text-lg font-semibold text-gray-900">Work Preferences</h1>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Visa {visaType} · Stage {stageId}
+                </p>
+              </div>
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
@@ -208,68 +195,70 @@ const WHVWorkPreferences: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
-            <form onSubmit={handleSubmit} className="space-y-8 pb-20">
-              <p className="text-sm text-gray-500">
-                Showing industries eligible for your visa ({visaType}, stage {stageId})
-              </p>
-
+            <form onSubmit={handleSubmit} className="space-y-8 pb-24">
               {/* Tagline */}
               <div className="space-y-2">
-                <Label>Profile Tagline *</Label>
+                <Label className="font-medium">Profile Tagline *</Label>
                 <Input
                   type="text"
                   value={tagline}
                   onChange={(e) => setTagline(e.target.value)}
-                  className="h-12 bg-gray-100 border-0"
+                  className="h-12 bg-gray-100 border-0 rounded-lg text-sm"
+                  placeholder="e.g. Hardworking traveler ready to contribute"
                   maxLength={60}
                 />
+                <p className="text-xs text-gray-400">Max 60 characters</p>
               </div>
 
               {/* Industries */}
               <div className="space-y-3">
-                <Label>Select up to 3 industries *</Label>
-                <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                  {industries.map((ind) => (
-                    <label
-                      key={ind.industry_id}
-                      className="flex items-center space-x-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedIndustries.includes(ind.industry_id)}
-                        disabled={
-                          selectedIndustries.length >= 3 &&
-                          !selectedIndustries.includes(ind.industry_id)
-                        }
-                        onChange={() => toggleIndustry(ind.industry_id)}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm text-gray-700">{ind.name}</span>
-                    </label>
-                  ))}
+                <Label className="font-medium">Select up to 3 industries *</Label>
+                <div className="max-h-48 overflow-y-auto border rounded-lg p-3 space-y-2">
+                  {industries.length === 0 ? (
+                    <p className="text-sm text-gray-500">No industries available</p>
+                  ) : (
+                    industries.map((ind) => (
+                      <label
+                        key={ind.industry_id}
+                        className="flex items-center space-x-3 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIndustries.includes(ind.industry_id)}
+                          disabled={
+                            selectedIndustries.length >= 3 &&
+                            !selectedIndustries.includes(ind.industry_id)
+                          }
+                          onChange={() => toggleIndustry(ind.industry_id)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700">{ind.name}</span>
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
 
               {/* Roles */}
               {selectedIndustries.length > 0 && (
                 <div className="space-y-3">
-                  <Label>Select roles</Label>
+                  <Label className="font-medium">Select roles</Label>
                   <div className="flex flex-wrap gap-2">
                     {industries
                       .filter((i) => selectedIndustries.includes(i.industry_id))
                       .flatMap((ind) =>
-                        ind.roles.map((r: any) => (
+                        ind.roles.map((r: string) => (
                           <button
                             type="button"
-                            key={r.id}
-                            onClick={() => toggleRole(r.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs border ${
-                              selectedRoles.includes(r.id)
-                                ? "bg-orange-500 text-white border-orange-500"
-                                : "bg-white text-gray-700 border-gray-300"
+                            key={r}
+                            onClick={() => toggleRole(r)}
+                            className={`px-4 py-2 rounded-full text-xs font-medium transition ${
+                              selectedRoles.includes(r)
+                                ? "bg-orange-500 text-white"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                             }`}
                           >
-                            {r.name}
+                            {r}
                           </button>
                         ))
                       )}
@@ -277,87 +266,53 @@ const WHVWorkPreferences: React.FC = () => {
                 </div>
               )}
 
-              {/* States */}
+              {/* States + Areas */}
               <div className="space-y-3">
-                <Label>Preferred States (up to 3) *</Label>
-                <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                  {[...new Set(regionRules.map((r) => r.state))].map((state) => (
-                    <label key={state} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={preferredStates.includes(state)}
-                        disabled={
-                          preferredStates.length >= 3 &&
-                          !preferredStates.includes(state)
-                        }
-                        onChange={() => togglePreferredState(state)}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm text-gray-700">{state}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                <Label className="font-medium">Preferred States & Areas (up to 3 each)</Label>
+                <div className="max-h-60 overflow-y-auto border rounded-lg p-3 space-y-3">
+                  {[...new Set(regionRules.map((r) => r.state))].map((state) => {
+                    const areasForState = regionRules
+                      .filter((r) => r.state === state)
+                      .map((r) => r.area);
 
-              {/* Areas */}
-              <div className="space-y-3">
-                <Label>Preferred Areas (up to 3) *</Label>
-                <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                  {[...new Set(regionRules.map((r) => r.area))].map((area) => (
-                    <label key={area} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={preferredAreas.includes(area)}
-                        disabled={
-                          preferredAreas.length >= 3 &&
-                          !preferredAreas.includes(area)
-                        }
-                        onChange={() => togglePreferredArea(area)}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm text-gray-700">{area}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tooltips */}
-              {selectedIndustries.length > 0 &&
-                preferredStates.length > 0 &&
-                preferredAreas.length > 0 && (
-                  <div className="space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
-                    {selectedIndustries.map((indId) => {
-                      const industry = industries.find(
-                        (i) => i.industry_id === indId
-                      );
-                      return preferredStates.map((state) =>
-                        preferredAreas.map((area) => (
-                          <p
-                            key={`${industry?.name}-${state}-${area}`}
-                            className={`${
-                              getIndustryTooltip(industry?.name, state, area).includes("⚠️")
-                                ? "text-yellow-600"
-                                : "text-green-600"
-                            }`}
+                    return (
+                      <div key={state}>
+                        <p className="font-medium text-sm text-gray-700">{state}</p>
+                        {areasForState.map((area) => (
+                          <label
+                            key={`${state}-${area}`}
+                            className="flex items-center space-x-3 cursor-pointer ml-3"
                           >
-                            {getIndustryTooltip(industry?.name, state, area)}
-                          </p>
-                        ))
-                      );
-                    })}
-                  </div>
-                )}
-
-              {/* Continue */}
-              <div className="pt-8">
-                <Button
-                  type="submit"
-                  className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
-                >
-                  Continue →
-                </Button>
+                            <input
+                              type="checkbox"
+                              checked={preferredAreas.includes(area)}
+                              disabled={
+                                preferredAreas.length >= 3 &&
+                                !preferredAreas.includes(area)
+                              }
+                              onChange={() => togglePreferredArea(area)}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <span className="text-sm text-gray-700">{area}</span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </form>
+          </div>
+
+          {/* Continue */}
+          <div className="p-4 border-t bg-white">
+            <Button
+              type="submit"
+              className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
+              onClick={handleSubmit}
+            >
+              Continue →
+            </Button>
           </div>
         </div>
       </div>
