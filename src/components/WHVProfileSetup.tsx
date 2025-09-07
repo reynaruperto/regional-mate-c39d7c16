@@ -75,22 +75,26 @@ const WHVProfileSetup: React.FC = () => {
         setVisaStages([]);
         return;
       }
+      
       const { data, error } = await supabase
         .from("country_eligibility")
-        .select(
-          `
+        .select(`
           stage_id,
-          visa_stage (
+          visa_stage!inner (
             stage_id,
             sub_class,
             stage,
             label
           )
-        `
-        )
+        `)
         .eq("country_id", formData.countryId);
 
-      if (!error && data) setVisaStages(data.map((d) => d.visa_stage));
+      if (!error && data) {
+        const stages = data
+          .map((item) => item.visa_stage)
+          .filter((stage): stage is VisaStageLite => stage !== null);
+        setVisaStages(stages);
+      }
     };
     fetchVisaStages();
   }, [formData.countryId]);
@@ -169,10 +173,10 @@ const WHVProfileSetup: React.FC = () => {
     await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        stage_id: formData.stageId,
+        visa_type: visaStages.find((v) => v.stage_id === formData.stageId)?.sub_class as any,
         expiry_date: formData.visaExpiry,
-      } as any,
-      { onConflict: "user_id,stage_id" }
+      },
+      { onConflict: "user_id" }
     );
 
     navigate("/whv/work-preferences", {
