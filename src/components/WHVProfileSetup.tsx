@@ -184,8 +184,9 @@ const WHVProfileSetup: React.FC = () => {
 
     const visaDataToSave = {
       user_id: user.id,
-      visa_type: mappedVisaType,  // now plain text
+      visa_type: mappedVisaType,
       expiry_date: formData.visaExpiry,
+      country_id: formData.countryId, // ✅ added this
     };
 
     console.log("Visa data to save:", visaDataToSave);
