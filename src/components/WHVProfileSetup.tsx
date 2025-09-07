@@ -113,6 +113,7 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // ✅ Save profile to whv_maker
+    const selectedCountryData = countries.find((c) => c.country_id === formData.countryId);
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -120,12 +121,12 @@ const WHVProfileSetup: React.FC = () => {
         middle_name: formData.middleName || null,
         family_name: formData.familyName,
         birth_date: formData.dateOfBirth,
-        country_id: formData.countryId, // 👈 use ID
+        nationality: selectedCountryData?.name as any,
         mobile_num: formData.phone,
         address_line1: formData.address1,
         address_line2: formData.address2 || null,
         suburb: formData.suburb,
-        state: formData.state,
+        state: formData.state as any,
         postcode: formData.postcode,
       },
       { onConflict: "user_id" }
@@ -137,13 +138,14 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // ✅ Save visa to maker_visa
+    const selectedStage = visaStages.find((v) => v.stage_id === formData.stageId);
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        stage_id: formData.stageId,     // 👈 use ID
+        visa_type: selectedStage?.label as any,
         expiry_date: formData.visaExpiry,
       },
-      { onConflict: "user_id,stage_id" }
+      { onConflict: "user_id" }
     );
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
