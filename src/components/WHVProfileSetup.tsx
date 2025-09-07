@@ -192,18 +192,15 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // Save visa details
-    const visaDataToSave = {
-      user_id: user.id,
-      visa_type: mappedVisaType,       // readable text
-      expiry_date: formData.visaExpiry,
-      country_id: formData.countryId,  // FK → country
-      stage_id: selectedStage.stage_id // FK → visa_stage
-    };
-
-    console.log("Visa data to save:", visaDataToSave);
-
     const { error: visaError } = await supabase.from("maker_visa").upsert(
-      visaDataToSave as any
+      {
+        user_id: user.id,
+        country_id: formData.countryId,
+        stage_id: selectedStage.stage_id,
+        dob: formData.dateOfBirth,
+        expiry_date: formData.visaExpiry,
+      } as any,
+      { onConflict: "user_id" }
     );
 
     if (visaError) {

@@ -266,6 +266,13 @@ export type Database = {
             referencedRelation: "industry"
             referencedColumns: ["industry_id"]
           },
+          {
+            foreignKeyName: "industry_role_industry_id_fkey"
+            columns: ["industry_id"]
+            isOneToOne: false
+            referencedRelation: "v_visa_stage_industries_roles"
+            referencedColumns: ["industry_id"]
+          },
         ]
       }
       job: {
@@ -510,27 +517,46 @@ export type Database = {
       }
       maker_visa: {
         Row: {
+          country_id: number
+          created_at: string | null
+          dob: string
           expiry_date: string
+          stage_id: number
+          updated_at: string | null
           user_id: string
-          visa_type: Database["public"]["Enums"]["visa_type"]
         }
         Insert: {
+          country_id: number
+          created_at?: string | null
+          dob: string
           expiry_date: string
+          stage_id: number
+          updated_at?: string | null
           user_id: string
-          visa_type: Database["public"]["Enums"]["visa_type"]
         }
         Update: {
+          country_id?: number
+          created_at?: string | null
+          dob?: string
           expiry_date?: string
+          stage_id?: number
+          updated_at?: string | null
           user_id?: string
-          visa_type?: Database["public"]["Enums"]["visa_type"]
         }
         Relationships: [
           {
-            foreignKeyName: "maker_visa_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "maker_visa_country_id_fkey"
+            columns: ["country_id"]
             isOneToOne: false
-            referencedRelation: "profile"
-            referencedColumns: ["user_id"]
+            referencedRelation: "country"
+            referencedColumns: ["country_id"]
+          },
+          {
+            foreignKeyName: "maker_visa_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "visa_stage"
+            referencedColumns: ["stage_id"]
           },
         ]
       }
@@ -566,6 +592,13 @@ export type Database = {
             columns: ["industry_id"]
             isOneToOne: false
             referencedRelation: "industry"
+            referencedColumns: ["industry_id"]
+          },
+          {
+            foreignKeyName: "maker_visa_eligibility_industry_id_fkey"
+            columns: ["industry_id"]
+            isOneToOne: false
+            referencedRelation: "v_visa_stage_industries_roles"
             referencedColumns: ["industry_id"]
           },
           {
@@ -614,6 +647,13 @@ export type Database = {
             columns: ["industry_id"]
             isOneToOne: false
             referencedRelation: "industry"
+            referencedColumns: ["industry_id"]
+          },
+          {
+            foreignKeyName: "maker_work_experience_industry_id_fkey"
+            columns: ["industry_id"]
+            isOneToOne: false
+            referencedRelation: "v_visa_stage_industries_roles"
             referencedColumns: ["industry_id"]
           },
           {
@@ -681,7 +721,7 @@ export type Database = {
           area: string
           created_at: string | null
           id: string
-          industry_name: string
+          industry_id: number | null
           postcode_range: string | null
           stage: string
           state: string
@@ -691,7 +731,7 @@ export type Database = {
           area: string
           created_at?: string | null
           id?: string
-          industry_name: string
+          industry_id?: number | null
           postcode_range?: string | null
           stage: string
           state: string
@@ -701,7 +741,7 @@ export type Database = {
           area?: string
           created_at?: string | null
           id?: string
-          industry_name?: string
+          industry_id?: number | null
           postcode_range?: string | null
           stage?: string
           state?: string
@@ -824,6 +864,21 @@ export type Database = {
       }
     }
     Views: {
+      v_visa_stage_industries_roles: {
+        Row: {
+          area: string | null
+          country_name: string | null
+          industry_id: number | null
+          industry_name: string | null
+          industry_role_id: number | null
+          role_name: string | null
+          stage: number | null
+          state: string | null
+          sub_class: string | null
+          visa_stage_label: string | null
+        }
+        Relationships: []
+      }
       vw_maker_work_history: {
         Row: {
           company: string | null
