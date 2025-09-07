@@ -48,7 +48,7 @@ const WHVOnboardingForm: React.FC = () => {
     try {
       const trimmedEmail = data.email.trim().toLowerCase();
       
-      const { error } = await supabase.auth.signUp({
+      const { error, data: signUpData } = await supabase.auth.signUp({
         email: trimmedEmail,
         password: data.password,
         options: {
@@ -57,17 +57,14 @@ const WHVOnboardingForm: React.FC = () => {
         }
       });
 
+      // Check if user already exists (identities will be empty for existing confirmed users)
+      if (signUpData?.user?.identities?.length === 0) {
+        setDuplicateEmailError("An account with this email already exists. Please sign in instead.");
+        return;
+      }
+
       if (error) {
         console.error("Signup error details:", error);
-        
-        // Check for duplicate email errors
-        if (error.message?.includes('already registered') || 
-            error.message?.includes('already exists') ||
-            error.message?.includes('User already registered')) {
-          setDuplicateEmailError("An account with this email already exists. Please sign in instead.");
-          return;
-        }
-        
         throw error;
       }
 
