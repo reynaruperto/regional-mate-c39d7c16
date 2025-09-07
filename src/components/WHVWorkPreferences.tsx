@@ -4,13 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft } from "lucide-react";
 
@@ -32,6 +25,7 @@ const WorkPreferences: React.FC = () => {
   const [profileTagline, setProfileTagline] = useState("");
   const [industries, setIndustries] = useState<IndustryRoleData[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
 
@@ -56,13 +50,14 @@ const WorkPreferences: React.FC = () => {
   const handleContinue = () => {
     console.log("Profile Tagline:", profileTagline);
     console.log("Selected Industries:", selectedIndustries);
+    console.log("Selected Roles:", selectedRoles);
     console.log("Selected States:", selectedStates);
     console.log("Selected Areas:", selectedAreas);
 
     navigate("/next-step"); // adjust route
   };
 
-  // Deduplicate industries for dropdown
+  // Deduplicate industries
   const uniqueIndustries = Array.from(
     new Map(industries.map((item) => [item.industry_id, item])).values()
   );
@@ -72,6 +67,12 @@ const WorkPreferences: React.FC = () => {
 
   // Deduplicate areas
   const uniqueAreas = Array.from(new Set(industries.map((i) => i.area))).filter(Boolean);
+
+  // Roles grouped by industry
+  const rolesByIndustry = uniqueIndustries.map((ind) => ({
+    ...ind,
+    roles: industries.filter((r) => r.industry_id === ind.industry_id),
+  }));
 
   return (
     <div className="p-6 space-y-6 max-w-md mx-auto">
@@ -94,28 +95,56 @@ const WorkPreferences: React.FC = () => {
           />
         </div>
 
+        {/* Industries & Roles */}
         <div>
-          <Label>Select up to 3 industries *</Label>
-          <Select
-            onValueChange={(value) =>
-              setSelectedIndustries((prev) =>
-                prev.includes(Number(value)) ? prev : [...prev, Number(value)].slice(0, 3)
-              )
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Choose industries" />
-            </SelectTrigger>
-            <SelectContent>
-              {uniqueIndustries.map((ind) => (
-                <SelectItem key={ind.industry_id} value={String(ind.industry_id)}>
-                  {ind.industry_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label>Select up to 3 industries & their roles *</Label>
+          <div className="space-y-4">
+            {rolesByIndustry.map((ind) => (
+              <div key={ind.industry_id} className="border rounded-md p-3">
+                {/* Industry checkbox */}
+                <label className="flex items-center space-x-2 font-medium">
+                  <Checkbox
+                    checked={selectedIndustries.includes(ind.industry_id)}
+                    onCheckedChange={(checked) =>
+                      setSelectedIndustries((prev) =>
+                        checked
+                          ? [...prev, ind.industry_id].slice(0, 3)
+                          : prev.filter((id) => id !== ind.industry_id)
+                      )
+                    }
+                  />
+                  <span>{ind.industry_name}</span>
+                </label>
+
+                {/* Roles */}
+                {selectedIndustries.includes(ind.industry_id) && (
+                  <div className="ml-6 mt-2 space-y-1">
+                    {ind.roles.map((role) => (
+                      <label
+                        key={role.industry_role_id}
+                        className="flex items-center space-x-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={selectedRoles.includes(role.industry_role_id)}
+                          onCheckedChange={(checked) =>
+                            setSelectedRoles((prev) =>
+                              checked
+                                ? [...prev, role.industry_role_id]
+                                : prev.filter((r) => r !== role.industry_role_id)
+                            )
+                          }
+                        />
+                        <span>{role.role_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
+        {/* States */}
         <div>
           <Label>Preferred States (up to 3) *</Label>
           <div className="grid grid-cols-2 gap-2">
@@ -137,6 +166,7 @@ const WorkPreferences: React.FC = () => {
           </div>
         </div>
 
+        {/* Areas */}
         <div>
           <Label>Preferred Areas (up to 3) *</Label>
           <div className="grid grid-cols-2 gap-2">
@@ -167,5 +197,6 @@ const WorkPreferences: React.FC = () => {
 };
 
 export default WorkPreferences;
+
 
 
