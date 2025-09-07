@@ -36,8 +36,8 @@ const WHVProfileSetup: React.FC = () => {
     middleName: "",
     familyName: "",
     dateOfBirth: "",
-    countryId: null as number | null, // store country_id
-    stageId: null as number | null,   // store stage_id
+    countryId: null as number | null, // use country_id not name
+    stageId: null as number | null,   // use stage_id not label
     visaExpiry: "",
     phone: "",
     address1: "",
@@ -73,7 +73,7 @@ const WHVProfileSetup: React.FC = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSelect = (name: string, value: any) => {
+  const handleSelect = (name: string, value: string | number) => {
     setFormData({ ...formData, [name]: value });
   };
 
@@ -112,8 +112,7 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Save profile to whv_maker
-    const selectedCountryData = countries.find((c) => c.country_id === formData.countryId);
+    // ✅ Save profile to whv_maker (using `as any` for schema mismatch)
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -121,14 +120,14 @@ const WHVProfileSetup: React.FC = () => {
         middle_name: formData.middleName || null,
         family_name: formData.familyName,
         birth_date: formData.dateOfBirth,
-        nationality: selectedCountryData?.name as any,
+        country_id: formData.countryId,
         mobile_num: formData.phone,
         address_line1: formData.address1,
         address_line2: formData.address2 || null,
         suburb: formData.suburb,
-        state: formData.state as any,
+        state: formData.state as any, // bypass typing
         postcode: formData.postcode,
-      },
+      } as any,
       { onConflict: "user_id" }
     );
     if (whvError) {
@@ -137,15 +136,14 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Save visa to maker_visa
-    const selectedStage = visaStages.find((v) => v.stage_id === formData.stageId);
+    // ✅ Save visa to maker_visa (using `as any` for schema mismatch)
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        visa_type: selectedStage?.label as any,
+        stage_id: formData.stageId,
         expiry_date: formData.visaExpiry,
-      },
-      { onConflict: "user_id" }
+      } as any,
+      { onConflict: "user_id,stage_id" }
     );
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
@@ -188,7 +186,9 @@ const WHVProfileSetup: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Given Name */}
               <div>
-                <Label>Given Name <span className="text-red-500">*</span></Label>
+                <Label>
+                  Given Name <span className="text-red-500">*</span>
+                </Label>
                 <Input name="givenName" value={formData.givenName} onChange={handleChange} />
                 {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
               </div>
@@ -201,14 +201,18 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Family Name */}
               <div>
-                <Label>Family Name <span className="text-red-500">*</span></Label>
+                <Label>
+                  Family Name <span className="text-red-500">*</span>
+                </Label>
                 <Input name="familyName" value={formData.familyName} onChange={handleChange} />
                 {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
               </div>
 
               {/* Date of Birth */}
               <div>
-                <Label>Date of Birth <span className="text-red-500">*</span></Label>
+                <Label>
+                  Date of Birth <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="dateOfBirth"
                   type="date"
@@ -220,7 +224,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Nationality */}
               <div>
-                <Label>Nationality <span className="text-red-500">*</span></Label>
+                <Label>
+                  Nationality <span className="text-red-500">*</span>
+                </Label>
                 <Select
                   value={formData.countryId?.toString() || ""}
                   onValueChange={(v) => handleSelect("countryId", parseInt(v))}
@@ -242,7 +248,9 @@ const WHVProfileSetup: React.FC = () => {
               {/* Visa Type */}
               {filteredStages.length > 0 && (
                 <div>
-                  <Label>Visa Type <span className="text-red-500">*</span></Label>
+                  <Label>
+                    Visa Type <span className="text-red-500">*</span>
+                  </Label>
                   <Select
                     value={formData.stageId?.toString() || ""}
                     onValueChange={(v) => handleSelect("stageId", parseInt(v))}
@@ -264,7 +272,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Visa Expiry */}
               <div>
-                <Label>Visa Expiry <span className="text-red-500">*</span></Label>
+                <Label>
+                  Visa Expiry <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="visaExpiry"
                   type="date"
@@ -276,7 +286,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Phone */}
               <div>
-                <Label>Phone <span className="text-red-500">*</span></Label>
+                <Label>
+                  Phone <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="phone"
                   value={formData.phone}
@@ -288,7 +300,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Address Line 1 */}
               <div>
-                <Label>Address Line 1 <span className="text-red-500">*</span></Label>
+                <Label>
+                  Address Line 1 <span className="text-red-500">*</span>
+                </Label>
                 <Input name="address1" value={formData.address1} onChange={handleChange} />
                 {errors.address1 && <p className="text-red-500">{errors.address1}</p>}
               </div>
@@ -301,14 +315,18 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Suburb */}
               <div>
-                <Label>Suburb <span className="text-red-500">*</span></Label>
+                <Label>
+                  Suburb <span className="text-red-500">*</span>
+                </Label>
                 <Input name="suburb" value={formData.suburb} onChange={handleChange} />
                 {errors.suburb && <p className="text-red-500">{errors.suburb}</p>}
               </div>
 
               {/* State */}
               <div>
-                <Label>State <span className="text-red-500">*</span></Label>
+                <Label>
+                  State <span className="text-red-500">*</span>
+                </Label>
                 <Select
                   value={formData.state}
                   onValueChange={(v) => handleSelect("state", v)}
@@ -329,7 +347,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Postcode */}
               <div>
-                <Label>Postcode <span className="text-red-500">*</span></Label>
+                <Label>
+                  Postcode <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="postcode"
                   value={formData.postcode}
