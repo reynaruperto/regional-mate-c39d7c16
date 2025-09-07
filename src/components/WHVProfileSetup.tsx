@@ -13,7 +13,6 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/supabase-extensions";
-import type { User, Session } from "@supabase/supabase-js";
 
 type Country = Database["public"]["Tables"]["country"]["Row"];
 type VisaStage = Database["public"]["Tables"]["visa_stage"]["Row"];
@@ -31,19 +30,14 @@ const australianStates = [
 
 const WHVProfileSetup: React.FC = () => {
   const navigate = useNavigate();
-  
-  // Authentication state
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     givenName: "",
     middleName: "",
     familyName: "",
     dateOfBirth: "",
-    nationality: "",
-    visaType: "",
+    countryId: null as number | null, // store country_id
+    stageId: null as number | null,   // store stage_id
     visaExpiry: "",
     phone: "",
     address1: "",
@@ -56,35 +50,6 @@ const WHVProfileSetup: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  // ✅ Set up authentication state listener
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsLoading(false);
-        
-        // Redirect to login if not authenticated
-        if (!session?.user) {
-          navigate("/whv/login");
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-      
-      if (!session?.user) {
-        navigate("/whv/login");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
 
   // ✅ Load countries & visa stages from Supabase
   useEffect(() => {
@@ -108,7 +73,7 @@ const WHVProfileSetup: React.FC = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSelect = (name: string, value: string) => {
+  const handleSelect = (name: string, value: any) => {
     setFormData({ ...formData, [name]: value });
   };
 
@@ -120,8 +85,8 @@ const WHVProfileSetup: React.FC = () => {
     if (!formData.givenName) newErrors.givenName = "Required";
     if (!formData.familyName) newErrors.familyName = "Required";
     if (!formData.dateOfBirth) newErrors.dateOfBirth = "Required";
-    if (!formData.nationality) newErrors.nationality = "Required";
-    if (!formData.visaType) newErrors.visaType = "Required";
+    if (!formData.countryId) newErrors.nationality = "Required";
+    if (!formData.stageId) newErrors.visaType = "Required";
     if (!formData.visaExpiry) newErrors.visaExpiry = "Required";
     if (!formData.phone) {
       newErrors.phone = "Required";
@@ -138,22 +103,24 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // ✅ Check if user is authenticated
-    if (!user || !session) {
-      console.error("User not authenticated");
-      navigate("/whv/login");
+    // ✅ Get user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      alert("User not logged in — please restart signup flow.");
       return;
     }
 
     // ✅ Save profile to whv_maker
-    const { error: whvError } = await (supabase.from("whv_maker") as any).upsert(
+    const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
         given_name: formData.givenName,
         middle_name: formData.middleName || null,
         family_name: formData.familyName,
         birth_date: formData.dateOfBirth,
-        nationality: formData.nationality,
+        country_id: formData.countryId, // 👈 use ID
         mobile_num: formData.phone,
         address_line1: formData.address1,
         address_line2: formData.address2 || null,
@@ -170,44 +137,28 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // ✅ Save visa to maker_visa
-    const chosenStage = visaStages.find((v) => v.label === formData.visaType);
-    const { error: visaError } = await (supabase.from("maker_visa") as any).upsert(
+    const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        visa_type: chosenStage?.label || formData.visaType,
+        stage_id: formData.stageId,     // 👈 use ID
         expiry_date: formData.visaExpiry,
       },
-      { onConflict: "user_id,visa_type" }
+      { onConflict: "user_id,stage_id" }
     );
-    if (whvError) {
-  console.error("❌ WHV insert error:", whvError);
-  alert(`Error saving profile: ${whvError.message}`);
-  return;
-}
-
+    if (visaError) {
+      console.error("Failed to save Visa:", visaError);
+      alert("Error saving visa info. Please try again.");
+      return;
+    }
 
     navigate("/whv/work-preferences");
   };
 
   // ✅ Filter visa stages by nationality’s scheme
-  const selectedCountry = countries.find((c) => c.name === formData.nationality);
+  const selectedCountry = countries.find((c) => c.country_id === formData.countryId);
   const filteredStages = selectedCountry
     ? visaStages.filter((v) => v.sub_class === selectedCountry.scheme)
     : [];
-
-  // Show loading state while checking authentication
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col items-center justify-center">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -235,9 +186,7 @@ const WHVProfileSetup: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Given Name */}
               <div>
-                <Label>
-                  Given Name <span className="text-red-500">*</span>
-                </Label>
+                <Label>Given Name <span className="text-red-500">*</span></Label>
                 <Input name="givenName" value={formData.givenName} onChange={handleChange} />
                 {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
               </div>
@@ -250,21 +199,17 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Family Name */}
               <div>
-                <Label>
-                  Family Name <span className="text-red-500">*</span>
-                </Label>
+                <Label>Family Name <span className="text-red-500">*</span></Label>
                 <Input name="familyName" value={formData.familyName} onChange={handleChange} />
                 {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
               </div>
 
               {/* Date of Birth */}
               <div>
-                <Label>
-                  Date of Birth <span className="text-red-500">*</span>
-                </Label>
+                <Label>Date of Birth <span className="text-red-500">*</span></Label>
                 <Input
                   name="dateOfBirth"
-                  type="date" // 👈 now calendar picker
+                  type="date"
                   value={formData.dateOfBirth}
                   onChange={handleChange}
                 />
@@ -273,19 +218,17 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Nationality */}
               <div>
-                <Label>
-                  Nationality <span className="text-red-500">*</span>
-                </Label>
+                <Label>Nationality <span className="text-red-500">*</span></Label>
                 <Select
-                  value={formData.nationality}
-                  onValueChange={(v) => handleSelect("nationality", v)}
+                  value={formData.countryId?.toString() || ""}
+                  onValueChange={(v) => handleSelect("countryId", parseInt(v))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select nationality" />
                   </SelectTrigger>
                   <SelectContent>
                     {countries.map((c) => (
-                      <SelectItem key={c.country_id} value={c.name}>
+                      <SelectItem key={c.country_id} value={c.country_id.toString()}>
                         {c.name}
                       </SelectItem>
                     ))}
@@ -297,19 +240,17 @@ const WHVProfileSetup: React.FC = () => {
               {/* Visa Type */}
               {filteredStages.length > 0 && (
                 <div>
-                  <Label>
-                    Visa Type <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Visa Type <span className="text-red-500">*</span></Label>
                   <Select
-                    value={formData.visaType}
-                    onValueChange={(v) => handleSelect("visaType", v)}
+                    value={formData.stageId?.toString() || ""}
+                    onValueChange={(v) => handleSelect("stageId", parseInt(v))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select visa type" />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredStages.map((v) => (
-                        <SelectItem key={v.stage_id} value={v.label}>
+                        <SelectItem key={v.stage_id} value={v.stage_id.toString()}>
                           {v.label}
                         </SelectItem>
                       ))}
@@ -321,12 +262,10 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Visa Expiry */}
               <div>
-                <Label>
-                  Visa Expiry <span className="text-red-500">*</span>
-                </Label>
+                <Label>Visa Expiry <span className="text-red-500">*</span></Label>
                 <Input
                   name="visaExpiry"
-                  type="date" // 👈 now calendar picker
+                  type="date"
                   value={formData.visaExpiry}
                   onChange={handleChange}
                 />
@@ -335,9 +274,7 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Phone */}
               <div>
-                <Label>
-                  Phone <span className="text-red-500">*</span>
-                </Label>
+                <Label>Phone <span className="text-red-500">*</span></Label>
                 <Input
                   name="phone"
                   value={formData.phone}
@@ -349,9 +286,7 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Address Line 1 */}
               <div>
-                <Label>
-                  Address Line 1 <span className="text-red-500">*</span>
-                </Label>
+                <Label>Address Line 1 <span className="text-red-500">*</span></Label>
                 <Input name="address1" value={formData.address1} onChange={handleChange} />
                 {errors.address1 && <p className="text-red-500">{errors.address1}</p>}
               </div>
@@ -364,18 +299,14 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Suburb */}
               <div>
-                <Label>
-                  Suburb <span className="text-red-500">*</span>
-                </Label>
+                <Label>Suburb <span className="text-red-500">*</span></Label>
                 <Input name="suburb" value={formData.suburb} onChange={handleChange} />
                 {errors.suburb && <p className="text-red-500">{errors.suburb}</p>}
               </div>
 
               {/* State */}
               <div>
-                <Label>
-                  State <span className="text-red-500">*</span>
-                </Label>
+                <Label>State <span className="text-red-500">*</span></Label>
                 <Select
                   value={formData.state}
                   onValueChange={(v) => handleSelect("state", v)}
@@ -396,9 +327,7 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Postcode */}
               <div>
-                <Label>
-                  Postcode <span className="text-red-500">*</span>
-                </Label>
+                <Label>Postcode <span className="text-red-500">*</span></Label>
                 <Input
                   name="postcode"
                   value={formData.postcode}
