@@ -9,12 +9,13 @@ import type { Database } from "@/integrations/supabase/types";
 
 type MakerPreferenceInsert =
   Database["public"]["Tables"]["maker_preference"]["Insert"];
+type WHVMakerUpdate =
+  Database["public"]["Tables"]["whv_maker"]["Update"];
 
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Values passed from nationality/visa page
   const { countryId, visaType, stageId } =
     (location.state as { countryId: number; visaType: string; stageId: number }) || {};
 
@@ -31,34 +32,41 @@ const WHVWorkPreferences: React.FC = () => {
   // ==========================
   useEffect(() => {
     const loadData = async () => {
-      // Get all industries with roles (simplified since eligibility table doesn't exist)
+      // Get industries eligible for this visa
       const { data: industriesData, error: indError } = await supabase
-        .from("industry")
+        .from("maker_visa_eligibility")
         .select(`
-          industry_id,
-          name,
-          industry_role(industry_role_id, role)
-        `);
+          industry:industry_id (
+            industry_id,
+            name,
+            industry_role(industry_role_id, role)
+          )
+        `)
+        .eq("country_id", countryId)
+        .eq("stage_id", stageId);
 
       if (!indError && industriesData) {
         const mapped = industriesData.map((i: any) => ({
-          industry_id: i.industry_id,
-          name: i.name,
-          roles: i.industry_role?.map((r: any) => ({
+          industry_id: i.industry.industry_id,
+          name: i.industry.name,
+          roles: i.industry.industry_role.map((r: any) => ({
             id: r.industry_role_id,
             name: r.role,
-          })) || [],
+          })),
         }));
         setIndustries(mapped);
       }
 
-      // For demo purposes, create mock region rules since table doesn't exist
-      const mockRegionRules = [
-        { industry_name: "Agriculture", state: "Queensland", area: "Regional", postcode_range: "4000-4999" },
-        { industry_name: "Hospitality", state: "New South Wales", area: "Metropolitan", postcode_range: "2000-2999" },
-        { industry_name: "Construction", state: "Victoria", area: "Regional", postcode_range: "3000-3999" },
-      ];
-      setRegionRules(mockRegionRules);
+      // Get region rules for this visa
+      const { data: regionsData, error: regError } = await supabase
+        .from("region_rules")
+        .select("industry_name, state, area, postcode_range")
+        .eq("sub_class", visaType)
+        .eq("stage", stageId);
+
+      if (!regError && regionsData) {
+        setRegionRules(regionsData);
+      }
     };
 
     if (countryId && stageId) loadData();
@@ -138,10 +146,11 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Update tagline
-    await supabase.from("whv_maker").update({ tagline }).eq("user_id", user.id);
+    // Update tagline (typed)
+    const taglineUpdate: WHVMakerUpdate = { tagline };
+    await supabase.from("whv_maker").update(taglineUpdate).eq("user_id", user.id);
 
-    // Insert preferences
+    // Insert preferences (typed)
     for (const industryId of selectedIndustries) {
       const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
 
@@ -150,8 +159,9 @@ const WHVWorkPreferences: React.FC = () => {
           for (const area of preferredAreas) {
             const newPref: MakerPreferenceInsert = {
               user_id: user.id,
-              state: state as any,
-              suburb_city: area, // Store area in suburb_city field since area doesn't exist
+              state: state as MakerPreferenceInsert["state"], // enum safe
+              area, // ✅ separate column
+              suburb_city: null,
               industry_id: industryId,
               industry_role_id: roleId ?? null,
             };
@@ -199,7 +209,6 @@ const WHVWorkPreferences: React.FC = () => {
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
             <form onSubmit={handleSubmit} className="space-y-8 pb-20">
-              {/* Info banner */}
               <p className="text-sm text-gray-500">
                 Showing industries eligible for your visa ({visaType}, stage {stageId})
               </p>
@@ -326,11 +335,7 @@ const WHVWorkPreferences: React.FC = () => {
                           <p
                             key={`${industry?.name}-${state}-${area}`}
                             className={`${
-                              getIndustryTooltip(
-                                industry?.name,
-                                state,
-                                area
-                              ).includes("⚠️")
+                              getIndustryTooltip(industry?.name, state, area).includes("⚠️")
                                 ? "text-yellow-600"
                                 : "text-green-600"
                             }`}
