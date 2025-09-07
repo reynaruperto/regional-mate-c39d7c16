@@ -221,20 +221,6 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
               </div>
 
-              {/* Date of Birth */}
-              <div>
-                <Label>
-                  Date of Birth <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  name="dateOfBirth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                />
-                {errors.dateOfBirth && <p className="text-red-500">{errors.dateOfBirth}</p>}
-              </div>
-
               {/* Nationality */}
               <div>
                 <Label>
@@ -282,6 +268,20 @@ const WHVProfileSetup: React.FC = () => {
                   {errors.visaType && <p className="text-red-500">{errors.visaType}</p>}
                 </div>
               )}
+
+              {/* Date of Birth */}
+              <div>
+                <Label>
+                  Date of Birth <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  name="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                />
+                {errors.dateOfBirth && <p className="text-red-500">{errors.dateOfBirth}</p>}
+              </div>
 
               {/* Visa Expiry */}
               <div>
