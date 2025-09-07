@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type MakerPreferenceInsert =
+  Database["public"]["Tables"]["maker_preference"]["Insert"];
 
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
@@ -27,7 +31,7 @@ const WHVWorkPreferences: React.FC = () => {
   // ==========================
   useEffect(() => {
     const loadData = async () => {
-      // Get industries for this visa + nationality
+      // Get industries allowed for this visa + nationality
       const { data: industriesData, error: indError } = await supabase
         .from("maker_visa_eligibility")
         .select(`
@@ -73,8 +77,7 @@ const WHVWorkPreferences: React.FC = () => {
   const getIndustryTooltip = (
     industry: string,
     state: string,
-    area: string,
-    postcode: string
+    area: string
   ): string => {
     const rulesForIndustry = regionRules.filter((r) => r.industry_name === industry);
 
@@ -82,19 +85,13 @@ const WHVWorkPreferences: React.FC = () => {
       return `⚠️ No rules for ${industry}.`;
     }
 
-    const stateRules = rulesForIndustry.filter((r) => r.state === state);
-    if (stateRules.length === 0) {
-      return `⚠️ ${industry} not valid in ${state}.`;
-    }
-
-    const areaAllowed = stateRules.some(
-      (r) => r.area === area || r.area === "All"
+    const valid = rulesForIndustry.some(
+      (r) => r.state === state && r.area === area
     );
-    if (!areaAllowed) {
-      return `⚠️ ${industry} not valid in ${area}, ${state}.`;
-    }
 
-    return `✅ ${industry} is eligible in ${state} (${area})`;
+    return valid
+      ? `✅ ${industry} is eligible in ${state} (${area})`
+      : `⚠️ ${industry} not valid in ${state} (${area})`;
   };
 
   // ==========================
@@ -142,24 +139,39 @@ const WHVWorkPreferences: React.FC = () => {
   // ==========================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Update tagline
     await supabase.from("whv_maker").update({ tagline }).eq("user_id", user.id);
 
+    // Insert preferences
     for (const industryId of selectedIndustries) {
       const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
+
       for (const roleId of rolesForIndustry) {
         for (const state of preferredStates) {
-          await supabase.from("maker_preference").insert({
-            user_id: user.id,
-            state,
-            suburb_city: preferredAreas.join(", "),
-            industry_id: industryId,
-            industry_role_id: roleId,
-          });
+          for (const area of preferredAreas) {
+            const newPref: MakerPreferenceInsert = {
+              user_id: user.id,
+              state,
+              area, // 👈 stored properly in new column
+              suburb_city: null, // optional, can use later
+              industry_id: industryId,
+              industry_role_id: roleId ?? null,
+            };
+
+            const { error: insertError } = await supabase
+              .from("maker_preference")
+              .insert(newPref);
+
+            if (insertError) {
+              console.error("Failed to insert preference:", insertError);
+            }
+          }
         }
       }
     }
@@ -325,19 +337,13 @@ const WHVWorkPreferences: React.FC = () => {
                               getIndustryTooltip(
                                 industry?.name,
                                 state,
-                                area,
-                                "4709" // Example postcode
+                                area
                               ).includes("⚠️")
                                 ? "text-yellow-600"
                                 : "text-green-600"
                             }`}
                           >
-                            {getIndustryTooltip(
-                              industry?.name,
-                              state,
-                              area,
-                              "4709"
-                            )}
+                            {getIndustryTooltip(industry?.name, state, area)}
                           </p>
                         ))
                       );
