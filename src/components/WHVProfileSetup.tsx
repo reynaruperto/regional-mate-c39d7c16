@@ -57,25 +57,42 @@ const WHVProfileSetup: React.FC = () => {
   });
 
   const [countries, setCountries] = useState<Country[]>([]);
-  const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
+  const [filteredStages, setFilteredStages] = useState<VisaStage[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // ✅ Load countries & visa stages
+  // ✅ Load countries
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCountries = async () => {
       const { data: countriesData } = await supabase
         .from("country")
         .select("*")
         .order("name");
-      const { data: stagesData } = await supabase
-        .from("visa_stage")
-        .select("*")
-        .order("stage");
       if (countriesData) setCountries(countriesData);
-      if (stagesData) setVisaStages(stagesData);
     };
-    fetchData();
+    fetchCountries();
   }, []);
+
+  // ✅ When nationality changes, fetch eligible visa stages
+  useEffect(() => {
+    const fetchEligibleStages = async () => {
+      if (!formData.countryId) return;
+      const { data, error } = await supabase
+        .from("country_eligibility")
+        .select("visa_stage(stage_id, label, sub_class, stage)")
+        .eq("country_id", formData.countryId);
+
+      if (error) {
+        console.error("Error loading eligibility:", error);
+        return;
+      }
+
+      if (data) {
+        const stages = data.map((e: any) => e.visa_stage);
+        setFilteredStages(stages);
+      }
+    };
+    fetchEligibleStages();
+  }, [formData.countryId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -96,12 +113,10 @@ const WHVProfileSetup: React.FC = () => {
 
     if (!formData.givenName) newErrors.givenName = "Required";
     if (!formData.familyName) newErrors.familyName = "Required";
-
-    // ✅ Nationality + Visa Type required
     if (!formData.countryId) newErrors.nationality = "Required";
     if (!formData.stageId) newErrors.visaType = "Required";
 
-    // ✅ DOB validation with age caps
+    // ✅ DOB validation
     if (!formData.dateOfBirth) {
       newErrors.dateOfBirth = "Required";
     } else {
@@ -113,7 +128,7 @@ const WHVProfileSetup: React.FC = () => {
       if (age < 18) {
         newErrors.dateOfBirth = "Must be at least 18 years old";
       } else {
-        const chosenStage = visaStages.find(
+        const chosenStage = filteredStages.find(
           (v) => v.stage_id === formData.stageId
         );
         if (chosenStage?.sub_class === "417" && age > 35) {
@@ -191,14 +206,6 @@ const WHVProfileSetup: React.FC = () => {
 
     navigate("/whv/work-preferences");
   };
-
-  // ✅ Filter visa stages by nationality scheme
-  const selectedCountry = countries.find(
-    (c) => c.country_id === formData.countryId
-  );
-  const filteredStages = selectedCountry
-    ? visaStages.filter((v) => v.sub_class === selectedCountry.scheme)
-    : [];
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -325,7 +332,7 @@ const WHVProfileSetup: React.FC = () => {
                 </div>
               )}
 
-              {/* Date of Birth */}
+              {/* DOB */}
               <div>
                 <Label>
                   Date of Birth <span className="text-red-500">*</span>
