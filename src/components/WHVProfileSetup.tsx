@@ -163,10 +163,25 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
+    // Map visa stage to correct enum format
+    const getVisaEnumValue = (selectedStage: VisaStage): string => {
+      const { sub_class, stage } = selectedStage;
+      const stageText = stage === 1 ? "First" : stage === 2 ? "Second" : "Third";
+      return sub_class === "417" 
+        ? `${stageText} Working Holiday Visa (417)`
+        : `${stageText} Work and Holiday Visa (462)`;
+    };
+
+    const selectedStage = visaStages.find(v => v.label === formData.visaType);
+    if (!selectedStage) {
+      alert("Invalid visa type selected");
+      return;
+    }
+
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        visa_type: formData.visaType,
+        visa_type: getVisaEnumValue(selectedStage),
         expiry_date: formData.visaExpiry,
       } as any,
       { onConflict: "user_id,visa_type" }
