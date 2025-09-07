@@ -6,34 +6,13 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-enum AreaRestriction {
-  All = "All",
-  Regional = "Regional",
-  Northern = "Northern",
-  Remote = "Remote",
-  VeryRemote = "Very Remote",
-}
-
-const australianStates = [
-  "Australian Capital Territory",
-  "New South Wales",
-  "Northern Territory",
-  "Queensland",
-  "South Australia",
-  "Tasmania",
-  "Victoria",
-  "Western Australia",
-];
-
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { visaType, visaStage } =
-    (location.state as { visaType: string; visaStage: string }) || {
-      visaType: "417",
-      visaStage: "1st",
-    };
+  // Values passed from nationality/visa page
+  const { countryId, visaType, stageId } =
+    (location.state as { countryId: number; visaType: string; stageId: number }) || {};
 
   const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<any[]>([]);
@@ -44,20 +23,28 @@ const WHVWorkPreferences: React.FC = () => {
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
 
   // ==========================
-  // Load industries + roles + region rules
+  // Load industries + region rules
   // ==========================
   useEffect(() => {
     const loadData = async () => {
-      // Industries + roles
+      // Get industries for this visa + nationality
       const { data: industriesData, error: indError } = await supabase
-        .from("industry")
-        .select("industry_id, name, industry_role(industry_role_id, role)");
+        .from("maker_visa_eligibility")
+        .select(`
+          industry:industry_id (
+            industry_id,
+            name,
+            industry_role(industry_role_id, role)
+          )
+        `)
+        .eq("country_id", countryId)
+        .eq("stage_id", stageId);
 
       if (!indError && industriesData) {
         const mapped = industriesData.map((i: any) => ({
-          industry_id: i.industry_id,
-          name: i.name,
-          roles: i.industry_role.map((r: any) => ({
+          industry_id: i.industry.industry_id,
+          name: i.industry.name,
+          roles: i.industry.industry_role.map((r: any) => ({
             id: r.industry_role_id,
             name: r.role,
           })),
@@ -65,21 +52,23 @@ const WHVWorkPreferences: React.FC = () => {
         setIndustries(mapped);
       }
 
-      // Region rules - commenting out since table doesn't exist
-      // const { data: regionsData, error: regError } = await supabase
-      //   .from("region_postcode")
-      //   .select("state, area, postcode_range");
+      // Get region rules for this visa + stage
+      const { data: regionsData, error: regError } = await supabase
+        .from("region_rules")
+        .select("industry_name, state, area, postcode_range")
+        .eq("sub_class", visaType)
+        .eq("stage", stageId);
 
-      // if (!regError && regionsData) {
-      //   setRegionRules(regionsData);
-      // }
+      if (!regError && regionsData) {
+        setRegionRules(regionsData);
+      }
     };
 
-    loadData();
-  }, []);
+    if (countryId && stageId) loadData();
+  }, [countryId, stageId, visaType]);
 
   // ==========================
-  // Tooltip validation
+  // Validation tooltip
   // ==========================
   const getIndustryTooltip = (
     industry: string,
@@ -87,37 +76,25 @@ const WHVWorkPreferences: React.FC = () => {
     area: string,
     postcode: string
   ): string => {
-    const rulesForState = regionRules.filter((r) => r.state === state);
+    const rulesForIndustry = regionRules.filter((r) => r.industry_name === industry);
 
-    if (rulesForState.length === 0) {
-      return `⚠️ No regional rules found for ${state}.`;
+    if (rulesForIndustry.length === 0) {
+      return `⚠️ No rules for ${industry}.`;
     }
 
-    const areaAllowed = rulesForState.some(
+    const stateRules = rulesForIndustry.filter((r) => r.state === state);
+    if (stateRules.length === 0) {
+      return `⚠️ ${industry} not valid in ${state}.`;
+    }
+
+    const areaAllowed = stateRules.some(
       (r) => r.area === area || r.area === "All"
     );
     if (!areaAllowed) {
-      return `⚠️ ${industry} may not count in ${area}, ${state}. Allowed areas: ${rulesForState
-        .map((r) => r.area)
-        .join(", ")}`;
+      return `⚠️ ${industry} not valid in ${area}, ${state}.`;
     }
 
-    // Postcode validation (demo only, here we assume employer postcode "4709")
-    const pc = parseInt(postcode, 10);
-    const postcodeAllowed = rulesForState.some((r) => {
-      if (r.postcode_range === "All") return true;
-      if (r.postcode_range.includes("–")) {
-        const [start, end] = r.postcode_range.split("–").map(Number);
-        return pc >= start && pc <= end;
-      }
-      return r.postcode_range === postcode;
-    });
-
-    if (!postcodeAllowed) {
-      return `⚠️ ${industry} not valid in postcode ${postcode}.`;
-    }
-
-    return `✅ ${industry} can be done in ${state} (${area})`;
+    return `✅ ${industry} is eligible in ${state} (${area})`;
   };
 
   // ==========================
@@ -170,33 +147,19 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error: updateError } = await (supabase as any)
-      .from("whv_maker")
-      .update({ tagline })
-      .eq("user_id", user.id);
-
-    if (updateError) {
-      console.error("Failed to update tagline:", updateError);
-      return;
-    }
+    await supabase.from("whv_maker").update({ tagline }).eq("user_id", user.id);
 
     for (const industryId of selectedIndustries) {
       const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
       for (const roleId of rolesForIndustry) {
         for (const state of preferredStates) {
-          const { error: insertError } = await (supabase as any)
-            .from("maker_preference")
-            .insert({
-              user_id: user.id,
-              state,
-              suburb_city: preferredAreas.join(", "),
-              industry_id: industryId,
-              industry_role_id: roleId,
-            });
-
-          if (insertError) {
-            console.error("Failed to insert preference:", insertError);
-          }
+          await supabase.from("maker_preference").insert({
+            user_id: user.id,
+            state,
+            suburb_city: preferredAreas.join(", "),
+            industry_id: industryId,
+            industry_role_id: roleId,
+          });
         }
       }
     }
@@ -232,6 +195,11 @@ const WHVWorkPreferences: React.FC = () => {
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
             <form onSubmit={handleSubmit} className="space-y-8 pb-20">
+              {/* Info banner */}
+              <p className="text-sm text-gray-500">
+                Showing industries eligible for your visa ({visaType}, stage {stageId})
+              </p>
+
               {/* Tagline */}
               <div className="space-y-2">
                 <Label>Profile Tagline *</Label>
@@ -300,7 +268,7 @@ const WHVWorkPreferences: React.FC = () => {
               <div className="space-y-3">
                 <Label>Preferred States (up to 3) *</Label>
                 <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                  {australianStates.map((state) => (
+                  {[...new Set(regionRules.map((r) => r.state))].map((state) => (
                     <label key={state} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -322,7 +290,7 @@ const WHVWorkPreferences: React.FC = () => {
               <div className="space-y-3">
                 <Label>Preferred Areas (up to 3) *</Label>
                 <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                  {Object.values(AreaRestriction).map((area) => (
+                  {[...new Set(regionRules.map((r) => r.area))].map((area) => (
                     <label key={area} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
