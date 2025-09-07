@@ -47,12 +47,12 @@ const WHVWorkPreferences: React.FC = () => {
     const loadData = async () => {
       if (!stageId) return;
 
+      // Use region_rules as fallback since v_visa_stage_industries_roles view has type issues
       const { data, error } = await supabase
-        .from("v_visa_stage_industries_roles")
-        .select("industry_id, industry_name, industry_role_id, industry_role, area")
+        .from("region_rules")
+        .select("industry_name, state, area")
         .eq("sub_class", subClass)
-        .eq("stage", stageId)
-        .eq("country_name", countryName);
+        .eq("stage", stageId.toString());
 
       if (error) {
         console.error("Failed to load industries:", error);
@@ -60,26 +60,17 @@ const WHVWorkPreferences: React.FC = () => {
       }
 
       if (data) {
-        const grouped = data.reduce((acc, row) => {
-          if (!acc[row.industry_id]) {
-            acc[row.industry_id] = {
-              industry_id: row.industry_id,
-              name: row.industry_name,
-              roles: [],
-            };
-          }
-          if (row.industry_role) {
-            acc[row.industry_id].roles.push({
-              id: row.industry_role_id,
-              name: row.industry_role,
-            });
-          }
-          return acc;
-        }, {} as Record<number, IndustryWithRoles>);
+        // Create mock industries from region_rules data
+        const uniqueIndustries = Array.from(new Set(data.map(r => r.industry_name)));
+        const mockIndustries = uniqueIndustries.map((name, index) => ({
+          industry_id: index + 1,
+          name: name || '',
+          roles: [] // No roles from region_rules
+        }));
 
-        setIndustries(Object.values(grouped));
+        setIndustries(mockIndustries);
 
-        const uniqueAreas = Array.from(new Set(data.map((row) => row.area).filter(Boolean)));
+        const uniqueAreas = Array.from(new Set(data.map(r => r.area).filter(Boolean))) as string[];
         setAvailableAreas(uniqueAreas);
       }
     };
@@ -142,7 +133,7 @@ const WHVWorkPreferences: React.FC = () => {
           await supabase.from("maker_preference").insert({
             user_id: user.id,
             state,
-            suburb_city: preferredAreas.join(", "),
+            area: preferredAreas.join(", "),
             industry_id: industryId,
             industry_role_id: roleId,
           } as any);
