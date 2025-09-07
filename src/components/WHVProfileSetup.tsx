@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/supabase-extensions";
 
+// ✅ Types
 type VisaRule = Database["public"]["Tables"]["visa_rules"]["Row"];
+type UserWorkPreference = Database["public"]["Tables"]["user_work_preferences"]["Row"];
 
 interface WorkPreferencesProps {
   visaType: string;
@@ -18,8 +19,15 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
   const [industries, setIndustries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
+  const [postcodes, setPostcodes] = useState<string[]>([]);
+
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [selectedPostcodes, setSelectedPostcodes] = useState<string[]>([]);
   const [postcode, setPostcode] = useState("");
 
+  // 🔹 Fetch options from Supabase
   useEffect(() => {
     const fetchOptions = async () => {
       const { data, error } = await supabase
@@ -32,18 +40,55 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
         setIndustries([...new Set(data.map((r: VisaRule) => r.industry_name))]);
         setStates([...new Set(data.map((r: VisaRule) => r.state))]);
         setAreas([...new Set(data.map((r: VisaRule) => r.area))]);
+        setPostcodes([...new Set(data.map((r: VisaRule) => r.postcode_range))]);
       }
     };
+
     fetchOptions();
   }, [visaType, visaStage]);
 
-  const checkEligibility = () => {
-    console.log({
-      industries,
-      states,
-      areas,
-      postcode,
-    });
+  // 🔹 Multi-select (max 3)
+  const handleMultiSelect = (
+    value: string,
+    selected: string[],
+    setSelected: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    if (selected.includes(value)) {
+      setSelected(selected.filter((v) => v !== value));
+    } else if (selected.length < 3) {
+      setSelected([...selected, value]);
+    }
+  };
+
+  // 🔹 Save preferences
+  const handleSave = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert("Not logged in");
+      return;
+    }
+
+    const { error } = await supabase.from("user_work_preferences").upsert(
+      [
+        {
+          user_id: user.id,
+          industries: selectedIndustries,
+          states: selectedStates,
+          areas: selectedAreas,
+          postcodes: selectedPostcodes,
+          visa_type: visaType,
+          visa_stage: visaStage,
+        } as UserWorkPreference,
+      ],
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      console.error("Error saving preferences:", error);
+      alert("Error saving preferences");
+    } else {
+      alert("Preferences saved successfully!");
+    }
   };
 
   return (
@@ -55,7 +100,7 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
           <div className="px-6 py-4 border-b bg-white">
             <h1 className="text-lg font-bold">Work Preferences</h1>
             <p className="text-sm text-gray-500">
-              Select your industry, state, area, and postcode to check eligibility for visa extensions.
+              Select your industry, state, area, and postcode to check eligibility.
             </p>
           </div>
 
@@ -63,8 +108,8 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
             {/* Industry */}
             <div>
-              <Label>Industry</Label>
-              <Select>
+              <Label>Industry (max 3)</Label>
+              <Select onValueChange={(val) => handleMultiSelect(val, selectedIndustries, setSelectedIndustries)}>
                 <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Select industry" />
                 </SelectTrigger>
@@ -76,12 +121,13 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-1">Selected: {selectedIndustries.join(", ") || "None"}</p>
             </div>
 
             {/* State */}
             <div>
-              <Label>State</Label>
-              <Select>
+              <Label>State (max 3)</Label>
+              <Select onValueChange={(val) => handleMultiSelect(val, selectedStates, setSelectedStates)}>
                 <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Select state" />
                 </SelectTrigger>
@@ -93,12 +139,13 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-1">Selected: {selectedStates.join(", ") || "None"}</p>
             </div>
 
             {/* Area */}
             <div>
-              <Label>Area</Label>
-              <Select>
+              <Label>Area (max 3)</Label>
+              <Select onValueChange={(val) => handleMultiSelect(val, selectedAreas, setSelectedAreas)}>
                 <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Select area" />
                 </SelectTrigger>
@@ -110,6 +157,7 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-1">Selected: {selectedAreas.join(", ") || "None"}</p>
             </div>
 
             {/* Postcode */}
@@ -126,8 +174,8 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
 
           {/* Footer */}
           <div className="p-6 border-t">
-            <Button className="w-full h-12 text-lg" onClick={checkEligibility}>
-              Check Eligibility
+            <Button className="w-full h-12 text-lg" onClick={handleSave}>
+              Save Preferences
             </Button>
           </div>
         </div>
@@ -137,4 +185,8 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
 };
 
 export default WHVWorkPreferences;
+
+
+
+
 
