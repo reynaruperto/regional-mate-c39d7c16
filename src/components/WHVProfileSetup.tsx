@@ -7,15 +7,16 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/supabase-extensions";
 
 // ✅ Types
-type VisaRule = Database["public"]["Tables"]["visa_rules"]["Row"];
-type UserWorkPreference = Database["public"]["Tables"]["user_work_preferences"]["Row"];
+type RegionRule = Database["public"]["Tables"]["region_rules"]["Row"];
+type UserWorkPreference = Database["public"]["Tables"]["user_work_preferences"]["Insert"];
 
 interface WorkPreferencesProps {
   visaType: string;
   visaStage: string;
+  userId: string;
 }
 
-const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage }) => {
+const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage, userId }) => {
   const [industries, setIndustries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
@@ -31,16 +32,16 @@ const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStag
   useEffect(() => {
     const fetchOptions = async () => {
       const { data, error } = await supabase
-        .from("visa_rules")
+        .from("region_rules")
         .select("industry_name, state, area, postcode_range")
-        .eq("visa_type", visaType)
-        .eq("visa_stage", visaStage);
+        .eq("sub_class", visaType)
+        .eq("stage", visaStage);
 
       if (!error && data) {
-        setIndustries([...new Set(data.map((r: VisaRule) => r.industry_name))]);
-        setStates([...new Set(data.map((r: VisaRule) => r.state))]);
-        setAreas([...new Set(data.map((r: VisaRule) => r.area))]);
-        setPostcodes([...new Set(data.map((r: VisaRule) => r.postcode_range))]);
+        setIndustries([...new Set(data.map((r: RegionRule) => r.industry_name))]);
+        setStates([...new Set(data.map((r: RegionRule) => r.state))]);
+        setAreas([...new Set(data.map((r: RegionRule) => r.area))]);
+        setPostcodes([...new Set(data.map((r: RegionRule) => r.postcode_range).filter(Boolean))]);
       }
     };
 
