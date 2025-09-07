@@ -172,20 +172,35 @@ const WHVProfileSetup: React.FC = () => {
         : `${stageText} Work and Holiday Visa (462)`;
     };
 
+    console.log("=== DEBUGGING VISA SAVE ===");
+    console.log("Form visa type:", formData.visaType);
+    console.log("Available visa stages:", visaStages);
+    
     const selectedStage = visaStages.find(v => v.label === formData.visaType);
+    console.log("Selected stage:", selectedStage);
+    
     if (!selectedStage) {
+      console.error("No matching stage found for:", formData.visaType);
       alert("Invalid visa type selected");
       return;
     }
 
+    const mappedVisaType = getVisaEnumValue(selectedStage);
+    console.log("Mapped visa type:", mappedVisaType);
+
+    const visaDataToSave = {
+      user_id: user.id,
+      visa_type: mappedVisaType,
+      expiry_date: formData.visaExpiry,
+    };
+    console.log("Visa data to save:", visaDataToSave);
+
     const { error: visaError } = await supabase.from("maker_visa").upsert(
-      {
-        user_id: user.id,
-        visa_type: getVisaEnumValue(selectedStage),
-        expiry_date: formData.visaExpiry,
-      } as any,
+      visaDataToSave as any,
       { onConflict: "user_id,visa_type" }
     );
+
+    console.log("Visa save result:", { error: visaError });
 
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
