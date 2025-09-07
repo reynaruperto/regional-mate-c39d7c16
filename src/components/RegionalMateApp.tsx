@@ -73,7 +73,7 @@ const RegionalMateApp: React.FC = () => {
                 <p className="text-brand-secondary-text">
                   Already joined? 
                   <button 
-                    onClick={() => setShowSignInModal(true)}
+                    onClick={() => navigate('/sign-in')}
                     className="text-brand-text font-medium ml-1 hover:underline"
                   >
                     Sign in

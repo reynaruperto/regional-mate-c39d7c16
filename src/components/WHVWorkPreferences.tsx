@@ -33,7 +33,7 @@ const WHVWorkPreferences: React.FC = () => {
       // 1. Fetch user's visa info
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("sub_class, stage_id, country_id")
+        .select("stage_id, country_id")
         .eq("user_id", user.id)
         .single();
 
@@ -50,7 +50,6 @@ const WHVWorkPreferences: React.FC = () => {
       const { data: industriesData } = await supabase
         .from("temp_eligibility")
         .select("industry_name")
-        .eq("sub_class", visa.sub_class)
         .eq("stage", visa.stage_id)
         .eq("country_name", country?.name);
 
@@ -61,21 +60,11 @@ const WHVWorkPreferences: React.FC = () => {
         setIndustries(uniqueIndustries);
       }
 
-      // 3. Get states/areas allowed from maker_visa_eligibility
-      const { data: statesData } = await supabase
-        .from("maker_visa_eligibility")
-        .select("state, area")
-        .eq("sub_class", visa.sub_class)
-        .eq("stage", visa.stage_id);
+      // 3. Get available states and areas (simplified for now)
+      setStates(["NSW", "VIC", "QLD", "WA", "SA", "TAS", "NT", "ACT"]);
+      setAreas(["Regional", "Metropolitan", "Remote"]);
 
-      if (statesData) {
-        const uniqueStates = Array.from(new Set(statesData.map((s) => s.state)));
-        const uniqueAreas = Array.from(new Set(statesData.map((s) => s.area)));
-        setStates(uniqueStates);
-        setAreas(uniqueAreas);
-      }
-
-      setVisaLabel(`${visa.sub_class} (Stage ${visa.stage_id})`);
+      setVisaLabel(`Stage ${visa.stage_id}`);
     };
 
     loadData();

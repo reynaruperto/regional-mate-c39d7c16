@@ -1,11 +1,19 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import AustraliaIcon from "./AustraliaIcon";
 
-const LetsBeginScreen: React.FC = () => {
+const RoleSelectionScreen: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextUrl = searchParams.get('next') || '';
+
+  const handleRoleSelect = (role: 'whv' | 'employer') => {
+    const redirectPath = `/${role}/sign-in`;
+    const finalUrl = nextUrl ? `${redirectPath}?next=${encodeURIComponent(nextUrl)}` : redirectPath;
+    navigate(finalUrl);
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -23,7 +31,7 @@ const LetsBeginScreen: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 className="w-12 h-12 bg-white rounded-2xl shadow-sm"
-                onClick={() => navigate("/")}
+                onClick={() => navigate(-1)}
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
@@ -42,10 +50,10 @@ const LetsBeginScreen: React.FC = () => {
             {/* Title and subtitle */}
             <div className="px-6 pb-16 text-center">
               <h1 className="text-4xl font-bold text-brand-text mb-4">
-                Let's Begin!
+                Sign in
               </h1>
               <p className="text-lg text-brand-secondary-text leading-relaxed">
-                Connect for jobs and travel. Choose your role to get started.
+                Choose your account type
               </p>
             </div>
 
@@ -55,32 +63,19 @@ const LetsBeginScreen: React.FC = () => {
                 variant="default"
                 size="lg"
                 className="w-full h-14 text-lg rounded-xl bg-slate-800 hover:bg-slate-700 text-white"
-                onClick={() => navigate("/employer/onboarding")}
+                onClick={() => handleRoleSelect('employer')}
               >
-                I want to hire
+                Employer
               </Button>
 
               <Button
                 variant="default"
                 size="lg"
                 className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => navigate("/whv/onboarding")}
+                onClick={() => handleRoleSelect('whv')}
               >
-                I want to get hired
+                Working Holiday Maker
               </Button>
-            </div>
-
-            {/* Sign in link */}
-            <div className="px-6 pb-12 text-center">
-              <p className="text-brand-secondary-text">
-                Already have an account?
-                <button
-                  onClick={() => navigate("/sign-in")}
-                  className="text-brand-text font-medium ml-1 hover:underline"
-                >
-                  Sign in
-                </button>
-              </p>
             </div>
           </div>
         </div>
@@ -89,6 +84,4 @@ const LetsBeginScreen: React.FC = () => {
   );
 };
 
-export default LetsBeginScreen;
-
-
+export default RoleSelectionScreen;
