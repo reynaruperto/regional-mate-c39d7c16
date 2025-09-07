@@ -1,191 +1,192 @@
 import React, { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/supabase-extensions";
-
-// ✅ Types
-type RegionRule = Database["public"]["Tables"]["region_rules"]["Row"];
-type UserWorkPreference = Database["public"]["Tables"]["user_work_preferences"]["Insert"];
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 
 interface WorkPreferencesProps {
   visaType: string;
   visaStage: string;
-  userId: string;
 }
 
-const WHVWorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage, userId }) => {
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [states, setStates] = useState<string[]>([]);
-  const [areas, setAreas] = useState<string[]>([]);
-  const [postcodes, setPostcodes] = useState<string[]>([]);
+interface Industry {
+  id: number;
+  name: string;
+}
+
+interface Role {
+  id: number;
+  name: string;
+  industry_id: number;
+}
+
+interface State {
+  id: number;
+  name: string;
+}
+
+interface Area {
+  id: number;
+  name: string;
+}
+
+export default function WHVWorkPreferences({ visaType, visaStage }: WorkPreferencesProps) {
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
 
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
-  const [selectedPostcodes, setSelectedPostcodes] = useState<string[]>([]);
-  const [postcode, setPostcode] = useState("");
 
-  // 🔹 Fetch options from Supabase
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // ✅ Load user
   useEffect(() => {
-    const fetchOptions = async () => {
-      const { data, error } = await supabase
-        .from("region_rules")
-        .select("industry_name, state, area, postcode_range")
-        .eq("sub_class", visaType)
-        .eq("stage", visaStage);
-
-      if (!error && data) {
-        setIndustries([...new Set(data.map((r: RegionRule) => r.industry_name))]);
-        setStates([...new Set(data.map((r: RegionRule) => r.state))]);
-        setAreas([...new Set(data.map((r: RegionRule) => r.area))]);
-        setPostcodes([...new Set(data.map((r: RegionRule) => r.postcode_range).filter(Boolean))]);
-      }
+    const getUser = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) console.error(error);
+      setUserId(data?.user?.id ?? null);
     };
+    getUser();
+  }, []);
 
-    fetchOptions();
-  }, [visaType, visaStage]);
+  // ✅ Fetch reference data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: industryData } = await supabase.from("industries").select("*");
+      const { data: roleData } = await supabase.from("roles").select("*");
+      const { data: stateData } = await supabase.from("states").select("*");
+      const { data: areaData } = await supabase.from("areas").select("*");
 
-  // 🔹 Multi-select (max 3)
-  const handleMultiSelect = (
-    value: string,
-    selected: string[],
-    setSelected: React.Dispatch<React.SetStateAction<string[]>>
-  ) => {
-    if (selected.includes(value)) {
-      setSelected(selected.filter((v) => v !== value));
-    } else if (selected.length < 3) {
-      setSelected([...selected, value]);
-    }
-  };
+      setIndustries(industryData || []);
+      setRoles(roleData || []);
+      setStates(stateData || []);
+      setAreas(areaData || []);
+    };
+    fetchData();
+  }, []);
 
-  // 🔹 Save preferences
-  const handleSave = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      alert("Not logged in");
-      return;
-    }
+  const handleSubmit = async () => {
+    if (!userId) return;
 
-    const { error } = await supabase.from("user_work_preferences").upsert(
-      [
-        {
-          user_id: user.id,
-          industries: selectedIndustries,
-          states: selectedStates,
-          areas: selectedAreas,
-          postcodes: selectedPostcodes,
-          visa_type: visaType,
-          visa_stage: visaStage,
-        } as UserWorkPreference,
-      ],
-      { onConflict: "user_id" }
-    );
+    const { error } = await supabase
+      .from("user_work_preferences")
+      .upsert(
+        [
+          {
+            user_id: userId,
+            industries: selectedIndustries,
+            roles: selectedRoles,
+            states: selectedStates,
+            areas: selectedAreas,
+            visa_type: visaType,
+            visa_stage: visaStage,
+          },
+        ],
+        { onConflict: "user_id" }
+      );
 
     if (error) {
-      console.error("Error saving preferences:", error);
-      alert("Error saving preferences");
+      console.error("Save error:", error.message);
     } else {
-      alert("Preferences saved successfully!");
+      console.log("Preferences saved!");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      {/* iPhone 16 Pro Max frame */}
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] shadow-2xl flex items-center justify-center">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="px-6 py-4 border-b bg-white">
-            <h1 className="text-lg font-bold">Work Preferences</h1>
-            <p className="text-sm text-gray-500">
-              Select your industry, state, area, and postcode to check eligibility.
-            </p>
+    <Card className="p-6 space-y-4">
+      <h2 className="text-xl font-semibold">Work Preferences</h2>
+
+      {/* Industries */}
+      <div>
+        <Label>Industries (pick up to 3)</Label>
+        {industries.slice(0, 3).map((ind) => (
+          <div key={ind.id} className="flex items-center space-x-2">
+            <Checkbox
+              checked={selectedIndustries.includes(ind.name)}
+              onCheckedChange={(checked) => {
+                if (checked && selectedIndustries.length < 3) {
+                  setSelectedIndustries([...selectedIndustries, ind.name]);
+                } else {
+                  setSelectedIndustries(selectedIndustries.filter((i) => i !== ind.name));
+                }
+              }}
+            />
+            <span>{ind.name}</span>
           </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-            {/* Industry */}
-            <div>
-              <Label>Industry (max 3)</Label>
-              <Select onValueChange={(val) => handleMultiSelect(val, selectedIndustries, setSelectedIndustries)}>
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  {industries.map((ind) => (
-                    <SelectItem key={ind} value={ind}>
-                      {ind}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 mt-1">Selected: {selectedIndustries.join(", ") || "None"}</p>
-            </div>
-
-            {/* State */}
-            <div>
-              <Label>State (max 3)</Label>
-              <Select onValueChange={(val) => handleMultiSelect(val, selectedStates, setSelectedStates)}>
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {states.map((st) => (
-                    <SelectItem key={st} value={st}>
-                      {st}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 mt-1">Selected: {selectedStates.join(", ") || "None"}</p>
-            </div>
-
-            {/* Area */}
-            <div>
-              <Label>Area (max 3)</Label>
-              <Select onValueChange={(val) => handleMultiSelect(val, selectedAreas, setSelectedAreas)}>
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select area" />
-                </SelectTrigger>
-                <SelectContent>
-                  {areas.map((ar) => (
-                    <SelectItem key={ar} value={ar}>
-                      {ar}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 mt-1">Selected: {selectedAreas.join(", ") || "None"}</p>
-            </div>
-
-            {/* Postcode */}
-            <div>
-              <Label>Postcode</Label>
-              <Input
-                className="mt-1"
-                placeholder="Enter postcode"
-                value={postcode}
-                onChange={(e) => setPostcode(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="p-6 border-t">
-            <Button className="w-full h-12 text-lg" onClick={handleSave}>
-              Save Preferences
-            </Button>
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
-  );
-};
 
-export default WHVWorkPreferences;
+      {/* Roles */}
+      <div>
+        <Label>Roles (pick up to 3)</Label>
+        {roles.slice(0, 3).map((role) => (
+          <div key={role.id} className="flex items-center space-x-2">
+            <Checkbox
+              checked={selectedRoles.includes(role.name)}
+              onCheckedChange={(checked) => {
+                if (checked && selectedRoles.length < 3) {
+                  setSelectedRoles([...selectedRoles, role.name]);
+                } else {
+                  setSelectedRoles(selectedRoles.filter((r) => r !== role.name));
+                }
+              }}
+            />
+            <span>{role.name}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* States */}
+      <div>
+        <Label>States (pick up to 3)</Label>
+        {states.slice(0, 3).map((st) => (
+          <div key={st.id} className="flex items-center space-x-2">
+            <Checkbox
+              checked={selectedStates.includes(st.name)}
+              onCheckedChange={(checked) => {
+                if (checked && selectedStates.length < 3) {
+                  setSelectedStates([...selectedStates, st.name]);
+                } else {
+                  setSelectedStates(selectedStates.filter((s) => s !== st.name));
+                }
+              }}
+            />
+            <span>{st.name}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Areas */}
+      <div>
+        <Label>Areas (pick up to 3)</Label>
+        {areas.slice(0, 3).map((ar) => (
+          <div key={ar.id} className="flex items-center space-x-2">
+            <Checkbox
+              checked={selectedAreas.includes(ar.name)}
+              onCheckedChange={(checked) => {
+                if (checked && selectedAreas.length < 3) {
+                  setSelectedAreas([...selectedAreas, ar.name]);
+                } else {
+                  setSelectedAreas(selectedAreas.filter((a) => a !== ar.name));
+                }
+              }}
+            />
+            <span>{ar.name}</span>
+          </div>
+        ))}
+      </div>
+
+      <Button onClick={handleSubmit} className="w-full">
+        Save Preferences
+      </Button>
+    </Card>
+  );
+}
 
 
 
