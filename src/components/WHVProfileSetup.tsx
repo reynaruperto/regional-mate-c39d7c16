@@ -210,6 +210,7 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // ✅ Save profile to whv_maker (bypass TS with as any)
+    const selectedCountry = countries.find(c => c.country_id === formData.countryId);
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -217,7 +218,7 @@ const WHVProfileSetup: React.FC = () => {
         middle_name: formData.middleName || null,
         family_name: formData.familyName,
         birth_date: formData.dateOfBirth,
-        country_id: formData.countryId,
+        nationality: selectedCountry?.name,
         mobile_num: formData.phone,
         address_line1: formData.address1,
         address_line2: formData.address2 || null,
