@@ -172,6 +172,75 @@ export interface Database extends OriginalDatabase {
         Insert: { user_id: string; visa_type: string; expiry_date: string };
         Update: { user_id?: string; visa_type?: string; expiry_date?: string };
       };
+
+      visa_rules: {
+        Row: {
+          id: string;
+          industry_name: string;
+          sub_class: string;
+          stage: string;
+          state: string;
+          area: string;
+          postcode_range?: string | null;
+          created_at?: string;
+        };
+        Insert: {
+          id?: string;
+          industry_name: string;
+          sub_class: string;
+          stage: string;
+          state: string;
+          area: string;
+          postcode_range?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          industry_name?: string;
+          sub_class?: string;
+          stage?: string;
+          state?: string;
+          area?: string;
+          postcode_range?: string | null;
+          created_at?: string;
+        };
+      };
+
+      user_work_preferences: {
+        Row: {
+          user_id: string;
+          industries: string[];
+          states: string[];
+          areas: string[];
+          postcodes: string[];
+          visa_type: string;
+          visa_stage: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Insert: {
+          user_id: string;
+          industries: string[];
+          states: string[];
+          areas: string[];
+          postcodes: string[];
+          visa_type: string;
+          visa_stage: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          industries?: string[];
+          states?: string[];
+          areas?: string[];
+          postcodes?: string[];
+          visa_type?: string;
+          visa_stage?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
