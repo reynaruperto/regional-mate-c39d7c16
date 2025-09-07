@@ -49,14 +49,15 @@ const WHVProfileSetup: React.FC = () => {
 
   const [countries, setCountries] = useState<Country[]>([]);
   const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
+  const [countryEligibility, setCountryEligibility] = useState<{country_id: number, stage_id: number}[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // ✅ Load countries & visa stages from Supabase
+  // ✅ Load countries, visa stages, and eligibility from Supabase
   useEffect(() => {
     const fetchData = async () => {
       const { data: countriesData } = await supabase
         .from("country")
-        .select("country_id, name, scheme") // 👈 include scheme
+        .select("country_id, name")
         .order("name");
 
       const { data: stagesData } = await supabase
@@ -64,8 +65,13 @@ const WHVProfileSetup: React.FC = () => {
         .select("stage_id, sub_class, stage, label")
         .order("stage");
 
-      if (countriesData) setCountries(countriesData as Country[]);
-      if (stagesData) setVisaStages(stagesData as VisaStage[]);
+      const { data: eligibilityData } = await supabase
+        .from("country_eligibility")
+        .select("country_id, stage_id");
+
+      if (countriesData) setCountries(countriesData as any);
+      if (stagesData) setVisaStages(stagesData as any);
+      if (eligibilityData) setCountryEligibility(eligibilityData);
     };
     fetchData();
   }, []);
@@ -153,13 +159,18 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    navigate("/whv/work-preferences");
+    navigate("/whv/work-preferences", { 
+      state: { countryId: formData.countryId, stageId: formData.stageId } 
+    });
   };
 
   // ✅ Filter visa stages by nationality’s scheme
-  const selectedCountry = countries.find((c) => c.country_id === formData.countryId);
-  const filteredStages = selectedCountry
-    ? visaStages.filter((v) => v.sub_class === selectedCountry.scheme)
+  const filteredStages = formData.countryId
+    ? visaStages.filter((stage) => 
+        countryEligibility.some((eligibility) => 
+          eligibility.country_id === formData.countryId && eligibility.stage_id === stage.stage_id
+        )
+      )
     : [];
 
   return (
