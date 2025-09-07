@@ -62,8 +62,8 @@ const WHVProfileSetup: React.FC = () => {
         .from("visa_stage")
         .select("*")
         .order("stage");
-      if (countriesData) setCountries(countriesData);
-      if (stagesData) setVisaStages(stagesData);
+      if (countriesData) setCountries(countriesData as any);
+      if (stagesData) setVisaStages(stagesData as any);
     };
     fetchData();
   }, []);
