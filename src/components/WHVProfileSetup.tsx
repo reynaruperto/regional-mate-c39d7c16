@@ -32,8 +32,8 @@ interface Country {
 interface VisaStage {
   stage_id: number;
   label: string;
-  sub_class: string; // 417 or 462
-  stage: number; // 1, 2, 3
+  sub_class: string;
+  stage: number;
 }
 
 interface CountryEligibility {
@@ -71,9 +71,9 @@ const WHVProfileSetup: React.FC = () => {
       const { data: stagesData } = await supabase.from("visa_stage").select("*").order("stage");
       const { data: eligibilityData } = await supabase.from("country_eligibility").select("*");
 
-      if (countriesData) setCountries(countriesData as Country[]);
-      if (stagesData) setVisaStages(stagesData as VisaStage[]);
-      if (eligibilityData) setEligibility(eligibilityData as CountryEligibility[]);
+      if (countriesData) setCountries(countriesData as any);
+      if (stagesData) setVisaStages(stagesData as any);
+      if (eligibilityData) setEligibility(eligibilityData as any);
     };
     fetchData();
   }, []);
@@ -137,6 +137,8 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
+    const selectedCountry = countries.find(c => c.country_id === formData.countryId);
+    
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -144,14 +146,14 @@ const WHVProfileSetup: React.FC = () => {
         middle_name: formData.middleName || null,
         family_name: formData.familyName,
         birth_date: formData.dateOfBirth,
-        country_id: formData.countryId,
+        nationality: selectedCountry?.name || "",
         mobile_num: formData.phone,
         address_line1: formData.address1,
         address_line2: formData.address2 || null,
         suburb: formData.suburb,
         state: formData.state,
         postcode: formData.postcode,
-      },
+      } as any,
       { onConflict: "user_id" }
     );
 
@@ -164,9 +166,9 @@ const WHVProfileSetup: React.FC = () => {
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        visa_type: formData.visaType, // save by label
+        visa_type: formData.visaType,
         expiry_date: formData.visaExpiry,
-      },
+      } as any,
       { onConflict: "user_id,visa_type" }
     );
 
