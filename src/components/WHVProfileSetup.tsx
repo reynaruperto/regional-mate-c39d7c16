@@ -53,7 +53,7 @@ const WHVProfileSetup: React.FC = () => {
   const [eligibility, setEligibility] = useState<CountryEligibility[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // ✅ Load countries, visa stages & eligibility
+  // ✅ Load data from Supabase
   useEffect(() => {
     const fetchData = async () => {
       const { data: countriesData } = await supabase.from("country").select("*").order("name");
@@ -76,33 +76,52 @@ const WHVProfileSetup: React.FC = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validate = () => {
     const newErrors: any = {};
 
-    // ✅ Validation
     if (!formData.givenName) newErrors.givenName = "Required";
     if (!formData.familyName) newErrors.familyName = "Required";
-    if (!formData.dateOfBirth) newErrors.dateOfBirth = "Required";
+
+    // ✅ DOB validation (must be 18+, not future)
+    if (!formData.dateOfBirth) {
+      newErrors.dateOfBirth = "Required";
+    } else {
+      const dob = new Date(formData.dateOfBirth);
+      const today = new Date();
+      const age = today.getFullYear() - dob.getFullYear();
+      if (dob > today) newErrors.dateOfBirth = "Date cannot be in the future";
+      else if (age < 18) newErrors.dateOfBirth = "You must be at least 18 years old";
+    }
+
     if (!formData.countryId) newErrors.nationality = "Required";
     if (!formData.stageId) newErrors.visaType = "Required";
+
     if (!formData.visaExpiry) newErrors.visaExpiry = "Required";
+
     if (!formData.phone) {
       newErrors.phone = "Required";
     } else if (!/^(\+614\d{8}|04\d{8})$/.test(formData.phone)) {
       newErrors.phone = "Invalid Australian phone number";
     }
+
     if (!formData.address1) newErrors.address1 = "Required";
     if (!formData.suburb) newErrors.suburb = "Required";
     if (!formData.state) newErrors.state = "Required";
-    if (!formData.postcode) newErrors.postcode = "Required";
 
-    if (Object.keys(newErrors).length) {
-      setErrors(newErrors);
-      return;
+    if (!formData.postcode) {
+      newErrors.postcode = "Required";
+    } else if (!/^\d{4}$/.test(formData.postcode)) {
+      newErrors.postcode = "Postcode must be 4 digits";
     }
 
-    // ✅ Get user
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -136,12 +155,10 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // ✅ Save visa
-    const selectedStage = visaStages.find((v) => v.stage_id === formData.stageId);
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
         stage_id: formData.stageId,
-        visa_type: selectedStage?.label as any, // <-- use label, cast to any to bypass union
         expiry_date: formData.visaExpiry,
       } as any,
       { onConflict: "user_id,stage_id" }
@@ -155,12 +172,12 @@ const WHVProfileSetup: React.FC = () => {
     navigate("/whv/work-preferences");
   };
 
-  // ✅ Filter visa stages based on `country_eligibility`
+  // ✅ Filter visa stages by country eligibility
   const filteredStages =
     formData.countryId !== null
       ? visaStages.filter((stage) =>
           eligibility.some(
-            (e) => e.country_id === formData.countryId && e.stage_id === stage.stage_id
+            (ce) => ce.country_id === formData.countryId && ce.stage_id === stage.stage_id
           )
         )
       : [];
@@ -189,32 +206,24 @@ const WHVProfileSetup: React.FC = () => {
           {/* Form */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Names */}
+              {/* Given Name */}
               <div>
                 <Label>Given Name *</Label>
                 <Input name="givenName" value={formData.givenName} onChange={handleChange} />
                 {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
               </div>
+
+              {/* Middle Name */}
               <div>
                 <Label>Middle Name</Label>
                 <Input name="middleName" value={formData.middleName} onChange={handleChange} />
               </div>
+
+              {/* Family Name */}
               <div>
                 <Label>Family Name *</Label>
                 <Input name="familyName" value={formData.familyName} onChange={handleChange} />
                 {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
-              </div>
-
-              {/* DOB */}
-              <div>
-                <Label>Date of Birth *</Label>
-                <Input
-                  name="dateOfBirth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                />
-                {errors.dateOfBirth && <p className="text-red-500">{errors.dateOfBirth}</p>}
               </div>
 
               {/* Nationality */}
@@ -238,7 +247,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.nationality && <p className="text-red-500">{errors.nationality}</p>}
               </div>
 
-              {/* Visa */}
+              {/* Visa Type */}
               {filteredStages.length > 0 && (
                 <div>
                   <Label>Visa Type *</Label>
@@ -260,6 +269,18 @@ const WHVProfileSetup: React.FC = () => {
                   {errors.visaType && <p className="text-red-500">{errors.visaType}</p>}
                 </div>
               )}
+
+              {/* Date of Birth */}
+              <div>
+                <Label>Date of Birth *</Label>
+                <Input
+                  name="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                />
+                {errors.dateOfBirth && <p className="text-red-500">{errors.dateOfBirth}</p>}
+              </div>
 
               {/* Visa Expiry */}
               <div>
@@ -285,21 +306,27 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.phone && <p className="text-red-500">{errors.phone}</p>}
               </div>
 
-              {/* Address */}
+              {/* Address Line 1 */}
               <div>
                 <Label>Address Line 1 *</Label>
                 <Input name="address1" value={formData.address1} onChange={handleChange} />
                 {errors.address1 && <p className="text-red-500">{errors.address1}</p>}
               </div>
+
+              {/* Address Line 2 */}
               <div>
                 <Label>Address Line 2</Label>
                 <Input name="address2" value={formData.address2} onChange={handleChange} />
               </div>
+
+              {/* Suburb */}
               <div>
                 <Label>Suburb *</Label>
                 <Input name="suburb" value={formData.suburb} onChange={handleChange} />
                 {errors.suburb && <p className="text-red-500">{errors.suburb}</p>}
               </div>
+
+              {/* State */}
               <div>
                 <Label>State *</Label>
                 <Select value={formData.state} onValueChange={(v) => handleSelect("state", v)}>
@@ -316,6 +343,8 @@ const WHVProfileSetup: React.FC = () => {
                 </Select>
                 {errors.state && <p className="text-red-500">{errors.state}</p>}
               </div>
+
+              {/* Postcode */}
               <div>
                 <Label>Postcode *</Label>
                 <Input
@@ -327,6 +356,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.postcode && <p className="text-red-500">{errors.postcode}</p>}
               </div>
 
+              {/* Continue */}
               <div className="pt-6">
                 <Button type="submit" className="w-full h-14 bg-orange-500 text-white rounded-xl">
                   Continue →
