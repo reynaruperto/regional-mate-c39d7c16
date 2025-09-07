@@ -6,38 +6,22 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-enum AreaRestriction {
-  All = "All",
-  Regional = "Regional",
-  Northern = "Northern",
-  Remote = "Remote",
-  VeryRemote = "Very Remote",
-}
-
-const australianStates = [
-  "Australian Capital Territory",
-  "New South Wales",
-  "Northern Territory",
-  "Queensland",
-  "South Australia",
-  "Tasmania",
-  "Victoria",
-  "Western Australia",
-];
-
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
   const [tagline, setTagline] = useState("");
-  const [industries, setIndustries] = useState<any[]>([]);
-  const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
 
   // ==========================
-  // Load industries + roles based on user visa
+  // Load industries + states/areas based on visa
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -46,56 +30,85 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get user visa info
+      // 1. Fetch user's visa info
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("stage_id, visa_type")
+        .select("sub_class, stage_id, country_id")
         .eq("user_id", user.id)
         .single();
 
       if (!visa) return;
 
-      setVisaLabel(visa.visa_type || "Your Visa");
+      // Get country name
+      const { data: country } = await supabase
+        .from("country")
+        .select("name")
+        .eq("country_id", visa.country_id)
+        .single();
 
-      // Get industries + roles for that stage_id
-      const { data: indRoles } = await supabase
-        .from("v_visa_stage_industries_roles")
-        .select("industry_id, industry_name, role_id, role_name")
-        .eq("stage_id", visa.stage_id);
+      // 2. Get industries allowed from temp_eligibility
+      const { data: industriesData } = await supabase
+        .from("temp_eligibility")
+        .select("industry_name")
+        .eq("sub_class", visa.sub_class)
+        .eq("stage", visa.stage_id)
+        .eq("country_name", country?.name);
 
-      if (indRoles) {
-        const grouped = indRoles.reduce((acc: any, row: any) => {
-          if (!acc[row.industry_id]) {
-            acc[row.industry_id] = {
-              industry_id: row.industry_id,
-              name: row.industry_name,
-              roles: [],
-            };
-          }
-          if (row.role_id && row.role_name) {
-            acc[row.industry_id].roles.push({
-              id: row.role_id,
-              name: row.role_name,
-            });
-          }
-          return acc;
-        }, {});
-        setIndustries(Object.values(grouped));
+      if (industriesData) {
+        const uniqueIndustries = Array.from(
+          new Set(industriesData.map((i) => i.industry_name))
+        );
+        setIndustries(uniqueIndustries);
       }
+
+      // 3. Get states/areas allowed from maker_visa_eligibility
+      const { data: statesData } = await supabase
+        .from("maker_visa_eligibility")
+        .select("state, area")
+        .eq("sub_class", visa.sub_class)
+        .eq("stage", visa.stage_id);
+
+      if (statesData) {
+        const uniqueStates = Array.from(new Set(statesData.map((s) => s.state)));
+        const uniqueAreas = Array.from(new Set(statesData.map((s) => s.area)));
+        setStates(uniqueStates);
+        setAreas(uniqueAreas);
+      }
+
+      setVisaLabel(`${visa.sub_class} (Stage ${visa.stage_id})`);
     };
 
     loadData();
   }, []);
 
   // ==========================
-  // Toggle helpers
+  // Load roles when industry is picked
   // ==========================
-  const toggleIndustry = (industryId: number) => {
-    if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
-      setSelectedRoles([]); // reset roles when industry changes
-    } else if (selectedIndustries.length < 3) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
+  const handleIndustrySelect = async (industry: string) => {
+    if (!selectedIndustries.includes(industry) && selectedIndustries.length < 3) {
+      setSelectedIndustries([...selectedIndustries, industry]);
+
+      // find industry_id
+      const { data: industryRow } = await supabase
+        .from("industry")
+        .select("industry_id")
+        .eq("name", industry)
+        .single();
+
+      if (!industryRow) return;
+
+      // fetch roles
+      const { data: rolesData } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role")
+        .eq("industry_id", industryRow.industry_id);
+
+      if (rolesData) {
+        setRoles((prev) => [
+          ...prev,
+          ...rolesData.map((r) => ({ id: r.industry_role_id, name: r.role })),
+        ]);
+      }
     }
   };
 
@@ -207,20 +220,20 @@ const WHVWorkPreferences: React.FC = () => {
                 <div className="max-h-48 overflow-y-auto border rounded-md p-2">
                   {industries.map((ind) => (
                     <label
-                      key={ind.industry_id}
+                      key={ind}
                       className="flex items-center space-x-2"
                     >
                       <input
                         type="checkbox"
-                        checked={selectedIndustries.includes(ind.industry_id)}
+                        checked={selectedIndustries.includes(ind)}
                         disabled={
                           selectedIndustries.length >= 3 &&
-                          !selectedIndustries.includes(ind.industry_id)
+                          !selectedIndustries.includes(ind)
                         }
-                        onChange={() => toggleIndustry(ind.industry_id)}
+                        onChange={() => handleIndustrySelect(ind)}
                         className="h-4 w-4"
                       />
-                      <span className="text-sm text-gray-700">{ind.name}</span>
+                      <span className="text-sm text-gray-700">{ind}</span>
                     </label>
                   ))}
                 </div>
@@ -231,24 +244,20 @@ const WHVWorkPreferences: React.FC = () => {
                 <div className="space-y-3">
                   <Label>Select roles *</Label>
                   <div className="flex flex-wrap gap-2">
-                    {industries
-                      .filter((i) => selectedIndustries.includes(i.industry_id))
-                      .flatMap((ind) =>
-                        ind.roles.map((r: any) => (
-                          <button
-                            type="button"
-                            key={r.id}
-                            onClick={() => toggleRole(r.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs border ${
-                              selectedRoles.includes(r.id)
-                                ? "bg-orange-500 text-white border-orange-500"
-                                : "bg-white text-gray-700 border-gray-300"
-                            }`}
-                          >
-                            {r.name}
-                          </button>
-                        ))
-                      )}
+                    {roles.map((r) => (
+                      <button
+                        type="button"
+                        key={r.id}
+                        onClick={() => toggleRole(r.id)}
+                        className={`px-3 py-1.5 rounded-full text-xs border ${
+                          selectedRoles.includes(r.id)
+                            ? "bg-orange-500 text-white border-orange-500"
+                            : "bg-white text-gray-700 border-gray-300"
+                        }`}
+                      >
+                        {r.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -257,7 +266,7 @@ const WHVWorkPreferences: React.FC = () => {
               <div className="space-y-3">
                 <Label>Preferred States (up to 3) *</Label>
                 <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                  {australianStates.map((state) => (
+                  {states.map((state) => (
                     <label key={state} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -279,7 +288,7 @@ const WHVWorkPreferences: React.FC = () => {
               <div className="space-y-3">
                 <Label>Preferred Areas (up to 3) *</Label>
                 <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                  {Object.values(AreaRestriction).map((area) => (
+                  {areas.map((area) => (
                     <label key={area} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -315,5 +324,6 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
 
 
