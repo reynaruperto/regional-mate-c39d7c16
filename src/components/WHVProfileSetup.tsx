@@ -13,7 +13,6 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Looser local types so TS doesn’t block us
 type CountryLite = { country_id: number; name: string };
 type VisaStageLite = { stage_id: number; sub_class: string; stage: number; label: string };
 
@@ -28,7 +27,6 @@ const australianStates = [
   "Western Australia",
 ];
 
-// Utility: calculate age
 const calculateAge = (dob: string) => {
   const today = new Date();
   const birthDate = new Date(dob);
@@ -63,7 +61,6 @@ const WHVProfileSetup: React.FC = () => {
   const [visaStages, setVisaStages] = useState<VisaStageLite[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // ✅ Load countries
   useEffect(() => {
     const fetchCountries = async () => {
       const { data } = await supabase.from("country").select("country_id, name").order("name");
@@ -72,14 +69,12 @@ const WHVProfileSetup: React.FC = () => {
     fetchCountries();
   }, []);
 
-  // ✅ Load visa stages when nationality changes
   useEffect(() => {
     const fetchVisaStages = async () => {
       if (!formData.countryId) {
         setVisaStages([]);
         return;
       }
-
       const { data, error } = await supabase
         .from("country_eligibility")
         .select(
@@ -95,43 +90,23 @@ const WHVProfileSetup: React.FC = () => {
         )
         .eq("country_id", formData.countryId);
 
-      if (error) {
-        console.error("Error fetching visa stages:", error);
-        setVisaStages([]);
-      } else if (data) {
-        setVisaStages(data.map((d) => d.visa_stage));
-      }
+      if (!error && data) setVisaStages(data.map((d) => d.visa_stage));
     };
-
     fetchVisaStages();
   }, [formData.countryId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
+  const validateField = (name: string, value: string) => {
+    let error = "";
 
-  const handleSelect = (name: string, value: string | number) => {
-    setFormData({ ...formData, [name]: value });
-  };
+    if (name === "givenName" && !value) error = "Required";
+    if (name === "familyName" && !value) error = "Required";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: any = {};
-
-    // Required nationality & visa
-    if (!formData.countryId) newErrors.nationality = "Required";
-    if (!formData.stageId) newErrors.visaType = "Required";
-
-    // DOB validation
-    if (!formData.dateOfBirth) {
-      newErrors.dateOfBirth = "Required";
-    } else {
-      const age = calculateAge(formData.dateOfBirth);
+    if (name === "dateOfBirth" && value) {
+      const age = calculateAge(value);
       const selectedVisa = visaStages.find((v) => v.stage_id === formData.stageId);
       const subClass = selectedVisa?.sub_class;
-
       let maxAge = 30;
+
       if (subClass === "417") {
         const countryName = countries.find((c) => c.country_id === formData.countryId)?.name;
         if (["Canada", "France", "Ireland"].includes(countryName || "")) {
@@ -140,37 +115,38 @@ const WHVProfileSetup: React.FC = () => {
       }
 
       if (age < 18 || age > maxAge) {
-        newErrors.dateOfBirth = `Invalid age. Must be 18–${maxAge} for visa ${subClass}.`;
+        error = `Invalid age. Must be 18–${maxAge} for visa ${subClass}`;
       }
     }
 
-    // Other required fields
-    if (!formData.givenName) newErrors.givenName = "Required";
-    if (!formData.familyName) newErrors.familyName = "Required";
-    if (!formData.visaExpiry) newErrors.visaExpiry = "Required";
-    if (!formData.phone) {
-      newErrors.phone = "Required";
-    } else if (!/^(\+614\d{8}|04\d{8})$/.test(formData.phone)) {
-      newErrors.phone = "Invalid Australian phone number";
-    }
-    if (!formData.address1) newErrors.address1 = "Required";
-    if (!formData.suburb) newErrors.suburb = "Required";
-    if (!formData.state) newErrors.state = "Required";
-    if (!formData.postcode) newErrors.postcode = "Required";
-
-    if (Object.keys(newErrors).length) {
-      setErrors(newErrors);
-      return;
+    if (name === "phone" && value && !/^(\+614\d{8}|04\d{8})$/.test(value)) {
+      error = "Invalid Australian phone number";
     }
 
-    // ✅ Save to Supabase
+    setErrors((prev) => ({ ...prev, [name]: error }));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    validateField(name, value);
+  };
+
+  const handleSelect = (name: string, value: string | number) => {
+    setFormData({ ...formData, [name]: value });
+    validateField(name, value.toString());
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // block submit if any error
+    if (Object.values(errors).some((err) => err)) return;
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      alert("User not logged in — please restart signup flow.");
-      return;
-    }
+    if (!user) return;
 
     await supabase.from("whv_maker").upsert(
       {
@@ -229,6 +205,24 @@ const WHVProfileSetup: React.FC = () => {
           {/* Form */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Names first */}
+              <div>
+                <Label>Given Name *</Label>
+                <Input name="givenName" value={formData.givenName} onChange={handleChange} />
+                {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
+              </div>
+
+              <div>
+                <Label>Middle Name</Label>
+                <Input name="middleName" value={formData.middleName} onChange={handleChange} />
+              </div>
+
+              <div>
+                <Label>Family Name *</Label>
+                <Input name="familyName" value={formData.familyName} onChange={handleChange} />
+                {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
+              </div>
+
               {/* Nationality */}
               <div>
                 <Label>Nationality *</Label>
@@ -250,7 +244,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.nationality && <p className="text-red-500">{errors.nationality}</p>}
               </div>
 
-              {/* Visa Type */}
+              {/* Visa */}
               {visaStages.length > 0 && (
                 <div>
                   <Label>Visa Type *</Label>
@@ -283,24 +277,6 @@ const WHVProfileSetup: React.FC = () => {
                   onChange={handleChange}
                 />
                 {errors.dateOfBirth && <p className="text-red-500">{errors.dateOfBirth}</p>}
-              </div>
-
-              {/* Names */}
-              <div>
-                <Label>Given Name *</Label>
-                <Input name="givenName" value={formData.givenName} onChange={handleChange} />
-                {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
-              </div>
-
-              <div>
-                <Label>Middle Name</Label>
-                <Input name="middleName" value={formData.middleName} onChange={handleChange} />
-              </div>
-
-              <div>
-                <Label>Family Name *</Label>
-                <Input name="familyName" value={formData.familyName} onChange={handleChange} />
-                {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
               </div>
 
               {/* Visa Expiry */}
@@ -391,6 +367,7 @@ const WHVProfileSetup: React.FC = () => {
 };
 
 export default WHVProfileSetup;
+
 
 
 
