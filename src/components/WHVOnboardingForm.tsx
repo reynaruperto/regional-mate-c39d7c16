@@ -32,8 +32,9 @@ const WHVOnboardingForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [duplicateEmailError, setDuplicateEmailError] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, watch, setError } = useForm<FormData>({
     resolver: zodResolver(formSchema)
   });
 
@@ -42,9 +43,13 @@ const WHVOnboardingForm: React.FC = () => {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
+    setDuplicateEmailError(null);
+    
     try {
+      const trimmedEmail = data.email.trim().toLowerCase();
+      
       const { error } = await supabase.auth.signUp({
-        email: data.email,
+        email: trimmedEmail,
         password: data.password,
         options: {
           emailRedirectTo: `${window.location.origin}/whv/profile-setup`,
@@ -52,9 +57,21 @@ const WHVOnboardingForm: React.FC = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Signup error details:", error);
+        
+        // Check for duplicate email errors
+        if (error.message?.includes('already registered') || 
+            error.message?.includes('already exists') ||
+            error.message?.includes('User already registered')) {
+          setDuplicateEmailError("An account with this email already exists. Please sign in instead.");
+          return;
+        }
+        
+        throw error;
+      }
 
-      sessionStorage.setItem('pendingEmail', data.email);
+      sessionStorage.setItem('pendingEmail', trimmedEmail);
 
       toast({
         title: "Account created successfully!",
@@ -113,6 +130,19 @@ const WHVOnboardingForm: React.FC = () => {
                   <Input id="email" type="email" {...register("email")}
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl" />
                   {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
+                  {duplicateEmailError && (
+                    <div className="mt-2">
+                      <p className="text-red-500 text-sm">{duplicateEmailError}</p>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="p-0 h-auto text-sm text-orange-600 hover:text-orange-700"
+                        onClick={() => navigate('/whv/login')}
+                      >
+                        Sign in instead
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Password */}
@@ -187,5 +217,3 @@ const WHVOnboardingForm: React.FC = () => {
 };
 
 export default WHVOnboardingForm;
-
-
