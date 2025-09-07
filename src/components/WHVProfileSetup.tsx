@@ -251,7 +251,7 @@ const WHVProfileSetup: React.FC = () => {
     // ✅ Save visa to maker_visa (bypass TS with as any)
     const visaData = {
       user_id: user.id,
-      visa_type: selectedStage?.sub_class, // Use sub_class (417 or 462) as visa_type
+      visa_type: selectedStage?.label, // Use label instead of sub_class
       expiry_date: formData.visaExpiry,
     };
     
