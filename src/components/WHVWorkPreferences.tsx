@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,44 +10,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-// ✅ Schema
-const formSchema = z.object({
-  industries: z.array(z.string()).min(1, "Pick at least 1 industry").max(3, "Max 3 industries"),
-  states: z.array(z.string()).min(1, "Pick at least 1 state").max(3, "Max 3 states"),
-  areas: z.array(z.string()).min(1, "Pick at least 1 area").max(3, "Max 3 areas"),
-  postcode: z.string().optional(),
-});
-
-type FormData = z.infer<typeof formSchema>;
-
+// ✅ Props
 interface WorkPreferencesProps {
   visaType: "417" | "462";
-  visaStage: number; // 1, 2, 3
+  visaStage: 1 | 2 | 3;
 }
 
-const WorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage }) => {
-  const { control, handleSubmit, watch } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      industries: [],
-      states: [],
-      areas: [],
-    },
-  });
+// ✅ Type for Supabase rows
+type RegionRule = {
+  industry_name: string;
+  state: string;
+  area: string;
+  postcode_range: string;
+};
 
+const WorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage }) => {
   const [industries, setIndustries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
-  const [tooltip, setTooltip] = useState<string>("");
+  const [selectedIndustry, setSelectedIndustry] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedArea, setSelectedArea] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [tooltip, setTooltip] = useState("");
 
-  const selectedIndustries = watch("industries");
-  const selectedStates = watch("states");
-  const selectedAreas = watch("areas");
-  const enteredPostcode = watch("postcode");
-
-  // 🔹 Load industries
+  // ✅ Load industries based on visaType & stage
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase
@@ -59,238 +45,185 @@ const WorkPreferences: React.FC<WorkPreferencesProps> = ({ visaType, visaStage }
         .eq("stage", visaStage);
 
       if (error) {
-        console.error("Error fetching industries:", error.message);
-      } else if (data) {
-        const uniqueIndustries = [...new Set(data.map((row) => row.industry_name))];
-        setIndustries(uniqueIndustries);
+        console.error("Error fetching industries:", error);
+        return;
       }
+
+      const uniqueIndustries = Array.from(
+        new Set((data as RegionRule[]).map((row) => row.industry_name))
+      ).slice(0, 3); // max 3 for prompt length
+
+      setIndustries(uniqueIndustries);
     };
 
     fetchIndustries();
   }, [visaType, visaStage]);
 
-  // 🔹 Load states after industries
+  // ✅ Load states based on selected industry
   useEffect(() => {
-    const fetchStates = async () => {
-      if (selectedIndustries.length === 0) return;
+    if (!selectedIndustry) return;
 
+    const fetchStates = async () => {
       const { data, error } = await supabase
         .from("region_rules")
         .select("state")
-        .in("industry_name", selectedIndustries)
+        .eq("industry_name", selectedIndustry)
         .eq("sub_class", visaType)
         .eq("stage", visaStage);
 
       if (error) {
-        console.error("Error fetching states:", error.message);
-      } else if (data) {
-        const uniqueStates = [...new Set(data.map((row) => row.state))];
-        setStates(uniqueStates);
+        console.error("Error fetching states:", error);
+        return;
       }
+
+      const uniqueStates = Array.from(
+        new Set((data as RegionRule[]).map((row) => row.state))
+      ).slice(0, 3);
+
+      setStates(uniqueStates);
     };
 
     fetchStates();
-  }, [selectedIndustries, visaType, visaStage]);
+  }, [selectedIndustry, visaType, visaStage]);
 
-  // 🔹 Load areas after selecting states
+  // ✅ Load areas based on selected state
   useEffect(() => {
-    const fetchAreas = async () => {
-      if (selectedIndustries.length === 0 || selectedStates.length === 0) return;
+    if (!selectedState) return;
 
+    const fetchAreas = async () => {
       const { data, error } = await supabase
         .from("region_rules")
         .select("area")
-        .in("industry_name", selectedIndustries)
+        .eq("industry_name", selectedIndustry)
+        .eq("state", selectedState)
         .eq("sub_class", visaType)
-        .eq("stage", visaStage)
-        .in("state", selectedStates);
+        .eq("stage", visaStage);
 
       if (error) {
-        console.error("Error fetching areas:", error.message);
-      } else if (data) {
-        const uniqueAreas = [...new Set(data.map((row) => row.area))];
-        setAreas(uniqueAreas);
+        console.error("Error fetching areas:", error);
+        return;
       }
+
+      const uniqueAreas = Array.from(
+        new Set((data as RegionRule[]).map((row) => row.area))
+      ).slice(0, 3);
+
+      setAreas(uniqueAreas);
     };
 
     fetchAreas();
-  }, [selectedIndustries, selectedStates, visaType, visaStage]);
+  }, [selectedState, selectedIndustry, visaType, visaStage]);
 
-  // 🔹 Tooltip eligibility
-  useEffect(() => {
-    const checkEligibility = async () => {
-      if (selectedIndustries.length === 0 || selectedStates.length === 0 || selectedAreas.length === 0) return;
+  // ✅ Tooltip check
+  const checkEligibility = async () => {
+    if (!selectedIndustry || !selectedState || !selectedArea || !postcode) {
+      setTooltip("⚠️ Please select all fields.");
+      return;
+    }
 
-      const { data, error } = await supabase
-        .from("region_rules")
-        .select("postcode_range")
-        .in("industry_name", selectedIndustries)
-        .eq("sub_class", visaType)
-        .eq("stage", visaStage)
-        .in("state", selectedStates)
-        .in("area", selectedAreas);
+    const { data, error } = await supabase
+      .from("region_rules")
+      .select("postcode_range")
+      .eq("industry_name", selectedIndustry)
+      .eq("state", selectedState)
+      .eq("area", selectedArea)
+      .eq("sub_class", visaType)
+      .eq("stage", visaStage);
 
-      if (error) {
-        console.error("Error checking eligibility:", error.message);
-      } else if (data && data.length > 0) {
-        const rule = data[0];
-        if (rule.postcode_range === "All postcodes") {
-          setTooltip("✅ Eligible for visa extension in this area");
-        } else if (enteredPostcode && rule.postcode_range.includes(enteredPostcode)) {
-          setTooltip("✅ Eligible for visa extension (postcode match)");
-        } else {
-          setTooltip("⚠️ This role may not be eligible in this location");
-        }
-      }
-    };
+    if (error) {
+      console.error("Error checking eligibility:", error);
+      setTooltip("⚠️ Error checking eligibility.");
+      return;
+    }
 
-    checkEligibility();
-  }, [selectedIndustries, selectedStates, selectedAreas, enteredPostcode, visaType, visaStage]);
+    const ranges = (data as RegionRule[]).map((row) => row.postcode_range);
 
-  const onSubmit = (data: FormData) => {
-    console.log("Work Preferences submitted:", data);
+    const valid = ranges.some((range) => {
+      if (range === "All postcodes") return true;
+      return range.includes(postcode);
+    });
+
+    setTooltip(
+      valid
+        ? `✅ ${selectedIndustry} counts in ${selectedState} (${selectedArea})`
+        : `⚠️ ${selectedIndustry} does not count in ${selectedState} (${selectedArea})`
+    );
   };
 
-  // ✅ Helper to display combined selections as text
-  const industriesSummary =
-    selectedIndustries.length > 0
-      ? selectedIndustries.join(" + ")
-      : "Select up to 3 industries";
-
-  const statesSummary =
-    selectedStates.length > 0
-      ? selectedStates.map((s) => `Anywhere in ${s}`).join(" + ")
-      : "Select up to 3 states";
-
-  const areasSummary =
-    selectedAreas.length > 0
-      ? selectedAreas.join(" + ")
-      : "Select up to 3 areas";
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-4">
-      {/* Industry Multi-Select */}
-      <Controller
-        name="industries"
-        control={control}
-        render={({ field }) => (
-          <div>
-            <Select
-              onValueChange={(val) => {
-                if (field.value.includes(val)) {
-                  field.onChange(field.value.filter((s) => s !== val));
-                } else if (field.value.length < 3) {
-                  field.onChange([...field.value, val]);
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select industries (up to 3)" />
-              </SelectTrigger>
-              <SelectContent>
-                {industries.map((ind) => (
-                  <SelectItem key={ind} value={ind}>
-                    {ind}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm mt-2 text-gray-600">{industriesSummary}</p>
-          </div>
-        )}
-      />
+    <div className="space-y-4 p-6">
+      <h2 className="text-lg font-bold">Work Preferences</h2>
 
-      {/* Multi-State Selection */}
-      <Controller
-        name="states"
-        control={control}
-        render={({ field }) => (
-          <div>
-            <Select
-              onValueChange={(val) => {
-                if (field.value.includes(val)) {
-                  field.onChange(field.value.filter((s) => s !== val));
-                } else if (field.value.length < 3) {
-                  field.onChange([...field.value, val]);
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select states (up to 3)" />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((st) => (
-                  <SelectItem key={st} value={st}>
-                    {st}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm mt-2 text-gray-600">{statesSummary}</p>
-          </div>
-        )}
-      />
+      {/* Industry */}
+      <div>
+        <Label>Industry</Label>
+        <Select onValueChange={setSelectedIndustry}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select industry" />
+          </SelectTrigger>
+          <SelectContent>
+            {industries.map((industry) => (
+              <SelectItem key={industry} value={industry}>
+                {industry}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Multi-Area Selection */}
-      <Controller
-        name="areas"
-        control={control}
-        render={({ field }) => (
-          <div>
-            <Select
-              onValueChange={(val) => {
-                if (field.value.includes(val)) {
-                  field.onChange(field.value.filter((s) => s !== val));
-                } else if (field.value.length < 3) {
-                  field.onChange([...field.value, val]);
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select areas (up to 3)" />
-              </SelectTrigger>
-              <SelectContent>
-                {areas.map((ar) => (
-                  <SelectItem key={ar} value={ar}>
-                    {ar}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm mt-2 text-gray-600">{areasSummary}</p>
-          </div>
-        )}
-      />
+      {/* State */}
+      <div>
+        <Label>State</Label>
+        <Select onValueChange={setSelectedState}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select state" />
+          </SelectTrigger>
+          <SelectContent>
+            {states.map((st) => (
+              <SelectItem key={st} value={st}>
+                {st}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Postcode Input */}
-      <Controller
-        name="postcode"
-        control={control}
-        render={({ field }) => (
-          <Input {...field} placeholder="Enter postcode (optional)" />
-        )}
-      />
+      {/* Area */}
+      <div>
+        <Label>Area</Label>
+        <Select onValueChange={setSelectedArea}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select area" />
+          </SelectTrigger>
+          <SelectContent>
+            {areas.map((ar) => (
+              <SelectItem key={ar} value={ar}>
+                {ar}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Postcode */}
+      <div>
+        <Label>Postcode</Label>
+        <Input
+          value={postcode}
+          onChange={(e) => setPostcode(e.target.value)}
+          placeholder="Enter postcode"
+        />
+      </div>
+
+      {/* Button */}
+      <Button onClick={checkEligibility}>Check Eligibility</Button>
 
       {/* Tooltip */}
-      {tooltip && (
-        <Tooltip>
-          <TooltipTrigger>
-            <span className="text-sm text-gray-600">ℹ️ Check eligibility</span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{tooltip}</p>
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      <Button type="submit" className="w-full">
-        Save Preferences
-      </Button>
-    </form>
+      {tooltip && <p className="mt-2 text-sm">{tooltip}</p>}
+    </div>
   );
 };
 
 export default WorkPreferences;
-
 
 
