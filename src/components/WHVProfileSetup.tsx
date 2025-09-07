@@ -50,7 +50,7 @@ const WHVProfileSetup: React.FC = () => {
     familyName: "",
     dateOfBirth: "",
     countryId: null as number | null,
-    visaType: "", // we'll use label directly
+    visaType: "",
     visaExpiry: "",
     phone: "",
     address1: "",
@@ -95,11 +95,12 @@ const WHVProfileSetup: React.FC = () => {
     const date = new Date(dob);
     const now = new Date();
     const age = now.getFullYear() - date.getFullYear();
-    return age >= 18 && age <= 35; // WHV rule
+    return age >= 18 && age <= 35;
   };
 
   const isValidExpiry = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date);
 
+  // ✅ Fixed handleSubmit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: any = {};
@@ -138,7 +139,8 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     const selectedCountry = countries.find(c => c.country_id === formData.countryId);
-    
+
+    // Save WHV profile
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -163,22 +165,16 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    // Map visa stage to correct enum format
+    // Map visa stage
     const getVisaEnumValue = (selectedStage: VisaStage): string => {
       const { sub_class, stage } = selectedStage;
       const stageText = stage === 1 ? "First" : stage === 2 ? "Second" : "Third";
-      return sub_class === "417" 
+      return sub_class === "417"
         ? `${stageText} Working Holiday Visa (417)`
         : `${stageText} Work and Holiday Visa (462)`;
     };
 
-    console.log("=== DEBUGGING VISA SAVE ===");
-    console.log("Form visa type:", formData.visaType);
-    console.log("Available visa stages:", visaStages);
-    
     const selectedStage = visaStages.find(v => v.label === formData.visaType);
-    console.log("Selected stage:", selectedStage);
-    
     if (!selectedStage) {
       console.error("No matching stage found for:", formData.visaType);
       alert("Invalid visa type selected");
@@ -186,21 +182,18 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     const mappedVisaType = getVisaEnumValue(selectedStage);
-    console.log("Mapped visa type:", mappedVisaType);
 
     const visaDataToSave = {
       user_id: user.id,
       visa_type: mappedVisaType,
       expiry_date: formData.visaExpiry,
     };
-    console.log("Visa data to save:", visaDataToSave);
 
+    // ✅ FIX: Supabase knows composite PK, no need to pass "user_id,visa_type"
     const { error: visaError } = await supabase.from("maker_visa").upsert(
-      visaDataToSave as any,
-      { onConflict: "user_id,visa_type" }
+      visaDataToSave as any
+      // or: { onConflict: ["user_id", "visa_type"] } if supported in your version
     );
-
-    console.log("Visa save result:", { error: visaError });
 
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
@@ -398,6 +391,7 @@ const WHVProfileSetup: React.FC = () => {
 };
 
 export default WHVProfileSetup;
+
 
 
 
