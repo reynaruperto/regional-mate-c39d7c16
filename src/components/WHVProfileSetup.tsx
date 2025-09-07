@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/supabase-extensions";
+import type { Database } from "@/integrations/supabase/types";
 
 type Country = Database["public"]["Tables"]["country"]["Row"];
 type VisaStage = Database["public"]["Tables"]["visa_stage"]["Row"];
@@ -86,17 +86,23 @@ const WHVProfileSetup: React.FC = () => {
       );
       if (!selectedCountry) return;
 
-      const { data: eligibleStages, error } = await supabase
-        .from("country_eligibility")
-        .select("visa_stage(stage_id,label,sub_class,stage)")
-        .eq("country_id", selectedCountry.country_id);
+      // For now, show all stages since country_eligibility table doesn't exist
+      // const { data: eligibleStages, error } = await supabase
+      //   .from("country_eligibility")
+      //   .select("visa_stage(stage_id,label,sub_class,stage)")
+      //   .eq("country_id", selectedCountry.country_id);
 
-      if (error) {
-        console.error("Error fetching eligibility:", error);
-        setFilteredStages([]);
-      } else if (eligibleStages) {
-        setFilteredStages(eligibleStages.map((e: any) => e.visa_stage));
-      }
+      // For demo purposes, filter by country scheme
+      const filteredByScheme = visaStages.filter((stage) => {
+        if (selectedCountry.scheme === "417") {
+          return stage.sub_class === "417";
+        } else if (selectedCountry.scheme === "462") {
+          return stage.sub_class === "462";
+        }
+        return true;
+      });
+      
+      setFilteredStages(filteredByScheme);
     };
 
     fetchEligibility();
@@ -205,10 +211,10 @@ const WHVProfileSetup: React.FC = () => {
     await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
-        stage_id: chosenStage?.stage_id,
+        visa_type: chosenStage?.sub_class || formData.visaType,
         expiry_date: formData.visaExpiry,
       } as any,
-      { onConflict: "user_id,stage_id" }
+      { onConflict: "user_id" }
     );
 
     navigate("/whv/work-preferences");
