@@ -14,9 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      country: {
+        Row: {
+          country_id: number
+          name: string
+          scheme: string
+        }
+        Insert: {
+          country_id?: number
+          name: string
+          scheme: string
+        }
+        Update: {
+          country_id?: number
+          name?: string
+          scheme?: string
+        }
+        Relationships: []
+      }
       employer: {
         Row: {
-          abn: string | null
+          abn: string
           address_line1: string | null
           address_line2: string | null
           business_tenure: Database["public"]["Enums"]["business_tenure"] | null
@@ -39,7 +57,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
-          abn?: string | null
+          abn: string
           address_line1?: string | null
           address_line2?: string | null
           business_tenure?:
@@ -64,7 +82,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
-          abn?: string | null
+          abn?: string
           address_line1?: string | null
           address_line2?: string | null
           business_tenure?:
@@ -425,7 +443,7 @@ export type Database = {
           {
             foreignKeyName: "maker_preference_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profile"
             referencedColumns: ["user_id"]
           },
@@ -549,7 +567,7 @@ export type Database = {
           id: string
           updated_at: string | null
           user_id: string
-          user_type: Database["public"]["Enums"]["user_type"]
+          user_type: string | null
         }
         Insert: {
           created_at?: string | null
@@ -557,7 +575,7 @@ export type Database = {
           id?: string
           updated_at?: string | null
           user_id: string
-          user_type: Database["public"]["Enums"]["user_type"]
+          user_type?: string | null
         }
         Update: {
           created_at?: string | null
@@ -565,7 +583,49 @@ export type Database = {
           id?: string
           updated_at?: string | null
           user_id?: string
-          user_type?: Database["public"]["Enums"]["user_type"]
+          user_type?: string | null
+        }
+        Relationships: []
+      }
+      region_postcode: {
+        Row: {
+          area: string
+          id: number
+          postcode_range: string
+          state: string
+        }
+        Insert: {
+          area: string
+          id?: number
+          postcode_range: string
+          state: string
+        }
+        Update: {
+          area?: string
+          id?: number
+          postcode_range?: string
+          state?: string
+        }
+        Relationships: []
+      }
+      visa_stage: {
+        Row: {
+          label: string
+          stage: number
+          stage_id: number
+          sub_class: string
+        }
+        Insert: {
+          label: string
+          stage: number
+          stage_id?: number
+          sub_class: string
+        }
+        Update: {
+          label?: string
+          stage?: number
+          stage_id?: number
+          sub_class?: string
         }
         Relationships: []
       }
@@ -743,7 +803,7 @@ export type Database = {
         | "Tasmania"
         | "Victoria"
         | "Western Australia"
-      user_type: "whv_maker" | "employer"
+      user_type: "employer" | "whv_maker"
       visa_type:
         | "First Work and Holiday Visa (462)"
         | "Second Work and Holiday Visa (462)"
@@ -968,7 +1028,7 @@ export const Constants = {
         "Victoria",
         "Western Australia",
       ],
-      user_type: ["whv_maker", "employer"],
+      user_type: ["employer", "whv_maker"],
       visa_type: [
         "First Work and Holiday Visa (462)",
         "Second Work and Holiday Visa (462)",
