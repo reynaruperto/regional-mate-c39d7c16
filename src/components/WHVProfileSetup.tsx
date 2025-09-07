@@ -212,23 +212,36 @@ const WHVProfileSetup: React.FC = () => {
     // ✅ Get the selected visa stage to determine visa_type
     const selectedStage = visaStages.find(stage => stage.stage_id === formData.stageId);
     const selectedCountry = countries.find(c => c.country_id === formData.countryId);
+    
+    console.log("=== DEBUGGING PROFILE SAVE ===");
+    console.log("Selected Stage:", selectedStage);
+    console.log("Selected Country:", selectedCountry);
+    console.log("Form Data:", formData);
+
+    const profileData = {
+      user_id: user.id,
+      given_name: formData.givenName,
+      middle_name: formData.middleName || null,
+      family_name: formData.familyName,
+      birth_date: formData.dateOfBirth,
+      nationality: selectedCountry?.name,
+      mobile_num: formData.phone,
+      address_line1: formData.address1,
+      address_line2: formData.address2 || null,
+      suburb: formData.suburb,
+      state: formData.state,
+      postcode: formData.postcode,
+    };
+    
+    console.log("Profile data to save:", profileData);
+    
     const { error: whvError } = await supabase.from("whv_maker").upsert(
-      {
-        user_id: user.id,
-        given_name: formData.givenName,
-        middle_name: formData.middleName || null,
-        family_name: formData.familyName,
-        birth_date: formData.dateOfBirth,
-        nationality: selectedCountry?.name,
-        mobile_num: formData.phone,
-        address_line1: formData.address1,
-        address_line2: formData.address2 || null,
-        suburb: formData.suburb,
-        state: formData.state,
-        postcode: formData.postcode,
-      } as any,
+      profileData as any,
       { onConflict: "user_id" }
     );
+    
+    console.log("WHV Profile save result:", { error: whvError });
+    
     if (whvError) {
       console.error("Failed to save WHV profile:", whvError);
       alert("Error saving profile. Please try again.");
@@ -236,14 +249,21 @@ const WHVProfileSetup: React.FC = () => {
     }
 
     // ✅ Save visa to maker_visa (bypass TS with as any)
+    const visaData = {
+      user_id: user.id,
+      visa_type: selectedStage?.sub_class, // Use sub_class (417 or 462) as visa_type
+      expiry_date: formData.visaExpiry,
+    };
+    
+    console.log("Visa data to save:", visaData);
+    
     const { error: visaError } = await supabase.from("maker_visa").upsert(
-      {
-        user_id: user.id,
-        visa_type: selectedStage?.sub_class, // Use sub_class (417 or 462) as visa_type
-        expiry_date: formData.visaExpiry,
-      } as any,
+      visaData as any,
       { onConflict: "user_id,visa_type" }
     );
+    
+    console.log("Visa save result:", { error: visaError });
+    
     if (visaError) {
       console.error("Failed to save Visa:", visaError);
       alert("Error saving visa info. Please try again.");
