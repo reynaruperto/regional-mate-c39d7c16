@@ -53,6 +53,7 @@ import WHVEmployerJobDetails from "./pages/WHVEmployerJobDetails";
 import WHVJobDetails from "./pages/WHVJobDetails";
 import WHVBrowseEmployers from "./pages/WHVBrowseEmployers";
 import WHVLogin from "./pages/WHVLogin";
+import EmployerSignIn from "./pages/EmployerSignIn";
 
 // Shared/misc pages
 import ProfileCompletion from "./pages/ProfileCompletion";
@@ -131,7 +132,9 @@ const App = () => (
           <Route path="/whv/employer/job-details/:id" element={<WHVEmployerJobDetails />} />
           <Route path="/whv/job-details/:employerId/:jobId" element={<WHVJobDetails />} />
           <Route path="/whv/browse-employers" element={<WHVBrowseEmployers />} />
-          <Route path="/whv/login" element={<WHVLogin />} />
+          <Route path="/whv/sign-in" element={<WHVLogin />} />
+          <Route path="/whv/login" element={<Navigate to="/whv/sign-in" replace />} />
+          <Route path="/employer/sign-in" element={<EmployerSignIn />} />
 
           {/* Shared/misc */}
           <Route path="/profile-completion" element={<ProfileCompletion />} />

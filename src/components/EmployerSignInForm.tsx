@@ -45,9 +45,9 @@ const EmployerSignInForm: React.FC = () => {
     navigate('/lets-begin');
   };
 
-  const handleBack = () => {
-    navigate('/lets-begin');
-  };
+   const handleBack = () => {
+     navigate('/sign-in');
+   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -77,12 +77,22 @@ const EmployerSignInForm: React.FC = () => {
             <div className="flex-1 flex items-center justify-center px-6 pt-4">
               <div className="w-full max-w-sm bg-white rounded-3xl p-8 shadow-lg">
                 
-                {/* Logo */}
-                <div className="flex justify-center mb-12">
-                  <div className="bg-white p-6 rounded-3xl shadow-lg">
-                    <AustraliaIcon className="w-[108px] h-[108px]" />
-                  </div>
-                </div>
+                 {/* Logo */}
+                 <div className="flex justify-center mb-8">
+                   <div className="bg-white p-6 rounded-3xl shadow-lg">
+                     <AustraliaIcon className="w-[108px] h-[108px]" />
+                   </div>
+                 </div>
+
+                 {/* Title */}
+                 <div className="text-center mb-8">
+                   <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                     Sign in as an Employer
+                   </h1>
+                   <p className="text-gray-600">
+                     Welcome back! Enter your details
+                   </p>
+                 </div>
 
                 {/* Login Form */}
                 <form onSubmit={handleSignIn} className="space-y-6">
@@ -119,15 +129,17 @@ const EmployerSignInForm: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Sign In Button */}
-                  <div className="pt-2">
-                    <Button 
-                      type="submit"
-                      className="w-full h-14 text-base rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-medium"
-                    >
-                      Sign in
-                    </Button>
-                  </div>
+                   {/* Sign In Button */}
+                   <div className="pt-2">
+                     <Button 
+                       type="submit"
+                       className="w-full h-14 text-base rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-medium flex items-center justify-center gap-2"
+                       disabled={!email || !password}
+                     >
+                       Sign in as Employer
+                       <span className="px-2 py-1 text-xs bg-slate-700 rounded">EMP</span>
+                     </Button>
+                   </div>
                 </form>
 
                 {/* Forgot Password */}
