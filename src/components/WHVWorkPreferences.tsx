@@ -5,85 +5,83 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/supabase-extensions";
 
-type MakerPreferenceInsert =
-  Database["public"]["Tables"]["maker_preference"]["Insert"];
-type WHVMakerUpdate =
-  Database["public"]["Tables"]["whv_maker"]["Update"];
+type Industry = Database["public"]["Tables"]["industry"]["Row"] & {
+  industry_role: { industry_role_id: number; role: string }[];
+};
+
+enum AreaRestriction {
+  All = "All",
+  Regional = "Regional",
+  Northern = "Northern",
+  Remote = "Remote",
+  VeryRemote = "Very Remote",
+}
+
+const australianStates = [
+  "Australian Capital Territory",
+  "New South Wales",
+  "Northern Territory",
+  "Queensland",
+  "South Australia",
+  "Tasmania",
+  "Victoria",
+  "Western Australia",
+];
 
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { countryId, visaType, stageId } =
-    (location.state as { countryId: number; visaType: string; stageId: number }) || {
-      countryId: 0,
-      visaType: "417",
-      stageId: 1,
-    };
+  // ✅ get stageId passed from ProfileSetup
+  const { stageId } = (location.state as { stageId: number }) || { stageId: null };
 
   const [tagline, setTagline] = useState("");
-  const [industries, setIndustries] = useState<any[]>([]);
-  const [regionRules, setRegionRules] = useState<any[]>([]);
+  const [industries, setIndustries] = useState<Industry[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
 
   // ==========================
-  // Load industries & region rules
+  // Load industries filtered by eligibility
   // ==========================
   useEffect(() => {
-    const loadData = async () => {
-      console.log("Loading with:", { countryId, visaType, stageId });
+    const loadIndustries = async () => {
+      if (!stageId) return;
 
-      // Load industries with roles directly
-      const { data: industriesData, error: indError } = await supabase
-        .from("industry")
-        .select(`
-          industry_id,
-          name,
-          industry_role(industry_role_id, role)
-        `);
+      const { data, error } = await supabase
+        .from("maker_visa_eligibility")
+        .select(
+          `
+          industry:industry_id (
+            industry_id,
+            name,
+            industry_role (industry_role_id, role)
+          )
+        `
+        )
+        .eq("stage_id", stageId);
 
-      if (indError) {
-        console.error("Industry error:", indError);
-      } else if (industriesData) {
-        console.log("Industries loaded:", industriesData);
-        const mapped = industriesData.map((i: any) => ({
-          industry_id: i.industry_id,
-          name: i.name,
-          roles: (i.industry_role || []).map((r: any) => r.role),
+      if (error) {
+        console.error("Failed to load industries:", error);
+        return;
+      }
+
+      if (data) {
+        // Flatten into industry objects
+        const mapped = data.map((d: any) => ({
+          industry_id: d.industry.industry_id,
+          name: d.industry.name,
+          industry_role: d.industry.industry_role || [],
         }));
         setIndustries(mapped);
       }
-
-      // Use hardcoded region data since region_rules table may not be accessible
-      const mockRegionData = [
-        { state: "New South Wales", area: "Sydney" },
-        { state: "New South Wales", area: "Newcastle" },
-        { state: "New South Wales", area: "Central Coast" },
-        { state: "Victoria", area: "Melbourne" },
-        { state: "Victoria", area: "Geelong" },
-        { state: "Victoria", area: "Ballarat" },
-        { state: "Queensland", area: "Brisbane" },
-        { state: "Queensland", area: "Gold Coast" },
-        { state: "Queensland", area: "Sunshine Coast" },
-        { state: "Western Australia", area: "Perth" },
-        { state: "Western Australia", area: "Fremantle" },
-        { state: "South Australia", area: "Adelaide" },
-        { state: "Tasmania", area: "Hobart" },
-        { state: "Tasmania", area: "Launceston" },
-        { state: "Northern Territory", area: "Darwin" },
-        { state: "Australian Capital Territory", area: "Canberra" }
-      ];
-      console.log("Region data:", mockRegionData);
-      setRegionRules(mockRegionData);
     };
 
-    loadData();
-  }, [countryId, stageId, visaType]);
+    loadIndustries();
+  }, [stageId]);
 
   // ==========================
   // Toggle helpers
@@ -97,11 +95,11 @@ const WHVWorkPreferences: React.FC = () => {
     }
   };
 
-  const toggleRole = (role: string) => {
+  const toggleRole = (roleId: number) => {
     setSelectedRoles(
-      selectedRoles.includes(role)
-        ? selectedRoles.filter((r) => r !== role)
-        : [...selectedRoles, role]
+      selectedRoles.includes(roleId)
+        ? selectedRoles.filter((r) => r !== roleId)
+        : [...selectedRoles, roleId]
     );
   };
 
@@ -130,57 +128,26 @@ const WHVWorkPreferences: React.FC = () => {
   // ==========================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    console.log("Submitting preferences:", {
-      tagline,
-      selectedIndustries,
-      selectedRoles,
-      preferredStates,
-      preferredAreas
-    });
+    // update tagline
+    await supabase.from("whv_maker").update({ tagline }).eq("user_id", user.id);
 
-    // Update tagline
-    const taglineUpdate: WHVMakerUpdate = { tagline };
-    const { error: taglineError } = await supabase
-      .from("whv_maker")
-      .update(taglineUpdate)
-      .eq("user_id", user.id);
-
-    if (taglineError) {
-      console.error("Failed to update tagline:", taglineError);
-      return;
-    }
-
-    // Clear existing preferences first
-    await supabase
-      .from("maker_preference")
-      .delete()
-      .eq("user_id", user.id);
-
-    // Insert new preferences
+    // insert preferences
     for (const industryId of selectedIndustries) {
-      for (const state of preferredStates.length > 0 ? preferredStates : [null]) {
-        for (const area of preferredAreas.length > 0 ? preferredAreas : [null]) {
-          const newPref: MakerPreferenceInsert = {
+      const rolesForIndustry = selectedRoles.length ? selectedRoles : [null];
+      for (const roleId of rolesForIndustry) {
+        for (const state of preferredStates) {
+          await supabase.from("maker_preference").insert({
             user_id: user.id,
-            state: state as MakerPreferenceInsert["state"],
-            suburb_city: area, // Store area in suburb_city since area column was just added
+            state,
+            suburb_city: preferredAreas.join(", "),
             industry_id: industryId,
-            industry_role_id: null, // Will need to map roles to IDs later
-          };
-
-          const { error: insertError } = await supabase
-            .from("maker_preference")
-            .insert(newPref);
-
-          if (insertError) {
-            console.error("Failed to insert preference:", insertError);
-          }
+            industry_role_id: roleId,
+          } as any);
         }
       }
     }
@@ -204,12 +171,7 @@ const WHVWorkPreferences: React.FC = () => {
               >
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
-              <div className="text-center flex-1">
-                <h1 className="text-lg font-semibold text-gray-900">Work Preferences</h1>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Visa {visaType} · Stage {stageId}
-                </p>
-              </div>
+              <h1 className="text-lg font-medium text-gray-900">Work Preferences</h1>
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
@@ -218,70 +180,61 @@ const WHVWorkPreferences: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
-            <form onSubmit={handleSubmit} className="space-y-8 pb-24">
+            <form onSubmit={handleSubmit} className="space-y-8 pb-20">
               {/* Tagline */}
               <div className="space-y-2">
-                <Label className="font-medium">Profile Tagline *</Label>
+                <Label>Profile Tagline *</Label>
                 <Input
                   type="text"
                   value={tagline}
                   onChange={(e) => setTagline(e.target.value)}
-                  className="h-12 bg-gray-100 border-0 rounded-lg text-sm"
-                  placeholder="e.g. Hardworking traveler ready to contribute"
+                  className="h-12 bg-gray-100 border-0"
                   maxLength={60}
                 />
-                <p className="text-xs text-gray-400">Max 60 characters</p>
               </div>
 
               {/* Industries */}
               <div className="space-y-3">
-                <Label className="font-medium">Select up to 3 industries *</Label>
-                <div className="max-h-48 overflow-y-auto border rounded-lg p-3 space-y-2">
-                  {industries.length === 0 ? (
-                    <p className="text-sm text-gray-500">No industries available</p>
-                  ) : (
-                    industries.map((ind) => (
-                      <label
-                        key={ind.industry_id}
-                        className="flex items-center space-x-3 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedIndustries.includes(ind.industry_id)}
-                          disabled={
-                            selectedIndustries.length >= 3 &&
-                            !selectedIndustries.includes(ind.industry_id)
-                          }
-                          onChange={() => toggleIndustry(ind.industry_id)}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <span className="text-sm text-gray-700">{ind.name}</span>
-                      </label>
-                    ))
-                  )}
+                <Label>Select up to 3 industries *</Label>
+                <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                  {industries.map((ind) => (
+                    <label key={ind.industry_id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIndustries.includes(ind.industry_id)}
+                        disabled={
+                          selectedIndustries.length >= 3 &&
+                          !selectedIndustries.includes(ind.industry_id)
+                        }
+                        onChange={() => toggleIndustry(ind.industry_id)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm text-gray-700">{ind.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
               {/* Roles */}
               {selectedIndustries.length > 0 && (
                 <div className="space-y-3">
-                  <Label className="font-medium">Select roles</Label>
+                  <Label>Select roles</Label>
                   <div className="flex flex-wrap gap-2">
                     {industries
                       .filter((i) => selectedIndustries.includes(i.industry_id))
                       .flatMap((ind) =>
-                        ind.roles.map((r: string) => (
+                        ind.industry_role.map((r) => (
                           <button
                             type="button"
-                            key={r}
-                            onClick={() => toggleRole(r)}
-                            className={`px-4 py-2 rounded-full text-xs font-medium transition ${
-                              selectedRoles.includes(r)
-                                ? "bg-orange-500 text-white"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            key={r.industry_role_id}
+                            onClick={() => toggleRole(r.industry_role_id)}
+                            className={`px-3 py-1.5 rounded-full text-xs border ${
+                              selectedRoles.includes(r.industry_role_id)
+                                ? "bg-orange-500 text-white border-orange-500"
+                                : "bg-white text-gray-700 border-gray-300"
                             }`}
                           >
-                            {r}
+                            {r.role}
                           </button>
                         ))
                       )}
@@ -289,53 +242,60 @@ const WHVWorkPreferences: React.FC = () => {
                 </div>
               )}
 
-              {/* States + Areas */}
+              {/* States */}
               <div className="space-y-3">
-                <Label className="font-medium">Preferred States & Areas (up to 3 each)</Label>
-                <div className="max-h-60 overflow-y-auto border rounded-lg p-3 space-y-3">
-                  {[...new Set(regionRules.map((r) => r.state))].map((state) => {
-                    const areasForState = regionRules
-                      .filter((r) => r.state === state)
-                      .map((r) => r.area);
-
-                    return (
-                      <div key={state}>
-                        <p className="font-medium text-sm text-gray-700">{state}</p>
-                        {areasForState.map((area) => (
-                          <label
-                            key={`${state}-${area}`}
-                            className="flex items-center space-x-3 cursor-pointer ml-3"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={preferredAreas.includes(area)}
-                              disabled={
-                                preferredAreas.length >= 3 &&
-                                !preferredAreas.includes(area)
-                              }
-                              onChange={() => togglePreferredArea(area)}
-                              className="h-4 w-4 rounded border-gray-300"
-                            />
-                            <span className="text-sm text-gray-700">{area}</span>
-                          </label>
-                        ))}
-                      </div>
-                    );
-                  })}
+                <Label>Preferred States (up to 3) *</Label>
+                <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                  {australianStates.map((state) => (
+                    <label key={state} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={preferredStates.includes(state)}
+                        disabled={
+                          preferredStates.length >= 3 &&
+                          !preferredStates.includes(state)
+                        }
+                        onChange={() => togglePreferredState(state)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm text-gray-700">{state}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
-            </form>
-          </div>
 
-          {/* Continue */}
-          <div className="p-4 border-t bg-white">
-            <Button
-              type="submit"
-              className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
-              onClick={handleSubmit}
-            >
-              Continue →
-            </Button>
+              {/* Areas */}
+              <div className="space-y-3">
+                <Label>Preferred Areas (up to 3) *</Label>
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2">
+                  {Object.values(AreaRestriction).map((area) => (
+                    <label key={area} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={preferredAreas.includes(area)}
+                        disabled={
+                          preferredAreas.length >= 3 &&
+                          !preferredAreas.includes(area)
+                        }
+                        onChange={() => togglePreferredArea(area)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm text-gray-700">{area}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Continue */}
+              <div className="pt-8">
+                <Button
+                  type="submit"
+                  className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
+                >
+                  Continue →
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -344,5 +304,6 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
 
 
