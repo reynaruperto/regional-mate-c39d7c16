@@ -1,11 +1,10 @@
-
 // src/pages/WHVWorkPreferences.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Info, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const WHVWorkPreferences: React.FC = () => {
@@ -22,7 +21,6 @@ const WHVWorkPreferences: React.FC = () => {
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     tagline: true,
     industries: false,
@@ -31,7 +29,7 @@ const WHVWorkPreferences: React.FC = () => {
   });
 
   // ==========================
-  // Load data based on user's visa
+  // Load data from Supabase
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -40,7 +38,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get user's visa stage + country
+      // 1. Get visa info
       const { data: visa } = await supabase
         .from("maker_visa")
         .select("stage_id, country_id")
@@ -48,7 +46,7 @@ const WHVWorkPreferences: React.FC = () => {
         .single();
       if (!visa) return;
 
-      // 2. Visa label
+      // 2. Get visa label
       const { data: visaStage } = await supabase
         .from("visa_stage")
         .select("label")
@@ -56,7 +54,7 @@ const WHVWorkPreferences: React.FC = () => {
         .single();
       if (visaStage) setVisaLabel(visaStage.label);
 
-      // 3. Eligible industries/roles/states/areas
+      // 3. Eligible industries, roles, states, areas
       const { data: eligibilityData, error } = await supabase
         .from("v_visa_stage_industries_roles")
         .select("industry_id, industry_name, industry_role_id, role_name, state, area, stage_id, country_id")
@@ -68,21 +66,23 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      if (eligibilityData && Array.isArray(eligibilityData)) {
-        // ✅ Industries
+      if (eligibilityData) {
+        const data = eligibilityData as any[];
+
+        // Industries
         const uniqueIndustries = Array.from(
           new Map(
-            eligibilityData
+            data
               .filter((item) => item.industry_id && item.industry_name)
               .map((item) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
           ).values()
         );
         setIndustries(uniqueIndustries);
 
-        // ✅ Roles
+        // Roles
         const uniqueRoles = Array.from(
           new Map(
-            eligibilityData
+            data
               .filter((item) => item.industry_role_id && item.role_name && item.industry_id)
               .map((item) => [
                 item.industry_role_id,
@@ -92,17 +92,17 @@ const WHVWorkPreferences: React.FC = () => {
         );
         setRoles(uniqueRoles);
 
-        // ✅ States
-        const uniqueStates = Array.from(new Set(eligibilityData.map((item) => item.state).filter(Boolean)));
+        // States
+        const uniqueStates = Array.from(new Set(data.map((item) => item.state).filter(Boolean)));
         setStates(uniqueStates);
 
-        // ✅ Areas
-        const uniqueAreas = Array.from(new Set(eligibilityData.map((item) => item.area).filter(Boolean)));
+        // Areas
+        const uniqueAreas = Array.from(new Set(data.map((item) => item.area).filter(Boolean)));
         setAreas(uniqueAreas);
 
-        // ✅ Group areas by state
+        // Group areas by state
         const areasByState: { [state: string]: string[] } = {};
-        eligibilityData.forEach((item) => {
+        data.forEach((item) => {
           if (item.state && item.area) {
             if (!areasByState[item.state]) areasByState[item.state] = [];
             if (!areasByState[item.state].includes(item.area)) {
@@ -113,7 +113,7 @@ const WHVWorkPreferences: React.FC = () => {
         setAvailableAreas(areasByState);
       }
 
-      // 4. Load tagline (if already set)
+      // 4. Load tagline if already saved
       const { data: makerData } = await supabase
         .from("whv_maker")
         .select("tagline")
@@ -126,7 +126,7 @@ const WHVWorkPreferences: React.FC = () => {
   }, []);
 
   // ==========================
-  // Section toggles
+  // Helpers
   // ==========================
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -139,15 +139,9 @@ const WHVWorkPreferences: React.FC = () => {
     }
   };
 
-  // ==========================
-  // Selection helpers
-  // ==========================
   const handleIndustrySelect = (industryId: number) => {
     if (!selectedIndustries.includes(industryId) && selectedIndustries.length < 3) {
       setSelectedIndustries([...selectedIndustries, industryId]);
-      if (!expandedSections.states) {
-        setExpandedSections((prev) => ({ ...prev, states: true }));
-      }
     } else if (selectedIndustries.includes(industryId)) {
       setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
       const industryRoles = roles.filter((r) => r.industryId === industryId).map((r) => r.id);
@@ -222,20 +216,16 @@ const WHVWorkPreferences: React.FC = () => {
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
             <form className="space-y-6 pb-20">
-              {/* Tagline Section */}
+              {/* Tagline */}
               <div className="border rounded-lg">
                 <button
                   type="button"
                   onClick={() => toggleSection("tagline")}
                   className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg font-medium">1. Profile Tagline</span>
-                    {tagline && <span className="text-green-600 text-sm">✓</span>}
-                  </div>
+                  <span className="text-lg font-medium">1. Profile Tagline</span>
                   {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                 </button>
-
                 {expandedSections.tagline && (
                   <div className="px-4 pb-4 border-t space-y-3">
                     <Label>Profile Tagline *</Label>
@@ -247,63 +237,44 @@ const WHVWorkPreferences: React.FC = () => {
                       maxLength={60}
                       placeholder="e.g. Backpacker ready for farm work"
                     />
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Info size={12} />
-                      <span>This appears at the top of your profile card</span>
-                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Industries Section */}
+              {/* Industries */}
               <div className="border rounded-lg">
                 <button
                   type="button"
                   onClick={() => toggleSection("industries")}
                   className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  disabled={!tagline.trim()}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className={`text-lg font-medium ${!tagline.trim() ? "text-gray-400" : ""}`}>
-                      2. Industries & Roles
-                    </span>
-                    {selectedIndustries.length > 0 && <span className="text-green-600 text-sm">✓</span>}
-                  </div>
+                  <span className="text-lg font-medium">2. Industries & Roles</span>
                   {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                 </button>
-
-                {expandedSections.industries && tagline.trim() && (
+                {expandedSections.industries && (
                   <div className="px-4 pb-4 border-t space-y-4">
-                    {/* Industries */}
                     <Label>Select up to 3 industries *</Label>
-                    <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                      {industries.map((industry) => (
-                        <label key={industry.id} className="flex items-center space-x-2 py-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedIndustries.includes(industry.id)}
-                            disabled={
-                              selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)
-                            }
-                            onChange={() => handleIndustrySelect(industry.id)}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm text-gray-700">{industry.name}</span>
-                        </label>
-                      ))}
-                    </div>
+                    {industries.map((industry) => (
+                      <label key={industry.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedIndustries.includes(industry.id)}
+                          disabled={
+                            selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)
+                          }
+                          onChange={() => handleIndustrySelect(industry.id)}
+                          className="h-4 w-4"
+                        />
+                        <span>{industry.name}</span>
+                      </label>
+                    ))}
 
-                    {/* Roles grouped by industry */}
                     {selectedIndustries.map((industryId) => {
                       const industry = industries.find((i) => i.id === industryId);
                       const industryRoles = roles.filter((r) => r.industryId === industryId);
-                      if (!industry || industryRoles.length === 0) return null;
-
                       return (
-                        <div key={industryId} className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-700">
-                            Roles for {industry.name}
-                          </Label>
+                        <div key={industryId}>
+                          <Label>Roles for {industry?.name}</Label>
                           <div className="flex flex-wrap gap-2">
                             {industryRoles.map((role) => (
                               <button
@@ -327,67 +298,45 @@ const WHVWorkPreferences: React.FC = () => {
                 )}
               </div>
 
-              {/* States & Areas */}
+              {/* States */}
               <div className="border rounded-lg">
                 <button
                   type="button"
                   onClick={() => toggleSection("states")}
                   className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  disabled={selectedIndustries.length === 0}
                 >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-lg font-medium ${selectedIndustries.length === 0 ? "text-gray-400" : ""}`}
-                    >
-                      3. Preferred Locations
-                    </span>
-                    {preferredStates.length > 0 && <span className="text-green-600 text-sm">✓</span>}
-                  </div>
+                  <span className="text-lg font-medium">3. Preferred Locations</span>
                   {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                 </button>
-
-                {expandedSections.states && selectedIndustries.length > 0 && (
+                {expandedSections.states && (
                   <div className="px-4 pb-4 border-t space-y-4">
-                    {/* States */}
                     <Label>Preferred States (up to 3)</Label>
-                    <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                      {states.map((state) => (
-                        <label key={state} className="flex items-center space-x-2 py-1">
-                          <input
-                            type="checkbox"
-                            checked={preferredStates.includes(state)}
-                            disabled={
-                              preferredStates.length >= 3 && !preferredStates.includes(state)
-                            }
-                            onChange={() => togglePreferredState(state)}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm text-gray-700">{state}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Areas */}
+                    {states.map((state) => (
+                      <label key={state} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={preferredStates.includes(state)}
+                          onChange={() => togglePreferredState(state)}
+                          className="h-4 w-4"
+                        />
+                        <span>{state}</span>
+                      </label>
+                    ))}
                     {preferredStates.length > 0 && (
-                      <div className="space-y-3">
+                      <>
                         <Label>Preferred Areas (up to 3)</Label>
-                        <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                          {getAvailableAreasForSelectedStates().map((area) => (
-                            <label key={area} className="flex items-center space-x-2 py-1">
-                              <input
-                                type="checkbox"
-                                checked={preferredAreas.includes(area)}
-                                disabled={
-                                  preferredAreas.length >= 3 && !preferredAreas.includes(area)
-                                }
-                                onChange={() => togglePreferredArea(area)}
-                                className="h-4 w-4"
-                              />
-                              <span className="text-sm text-gray-700">{area}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                        {getAvailableAreasForSelectedStates().map((area) => (
+                          <label key={area} className="flex items-center space-x-2 py-1">
+                            <input
+                              type="checkbox"
+                              checked={preferredAreas.includes(area)}
+                              onChange={() => togglePreferredArea(area)}
+                              className="h-4 w-4"
+                            />
+                            <span>{area}</span>
+                          </label>
+                        ))}
+                      </>
                     )}
                   </div>
                 )}
@@ -399,87 +348,29 @@ const WHVWorkPreferences: React.FC = () => {
                   type="button"
                   onClick={() => toggleSection("summary")}
                   className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  disabled={preferredStates.length === 0}
                 >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-lg font-medium ${preferredStates.length === 0 ? "text-gray-400" : ""}`}
-                    >
-                      4. Review Your Selections
-                    </span>
-                  </div>
+                  <span className="text-lg font-medium">4. Review</span>
                   {expandedSections.summary ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                 </button>
-
-                {expandedSections.summary && preferredStates.length > 0 && (
+                {expandedSections.summary && (
                   <div className="px-4 pb-4 border-t space-y-4">
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <div>
-                        <span className="font-medium text-sm text-gray-700">Tagline:</span>
-                        <p className="text-sm text-gray-900">{tagline}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium text-sm text-gray-700">Industries:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {selectedIndustries.map((id) => {
-                            const industry = industries.find((i) => i.id === id);
-                            return (
-                              <span key={id} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
-                                {industry?.name}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      {selectedRoles.length > 0 && (
-                        <div>
-                          <span className="font-medium text-sm text-gray-700">Roles:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {selectedRoles.map((id) => {
-                              const role = roles.find((r) => r.id === id);
-                              return (
-                                <span key={id} className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded">
-                                  {role?.name}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-medium text-sm text-gray-700">States:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {preferredStates.map((state) => (
-                            <span key={state} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
-                              {state}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      {preferredAreas.length > 0 && (
-                        <div>
-                          <span className="font-medium text-sm text-gray-700">Areas:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {preferredAreas.map((area) => (
-                              <span key={area} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded">
-                                {area}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                    <div>
+                      <p><strong>Tagline:</strong> {tagline}</p>
+                      <p><strong>Industries:</strong> {selectedIndustries.map((id) => industries.find((i) => i.id === id)?.name).join(", ")}</p>
+                      <p><strong>Roles:</strong> {selectedRoles.map((id) => roles.find((r) => r.id === id)?.name).join(", ")}</p>
+                      <p><strong>States:</strong> {preferredStates.join(", ")}</p>
+                      <p><strong>Areas:</strong> {preferredAreas.join(", ")}</p>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Continue */}
               <div className="pt-4">
                 <Button
                   type="button"
                   onClick={() => navigate("/whv/work-experience")}
                   disabled={!tagline.trim() || selectedIndustries.length === 0 || preferredStates.length === 0}
-                  className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium disabled:bg-gray-300"
+                  className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
                 >
                   Continue →
                 </Button>
@@ -493,3 +384,4 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
