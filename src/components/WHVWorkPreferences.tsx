@@ -59,7 +59,6 @@ const WHVWorkPreferences: React.FC = () => {
         .maybeSingle();
 
       if (!visa) return;
-
       setVisaLabel(visa.visa_stage.label);
 
       // 2. Get country name from country_id
@@ -80,7 +79,7 @@ const WHVWorkPreferences: React.FC = () => {
       if (industryData) {
         setIndustries(
           industryData.map((i) => ({
-            id: i.industry_id,
+            id: Number(i.industry_id),
             name: i.industry_name,
           }))
         );
@@ -160,6 +159,7 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
+    // Keep only areas that match new states
     const validAreas = regions
       .filter((r) => newStates.includes(r.state))
       .map((r) => r.area);
@@ -200,19 +200,20 @@ const WHVWorkPreferences: React.FC = () => {
       .update({ tagline })
       .eq("user_id", userId);
 
-    // 2. Save preferences → maker_preference
+    // 2. Clear existing preferences
     await supabase.from("maker_preference").delete().eq("user_id", userId);
 
+    // 3. Save preferences → maker_preference
     for (const industryId of selectedIndustries) {
       for (const roleId of selectedRoles) {
         for (const state of preferredStates) {
           for (const area of preferredAreas) {
             await supabase.from("maker_preference").insert({
               user_id: userId,
-              industry_id: industryId,
-              industry_role_id: roleId,
-              state,
-              area,
+              industry_id: industryId ? Number(industryId) : null,   // ✅ force cast
+              industry_role_id: roleId ? Number(roleId) : null,     // ✅ force cast
+              state: state as any,                                  // ✅ must match ENUM
+              area: area,                                           // free text
             });
           }
         }
