@@ -79,28 +79,46 @@ const WHVWorkPreferences: React.FC = () => {
         // Cast to any to bypass TypeScript issues with the view
         const data = eligibilityData as any[];
         
-        // Extract unique industries
+        // Extract unique industries (filter out null/undefined values)
         const uniqueIndustries = Array.from(
-          new Map(data.map(item => [item.industry_id, { id: item.industry_id, name: item.industry_name }])).values()
+          new Map(
+            data
+              .filter(item => item.industry_id && item.industry_name)
+              .map(item => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
+          ).values()
         );
         setIndustries(uniqueIndustries);
 
-        // Extract unique roles with their industry associations
+        // Extract unique roles with their industry associations (filter out null/undefined values)
         const uniqueRoles = Array.from(
-          new Map(data.filter(item => item.industry_role_id && item.role_name).map(item => [item.industry_role_id, { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id }])).values()
+          new Map(
+            data
+              .filter(item => item.industry_role_id && item.role_name && item.industry_id)
+              .map(item => [item.industry_role_id, { 
+                id: item.industry_role_id, 
+                name: item.role_name, 
+                industryId: item.industry_id 
+              }])
+          ).values()
         );
         setRoles(uniqueRoles);
 
-        // Extract unique states and areas
-        const uniqueStates = Array.from(new Set(data.map(item => item.state).filter(Boolean)));
-        const uniqueAreas = Array.from(new Set(data.map(item => item.area).filter(Boolean)));
+        // Extract unique states (filter out null/undefined values)
+        const uniqueStates = Array.from(
+          new Set(data.map(item => item.state).filter(state => state && state.trim()))
+        );
         setStates(uniqueStates);
+
+        // Extract unique areas (filter out null/undefined values)
+        const uniqueAreas = Array.from(
+          new Set(data.map(item => item.area).filter(area => area && area.trim()))
+        );
         setAreas(uniqueAreas);
 
         // Group areas by state for dynamic loading
         const areasByState: {[state: string]: string[]} = {};
         data.forEach(item => {
-          if (item.state && item.area) {
+          if (item.state && item.state.trim() && item.area && item.area.trim()) {
             if (!areasByState[item.state]) {
               areasByState[item.state] = [];
             }
