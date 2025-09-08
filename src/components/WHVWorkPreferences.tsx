@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const WHVWorkPreferences: React.FC = () => {
@@ -52,8 +52,8 @@ const WHVWorkPreferences: React.FC = () => {
       const { data: regionData, error: regionError } = await supabase
         .from("region_rules")
         .select("state, area, postcode_range, industry_id")
-        .eq("sub_class", visa.visa_stage.sub_class) // text
-        .eq("stage", visa.visa_stage.stage); // int
+        .eq("sub_class", String(visa.visa_stage.sub_class)) // cast to string
+        .eq("stage", visa.visa_stage.stage.toString());     // cast number → string
 
       if (regionError) {
         console.error("Error fetching region rules:", regionError);
@@ -85,7 +85,9 @@ const WHVWorkPreferences: React.FC = () => {
       }
 
       // 4. Load roles
-      const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, industry_id, role");
+      const { data: roleData } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, industry_id, role");
       if (roleData) {
         setRoles(roleData.map((r) => ({ id: r.industry_role_id, name: r.role, industryId: r.industry_id })));
       }
@@ -351,4 +353,6 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
+
 
