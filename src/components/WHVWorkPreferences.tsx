@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const WHVWorkPreferences: React.FC = () => {
@@ -17,19 +17,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [availableAreas, setAvailableAreas] = useState<{ [state: string]: string[] }>({});
   const [regions, setRegions] = useState<any[]>([]);
 
-  const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
-  const [preferredStates, setPreferredStates] = useState<string[]>([]);
-  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
-
   const [visaLabel, setVisaLabel] = useState<string>("");
-
-  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
-    tagline: true,
-    industries: false,
-    states: false,
-    summary: false,
-  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -53,36 +41,16 @@ const WHVWorkPreferences: React.FC = () => {
 
       setVisaLabel(visa.visa_stage.label);
 
-      // 2. Load eligible regions from region_rules
-      console.log("sub_class filter:", String(visa.visa_stage.sub_class));
-      console.log("stage filter (raw):", visa.visa_stage.stage, typeof visa.visa_stage.stage);
-
-      // First try with stage as number
-      let { data: regionData, error: regionError } = await supabase
+      // 2. Load eligible regions from region_rules (everything cast to string)
+      const { data: regionData, error: regionError } = await supabase
         .from("region_rules")
         .select("sub_class, stage, state, area, postcode_range, industry_id")
         .eq("sub_class", String(visa.visa_stage.sub_class))
-        .eq("stage", visa.visa_stage.stage);
+        .eq("stage", String(visa.visa_stage.stage));
 
       if (regionError) {
-        console.error("Error fetching regions (number filter):", regionError);
-      }
-
-      if (!regionData || regionData.length === 0) {
-        console.log("No results with number filter, retrying with string…");
-
-        // Retry with stage as string
-        const { data: regionDataStr, error: regionErrorStr } = await supabase
-          .from("region_rules")
-          .select("sub_class, stage, state, area, postcode_range, industry_id")
-          .eq("sub_class", String(visa.visa_stage.sub_class))
-          .eq("stage", visa.visa_stage.stage.toString());
-
-        if (regionErrorStr) {
-          console.error("Error fetching regions (string filter):", regionErrorStr);
-        }
-
-        regionData = regionDataStr || [];
+        console.error("Error fetching region rules:", regionError);
+        return;
       }
 
       console.log("region_rules results:", regionData);
@@ -115,55 +83,6 @@ const WHVWorkPreferences: React.FC = () => {
     loadData();
   }, []);
 
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const handleIndustrySelect = (industryId: number) => {
-    if (!selectedIndustries.includes(industryId) && selectedIndustries.length < 3) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
-    } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
-      const industryRoles = roles.filter((r) => r.industryId === industryId).map((r) => r.id);
-      setSelectedRoles(selectedRoles.filter((roleId) => !industryRoles.includes(roleId)));
-    }
-  };
-
-  const toggleRole = (roleId: number) => {
-    setSelectedRoles(
-      selectedRoles.includes(roleId)
-        ? selectedRoles.filter((r) => r !== roleId)
-        : [...selectedRoles, roleId]
-    );
-  };
-
-  const togglePreferredState = (state: string) => {
-    const newStates = preferredStates.includes(state)
-      ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 3
-      ? [...preferredStates, state]
-      : preferredStates;
-
-    setPreferredStates(newStates);
-
-    const availableAreasForStates = newStates.flatMap((s) => availableAreas[s] || []);
-    setPreferredAreas(preferredAreas.filter((a) => availableAreasForStates.includes(a)));
-  };
-
-  const togglePreferredArea = (area: string) => {
-    setPreferredAreas(
-      preferredAreas.includes(area)
-        ? preferredAreas.filter((a) => a !== area)
-        : preferredAreas.length < 3
-        ? [...preferredAreas, area]
-        : preferredAreas
-    );
-  };
-
-  const getAvailableAreasForSelectedStates = () => {
-    return preferredStates.flatMap((s) => availableAreas[s] || []);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -190,7 +109,7 @@ const WHVWorkPreferences: React.FC = () => {
           {/* Debug results */}
           <div className="p-4">
             <h2 className="font-semibold">Debug Regions</h2>
-            <pre className="text-xs bg-gray-100 p-2 rounded max-h-40 overflow-y-auto">
+            <pre className="text-xs bg-gray-100 p-2 rounded max-h-60 overflow-y-auto">
               {JSON.stringify(regions, null, 2)}
             </pre>
           </div>
