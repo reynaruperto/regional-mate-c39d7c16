@@ -95,15 +95,13 @@ const WHVLogin: React.FC = () => {
                   {/* Email */}
                   <div>
                     <Input
-                      id="email"
                       name="email"
                       type="email"
                       value={formData.email}
                       onChange={handleInputChange}
                       className="h-14 rounded-2xl border-gray-200 bg-gray-50 placeholder:text-gray-400 text-base"
-                      placeholder="peterparker@gmail.com"
+                      placeholder="Email"
                       required
-                      disabled={isLoading}
                     />
                   </div>
 
