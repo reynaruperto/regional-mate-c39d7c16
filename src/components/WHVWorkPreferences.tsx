@@ -51,23 +51,27 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get visa label (still useful for display)
+      // Get visa info
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("stage_id, visa_stage(label)")
+        .select("stage_id, country_id, visa_stage(sub_class, label)")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (visa) {
-        setVisaLabel(visa.visa_stage.label);
-      }
+      if (!visa) return;
 
-      // Industries
+      setVisaLabel(visa.visa_stage.label);
+
+      // Industries from temp_eligibility
       const { data: industryData } = await supabase
-        .from("industry")
-        .select("industry_id, name");
+        .from("temp_eligibility")
+        .select("industry_id, industry_name")
+        .eq("stage", visa.stage_id)
+        .eq("sub_class", visa.visa_stage.sub_class)
+        .eq("country_id", visa.country_id);
+
       if (industryData) {
         setIndustries(
-          industryData.map((i) => ({ id: i.industry_id, name: i.name }))
+          industryData.map((i) => ({ id: i.industry_id, name: i.industry_name }))
         );
       }
 
@@ -85,18 +89,15 @@ const WHVWorkPreferences: React.FC = () => {
         );
       }
 
-      // Regions (⚡️ pull ALL states + areas, no subclass/stage filter)
+      // Regions (all states + areas)
       const { data: regionData } = await supabase
         .from("region_rules")
         .select("state, area");
 
       if (regionData) {
-        // Deduplicate (state + area)
         const uniqueRegions = regionData.filter(
           (r, idx, arr) =>
-            arr.findIndex(
-              (x) => x.state === r.state && x.area === r.area
-            ) === idx
+            arr.findIndex((x) => x.state === r.state && x.area === r.area) === idx
         );
         setRegions(uniqueRegions);
       }
@@ -119,9 +120,7 @@ const WHVWorkPreferences: React.FC = () => {
     ) {
       setSelectedIndustries([...selectedIndustries, industryId]);
     } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(
-        selectedIndustries.filter((id) => id !== industryId)
-      );
+      setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
       const industryRoles = roles
         .filter((r) => r.industryId === industryId)
         .map((r) => r.id);
@@ -147,7 +146,7 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    // Keep only areas that match the new states
+    // Remove areas not in selected states
     const validAreas = regions
       .filter((r) => newStates.includes(r.state))
       .map((r) => r.area);
@@ -168,7 +167,37 @@ const WHVWorkPreferences: React.FC = () => {
     return regions
       .filter((r) => r.state === state)
       .map((r) => r.area)
-      .filter((a, i, arr) => a && arr.indexOf(a) === i); // unique non-empty
+      .filter((a, i, arr) => a && arr.indexOf(a) === i);
+  };
+
+  // ==========================
+  // Save handler
+  // ==========================
+  const handleContinue = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const userId = user.id;
+
+    // Save tagline
+    await supabase
+      .from("whv_maker")
+      .update({ tagline })
+      .eq("user_id", userId);
+
+    // Save preferences
+    await supabase.from("maker_preference").insert(
+      selectedIndustries.map((industryId) => ({
+        user_id: userId,
+        industry_id: industryId,
+        state: preferredStates[0] || null,
+        area: preferredAreas[0] || null,
+      }))
+    );
+
+    navigate("/whv/work-experience");
   };
 
   // ==========================
@@ -194,7 +223,6 @@ const WHVWorkPreferences: React.FC = () => {
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
             </div>
-            {/* Removed "Eligible industries..." text since not filtered */}
           </div>
 
           {/* Content */}
@@ -397,7 +425,7 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="pt-4">
               <Button
                 type="button"
-                onClick={() => navigate("/whv/work-experience")}
+                onClick={handleContinue}
                 disabled={
                   !tagline.trim() ||
                   selectedIndustries.length === 0 ||
