@@ -3,93 +3,111 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-
-interface Industry {
-  id: number;
-  name: string;
-}
-interface Role {
-  id: number;
-  name: string;
-  industryId: number;
-}
-interface Region {
-  state: string;
-  area: string;
-  postcode_range: string | null;
-  industry_id: number;
-}
 
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
   const [tagline, setTagline] = useState("");
-  const [industries, setIndustries] = useState<Industry[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
-
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; name: string; industryId: number }[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
-
-  const [expandedSections, setExpandedSections] = useState({
+  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     tagline: true,
     industries: false,
     states: false,
     summary: false,
   });
 
-  // ==========================
-  // Load data
-  // ==========================
   useEffect(() => {
     const loadData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get visa with subclass + stage
+      // 1. Get user's visa info
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("stage_id, visa_stage(sub_class, stage, label)")
+        .select("stage_id, country_id")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!visa) return;
 
-      setVisaLabel(visa.visa_stage.label);
+      // 2. Visa label
+      const { data: visaStage } = await supabase
+        .from("visa_stage")
+        .select("label")
+        .eq("stage_id", visa.stage_id)
+        .maybeSingle();
+      if (visaStage) setVisaLabel(visaStage.label);
 
-      // Industries
-      const { data: industryData } = await supabase.from("industry").select("industry_id, name");
-      if (industryData) {
-        setIndustries(industryData.map((i) => ({ id: i.industry_id, name: i.name })));
+      // 3. Industries & Roles
+      const { data: industryData } = await supabase
+        .from("vw_visa_stage_industries_roles" as any)
+        .select("industry_id, industry_name, industry_role_id, role_name")
+        .eq("stage_id", visa.stage_id)
+        .eq("country_id", visa.country_id);
+
+      if (industryData && Array.isArray(industryData)) {
+        const uniqueIndustries = Array.from(
+          new Map(
+            industryData.map((item: any) => [
+              item.industry_id,
+              { id: item.industry_id, name: item.industry_name },
+            ])
+          ).values()
+        );
+        setIndustries(uniqueIndustries);
+
+        const uniqueRoles = Array.from(
+          new Map(
+            industryData
+              .filter((item: any) => item.industry_role_id && item.role_name)
+              .map((item: any) => [
+                item.industry_role_id,
+                { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id },
+              ])
+          ).values()
+        );
+        setRoles(uniqueRoles);
       }
 
-      // Roles
-      const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role, industry_id");
-      if (roleData) {
-        setRoles(roleData.map((r) => ({ id: r.industry_role_id, name: r.role, industryId: r.industry_id })));
-      }
-
-      // Regions (filtered by subclass + stage)
+      // 4. States & Areas from region_rules
       const { data: regionData } = await supabase
         .from("region_rules")
-        .select("state, area, postcode_range, industry_id")
-        .eq("sub_class", String(visa.visa_stage.sub_class))
-        .eq("stage", visa.visa_stage.stage as any);
+        .select("state, area")
+        .eq("stage", visa.stage_id)
+        .eq("sub_class", visaStage?.label?.startsWith("417") ? "417" : "462");
 
-      if (regionData) setRegions(regionData);
+      if (regionData && Array.isArray(regionData)) {
+        const uniqueStates = Array.from(new Set(regionData.map((item: any) => item.state)));
+        setStates(uniqueStates);
+
+        const uniqueAreas = Array.from(new Set(regionData.map((item: any) => item.area)));
+        setAreas(uniqueAreas);
+      }
+
+      // 5. Tagline
+      const { data: makerData } = await supabase
+        .from("whv_maker")
+        .select("tagline")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (makerData?.tagline) setTagline(makerData.tagline);
     };
 
     loadData();
   }, []);
 
-  // ==========================
-  // Handlers
-  // ==========================
-  const toggleSection = (section: keyof typeof expandedSections) => {
+  const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
@@ -112,16 +130,13 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   const togglePreferredState = (state: string) => {
-    const newStates = preferredStates.includes(state)
-      ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 3
-      ? [...preferredStates, state]
-      : preferredStates;
-    setPreferredStates(newStates);
-
-    // Remove areas that don't belong to selected states
-    const validAreas = regions.filter((r) => newStates.includes(r.state)).map((r) => r.area);
-    setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
+    setPreferredStates(
+      preferredStates.includes(state)
+        ? preferredStates.filter((s) => s !== state)
+        : preferredStates.length < 3
+        ? [...preferredStates, state]
+        : preferredStates
+    );
   };
 
   const togglePreferredArea = (area: string) => {
@@ -134,13 +149,6 @@ const WHVWorkPreferences: React.FC = () => {
     );
   };
 
-  const getAreasForState = (state: string) => {
-    return regions.filter((r) => r.state === state);
-  };
-
-  // ==========================
-  // Render
-  // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -165,176 +173,169 @@ const WHVWorkPreferences: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-            {/* 1. Tagline */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("tagline")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">1. Profile Tagline</span>
-                {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-              </button>
-              {expandedSections.tagline && (
-                <div className="px-4 pb-4 border-t space-y-3">
-                  <Input
-                    type="text"
-                    value={tagline}
-                    onChange={(e) => setTagline(e.target.value)}
-                    placeholder="e.g. Backpacker ready for farm work"
-                  />
-                </div>
-              )}
-            </div>
+          <div className="flex-1 overflow-y-auto px-4 py-6">
+            <form className="space-y-6 pb-20">
+              {/* Tagline */}
+              <div className="border rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("tagline")}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
+                >
+                  <span className="text-lg font-medium">1. Profile Tagline</span>
+                  {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.tagline && (
+                  <div className="px-4 pb-4 border-t space-y-3">
+                    <Label>Profile Tagline *</Label>
+                    <Input
+                      type="text"
+                      value={tagline}
+                      onChange={(e) => setTagline(e.target.value)}
+                      className="h-12 bg-gray-100 border-0"
+                      maxLength={60}
+                      placeholder="e.g. Backpacker ready for farm work"
+                    />
+                  </div>
+                )}
+              </div>
 
-            {/* 2. Industries & Roles */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("industries")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">2. Industries & Roles</span>
-                {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-              </button>
-              {expandedSections.industries && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Select up to 3 industries *</Label>
-                  {industries.map((industry) => (
-                    <label key={industry.id} className="flex items-center space-x-2 py-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedIndustries.includes(industry.id)}
-                        disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)}
-                        onChange={() => handleIndustrySelect(industry.id)}
-                        className="h-4 w-4"
-                      />
-                      <span>{industry.name}</span>
-                    </label>
-                  ))}
+              {/* Industries */}
+              <div className="border rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("industries")}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
+                >
+                  <span className="text-lg font-medium">2. Industries & Roles</span>
+                  {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.industries && (
+                  <div className="px-4 pb-4 border-t space-y-4">
+                    <Label>Select up to 3 industries *</Label>
+                    {industries.map((industry) => (
+                      <label key={industry.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedIndustries.includes(industry.id)}
+                          disabled={
+                            selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)
+                          }
+                          onChange={() => handleIndustrySelect(industry.id)}
+                          className="h-4 w-4"
+                        />
+                        <span>{industry.name}</span>
+                      </label>
+                    ))}
 
-                  {selectedIndustries.map((industryId) => {
-                    const industry = industries.find((i) => i.id === industryId);
-                    const industryRoles = roles.filter((r) => r.industryId === industryId);
-                    return (
-                      <div key={industryId}>
-                        <Label>Roles for {industry?.name}</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {industryRoles.map((role) => (
-                            <button
-                              type="button"
-                              key={role.id}
-                              onClick={() => toggleRole(role.id)}
-                              className={`px-3 py-1.5 rounded-full text-xs border ${
-                                selectedRoles.includes(role.id)
-                                  ? "bg-orange-500 text-white border-orange-500"
-                                  : "bg-white text-gray-700 border-gray-300"
-                              }`}
-                            >
-                              {role.name}
-                            </button>
-                          ))}
+                    {selectedIndustries.map((industryId) => {
+                      const industry = industries.find((i) => i.id === industryId);
+                      const industryRoles = roles.filter((r) => r.industryId === industryId);
+                      return (
+                        <div key={industryId}>
+                          <Label>Roles for {industry?.name}</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {industryRoles.map((role) => (
+                              <button
+                                type="button"
+                                key={role.id}
+                                onClick={() => toggleRole(role.id)}
+                                className={`px-3 py-1.5 rounded-full text-xs border ${
+                                  selectedRoles.includes(role.id)
+                                    ? "bg-orange-500 text-white border-orange-500"
+                                    : "bg-white text-gray-700 border-gray-300"
+                                }`}
+                              >
+                                {role.name}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-            {/* 3. Preferred Locations */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("states")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">3. Preferred Locations</span>
-                {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-              </button>
-              {expandedSections.states && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Preferred States (up to 3)</Label>
-                  {[...new Set(regions.map((r) => r.state))].map((state) => (
-                    <div key={state} className="mb-4">
-                      <label className="flex items-center space-x-2 py-1 font-medium">
+              {/* States & Areas */}
+              <div className="border rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("states")}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
+                >
+                  <span className="text-lg font-medium">3. Preferred Locations</span>
+                  {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.states && (
+                  <div className="px-4 pb-4 border-t space-y-4">
+                    <Label>Preferred States (up to 3)</Label>
+                    {states.map((state) => (
+                      <label key={state} className="flex items-center space-x-2 py-1">
                         <input
                           type="checkbox"
                           checked={preferredStates.includes(state)}
                           onChange={() => togglePreferredState(state)}
+                          className="h-4 w-4"
                           disabled={preferredStates.length >= 3 && !preferredStates.includes(state)}
                         />
                         <span>{state}</span>
                       </label>
+                    ))}
 
-                      {/* Areas for state */}
-                      {preferredStates.includes(state) && (
-                        <div className="ml-6 space-y-1">
-                          {getAreasForState(state).map((r) => (
-                            <label
-                              key={`${state}-${r.area}`}
-                              className="flex items-center justify-between py-1"
-                            >
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  checked={preferredAreas.includes(r.area)}
-                                  onChange={() => togglePreferredArea(r.area)}
-                                  disabled={preferredAreas.length >= 3 && !preferredAreas.includes(r.area)}
-                                />
-                                <span>{r.area}</span>
-                              </div>
+                    {preferredStates.length > 0 && (
+                      <>
+                        <Label>Preferred Areas (up to 3)</Label>
+                        {areas.map((area) => (
+                          <label key={area} className="flex items-center space-x-2 py-1">
+                            <input
+                              type="checkbox"
+                              checked={preferredAreas.includes(area)}
+                              onChange={() => togglePreferredArea(area)}
+                              className="h-4 w-4"
+                              disabled={preferredAreas.length >= 3 && !preferredAreas.includes(area)}
+                            />
+                            <span>{area}</span>
+                          </label>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
 
-                              {/* Tooltip only */}
-                              {r.postcode_range && r.postcode_range !== "All postcodes" && (
-                                <div className="flex items-center gap-1 text-xs text-orange-600">
-                                  <AlertTriangle size={12} />
-                                  <span>Restricted area</span>
-                                </div>
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+              {/* Review */}
+              <div className="border rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("summary")}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
+                >
+                  <span className="text-lg font-medium">4. Review</span>
+                  {expandedSections.summary ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.summary && (
+                  <div className="px-4 pb-4 border-t space-y-4">
+                    <p><strong>Tagline:</strong> {tagline}</p>
+                    <p><strong>Industries:</strong> {selectedIndustries.map((id) => industries.find((i) => i.id === id)?.name).join(", ")}</p>
+                    <p><strong>Roles:</strong> {selectedRoles.map((id) => roles.find((r) => r.id === id)?.name).join(", ")}</p>
+                    <p><strong>States:</strong> {preferredStates.join(", ")}</p>
+                    <p><strong>Areas:</strong> {preferredAreas.join(", ")}</p>
+                  </div>
+                )}
+              </div>
 
-            {/* 4. Review */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("summary")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">4. Review</span>
-                {expandedSections.summary ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-              </button>
-              {expandedSections.summary && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <p><strong>Tagline:</strong> {tagline}</p>
-                  <p><strong>Industries:</strong> {selectedIndustries.map((id) => industries.find((i) => i.id === id)?.name).join(", ")}</p>
-                  <p><strong>Roles:</strong> {selectedRoles.map((id) => roles.find((r) => r.id === id)?.name).join(", ")}</p>
-                  <p><strong>States:</strong> {preferredStates.join(", ")}</p>
-                  <p><strong>Areas:</strong> {preferredAreas.join(", ")}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Continue */}
-            <div className="pt-4">
-              <Button
-                type="button"
-                onClick={() => navigate("/whv/work-experience")}
-                disabled={!tagline.trim() || selectedIndustries.length === 0 || preferredStates.length === 0}
-                className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
-              >
-                Continue →
-              </Button>
-            </div>
+              <div className="pt-4">
+                <Button
+                  type="button"
+                  onClick={() => navigate("/whv/work-experience")}
+                  disabled={!tagline.trim() || selectedIndustries.length === 0 || preferredStates.length === 0}
+                  className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
+                >
+                  Continue →
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
