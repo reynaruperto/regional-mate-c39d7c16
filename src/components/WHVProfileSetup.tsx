@@ -238,8 +238,237 @@ const WHVProfileSetup: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* UI stays the same as your version */}
-      {/* ... form rendering */}
+      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl">
+        <div className="flex items-center mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="mr-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">Profile Setup</h1>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Personal Information */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Personal Information</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="givenName">Given Name *</Label>
+                <Input
+                  id="givenName"
+                  name="givenName"
+                  value={formData.givenName}
+                  onChange={handleChange}
+                  className={errors.givenName ? "border-red-500" : ""}
+                />
+                {errors.givenName && (
+                  <p className="text-red-500 text-sm">{errors.givenName}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="middleName">Middle Name</Label>
+                <Input
+                  id="middleName"
+                  name="middleName"
+                  value={formData.middleName}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="familyName">Family Name *</Label>
+                <Input
+                  id="familyName"
+                  name="familyName"
+                  value={formData.familyName}
+                  onChange={handleChange}
+                  className={errors.familyName ? "border-red-500" : ""}
+                />
+                {errors.familyName && (
+                  <p className="text-red-500 text-sm">{errors.familyName}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+                <Input
+                  id="dateOfBirth"
+                  name="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                  className={errors.dateOfBirth ? "border-red-500" : ""}
+                />
+                {errors.dateOfBirth && (
+                  <p className="text-red-500 text-sm">{errors.dateOfBirth}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="nationality">Nationality *</Label>
+              <Select onValueChange={(value) => handleSelect("countryId", parseInt(value))}>
+                <SelectTrigger className={errors.nationality ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select your country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.country_id} value={country.country_id.toString()}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.nationality && (
+                <p className="text-red-500 text-sm">{errors.nationality}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="visaType">Visa Type *</Label>
+              <Select onValueChange={(value) => handleSelect("visaType", value)}>
+                <SelectTrigger className={errors.visaType ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select visa type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredStages.map((stage) => (
+                    <SelectItem key={stage.stage_id} value={stage.label}>
+                      {stage.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.visaType && (
+                <p className="text-red-500 text-sm">{errors.visaType}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="visaExpiry">Visa Expiry Date *</Label>
+              <Input
+                id="visaExpiry"
+                name="visaExpiry"
+                type="date"
+                value={formData.visaExpiry}
+                onChange={handleChange}
+                className={errors.visaExpiry ? "border-red-500" : ""}
+              />
+              {errors.visaExpiry && (
+                <p className="text-red-500 text-sm">{errors.visaExpiry}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Contact Information */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Contact Information</h2>
+            
+            <div>
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input
+                id="phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="e.g., 0412345678 or +61412345678"
+                className={errors.phone ? "border-red-500" : ""}
+              />
+              {errors.phone && (
+                <p className="text-red-500 text-sm">{errors.phone}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Address Information */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Address Information</h2>
+            
+            <div>
+              <Label htmlFor="address1">Address Line 1 *</Label>
+              <Input
+                id="address1"
+                name="address1"
+                value={formData.address1}
+                onChange={handleChange}
+                className={errors.address1 ? "border-red-500" : ""}
+              />
+              {errors.address1 && (
+                <p className="text-red-500 text-sm">{errors.address1}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="address2">Address Line 2</Label>
+              <Input
+                id="address2"
+                name="address2"
+                value={formData.address2}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="suburb">Suburb *</Label>
+                <Input
+                  id="suburb"
+                  name="suburb"
+                  value={formData.suburb}
+                  onChange={handleChange}
+                  className={errors.suburb ? "border-red-500" : ""}
+                />
+                {errors.suburb && (
+                  <p className="text-red-500 text-sm">{errors.suburb}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="state">State *</Label>
+                <Select onValueChange={(value) => handleSelect("state", value)}>
+                  <SelectTrigger className={errors.state ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {australianStates.map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.state && (
+                  <p className="text-red-500 text-sm">{errors.state}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="postcode">Postcode *</Label>
+                <Input
+                  id="postcode"
+                  name="postcode"
+                  value={formData.postcode}
+                  onChange={handleChange}
+                  maxLength={4}
+                  className={errors.postcode ? "border-red-500" : ""}
+                />
+                {errors.postcode && (
+                  <p className="text-red-500 text-sm">{errors.postcode}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full">
+            Continue to Work Preferences
+          </Button>
+        </form>
+      </div>
     </div>
   );
 };
