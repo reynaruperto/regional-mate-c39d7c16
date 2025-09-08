@@ -56,7 +56,7 @@ const WHVWorkPreferences: React.FC = () => {
         setVisaLabel(visaStage.label);
       }
 
-      // 3. Get eligible industries and roles from the view
+      // 3. Get eligible industries and roles from the view filtered by stage_id and country_id
       const { data: eligibilityData } = await supabase
         .from("v_visa_stage_industries_roles")
         .select("industry_id, industry_name, industry_role_id, role_name, state, area")
@@ -80,6 +80,17 @@ const WHVWorkPreferences: React.FC = () => {
         const uniqueAreas = Array.from(new Set(eligibilityData.map(item => item.area).filter(Boolean)));
         setStates(uniqueStates);
         setAreas(uniqueAreas);
+      }
+
+      // 4. Load existing tagline from whv_maker
+      const { data: makerData } = await supabase
+        .from("whv_maker")
+        .select("tagline")
+        .eq("user_id", user.id)
+        .single();
+
+      if (makerData?.tagline) {
+        setTagline(makerData.tagline);
       }
     };
 
@@ -166,24 +177,77 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase.from("maker_preference").upsert(
-      {
-        user_id: user.id,
-        tagline,
-        industries: selectedIndustries,
-        roles: selectedRoles,
-        states: preferredStates,
-        areas: preferredAreas,
-      },
-      { onConflict: "user_id" }
-    );
+    try {
+      // 1. Save tagline to whv_maker table
+      const { error: taglineError } = await supabase
+        .from("whv_maker")
+        .update({ tagline })
+        .eq("user_id", user.id);
 
-    if (error) {
-      console.error("Failed to save preferences:", error);
-      return;
+      if (taglineError) {
+        console.error("Failed to save tagline:", taglineError);
+        return;
+      }
+
+      // 2. Delete existing preferences for the user
+      const { error: deleteError } = await supabase
+        .from("maker_preference")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteError) {
+        console.error("Failed to delete existing preferences:", deleteError);
+        return;
+      }
+
+      // 3. Insert new preferences - one row per combination
+      const preferences = [];
+      
+      for (const industryId of selectedIndustries) {
+        for (const state of preferredStates) {
+          for (const area of preferredAreas) {
+            // If no roles selected for this industry, create one entry with null role
+            if (selectedRoles.length === 0) {
+              preferences.push({
+                user_id: user.id,
+                industry_id: industryId,
+                industry_role_id: null,
+                state,
+                area,
+                suburb_city: null
+              });
+            } else {
+              // Create one entry per role
+              for (const roleId of selectedRoles) {
+                preferences.push({
+                  user_id: user.id,
+                  industry_id: industryId,
+                  industry_role_id: roleId,
+                  state,
+                  area,
+                  suburb_city: null
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (preferences.length > 0) {
+        const { error: insertError } = await supabase
+          .from("maker_preference")
+          .insert(preferences);
+
+        if (insertError) {
+          console.error("Failed to save preferences:", insertError);
+          return;
+        }
+      }
+
+      navigate("/whv/work-experience");
+    } catch (error) {
+      console.error("Error saving preferences:", error);
     }
-
-    navigate("/whv/work-experience");
   };
 
   // ==========================
