@@ -4,8 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface RegionRule {
   state: string;
   area: string;
-  postcode_range: string | null;
-  industry_id: number;
+  industry_id: number | null;
 }
 
 const WHVWorkPreferences: React.FC = () => {
@@ -27,31 +26,46 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      // 2. Get visa details from maker_visa
-      const { data: visa } = await supabase
+      // 2. Get visa details (join visa_stage for subclass + stage)
+      const { data: visa, error: visaError } = await supabase
         .from("maker_visa")
-        .select("sub_class, stage_id")
+        .select(
+          `
+          stage_id,
+          visa_stage (
+            sub_class,
+            stage
+          )
+        `
+        )
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!visa) {
+      if (visaError) {
+        console.error("Error fetching visa:", visaError);
+        setError(visaError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!visa || !visa.visa_stage) {
         setError("Visa not found for this user");
         setLoading(false);
         return;
       }
 
       // 3. Query region_rules filtered by subclass + stage
-      const { data, error } = await supabase
+      const { data, error: regionError } = await supabase
         .from("region_rules")
-        .select("state, area, postcode_range, industry_id")
-        .eq("sub_class", visa.sub_class)   // e.g. "417" or "462"
-        .eq("stage", visa.stage_id);       // e.g. 1, 2, or 3
+        .select("state, area, industry_id")
+        .eq("sub_class", visa.visa_stage.sub_class) // ✅ from joined visa_stage
+        .eq("stage", visa.visa_stage.stage as any); // ✅ cast to any to fix TS
 
-      if (error) {
-        console.error("Error fetching regions:", error);
-        setError(error.message);
+      if (regionError) {
+        console.error("Error fetching regions:", regionError);
+        setError(regionError.message);
       } else {
-        console.log("Fetched regions:", data); // 🔎 check in dev console
+        console.log("Fetched regions:", data);
         setRegions(data || []);
       }
 
@@ -64,33 +78,42 @@ const WHVWorkPreferences: React.FC = () => {
   if (loading) return <p>Loading regions…</p>;
   if (error) return <p className="text-red-500">⚠ {error}</p>;
 
+  // Group regions by state with unique areas
+  const groupedByState: { [state: string]: string[] } = {};
+  regions.forEach((r) => {
+    if (!groupedByState[r.state]) groupedByState[r.state] = [];
+    if (!groupedByState[r.state].includes(r.area)) {
+      groupedByState[r.state].push(r.area);
+    }
+  });
+
   return (
     <div>
-      <h2 className="font-bold text-lg mb-2">Eligible Regions</h2>
-      {regions.length === 0 ? (
+      <h2 className="font-bold text-lg mb-4">Eligible Regions</h2>
+      {Object.keys(groupedByState).length === 0 ? (
         <p>No eligible regions found for this visa.</p>
       ) : (
-        <ul className="space-y-2">
-          {regions.map((r, i) => (
-            <li key={i} className="p-2 border rounded-md">
-              <p>
-                <strong>{r.state}</strong> – {r.area}
-              </p>
-              {r.postcode_range && (
-                <p className="text-xs text-gray-500">
-                  Postcodes: {r.postcode_range}
-                </p>
-              )}
-              <p className="text-xs text-gray-400">Industry ID: {r.industry_id}</p>
-            </li>
+        <div className="space-y-4">
+          {Object.entries(groupedByState).map(([state, areas]) => (
+            <div key={state} className="border rounded-md p-3">
+              <h3 className="font-semibold text-gray-800 mb-2">{state}</h3>
+              <ul className="space-y-1">
+                {areas.map((area, i) => (
+                  <li key={i} className="pl-2 text-sm">
+                    {area}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
 };
 
 export default WHVWorkPreferences;
+
 
 
 
