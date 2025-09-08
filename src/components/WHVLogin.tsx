@@ -100,7 +100,7 @@ const WHVLogin: React.FC = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       className="h-14 rounded-2xl border-gray-200 bg-gray-50 placeholder:text-gray-400 text-base"
-                      placeholder="peterparker@gmail.com"
+                      placeholder="Email"
                       required
                     />
                   </div>
