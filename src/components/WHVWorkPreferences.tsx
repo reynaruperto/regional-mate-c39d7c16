@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/supabase-extensions";
 
 interface Industry {
   id: number;
@@ -74,7 +75,7 @@ const WHVWorkPreferences: React.FC = () => {
         .select("industry_id, industry_name")
         .eq("stage", visa.stage_id)
         .eq("sub_class", visa.visa_stage.sub_class)
-        .eq("country_name", country?.name);
+        .eq("country_name", country?.name) as { data: Database['public']['Tables']['temp_eligibility']['Row'][] | null };
 
       if (industryData) {
         setIndustries(

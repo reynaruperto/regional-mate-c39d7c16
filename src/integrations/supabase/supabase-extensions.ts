@@ -109,6 +109,30 @@ export interface Database extends OriginalDatabase {
         Insert: { user_id: string; visa_type: string; expiry_date: string };
         Update: { user_id?: string; visa_type?: string; expiry_date?: string };
       };
+
+      temp_eligibility: {
+        Row: {
+          industry_id: number | null;
+          country_name: string;
+          industry_name: string;
+          sub_class: string;
+          stage: number;
+        };
+        Insert: {
+          industry_id?: number | null;
+          country_name: string;
+          industry_name: string;
+          sub_class: string;
+          stage: number;
+        };
+        Update: {
+          industry_id?: number | null;
+          country_name?: string;
+          industry_name?: string;
+          sub_class?: string;
+          stage?: number;
+        };
+      };
     };
   };
 }
