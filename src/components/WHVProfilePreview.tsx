@@ -59,9 +59,9 @@ const WHVWorkPreferences: React.FC = () => {
       if (stageError) console.error("Error fetching visa stage:", stageError);
       if (visaStage) setVisaLabel(visaStage.label);
 
-      // 3. Eligible industries/roles/states/areas
+      // 3. Eligible industries/roles/states/areas - using any type to bypass type issues
       const { data: eligibilityData, error: eligibilityError } = await supabase
-        .from("v_visa_stage_industries_roles")
+        .from("v_visa_stage_industries_roles" as any)
         .select(
           "industry_id, industry_name, industry_role_id, role_name, state, area, country_id, stage_id"
         )
@@ -76,12 +76,14 @@ const WHVWorkPreferences: React.FC = () => {
       console.log("Eligibility raw data:", eligibilityData);
 
       if (eligibilityData && Array.isArray(eligibilityData)) {
+        const data = eligibilityData as any[];
+        
         // ✅ Industries
         const uniqueIndustries = Array.from(
           new Map(
-            eligibilityData
-              .filter((item) => item.industry_id && item.industry_name)
-              .map((item) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
+            data
+              .filter((item: any) => item.industry_id && item.industry_name)
+              .map((item: any) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
           ).values()
         );
         setIndustries(uniqueIndustries);
@@ -89,9 +91,9 @@ const WHVWorkPreferences: React.FC = () => {
         // ✅ Roles
         const uniqueRoles = Array.from(
           new Map(
-            eligibilityData
-              .filter((item) => item.industry_role_id && item.role_name && item.industry_id)
-              .map((item) => [
+            data
+              .filter((item: any) => item.industry_role_id && item.role_name && item.industry_id)
+              .map((item: any) => [
                 item.industry_role_id,
                 { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id },
               ])
@@ -100,16 +102,16 @@ const WHVWorkPreferences: React.FC = () => {
         setRoles(uniqueRoles);
 
         // ✅ States
-        const uniqueStates = Array.from(new Set(eligibilityData.map((item) => item.state).filter(Boolean)));
+        const uniqueStates = Array.from(new Set(data.map((item: any) => item.state).filter(Boolean)));
         setStates(uniqueStates);
 
         // ✅ Areas
-        const uniqueAreas = Array.from(new Set(eligibilityData.map((item) => item.area).filter(Boolean)));
+        const uniqueAreas = Array.from(new Set(data.map((item: any) => item.area).filter(Boolean)));
         setAreas(uniqueAreas);
 
         // ✅ Group areas by state
         const areasByState: { [state: string]: string[] } = {};
-        eligibilityData.forEach((item) => {
+        data.forEach((item: any) => {
           if (item.state && item.area) {
             if (!areasByState[item.state]) areasByState[item.state] = [];
             if (!areasByState[item.state].includes(item.area)) {

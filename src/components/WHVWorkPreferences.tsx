@@ -1,4 +1,3 @@
-// src/pages/WHVWorkPreferences.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/supabase-extensions";
+
+type ViewRow = Database['public']['Tables']['v_visa_stage_industries_roles']['Row'];
 
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
+  const [stateNotes, setStateNotes] = useState<{ [state: string]: string }>({});
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     tagline: true,
     industries: false,
@@ -43,7 +46,7 @@ const WHVWorkPreferences: React.FC = () => {
         .from("maker_visa")
         .select("stage_id, country_id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       if (!visa) return;
 
       // 2. Get visa label
@@ -51,12 +54,12 @@ const WHVWorkPreferences: React.FC = () => {
         .from("visa_stage")
         .select("label")
         .eq("stage_id", visa.stage_id)
-        .single();
+        .maybeSingle();
       if (visaStage) setVisaLabel(visaStage.label);
 
-      // 3. Eligible industries, roles, states, areas
+      // 3. Eligible industries, roles, states, areas - using any type to bypass type issues
       const { data: eligibilityData, error } = await supabase
-        .from("v_visa_stage_industries_roles")
+        .from("v_visa_stage_industries_roles" as any)
         .select("industry_id, industry_name, industry_role_id, role_name, state, area, stage_id, country_id")
         .eq("stage_id", visa.stage_id)
         .eq("country_id", visa.country_id);
@@ -66,15 +69,15 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      if (eligibilityData) {
+      if (eligibilityData && Array.isArray(eligibilityData)) {
         const data = eligibilityData as any[];
 
         // Industries
         const uniqueIndustries = Array.from(
           new Map(
             data
-              .filter((item) => item.industry_id && item.industry_name)
-              .map((item) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
+              .filter((item: any) => item.industry_id && item.industry_name)
+              .map((item: any) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
           ).values()
         );
         setIndustries(uniqueIndustries);
@@ -83,8 +86,8 @@ const WHVWorkPreferences: React.FC = () => {
         const uniqueRoles = Array.from(
           new Map(
             data
-              .filter((item) => item.industry_role_id && item.role_name && item.industry_id)
-              .map((item) => [
+              .filter((item: any) => item.industry_role_id && item.role_name && item.industry_id)
+              .map((item: any) => [
                 item.industry_role_id,
                 { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id },
               ])
@@ -93,24 +96,34 @@ const WHVWorkPreferences: React.FC = () => {
         setRoles(uniqueRoles);
 
         // States
-        const uniqueStates = Array.from(new Set(data.map((item) => item.state).filter(Boolean)));
+        const uniqueStates = Array.from(new Set(data.map((item: any) => item.state).filter(Boolean)));
         setStates(uniqueStates);
 
         // Areas
-        const uniqueAreas = Array.from(new Set(data.map((item) => item.area).filter(Boolean)));
+        const uniqueAreas = Array.from(new Set(data.map((item: any) => item.area).filter(Boolean)));
         setAreas(uniqueAreas);
 
         // Group areas by state
         const areasByState: { [state: string]: string[] } = {};
-        data.forEach((item) => {
+        const notes: { [state: string]: string } = {};
+        data.forEach((item: any) => {
           if (item.state && item.area) {
             if (!areasByState[item.state]) areasByState[item.state] = [];
             if (!areasByState[item.state].includes(item.area)) {
               areasByState[item.state].push(item.area);
             }
           }
+          // Add visa-specific notes for states/areas
+          if (item.state) {
+            if (item.state.includes('Northern') || item.state.includes('Remote')) {
+              notes[item.state] = "⚠️ Hospitality only counts in Northern/Remote Australia";
+            } else if (item.state === 'Tasmania') {
+              notes[item.state] = "ℹ️ All work counts towards second year visa";
+            }
+          }
         });
         setAvailableAreas(areasByState);
+        setStateNotes(notes);
       }
 
       // 4. Load tagline if already saved
@@ -118,7 +131,7 @@ const WHVWorkPreferences: React.FC = () => {
         .from("whv_maker")
         .select("tagline")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       if (makerData?.tagline) setTagline(makerData.tagline);
     };
 
@@ -310,32 +323,44 @@ const WHVWorkPreferences: React.FC = () => {
                 </button>
                 {expandedSections.states && (
                   <div className="px-4 pb-4 border-t space-y-4">
-                    <Label>Preferred States (up to 3)</Label>
-                    {states.map((state) => (
-                      <label key={state} className="flex items-center space-x-2 py-1">
-                        <input
-                          type="checkbox"
-                          checked={preferredStates.includes(state)}
-                          onChange={() => togglePreferredState(state)}
-                          className="h-4 w-4"
-                        />
-                        <span>{state}</span>
-                      </label>
-                    ))}
+                     <Label>Preferred States (up to 3)</Label>
+                     {states.map((state) => (
+                       <label key={state} className="flex items-center space-x-2 py-1">
+                         <input
+                           type="checkbox"
+                           checked={preferredStates.includes(state)}
+                           onChange={() => togglePreferredState(state)}
+                           className="h-4 w-4"
+                           disabled={preferredStates.length >= 3 && !preferredStates.includes(state)}
+                         />
+                         <span className="flex items-center gap-2">
+                           {state}
+                           {stateNotes[state] && (
+                             <span className="text-xs text-gray-500">{stateNotes[state]}</span>
+                           )}
+                         </span>
+                       </label>
+                     ))}
                     {preferredStates.length > 0 && (
                       <>
                         <Label>Preferred Areas (up to 3)</Label>
-                        {getAvailableAreasForSelectedStates().map((area) => (
-                          <label key={area} className="flex items-center space-x-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={preferredAreas.includes(area)}
-                              onChange={() => togglePreferredArea(area)}
-                              className="h-4 w-4"
-                            />
-                            <span>{area}</span>
-                          </label>
-                        ))}
+                         {getAvailableAreasForSelectedStates().map((area) => (
+                           <label key={area} className="flex items-center space-x-2 py-1">
+                             <input
+                               type="checkbox"
+                               checked={preferredAreas.includes(area)}
+                               onChange={() => togglePreferredArea(area)}
+                               className="h-4 w-4"
+                               disabled={preferredAreas.length >= 3 && !preferredAreas.includes(area)}
+                             />
+                             <span className="flex items-center gap-2">
+                               {area}
+                               {area.includes('Remote') && (
+                                 <span className="text-xs text-gray-500">ℹ️ Remote area eligible</span>
+                               )}
+                             </span>
+                           </label>
+                         ))}
                       </>
                     )}
                   </div>

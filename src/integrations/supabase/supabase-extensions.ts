@@ -36,6 +36,21 @@ export interface Database extends OriginalDatabase {
         Update: { stage_id?: number; sub_class?: "417" | "462"; stage?: number; label?: string };
       };
 
+      v_visa_stage_industries_roles: {
+        Row: {
+          industry_id: number;
+          industry_name: string;
+          industry_role_id: number;
+          role_name: string;
+          state: string;
+          area: string;
+          stage_id: number;
+          country_id: number;
+        };
+        Insert: never;
+        Update: never;
+      };
+
       whv_maker: {
         Row: {
           user_id: string;
