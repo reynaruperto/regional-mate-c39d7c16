@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import AustraliaIcon from './AustraliaIcon';
+import { supabase } from '@/integrations/supabase/client';
 
 const WHVLogin: React.FC = () => {
   const navigate = useNavigate();
