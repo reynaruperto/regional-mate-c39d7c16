@@ -64,33 +64,42 @@ const WHVWorkPreferences: React.FC = () => {
       }
 
       // 3. Get eligible industries and roles from the view filtered by stage_id and country_id
-      const { data: eligibilityData } = await supabase
-        .from("v_visa_stage_industries_roles")
+      const { data: eligibilityData, error: eligibilityError } = await supabase
+        .from("v_visa_stage_industries_roles" as any)
         .select("industry_id, industry_name, industry_role_id, role_name, state, area")
-        .eq("stage", visa.stage_id);
+        .eq("stage", visa.stage_id)
+        .eq("country_id", visa.country_id);
 
-      if (eligibilityData) {
+      if (eligibilityError) {
+        console.error("Error fetching eligibility data:", eligibilityError);
+        return;
+      }
+
+      if (eligibilityData && Array.isArray(eligibilityData)) {
+        // Cast to any to bypass TypeScript issues with the view
+        const data = eligibilityData as any[];
+        
         // Extract unique industries
         const uniqueIndustries = Array.from(
-          new Map(eligibilityData.map(item => [item.industry_id, { id: item.industry_id, name: item.industry_name }])).values()
+          new Map(data.map(item => [item.industry_id, { id: item.industry_id, name: item.industry_name }])).values()
         );
         setIndustries(uniqueIndustries);
 
         // Extract unique roles with their industry associations
         const uniqueRoles = Array.from(
-          new Map(eligibilityData.filter(item => item.industry_role_id && item.role_name).map(item => [item.industry_role_id, { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id }])).values()
+          new Map(data.filter(item => item.industry_role_id && item.role_name).map(item => [item.industry_role_id, { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id }])).values()
         );
         setRoles(uniqueRoles);
 
         // Extract unique states and areas
-        const uniqueStates = Array.from(new Set(eligibilityData.map(item => item.state).filter(Boolean)));
-        const uniqueAreas = Array.from(new Set(eligibilityData.map(item => item.area).filter(Boolean)));
+        const uniqueStates = Array.from(new Set(data.map(item => item.state).filter(Boolean)));
+        const uniqueAreas = Array.from(new Set(data.map(item => item.area).filter(Boolean)));
         setStates(uniqueStates);
         setAreas(uniqueAreas);
 
         // Group areas by state for dynamic loading
         const areasByState: {[state: string]: string[]} = {};
-        eligibilityData.forEach(item => {
+        data.forEach(item => {
           if (item.state && item.area) {
             if (!areasByState[item.state]) {
               areasByState[item.state] = [];

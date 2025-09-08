@@ -94,11 +94,25 @@ const WHVProfileSetup: React.FC = () => {
     if (!dob) return false;
     const date = new Date(dob);
     const now = new Date();
-    const age = now.getFullYear() - date.getFullYear();
-    return age >= 18 && age <= 35;
+    const birthYear = date.getFullYear();
+    
+    // Check for valid 4-digit year
+    if (birthYear < 1000 || birthYear > 9999) return false;
+    
+    const age = now.getFullYear() - birthYear;
+    const monthDiff = now.getMonth() - date.getMonth();
+    const actualAge = monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate()) ? age - 1 : age;
+    
+    return actualAge >= 18 && actualAge <= 35;
   };
 
-  const isValidExpiry = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const isValidExpiry = (date: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const expiryDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+    return expiryDate > today;
+  };
 
   // Flexible visa stage mapping
   const getVisaEnumValue = (selectedStage: VisaStage): string => {
@@ -130,7 +144,7 @@ const WHVProfileSetup: React.FC = () => {
       newErrors.dateOfBirth = "Must be between 18–35 years old";
     }
     if (!formData.visaExpiry || !isValidExpiry(formData.visaExpiry)) {
-      newErrors.visaExpiry = "Invalid date format (YYYY-MM-DD)";
+      newErrors.visaExpiry = "Must be a future date";
     }
     if (!formData.phone || !isValidAUPhone(formData.phone)) {
       newErrors.phone = "Invalid Australian phone number";
