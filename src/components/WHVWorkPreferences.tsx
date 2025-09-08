@@ -208,9 +208,7 @@ const WHVWorkPreferences: React.FC = () => {
     }
 
     const hasRolesForSelectedIndustries = roles.some(role => 
-      selectedIndustries.some(industryId => 
-        industries.find(ind => ind.id === industryId)
-      )
+      selectedIndustries.includes(role.industryId)
     );
 
     if (hasRolesForSelectedIndustries && selectedRoles.length === 0) {
