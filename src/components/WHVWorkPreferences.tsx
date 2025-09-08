@@ -51,15 +51,15 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get visa with subclass + stage
+      // Get visa label (still useful for display)
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("stage_id, visa_stage(sub_class, stage, label)")
+        .select("stage_id, visa_stage(label)")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (!visa) return;
-
-      setVisaLabel(visa.visa_stage.label);
+      if (visa) {
+        setVisaLabel(visa.visa_stage.label);
+      }
 
       // Industries
       const { data: industryData } = await supabase
@@ -85,15 +85,20 @@ const WHVWorkPreferences: React.FC = () => {
         );
       }
 
-      // Regions (filtered by subclass + stage)
+      // Regions (⚡️ pull ALL states + areas, no subclass/stage filter)
       const { data: regionData } = await supabase
         .from("region_rules")
-        .select("state, area")
-        .eq("sub_class", String(visa.visa_stage.sub_class))
-        .eq("stage", visa.visa_stage.stage as any);
+        .select("state, area");
 
       if (regionData) {
-        setRegions(regionData);
+        // Deduplicate (state + area)
+        const uniqueRegions = regionData.filter(
+          (r, idx, arr) =>
+            arr.findIndex(
+              (x) => x.state === r.state && x.area === r.area
+            ) === idx
+        );
+        setRegions(uniqueRegions);
       }
     };
 
@@ -142,7 +147,7 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    // Remove areas not part of selected states
+    // Keep only areas that match the new states
     const validAreas = regions
       .filter((r) => newStates.includes(r.state))
       .map((r) => r.area);
@@ -189,9 +194,7 @@ const WHVWorkPreferences: React.FC = () => {
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Eligible industries based on <strong>{visaLabel}</strong>
-            </p>
+            {/* Removed "Eligible industries..." text since not filtered */}
           </div>
 
           {/* Content */}
@@ -413,6 +416,7 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
 
 
 
