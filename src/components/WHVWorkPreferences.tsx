@@ -160,7 +160,10 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   const getAreasForState = (state: string) => {
-    return regions.filter((r) => r.state === state).map((r) => r.area);
+    return regions
+      .filter((r) => r.state === state)
+      .map((r) => r.area)
+      .filter((a, i, arr) => a && arr.indexOf(a) === i); // unique non-empty
   };
 
   // ==========================
@@ -321,7 +324,7 @@ const WHVWorkPreferences: React.FC = () => {
                       {/* Areas under state */}
                       {preferredStates.includes(state) && (
                         <div className="ml-6 space-y-1">
-                          {[...new Set(getAreasForState(state))].map((area) => (
+                          {getAreasForState(state).map((area) => (
                             <label
                               key={`${state}-${area}`}
                               className="flex items-center space-x-2 py-1"
@@ -410,6 +413,7 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
 
 
 
