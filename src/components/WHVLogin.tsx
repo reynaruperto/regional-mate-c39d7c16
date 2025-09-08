@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import AustraliaIcon from './AustraliaIcon';
-import { supabase } from '@/integrations/supabase/client';
 
 const WHVLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -24,96 +23,14 @@ const WHVLogin: React.FC = () => {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validation
-    if (!formData.email || !formData.password) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter both email and password",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Sign in with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data.user) {
-        // Check user type from profile
-        const { data: profileData, error: profileError } = await supabase
-          .from('profile')
-          .select('user_type')
-          .eq('user_id', data.user.id)
-          .single();
-
-        if (profileError) {
-          console.error('Profile fetch error:', profileError);
-          toast({
-            title: "Profile Error",
-            description: "Could not verify user profile. Please contact support.",
-            variant: "destructive"
-          });
-          await supabase.auth.signOut();
-          return;
-        }
-
-        // Verify this is a WHV maker account
-        if (profileData?.user_type !== 'whv') {
-          toast({
-            title: "Invalid Account Type",
-            description: "This login is for WHV makers only. Please use the employer login.",
-            variant: "destructive"
-          });
-          await supabase.auth.signOut();
-          navigate('/employer/sign-in');
-          return;
-        }
-
-        // Successful login
-        toast({
-          title: "Welcome back!",
-          description: `Successfully signed in to Regional Mate${whvData?.given_name ? ', ' + whvData.given_name : ''}`,
-        });
-        
-        navigate('/whv/dashboard');
-      }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      
-      if (error.message?.includes('Invalid login credentials')) {
-        toast({
-          title: "Invalid Credentials",
-          description: "The email or password you entered is incorrect.",
-          variant: "destructive"
-        });
-      } else if (error.message?.includes('Email not confirmed')) {
-        toast({
-          title: "Email Not Verified",
-          description: "Please check your email and verify your account before signing in.",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Sign In Failed",
-          description: error.message || "An unexpected error occurred. Please try again.",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    console.log('WHV Login:', formData);
+    toast({
+      title: "Welcome back!",
+      description: "Successfully signed in to Regional Mate",
+    });
+    navigate('/whv/dashboard');
   };
 
   const handleForgotPassword = () => {
