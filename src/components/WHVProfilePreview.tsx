@@ -1,131 +1,302 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Heart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+// src/pages/WHVWorkPreferences.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const WHVProfilePreview: React.FC = () => {
+const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
-  const [profileData, setProfileData] = useState({
-    name: 'Peter Parker',
-    profilePhoto: '/lovable-uploads/5171768d-7ee5-4242-8d48-29d87d896302.png',
-    tagline: 'Backpacker from Argentina with experience in farm work, currently in Brisbane, QLD',
-    nationality: 'Argentina',
-    location: 'Brisbane, QLD 4000',
-    relocation: 'Yes',
-    visaType: '417 (Working Holiday)',
-    visaExpiry: 'Sep 2026',
-    industry: 'Agriculture and Farming',
-    licenses: 'Driver\'s License, First Aid',
-    availability: 'Sep 2025 (8 months)'
-  });
 
-  const [workExperiences, setWorkExperiences] = useState([
-    { period: '2020-2025', position: 'Farm Attendant', company: 'VillaFarm' },
-    { period: '2019-2020', position: 'Marketing Head', company: 'Workspace' },
-    { period: '2007-2019', position: 'Winery Assistant', company: 'BodegaWinery' }
-  ]);
+  const [tagline, setTagline] = useState("");
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; name: string; industryId: number }[]>([]);
+  const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
+  const [availableAreas, setAvailableAreas] = useState<{ [state: string]: string[] }>({});
+  const [preferredStates, setPreferredStates] = useState<string[]>([]);
+  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
+  const [visaLabel, setVisaLabel] = useState<string>("");
+  const [stageId, setStageId] = useState<number | null>(null);
+  const [countryId, setCountryId] = useState<number | null>(null);
 
+  // ==========================
+  // Load data from Supabase
+  // ==========================
   useEffect(() => {
-    const storedTagline = localStorage.getItem('profileTagline');
-    if (storedTagline) {
-      setProfileData(prev => ({ ...prev, tagline: storedTagline }));
-    }
-    
-    const storedPhoto = localStorage.getItem('userProfilePhoto');
-    if (storedPhoto) {
-      setProfileData(prev => ({ ...prev, profilePhoto: storedPhoto }));
-    }
+    const loadData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Visa info
+      const { data: visa, error: visaError } = await supabase
+        .from("maker_visa")
+        .select("stage_id, country_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (visaError) {
+        console.error("Error fetching visa:", visaError);
+        return;
+      }
+      if (!visa) return;
+
+      setStageId(visa.stage_id);
+      setCountryId(visa.country_id);
+
+      // 2. Visa label
+      const { data: visaStage, error: stageError } = await supabase
+        .from("visa_stage")
+        .select("label")
+        .eq("stage_id", visa.stage_id)
+        .single();
+
+      if (stageError) console.error("Error fetching visa stage:", stageError);
+      if (visaStage) setVisaLabel(visaStage.label);
+
+      // 3. Eligible industries/roles/states/areas
+      const { data: eligibilityData, error: eligibilityError } = await supabase
+        .from("v_visa_stage_industries_roles")
+        .select(
+          "industry_id, industry_name, industry_role_id, role_name, state, area, country_id, stage_id"
+        )
+        .eq("stage_id", visa.stage_id)
+        .eq("country_id", visa.country_id);
+
+      if (eligibilityError) {
+        console.error("Error fetching eligibility data:", eligibilityError);
+        return;
+      }
+
+      console.log("Eligibility raw data:", eligibilityData);
+
+      if (eligibilityData && Array.isArray(eligibilityData)) {
+        // ✅ Industries
+        const uniqueIndustries = Array.from(
+          new Map(
+            eligibilityData
+              .filter((item) => item.industry_id && item.industry_name)
+              .map((item) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
+          ).values()
+        );
+        setIndustries(uniqueIndustries);
+
+        // ✅ Roles
+        const uniqueRoles = Array.from(
+          new Map(
+            eligibilityData
+              .filter((item) => item.industry_role_id && item.role_name && item.industry_id)
+              .map((item) => [
+                item.industry_role_id,
+                { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id },
+              ])
+          ).values()
+        );
+        setRoles(uniqueRoles);
+
+        // ✅ States
+        const uniqueStates = Array.from(new Set(eligibilityData.map((item) => item.state).filter(Boolean)));
+        setStates(uniqueStates);
+
+        // ✅ Areas
+        const uniqueAreas = Array.from(new Set(eligibilityData.map((item) => item.area).filter(Boolean)));
+        setAreas(uniqueAreas);
+
+        // ✅ Group areas by state
+        const areasByState: { [state: string]: string[] } = {};
+        eligibilityData.forEach((item) => {
+          if (item.state && item.area) {
+            if (!areasByState[item.state]) areasByState[item.state] = [];
+            if (!areasByState[item.state].includes(item.area)) {
+              areasByState[item.state].push(item.area);
+            }
+          }
+        });
+        setAvailableAreas(areasByState);
+      }
+
+      // 4. Tagline
+      const { data: makerData, error: makerError } = await supabase
+        .from("whv_maker")
+        .select("tagline")
+        .eq("user_id", user.id)
+        .single();
+
+      if (makerError) console.error("Error fetching maker data:", makerError);
+      if (makerData?.tagline) setTagline(makerData.tagline);
+    };
+
+    loadData();
   }, []);
 
+  // ==========================
+  // Helpers
+  // ==========================
+  const handleIndustrySelect = (industryId: number) => {
+    if (!selectedIndustries.includes(industryId) && selectedIndustries.length < 3) {
+      setSelectedIndustries([...selectedIndustries, industryId]);
+    } else if (selectedIndustries.includes(industryId)) {
+      setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
+      const industryRoles = roles.filter((role) => role.industryId === industryId).map((role) => role.id);
+      setSelectedRoles(selectedRoles.filter((roleId) => !industryRoles.includes(roleId)));
+    }
+  };
+
+  const toggleRole = (roleId: number) => {
+    setSelectedRoles(
+      selectedRoles.includes(roleId)
+        ? selectedRoles.filter((r) => r !== roleId)
+        : [...selectedRoles, roleId]
+    );
+  };
+
+  const togglePreferredState = (state: string) => {
+    const newStates = preferredStates.includes(state)
+      ? preferredStates.filter((s) => s !== state)
+      : preferredStates.length < 3
+      ? [...preferredStates, state]
+      : preferredStates;
+    setPreferredStates(newStates);
+
+    const availableAreasForStates = newStates.flatMap((s) => availableAreas[s] || []);
+    setPreferredAreas(preferredAreas.filter((area) => availableAreasForStates.includes(area)));
+  };
+
+  const togglePreferredArea = (area: string) => {
+    setPreferredAreas(
+      preferredAreas.includes(area)
+        ? preferredAreas.filter((a) => a !== area)
+        : preferredAreas.length < 3
+        ? [...preferredAreas, area]
+        : preferredAreas
+    );
+  };
+
+  const getAvailableAreasForSelectedStates = () => {
+    return preferredStates.flatMap((state) => availableAreas[state] || []);
+  };
+
+  // ==========================
+  // Render
+  // ==========================
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          
-          {/* Main content container */}
-          <div className="w-full h-full flex flex-col relative bg-gray-200">
-            
-            {/* Scrollable Content */}
-            <div className="flex-1 px-6 pt-16 pb-24 overflow-y-auto">
-              
-              {/* Profile Card */}
-              <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 shadow-lg">
-                
-                {/* Name Header */}
-                <div className="bg-orange-500 text-white text-center py-4 rounded-2xl mb-6">
-                  <h2 className="text-xl font-bold">{profileData.name.split(' ')[0].toUpperCase()}</h2>
-                </div>
-
-                {/* Profile Picture */}
-                <div className="flex justify-center mb-6">
-                  <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden">
-                    <img 
-                      src={profileData.profilePhoto}
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-
-                {/* Description */}
-                <div className="text-center mb-6">
-                  <p className="text-gray-700 text-sm leading-relaxed">
-                    {profileData.tagline}
-                  </p>
-                </div>
-
-                {/* Details */}
-                <div className="space-y-2 text-sm mb-6">
-                  <div><span className="font-semibold">Nationality:</span> {profileData.nationality}</div>
-                  <div><span className="font-semibold">Location (Current / Preferred):</span> {profileData.location}</div>
-                  <div><span className="font-semibold">Willing to Relocate:</span> {profileData.relocation}</div>
-                  <div><span className="font-semibold">Visa Type & Expiry:</span> {profileData.visaType} - Expires {profileData.visaExpiry}</div>
-                  <div><span className="font-semibold">Industry:</span> {profileData.industry}</div>
-                  <div>
-                    <span className="font-semibold">Experience / Skills:</span>
-                    <div className="mt-1 space-y-1 text-xs">
-                      {workExperiences.map((exp, index) => (
-                        <div key={index}>{exp.period}: {exp.position} - {exp.company}</div>
-                      ))}
-                    </div>
-                  </div>
-                  <div><span className="font-semibold">Licenses / Certificates:</span> {profileData.licenses}</div>
-                  <div><span className="font-semibold">Availability (date, duration):</span> {profileData.availability}</div>
-                </div>
-
-                {/* Locked Message */}
-                <div className="bg-gray-200 text-center py-3 rounded-xl mb-4">
-                  <p className="text-gray-600 text-sm">Full Details Unlocked if you both Match</p>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="space-y-3">
-                  <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white px-8 py-3 rounded-2xl flex items-center gap-3 justify-center">
-                    <span className="font-semibold">Heart to Match</span>
-                    <div className="bg-orange-500 rounded-full p-2">
-                      <Heart size={20} className="text-white fill-white" />
-                    </div>
-                  </Button>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Back Button - Fixed at bottom */}
-            <div className="absolute bottom-8 left-6">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="w-12 h-12 bg-white rounded-xl shadow-sm"
-                onClick={() => navigate('/whv/profile-edit')}
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => navigate("/whv/profile-setup")}
+                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
               >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
+                <ArrowLeft size={20} className="text-gray-600" />
+              </button>
+              <h1 className="text-lg font-medium text-gray-900">Work Preferences</h1>
+              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+                <span className="text-sm font-medium text-gray-600">4/6</span>
+              </div>
             </div>
+            <p className="text-sm text-gray-500 mt-2">
+              Eligible industries based on <strong>{visaLabel}</strong>
+            </p>
+          </div>
 
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto px-4 py-6">
+            {industries.length === 0 ? (
+              <p className="text-gray-500 text-sm">No eligible industries found for your visa.</p>
+            ) : (
+              <form className="space-y-6 pb-20">
+                {/* Industries */}
+                <div className="space-y-2">
+                  <Label>Select up to 3 industries *</Label>
+                  {industries.map((industry) => (
+                    <label key={industry.id} className="flex items-center space-x-2 py-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedIndustries.includes(industry.id)}
+                        disabled={
+                          selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)
+                        }
+                        onChange={() => handleIndustrySelect(industry.id)}
+                        className="h-4 w-4"
+                      />
+                      <span>{industry.name}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Roles */}
+                {selectedIndustries.map((industryId) => {
+                  const industry = industries.find((i) => i.id === industryId);
+                  const industryRoles = roles.filter((r) => r.industryId === industryId);
+                  return (
+                    <div key={industryId}>
+                      <Label>Roles for {industry?.name}</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {industryRoles.map((role) => (
+                          <button
+                            type="button"
+                            key={role.id}
+                            onClick={() => toggleRole(role.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs border ${
+                              selectedRoles.includes(role.id)
+                                ? "bg-orange-500 text-white border-orange-500"
+                                : "bg-white text-gray-700 border-gray-300"
+                            }`}
+                          >
+                            {role.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* States */}
+                <div className="space-y-2">
+                  <Label>Preferred States (up to 3)</Label>
+                  {states.map((state) => (
+                    <label key={state} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={preferredStates.includes(state)}
+                        onChange={() => togglePreferredState(state)}
+                        className="h-4 w-4"
+                      />
+                      <span>{state}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Areas */}
+                <div className="space-y-2">
+                  <Label>Preferred Areas (up to 3)</Label>
+                  {getAvailableAreasForSelectedStates().map((area) => (
+                    <label key={area} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={preferredAreas.includes(area)}
+                        onChange={() => togglePreferredArea(area)}
+                        className="h-4 w-4"
+                      />
+                      <span>{area}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Submit */}
+                <Button type="submit" className="w-full h-14 bg-orange-500 text-white rounded-xl">
+                  Continue →
+                </Button>
+              </form>
+            )}
           </div>
         </div>
       </div>
@@ -133,4 +304,5 @@ const WHVProfilePreview: React.FC = () => {
   );
 };
 
-export default WHVProfilePreview;
+export default WHVWorkPreferences;
+
