@@ -11,7 +11,7 @@ const WHVWorkPreferences: React.FC = () => {
 
   const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; name: string; industryId: number }[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [states, setStates] = useState<string[]>([]);
@@ -69,9 +69,9 @@ const WHVWorkPreferences: React.FC = () => {
         );
         setIndustries(uniqueIndustries);
 
-        // Extract unique roles
+        // Extract unique roles with their industry associations
         const uniqueRoles = Array.from(
-          new Map(eligibilityData.filter(item => item.industry_role_id && item.role_name).map(item => [item.industry_role_id, { id: item.industry_role_id, name: item.role_name }])).values()
+          new Map(eligibilityData.filter(item => item.industry_role_id && item.role_name).map(item => [item.industry_role_id, { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id }])).values()
         );
         setRoles(uniqueRoles);
 
@@ -331,20 +331,22 @@ const WHVWorkPreferences: React.FC = () => {
                 <div className="space-y-3">
                   <Label>Select roles *</Label>
                   <div className="flex flex-wrap gap-2">
-                    {roles.map((role) => (
-                      <button
-                        type="button"
-                        key={role.id}
-                        onClick={() => toggleRole(role.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs border ${
-                          selectedRoles.includes(role.id)
-                            ? "bg-orange-500 text-white border-orange-500"
-                            : "bg-white text-gray-700 border-gray-300"
-                        }`}
-                      >
-                        {role.name}
-                      </button>
-                    ))}
+                    {roles
+                      .filter(role => selectedIndustries.includes(role.industryId))
+                      .map((role) => (
+                        <button
+                          type="button"
+                          key={role.id}
+                          onClick={() => toggleRole(role.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs border ${
+                            selectedRoles.includes(role.id)
+                              ? "bg-orange-500 text-white border-orange-500"
+                              : "bg-white text-gray-700 border-gray-300"
+                          }`}
+                        >
+                          {role.name}
+                        </button>
+                      ))}
                   </div>
                   {errors.roles && <p className="text-sm text-red-500">{errors.roles}</p>}
                   <div className="flex items-center gap-2 text-xs text-gray-500">
