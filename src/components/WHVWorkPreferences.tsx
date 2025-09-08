@@ -27,12 +27,19 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      // 2. Get visa details from maker_visa
-      const { data: visa } = await supabase
+      // 2. Get visa details from maker_visa (just stage_id)
+      const { data: visa, error: visaError } = await supabase
         .from("maker_visa")
-        .select("sub_class, stage_id")
+        .select("stage_id")
         .eq("user_id", user.id)
         .maybeSingle();
+
+      if (visaError) {
+        console.error("Error fetching visa:", visaError);
+        setError("Could not fetch visa");
+        setLoading(false);
+        return;
+      }
 
       if (!visa) {
         setError("Visa not found for this user");
@@ -40,18 +47,38 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      // 3. Query region_rules filtered by subclass + stage
-      const { data, error } = await supabase
+      // 3. Look up subclass from visa_stage
+      const { data: stage, error: stageError } = await supabase
+        .from("visa_stage")
+        .select("sub_class")
+        .eq("stage_id", visa.stage_id)
+        .maybeSingle();
+
+      if (stageError) {
+        console.error("Error fetching visa stage:", stageError);
+        setError("Could not fetch visa stage");
+        setLoading(false);
+        return;
+      }
+
+      if (!stage) {
+        setError("Visa stage not found");
+        setLoading(false);
+        return;
+      }
+
+      // 4. Now fetch eligible regions using subclass + stage_id
+      const { data, error: regionError } = await supabase
         .from("region_rules")
         .select("state, area, postcode_range, industry_id")
-        .eq("sub_class", visa.sub_class)   // e.g. "417" or "462"
-        .eq("stage", visa.stage_id);       // e.g. 1, 2, or 3
+        .eq("sub_class", stage.sub_class) // ✅ from visa_stage
+        .eq("stage", visa.stage_id);      // ✅ from maker_visa
 
-      if (error) {
-        console.error("Error fetching regions:", error);
-        setError(error.message);
+      if (regionError) {
+        console.error("Error fetching regions:", regionError);
+        setError("Could not fetch regions");
       } else {
-        console.log("Fetched regions:", data); // 🔎 check in dev console
+        console.log("Fetched regions:", data); // 🔎 debug
         setRegions(data || []);
       }
 
@@ -91,6 +118,7 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
 
 
 
