@@ -43,7 +43,9 @@ const WHVWorkPreferences: React.FC = () => {
     summary: false,
   });
 
-  
+  // ==========================
+  // Load data
+  // ==========================
   useEffect(() => {
     const loadData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -76,7 +78,7 @@ const WHVWorkPreferences: React.FC = () => {
         .from("region_rules")
         .select("state, area, postcode_range, industry_id")
         .eq("sub_class", String(visa.visa_stage.sub_class))
-        .eq("stage", visa.visa_stage.stage as any); // 👈 fix here
+        .eq("stage", visa.visa_stage.stage as any);
 
       if (regionData) setRegions(regionData);
     };
@@ -84,7 +86,9 @@ const WHVWorkPreferences: React.FC = () => {
     loadData();
   }, []);
 
-
+  // ==========================
+  // Handlers
+  // ==========================
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
@@ -134,7 +138,9 @@ const WHVWorkPreferences: React.FC = () => {
     return regions.filter((r) => r.state === state);
   };
 
-
+  // ==========================
+  // Render
+  // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -279,10 +285,12 @@ const WHVWorkPreferences: React.FC = () => {
                                 />
                                 <span>{r.area}</span>
                               </div>
+
+                              {/* Tooltip only */}
                               {r.postcode_range && r.postcode_range !== "All postcodes" && (
                                 <div className="flex items-center gap-1 text-xs text-orange-600">
                                   <AlertTriangle size={12} />
-                                  <span>{r.postcode_range}</span>
+                                  <span>Restricted area</span>
                                 </div>
                               )}
                             </label>
@@ -335,7 +343,6 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
-
 
 
 
