@@ -15,6 +15,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
   const [availableAreas, setAvailableAreas] = useState<{ [state: string]: string[] }>({});
+  const [regions, setRegions] = useState<any[]>([]);
 
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
@@ -37,6 +38,8 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      console.log("User ID:", user.id);
+
       // 1. Get visa + join visa_stage to fetch subclass + label
       const { data: visa } = await supabase
         .from("maker_visa")
@@ -44,39 +47,46 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id)
         .single();
 
+      console.log("maker_visa + visa_stage:", visa);
+
       if (!visa) return;
 
       setVisaLabel(visa.visa_stage.label);
 
       // 2. Load eligible regions from region_rules
-      const { data: regionData, error: regionError } = await supabase
+      console.log("sub_class filter:", String(visa.visa_stage.sub_class));
+      console.log("stage filter (raw):", visa.visa_stage.stage, typeof visa.visa_stage.stage);
+
+      // First try with stage as number
+      let { data: regionData, error: regionError } = await supabase
         .from("region_rules")
-        .select("state, area, postcode_range, industry_id")
-        .eq("sub_class", String(visa.visa_stage.sub_class)) // cast to string
-        .eq("stage", visa.visa_stage.stage.toString());     // cast number → string
+        .select("sub_class, stage, state, area, postcode_range, industry_id")
+        .eq("sub_class", String(visa.visa_stage.sub_class))
+        .eq("stage", visa.visa_stage.stage);
 
       if (regionError) {
-        console.error("Error fetching region rules:", regionError);
-        return;
+        console.error("Error fetching regions (number filter):", regionError);
       }
 
-      if (regionData) {
-        // Collect unique states + areas
-        const uniqueStates = Array.from(new Set(regionData.map((r) => r.state).filter(Boolean)));
-        const uniqueAreas = Array.from(new Set(regionData.map((r) => r.area).filter(Boolean)));
-        setStates(uniqueStates);
-        setAreas(uniqueAreas);
+      if (!regionData || regionData.length === 0) {
+        console.log("No results with number filter, retrying with string…");
 
-        // Map areas by state
-        const grouped: { [state: string]: string[] } = {};
-        regionData.forEach((row) => {
-          if (!grouped[row.state]) grouped[row.state] = [];
-          if (row.area && !grouped[row.state].includes(row.area)) {
-            grouped[row.state].push(row.area);
-          }
-        });
-        setAvailableAreas(grouped);
+        // Retry with stage as string
+        const { data: regionDataStr, error: regionErrorStr } = await supabase
+          .from("region_rules")
+          .select("sub_class, stage, state, area, postcode_range, industry_id")
+          .eq("sub_class", String(visa.visa_stage.sub_class))
+          .eq("stage", visa.visa_stage.stage.toString());
+
+        if (regionErrorStr) {
+          console.error("Error fetching regions (string filter):", regionErrorStr);
+        }
+
+        regionData = regionDataStr || [];
       }
+
+      console.log("region_rules results:", regionData);
+      setRegions(regionData || []);
 
       // 3. Load industries
       const { data: industryData } = await supabase.from("industry").select("industry_id, name");
@@ -177,174 +187,12 @@ const WHVWorkPreferences: React.FC = () => {
             </p>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-6">
-            {industries.length === 0 ? (
-              <p className="text-gray-500 text-sm">No eligible industries found.</p>
-            ) : (
-              <form className="space-y-6 pb-20">
-                {/* Tagline */}
-                <div className="border rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("tagline")}
-                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  >
-                    <span className="text-lg font-medium">1. Profile Tagline</span>
-                    {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.tagline && (
-                    <div className="px-4 pb-4 border-t space-y-3">
-                      <Label>Profile Tagline *</Label>
-                      <Input
-                        type="text"
-                        value={tagline}
-                        onChange={(e) => setTagline(e.target.value)}
-                        className="h-12 bg-gray-100 border-0"
-                        maxLength={60}
-                        placeholder="e.g. Backpacker ready for farm work"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Industries */}
-                <div className="border rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("industries")}
-                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  >
-                    <span className="text-lg font-medium">2. Industries & Roles</span>
-                    {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.industries && (
-                    <div className="px-4 pb-4 border-t space-y-4">
-                      <Label>Select up to 3 industries *</Label>
-                      {industries.map((industry) => (
-                        <label key={industry.id} className="flex items-center space-x-2 py-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedIndustries.includes(industry.id)}
-                            disabled={
-                              selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)
-                            }
-                            onChange={() => handleIndustrySelect(industry.id)}
-                            className="h-4 w-4"
-                          />
-                          <span>{industry.name}</span>
-                        </label>
-                      ))}
-
-                      {selectedIndustries.map((industryId) => {
-                        const industry = industries.find((i) => i.id === industryId);
-                        const industryRoles = roles.filter((r) => r.industryId === industryId);
-                        return (
-                          <div key={industryId}>
-                            <Label>Roles for {industry?.name}</Label>
-                            <div className="flex flex-wrap gap-2">
-                              {industryRoles.map((role) => (
-                                <button
-                                  type="button"
-                                  key={role.id}
-                                  onClick={() => toggleRole(role.id)}
-                                  className={`px-3 py-1.5 rounded-full text-xs border ${
-                                    selectedRoles.includes(role.id)
-                                      ? "bg-orange-500 text-white border-orange-500"
-                                      : "bg-white text-gray-700 border-gray-300"
-                                  }`}
-                                >
-                                  {role.name}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* States */}
-                <div className="border rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("states")}
-                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  >
-                    <span className="text-lg font-medium">3. Preferred Locations</span>
-                    {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.states && (
-                    <div className="px-4 pb-4 border-t space-y-4">
-                      <Label>Preferred States (up to 3)</Label>
-                      {states.map((state) => (
-                        <label key={state} className="flex items-center space-x-2 py-1">
-                          <input
-                            type="checkbox"
-                            checked={preferredStates.includes(state)}
-                            onChange={() => togglePreferredState(state)}
-                            className="h-4 w-4"
-                            disabled={preferredStates.length >= 3 && !preferredStates.includes(state)}
-                          />
-                          <span>{state}</span>
-                        </label>
-                      ))}
-
-                      {preferredStates.length > 0 && (
-                        <>
-                          <Label>Preferred Areas (up to 3)</Label>
-                          {getAvailableAreasForSelectedStates().map((area) => (
-                            <label key={area} className="flex items-center space-x-2 py-1">
-                              <input
-                                type="checkbox"
-                                checked={preferredAreas.includes(area)}
-                                onChange={() => togglePreferredArea(area)}
-                                className="h-4 w-4"
-                                disabled={preferredAreas.length >= 3 && !preferredAreas.includes(area)}
-                              />
-                              <span>{area}</span>
-                            </label>
-                          ))}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Summary */}
-                <div className="border rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("summary")}
-                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                  >
-                    <span className="text-lg font-medium">4. Review</span>
-                    {expandedSections.summary ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.summary && (
-                    <div className="px-4 pb-4 border-t space-y-4">
-                      <p><strong>Tagline:</strong> {tagline}</p>
-                      <p><strong>Industries:</strong> {selectedIndustries.map(id => industries.find(i => i.id === id)?.name).join(", ")}</p>
-                      <p><strong>Roles:</strong> {selectedRoles.map(id => roles.find(r => r.id === id)?.name).join(", ")}</p>
-                      <p><strong>States:</strong> {preferredStates.join(", ")}</p>
-                      <p><strong>Areas:</strong> {preferredAreas.join(", ")}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-4">
-                  <Button
-                    type="button"
-                    onClick={() => navigate("/whv/work-experience")}
-                    disabled={!tagline.trim() || selectedIndustries.length === 0 || preferredStates.length === 0}
-                    className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
-                  >
-                    Continue →
-                  </Button>
-                </div>
-              </form>
-            )}
+          {/* Debug results */}
+          <div className="p-4">
+            <h2 className="font-semibold">Debug Regions</h2>
+            <pre className="text-xs bg-gray-100 p-2 rounded max-h-40 overflow-y-auto">
+              {JSON.stringify(regions, null, 2)}
+            </pre>
           </div>
         </div>
       </div>
@@ -353,6 +201,7 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
 
 
 
