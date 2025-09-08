@@ -71,8 +71,8 @@ const WHVWorkPreferences: React.FC = () => {
       const { data, error: regionError } = await supabase
         .from("region_rules")
         .select("state, area, postcode_range, industry_id")
-        .eq("sub_class", stage.sub_class) // ✅ from visa_stage
-        .eq("stage", visa.stage_id);      // ✅ from maker_visa
+        .eq("sub_class", stage.sub_class)       // ✅ from visa_stage
+        .eq("stage", String(visa.stage_id));    // ✅ cast number → string
 
       if (regionError) {
         console.error("Error fetching regions:", regionError);
@@ -108,7 +108,9 @@ const WHVWorkPreferences: React.FC = () => {
                   Postcodes: {r.postcode_range}
                 </p>
               )}
-              <p className="text-xs text-gray-400">Industry ID: {r.industry_id}</p>
+              <p className="text-xs text-gray-400">
+                Industry ID: {r.industry_id}
+              </p>
             </li>
           ))}
         </ul>
@@ -118,7 +120,5 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
-
-
 
 
