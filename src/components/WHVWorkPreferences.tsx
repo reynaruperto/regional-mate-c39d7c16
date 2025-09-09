@@ -106,7 +106,7 @@ const WHVWorkPreferences: React.FC = () => {
       // 4. Regions
       const { data: regionData } = await supabase
         .from("region_rules")
-        .select("region_rules_id, state, area");
+        .select("state, area");
 
       if (regionData) {
         const uniqueRegions = regionData.filter(
@@ -143,18 +143,15 @@ const WHVWorkPreferences: React.FC = () => {
     // 2. Save preferences into maker_preference
     const preferenceRows = selectedIndustries.flatMap((industryId) => {
       const industryRoles = roles.filter((r) => r.industryId === industryId);
-      const selectedRoleIds = industryRoles
-        .filter((r) => selectedRoles.includes(r.id))
-        .map((r) => r.id);
-
-      return selectedRoleIds.flatmap((roleId) =>
-            regions
-              .filter((rr) => preferredStates.includes(rr.state) && preferredAreas.includes(rr.area))
-              .map((rr) => ({
-                user_id: user.id,
-                industry_role_id: roleId,
-                region_rules_id: rr.region_rules_id,
-              }))
+      return preferredStates.flatMap((state) =>
+        preferredAreas.map((area) => ({
+          user_id: user.id,
+          state: state as any, // cast to fix enum mismatch
+          area,
+          industry_id: industryId,
+          industry_role_id:
+            industryRoles.find((r) => selectedRoles.includes(r.id))?.id ?? null,
+        }))
       );
     });
 
