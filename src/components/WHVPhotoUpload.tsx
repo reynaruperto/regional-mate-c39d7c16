@@ -110,17 +110,17 @@ const WHVPhotoUpload: React.FC = () => {
       if (makerData?.profile_photo) {
         const url = new URL(makerData.profile_photo);
         const pathParts = url.pathname.split("/");
-        const bucketIndex = pathParts.indexOf("profile-photos");
+        const bucketIndex = pathParts.indexOf("profile_photo"); // ✅ match bucket name
         if (bucketIndex !== -1) {
           const relativePath = pathParts.slice(bucketIndex + 1).join("/");
-          await supabase.storage.from("profile-photos").remove([relativePath]);
+          await supabase.storage.from("profile_photo").remove([relativePath]);
         }
       }
 
       // 2. Upload new file
       const filePath = `${user.id}/${Date.now()}-${selectedFile.name}`;
       const { error: uploadError } = await supabase.storage
-        .from("profile-photos")
+        .from("profile_photo") // ✅ use correct bucket
         .upload(filePath, selectedFile, {
           cacheControl: "3600",
           upsert: true,
@@ -130,7 +130,7 @@ const WHVPhotoUpload: React.FC = () => {
 
       // 3. Get public URL
       const { data } = supabase.storage
-        .from("profile-photos")
+        .from("profile_photo") // ✅ use correct bucket
         .getPublicUrl(filePath);
       const publicUrl = data.publicUrl;
 
