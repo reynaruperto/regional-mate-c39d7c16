@@ -51,7 +51,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get visa info (subclass, stage, country name)
+      // 1. Get visa info
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(`
@@ -68,13 +68,14 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // 2. Query temp_eligibility for industries allowed by visa
+      // 2. Get eligible industries from temp_eligibility
       const { data: eligibleIndustries } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", visa.country.name);
+        .eq("country_name", visa.country.name)
+        .returns<{ industry_id: number; industry_name: string }[]>();
 
       if (eligibleIndustries) {
         setIndustries(
@@ -84,7 +85,7 @@ const WHVWorkPreferences: React.FC = () => {
           }))
         );
 
-        // 3. Fetch roles linked to those industries
+        // 3. Get roles for those industries
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
         const { data: roleData } = await supabase
           .from("industry_role")
@@ -102,7 +103,7 @@ const WHVWorkPreferences: React.FC = () => {
         }
       }
 
-      // 4. Regions (all)
+      // 4. Regions
       const { data: regionData } = await supabase
         .from("region_rules")
         .select("state, area");
@@ -130,20 +131,22 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Save tagline into whv_maker
-    await supabase.from("whv_maker").upsert({
-      user_id: user.id,
-      tagline: tagline.trim(),
-      updated_at: new Date().toISOString(),
-    });
+    // 1. Save tagline into whv_maker (update instead of upsert)
+    await supabase
+      .from("whv_maker")
+      .update({
+        tagline: tagline.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id);
 
-    // 2. Save preferences (industry + role + state + area)
+    // 2. Save preferences into maker_preference
     const preferenceRows = selectedIndustries.flatMap((industryId) => {
       const industryRoles = roles.filter((r) => r.industryId === industryId);
       return preferredStates.flatMap((state) =>
         preferredAreas.map((area) => ({
           user_id: user.id,
-          state,
+          state: state as any, // cast to fix enum mismatch
           area,
           industry_id: industryId,
           industry_role_id:
@@ -153,10 +156,9 @@ const WHVWorkPreferences: React.FC = () => {
     });
 
     if (preferenceRows.length > 0) {
-      await supabase.from("maker_preference").upsert(preferenceRows);
+      await supabase.from("maker_preference").upsert(preferenceRows as any);
     }
 
-    // Navigate after saving
     navigate("/whv/work-experience");
   };
 
