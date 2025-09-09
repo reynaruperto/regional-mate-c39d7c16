@@ -52,8 +52,7 @@ import WHVEmployerJobs from "./pages/WHVEmployerJobs";
 import WHVEmployerJobDetails from "./pages/WHVEmployerJobDetails";
 import WHVJobDetails from "./pages/WHVJobDetails";
 import WHVBrowseEmployers from "./pages/WHVBrowseEmployers";
-import WHVLogin from "./pages/WHVLogin";
-import EmployerSignIn from "./pages/EmployerSignIn";
+import SignInAsModal from "./components/SignInAsModal";
 
 // Shared/misc pages
 import ProfileCompletion from "./pages/ProfileCompletion";
@@ -88,7 +87,8 @@ const App = () => (
           {/* Landing */}
           <Route path="/" element={<Index />} />
           <Route path="/lets-begin" element={<LetsBegin />} />
-          <Route path="/sign-in" element={<RoleSelection />} />
+          <Route path="/sign-in" element={<SignInAsModal />} />
+          <Route path="/role-selection" element={<RoleSelection />} />
 
           {/* Employer flow */}
           <Route path="/employer/onboarding" element={<EmployerOnboarding />} />
@@ -132,9 +132,8 @@ const App = () => (
           <Route path="/whv/employer/job-details/:id" element={<WHVEmployerJobDetails />} />
           <Route path="/whv/job-details/:employerId/:jobId" element={<WHVJobDetails />} />
           <Route path="/whv/browse-employers" element={<WHVBrowseEmployers />} />
-          <Route path="/whv/sign-in" element={<WHVLogin />} />
-          <Route path="/whv/login" element={<Navigate to="/whv/sign-in" replace />} />
-          <Route path="/employer/sign-in" element={<EmployerSignIn />} />
+          <Route path="/whv/login" element={<Navigate to="/sign-in" replace />} />
+          <Route path="/employer/login" element={<Navigate to="/sign-in" replace />} />
 
           {/* Shared/misc */}
           <Route path="/profile-completion" element={<ProfileCompletion />} />
