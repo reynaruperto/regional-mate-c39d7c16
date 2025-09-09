@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,14 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Schema
 const formSchema = z.object({
   businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
   yearsInBusiness: z.string().min(1, "Required"),
   employeeCount: z.string().min(1, "Required"),
   industry: z.string().min(1, "Required"),
-  rolesOffered: z.array(z.string()).min(1, "Select at least one role"),
   jobType: z.array(z.string()).min(1, "Select at least one job type"),
   payRange: z.string().min(1, "Select a pay range"),
   facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
@@ -24,141 +23,15 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-// ✅ Immigration-approved industries
-const industries = [
-  "Plant & Animal Cultivation",
-  "Health",
-  "Aged & Disability Care",
-  "Childcare",
-  "Tourism & Hospitality",
-  "Natural Disaster Recovery",
-  "Fishing & Pearling",
-  "Tree Farming & Felling",
-  "Mining",
-  "Construction",
-];
-
-// ✅ Roles mapped to industries
-const industryRoles: Record<string, string[]> = {
-  "Plant & Animal Cultivation": [
-    "Harvesting & packing fruit/vegetable crops",
-    "Pruning & trimming vines/trees (commercial horticulture)",
-    "Cultivating/propagating plants, fungi, parts/products",
-    "Maintaining crops",
-    "Processing plant products",
-    "Maintaining animals for sale/produce (including natural increase)",
-    "Feeding/herding livestock",
-    "Horse breeding and stud farming",
-    "Shearing",
-    "Butchery",
-    "Packing & tanning animal products",
-    "Manufacturing dairy produce",
-    "Conservation & reforestation work",
-    "Zoo work involving plant/animal cultivation",
-  ],
-  Health: [
-    "Doctors",
-    "Nurses",
-    "Dentists & dental staff (clinical + admin)",
-    "Allied health workers",
-    "Medical imaging staff",
-    "Mental health workers",
-    "Radiology staff",
-    "Installation/maintenance of complex medical machinery",
-    "Hospital & healthcare cleaners",
-    "Medical support & admin staff",
-  ],
-  "Aged & Disability Care": [
-    "Aged care workers",
-    "Disability carers",
-    "Aged/disabled support workers",
-    "Community care workers",
-  ],
-  Childcare: [
-    "Daycare staff",
-    "Nursery/crèche attendants",
-    "Family day care workers",
-    "Nannies / au pairs",
-    "Out-of-school/vacation care staff",
-    "Child protection / welfare staff",
-  ],
-  "Tourism & Hospitality": [
-    "Hotel, motel, hostel, B&B staff",
-    "Caravan park & camping ground staff",
-    "Boarding house & reception centre staff",
-    "Housekeeping staff",
-    "Receptionists & guest service agents",
-    "Chefs & cooks",
-    "Waiters, bartenders & baristas",
-    "Catering staff",
-    "Pub/tavern/bar/hospitality club staff",
-    "Tour guides & operators",
-    "Adventure/outdoor instructors (e.g. dive instructors)",
-    "Tourist transport workers (e.g. bus/tour drivers)",
-    "Event & entertainment venue staff",
-    "Gallery/museum workers, curators & guides",
-    "Travel agents & tourist information staff",
-  ],
-  "Natural Disaster Recovery": [
-    "Clean-up staff (wiping, hosing, mopping, rubbish removal)",
-    "Demolition workers",
-    "Land clearing & earthmoving staff",
-    "Construction/repair workers (residential & non-residential)",
-    "Road, bridge, railway, dam, irrigation, sewage, drainage repair staff",
-    "Farm & wildlife recovery staff",
-    "Animal carers (rescue, transport, management)",
-    "Volunteer support staff",
-    "Insurance & claims staff",
-    "Call centre & admin recovery staff",
-    "Government/community recovery coordinators",
-    "Logistics staff (food/medication/essentials delivery)",
-  ],
-  "Fishing & Pearling": [
-    "Fishing deckhands",
-    "Aquaculture workers",
-    "Pearl divers",
-    "Pearl culturing workers",
-  ],
-  "Tree Farming & Felling": [
-    "Planting/tending plantation/forest trees",
-    "Felling plantation/forest trees",
-    "Transporting logs to mills/processing facilities",
-  ],
-  Mining: [
-    "Coal miners",
-    "Oil & gas extraction workers",
-    "Metal ore miners",
-    "Quarry/construction material miners",
-    "Non-metallic mineral miners",
-    "Exploration staff",
-    "Mining support staff",
-  ],
-  Construction: [
-    "Residential builders",
-    "Non-residential builders",
-    "Heavy & civil engineering workers",
-    "Land development/site prep staff",
-    "Building structure workers",
-    "Building installation workers",
-    "Building completion staff",
-    "Landscapers (on construction sites only)",
-    "Painters (on construction sites only)",
-    "Scaffolders",
-    "Fencers",
-  ],
-};
-
-const jobTypes = ["Full-time", "Part-time", "Casual", "Seasonal", "Contract"];
 const payRanges = ["$25–30/hour", "$30–35/hour", "$35–40/hour", "$40–45/hour", "$45+/hour"];
-const facilitiesExtras = [
-  "Accommodation provided", "Meals included", "Transport provided",
-  "Training provided", "Equipment provided", "Flexible hours",
-  "Career progression", "Team environment", "Other"
-];
 
 const EmployerAboutBusiness: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
+  const [jobTypes, setJobTypes] = useState<{ id: number; type: string }[]>([]);
 
   const {
     register,
@@ -170,28 +43,97 @@ const EmployerAboutBusiness: React.FC = () => {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      rolesOffered: [],
       jobType: [],
       facilitiesAndExtras: [],
     },
   });
 
-  const watchedIndustry = watch("industry");
-  const watchedRoles = watch("rolesOffered") || [];
   const watchedFacilities = watch("facilitiesAndExtras") || [];
+  const watchedJobTypes = watch("jobType") || [];
 
-  const onSubmit = (data: FormData) => {
-    console.log("Business info submitted:", data);
-    localStorage.setItem("aboutBusiness", JSON.stringify(data));
-    toast({ title: "Business setup complete!", description: "Your employer profile has been created successfully" });
-    navigate("/employer/photo-upload");
+  // 🔹 Load industries, facilities, job types from Supabase
+  useEffect(() => {
+    const loadData = async () => {
+      const { data: industryData } = await supabase.from("industry").select("industry_id, name");
+      if (industryData) setIndustries(industryData.map(i => ({ id: i.industry_id, name: i.name })));
+
+      const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
+      if (facilityData) setFacilities(facilityData.map(f => ({ id: f.facility_id, name: f.name })));
+
+      const { data: jobTypeData } = await supabase.from("job_type").select("type_id, type");
+      if (jobTypeData) setJobTypes(jobTypeData.map(j => ({ id: j.type_id, type: j.type })));
+    };
+
+    loadData();
+  }, []);
+
+  // 🔹 Save to Supabase
+  const onSubmit = async (data: FormData) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Not logged in", description: "Please sign in first.", variant: "destructive" });
+        return;
+      }
+
+      // Get profile
+      const { data: profile } = await supabase.from("profile").select("user_id").eq("user_id", user.id).maybeSingle();
+      if (!profile) {
+        toast({ title: "Error", description: "Profile not found.", variant: "destructive" });
+        return;
+      }
+
+      // Find selected industry_id
+      const industryId = industries.find(i => i.name === data.industry)?.id;
+
+      // 1. Save employer info
+      const { error: empError } = await supabase.from("employer").upsert({
+        user_id: profile.user_id,
+        tagline: data.businessTagline,
+        business_tenure: data.yearsInBusiness,
+        employee_count: data.employeeCount,
+        industry_id: industryId,
+        pay_range: data.payRange,
+        updated_at: new Date().toISOString(),
+      });
+      if (empError) throw empError;
+
+      // 2. Save facilities
+      await supabase.from("employer_facility").delete().eq("user_id", profile.user_id);
+      if (data.facilitiesAndExtras.length > 0) {
+        const facilitiesInsert = data.facilitiesAndExtras.map(name => ({
+          user_id: profile.user_id,
+          facility_id: facilities.find(f => f.name === name)?.id,
+        }));
+        await supabase.from("employer_facility").insert(facilitiesInsert);
+      }
+
+      // 3. Save job types
+      await supabase.from("employer_job_type").delete().eq("user_id", profile.user_id);
+      if (data.jobType.length > 0) {
+        const jobTypesInsert = data.jobType.map(type => ({
+          user_id: profile.user_id,
+          type_id: jobTypes.find(j => j.type === type)?.id,
+        }));
+        await supabase.from("employer_job_type").insert(jobTypesInsert);
+      }
+
+      toast({ title: "Business setup complete!", description: "Your employer profile has been updated." });
+      navigate("/employer/photo-upload");
+    } catch (err: any) {
+      console.error("Error saving employer:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Unexpected error",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-white">
@@ -219,18 +161,14 @@ const EmployerAboutBusiness: React.FC = () => {
                 
                 {/* Tagline */}
                 <div>
-                  <Label>
-                    Business Tagline <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Business Tagline *</Label>
                   <Input placeholder="Quality produce, sustainable farming" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
                   {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
                 </div>
 
                 {/* Years in Business */}
                 <div>
-                  <Label>
-                    Years in Business <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Years in Business *</Label>
                   <Controller
                     name="yearsInBusiness"
                     control={control}
@@ -250,9 +188,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Employee Count */}
                 <div>
-                  <Label>
-                    Employees <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Employees *</Label>
                   <Controller
                     name="employeeCount"
                     control={control}
@@ -272,9 +208,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Industry */}
                 <div>
-                  <Label>
-                    Industry <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Industry *</Label>
                   <Controller
                     name="industry"
                     control={control}
@@ -283,7 +217,7 @@ const EmployerAboutBusiness: React.FC = () => {
                         <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select industry" /></SelectTrigger>
                         <SelectContent>
                           {industries.map(ind => (
-                            <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                            <SelectItem key={ind.id} value={ind.name}>{ind.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -292,51 +226,22 @@ const EmployerAboutBusiness: React.FC = () => {
                   {errors.industry && <p className="text-red-500 text-sm">{errors.industry.message}</p>}
                 </div>
 
-                {/* Roles */}
-                {watchedIndustry && (
-                  <div>
-                    <Label>
-                      Roles Offered <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="max-h-48 overflow-y-auto border rounded-md p-3 bg-gray-50">
-                      {industryRoles[watchedIndustry]?.map(role => (
-                        <label key={role} className="flex items-center space-x-2 mt-2">
-                          <input
-                            type="checkbox"
-                            value={role}
-                            checked={watchedRoles.includes(role)}
-                            onChange={e => {
-                              const current = watchedRoles;
-                              if (e.target.checked) setValue("rolesOffered", [...current, role]);
-                              else setValue("rolesOffered", current.filter(r => r !== role));
-                            }}
-                          />
-                          <span>{role}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {errors.rolesOffered && <p className="text-red-500 text-sm">{errors.rolesOffered.message}</p>}
-                  </div>
-                )}
-
-                {/* Job Type */}
+                {/* Job Types */}
                 <div>
-                  <Label>
-                    Job Type <span className="text-red-500">*</span>
-                  </Label>
-                  {jobTypes.map(type => (
-                    <label key={type} className="flex items-center space-x-2 mt-2">
+                  <Label>Job Type *</Label>
+                  {jobTypes.map(j => (
+                    <label key={j.id} className="flex items-center space-x-2 mt-2">
                       <input
                         type="checkbox"
-                        value={type}
-                        checked={watch("jobType")?.includes(type)}
+                        value={j.type}
+                        checked={watchedJobTypes.includes(j.type)}
                         onChange={e => {
-                          const current = watch("jobType") || [];
-                          if (e.target.checked) setValue("jobType", [...current, type]);
-                          else setValue("jobType", current.filter(a => a !== type));
+                          const current = watchedJobTypes;
+                          if (e.target.checked) setValue("jobType", [...current, j.type]);
+                          else setValue("jobType", current.filter(r => r !== j.type));
                         }}
                       />
-                      <span>{type}</span>
+                      <span>{j.type}</span>
                     </label>
                   ))}
                   {errors.jobType && <p className="text-red-500 text-sm">{errors.jobType.message}</p>}
@@ -344,9 +249,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Pay */}
                 <div>
-                  <Label>
-                    Pay Range <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Pay Range *</Label>
                   <Controller
                     name="payRange"
                     control={control}
@@ -366,22 +269,20 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Facilities */}
                 <div>
-                  <Label>
-                    Facilities & Extras <span className="text-red-500">*</span>
-                  </Label>
-                  {facilitiesExtras.map(facility => (
-                    <label key={facility} className="flex items-center space-x-2 mt-2">
+                  <Label>Facilities & Extras *</Label>
+                  {facilities.map(f => (
+                    <label key={f.id} className="flex items-center space-x-2 mt-2">
                       <input
                         type="checkbox"
-                        value={facility}
-                        checked={watchedFacilities.includes(facility)}
+                        value={f.name}
+                        checked={watchedFacilities.includes(f.name)}
                         onChange={e => {
                           const current = watchedFacilities;
-                          if (e.target.checked) setValue("facilitiesAndExtras", [...current, facility]);
-                          else setValue("facilitiesAndExtras", current.filter(x => x !== facility));
+                          if (e.target.checked) setValue("facilitiesAndExtras", [...current, f.name]);
+                          else setValue("facilitiesAndExtras", current.filter(x => x !== f.name));
                         }}
                       />
-                      <span>{facility}</span>
+                      <span>{f.name}</span>
                     </label>
                   ))}
                   {errors.facilitiesAndExtras && <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>}
@@ -404,5 +305,3 @@ const EmployerAboutBusiness: React.FC = () => {
 };
 
 export default EmployerAboutBusiness;
-
-
