@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,23 +6,14 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 // ✅ Schema
 const formSchema = z.object({
-  businessTagline: z
-    .string()
-    .min(10, "Please enter at least 10 characters")
-    .max(200, "Max 200 characters"),
+  businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
   yearsInBusiness: z.string().min(1, "Required"),
   employeeCount: z.string().min(1, "Required"),
   industry: z.string().min(1, "Required"),
@@ -33,45 +24,24 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-const industries = [
-  "Plant & Animal Cultivation",
-  "Health",
-  "Aged & Disability Care",
-  "Childcare",
-  "Tourism & Hospitality",
-  "Natural Disaster Recovery",
-  "Fishing & Pearling",
-  "Tree Farming & Felling",
-  "Mining",
-  "Construction",
-];
+interface Industry {
+  industry_id: number;
+  name: string;
+}
 
 const jobTypes = ["Full-time", "Part-time", "Casual", "Seasonal", "Contract"];
-const payRanges = [
-  "$25–30/hour",
-  "$30–35/hour",
-  "$35–40/hour",
-  "$40–45/hour",
-  "$45+/hour",
-];
+const payRanges = ["$25–30/hour", "$30–35/hour", "$35–40/hour", "$40–45/hour", "$45+/hour"];
 const facilitiesExtras = [
-  "Accommodation provided",
-  "Meals included",
-  "Transport provided",
-  "Training provided",
-  "Equipment provided",
-  "Flexible hours",
-  "Career progression",
-  "Team environment",
-  "Other",
+  "Accommodation provided", "Meals included", "Transport provided",
+  "Training provided", "Equipment provided", "Flexible hours",
+  "Career progression", "Team environment", "Other"
 ];
 
 const EmployerAboutBusiness: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [industriesData, setIndustriesData] = useState<any[]>([]);
-  const [facilitiesData, setFacilitiesData] = useState<any[]>([]);
-  const [jobTypesData, setJobTypesData] = useState<any[]>([]);
+
+  const [industries, setIndustries] = useState<Industry[]>([]);
 
   const {
     register,
@@ -88,88 +58,53 @@ const EmployerAboutBusiness: React.FC = () => {
     },
   });
 
+  // ✅ Load industries from Supabase
   useEffect(() => {
-    const loadOptions = async () => {
-      const { data: ind } = await supabase
+    const loadIndustries = async () => {
+      const { data, error } = await supabase
         .from("industry")
-        .select("industry_id, name");
-      if (ind) setIndustriesData(ind);
+        .select("industry_id, name")
+        .order("industry_id", { ascending: true });
 
-      const { data: fac } = await supabase
-        .from("facility")
-        .select("facility_id, name");
-      if (fac) setFacilitiesData(fac);
-
-      const { data: jt } = await supabase
-        .from("job_type")
-        .select("type_id, type");
-      if (jt) setJobTypesData(jt);
+      if (error) {
+        console.error("Error fetching industries:", error);
+      } else {
+        setIndustries(data || []);
+      }
     };
-    loadOptions();
+
+    loadIndustries();
   }, []);
 
+  const watchedFacilities = watch("facilitiesAndExtras") || [];
+
   const onSubmit = async (data: FormData) => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not logged in");
+    console.log("Business info submitted:", data);
 
-      const { data: profile } = await supabase
-        .from("profile")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-      if (!profile) throw new Error("Profile not found");
+    // find industry id from selected name
+    const selectedIndustry = industries.find((i) => i.name === data.industry);
 
-      const industry = industriesData.find((i) => i.name === data.industry);
+    const { error } = await supabase.from("employer").upsert({
+      user_id: user.id,
+      tagline: data.businessTagline,
+      business_tenure: data.yearsInBusiness,
+      employee_count: data.employeeCount,
+      industry_id: selectedIndustry?.industry_id,
+      pay_range: data.payRange,
+      updated_at: new Date().toISOString(),
+    } as any);
 
-      // ✅ Save employer details
-      await supabase.from("employer").upsert({
-        user_id: profile.user_id,
-        tagline: data.businessTagline,
-        business_tenure: data.yearsInBusiness,
-        employee_count: data.employeeCount,
-        industry_id: industry?.industry_id,
-        pay_range: data.payRange,
-        updated_at: new Date().toISOString(),
-      } as any); // 👈 bypass type mismatch
-
-      // ✅ Save facilities
-      const selectedFacilities = facilitiesData.filter((f) =>
-        data.facilitiesAndExtras.includes(f.name)
-      );
-      for (const fac of selectedFacilities) {
-        await supabase.from("employer_facility").upsert({
-          user_id: profile.user_id,
-          facility_id: fac.facility_id,
-        } as any);
-      }
-
-      // ✅ Save job types
-      const selectedJobTypes = jobTypesData.filter((jt) =>
-        data.jobType.includes(jt.type)
-      );
-      for (const jt of selectedJobTypes) {
-        await supabase.from("employer_job_type").upsert({
-          user_id: profile.user_id,
-          type_id: jt.type_id,
-        } as any);
-      }
-
-      toast({
-        title: "Business info saved!",
-        description: "Your employer profile has been updated successfully.",
-      });
+    if (error) {
+      console.error("Error saving employer:", error);
+      toast({ title: "Error", description: "Could not save business info", variant: "destructive" });
+    } else {
+      toast({ title: "Business setup complete!", description: "Your employer profile has been created successfully" });
       navigate("/employer/photo-upload");
-    } catch (error: any) {
-      console.error("Error saving business info:", error.message);
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
     }
   };
 
@@ -177,8 +112,11 @@ const EmployerAboutBusiness: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           <div className="w-full h-full flex flex-col relative bg-white">
+            {/* Header */}
             <div className="px-6 pt-16 pb-6">
               <Button
                 variant="ghost"
@@ -189,204 +127,167 @@ const EmployerAboutBusiness: React.FC = () => {
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
               <div className="flex items-center justify-between mt-6">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  About Your Business
-                </h1>
+                <h1 className="text-2xl font-bold text-gray-900">About Your Business</h1>
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                   <span className="text-sm font-medium text-gray-600">4/5</span>
                 </div>
               </div>
             </div>
+
+            {/* Form */}
             <div className="flex-1 overflow-y-auto px-6 pb-20">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                {/* Business Tagline */}
+                
+                {/* Tagline */}
                 <div>
-                  <Label>Business Tagline *</Label>
-                  <Input
-                    placeholder="Quality produce, sustainable farming"
-                    {...register("businessTagline")}
-                    className="h-14 bg-gray-100 rounded-xl"
-                  />
-                  {errors.businessTagline && (
-                    <p className="text-red-500 text-sm">
-                      {errors.businessTagline.message}
-                    </p>
-                  )}
+                  <Label>
+                    Business Tagline <span className="text-red-500">*</span>
+                  </Label>
+                  <Input placeholder="Quality produce, sustainable farming" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
+                  {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
                 </div>
 
                 {/* Years in Business */}
                 <div>
-                  <Label>Years in Business *</Label>
+                  <Label>
+                    Years in Business <span className="text-red-500">*</span>
+                  </Label>
                   <Controller
                     name="yearsInBusiness"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                          <SelectValue placeholder="Select years" />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select years" /></SelectTrigger>
                         <SelectContent>
-                          {[
-                            "<1",
-                            "1",
-                            "2",
-                            "3",
-                            "4",
-                            "5",
-                            "6-10",
-                            "11-15",
-                            "16-20",
-                            "20+",
-                          ].map((opt) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
+                          {["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"].map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
+                  {errors.yearsInBusiness && <p className="text-red-500 text-sm">{errors.yearsInBusiness.message}</p>}
                 </div>
 
                 {/* Employee Count */}
                 <div>
-                  <Label>Employees *</Label>
+                  <Label>
+                    Employees <span className="text-red-500">*</span>
+                  </Label>
                   <Controller
                     name="employeeCount"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                          <SelectValue placeholder="Select employees" />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select employees" /></SelectTrigger>
                         <SelectContent>
-                          {[
-                            "1",
-                            "2-5",
-                            "6-10",
-                            "11-20",
-                            "21-50",
-                            "51-100",
-                            "100+",
-                          ].map((opt) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
+                          {["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"].map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
+                  {errors.employeeCount && <p className="text-red-500 text-sm">{errors.employeeCount.message}</p>}
                 </div>
 
                 {/* Industry */}
                 <div>
-                  <Label>Industry *</Label>
+                  <Label>
+                    Industry <span className="text-red-500">*</span>
+                  </Label>
                   <Controller
                     name="industry"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select industry" /></SelectTrigger>
                         <SelectContent>
-                          {industries.map((ind) => (
-                            <SelectItem key={ind} value={ind}>
-                              {ind}
-                            </SelectItem>
+                          {industries.map(ind => (
+                            <SelectItem key={ind.industry_id} value={ind.name}>{ind.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
+                  {errors.industry && <p className="text-red-500 text-sm">{errors.industry.message}</p>}
                 </div>
 
-                {/* Job Types */}
+                {/* Job Type */}
                 <div>
-                  <Label>Job Types *</Label>
-                  {jobTypes.map((type) => (
+                  <Label>
+                    Job Type <span className="text-red-500">*</span>
+                  </Label>
+                  {jobTypes.map(type => (
                     <label key={type} className="flex items-center space-x-2 mt-2">
                       <input
                         type="checkbox"
                         value={type}
                         checked={watch("jobType")?.includes(type)}
-                        onChange={(e) => {
+                        onChange={e => {
                           const current = watch("jobType") || [];
-                          if (e.target.checked)
-                            setValue("jobType", [...current, type]);
-                          else
-                            setValue(
-                              "jobType",
-                              current.filter((a) => a !== type)
-                            );
+                          if (e.target.checked) setValue("jobType", [...current, type]);
+                          else setValue("jobType", current.filter(a => a !== type));
                         }}
                       />
                       <span>{type}</span>
                     </label>
                   ))}
+                  {errors.jobType && <p className="text-red-500 text-sm">{errors.jobType.message}</p>}
                 </div>
 
-                {/* Pay Range */}
+                {/* Pay */}
                 <div>
-                  <Label>Pay Range *</Label>
+                  <Label>
+                    Pay Range <span className="text-red-500">*</span>
+                  </Label>
                   <Controller
                     name="payRange"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                          <SelectValue placeholder="Select pay" />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select pay" /></SelectTrigger>
                         <SelectContent>
-                          {payRanges.map((range) => (
-                            <SelectItem key={range} value={range}>
-                              {range}
-                            </SelectItem>
+                          {payRanges.map(range => (
+                            <SelectItem key={range} value={range}>{range}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
+                  {errors.payRange && <p className="text-red-500 text-sm">{errors.payRange.message}</p>}
                 </div>
 
                 {/* Facilities */}
                 <div>
-                  <Label>Facilities & Extras *</Label>
-                  {facilitiesExtras.map((facility) => (
-                    <label
-                      key={facility}
-                      className="flex items-center space-x-2 mt-2"
-                    >
+                  <Label>
+                    Facilities & Extras <span className="text-red-500">*</span>
+                  </Label>
+                  {facilitiesExtras.map(facility => (
+                    <label key={facility} className="flex items-center space-x-2 mt-2">
                       <input
                         type="checkbox"
                         value={facility}
-                        checked={watch("facilitiesAndExtras")?.includes(facility)}
-                        onChange={(e) => {
-                          const current = watch("facilitiesAndExtras") || [];
-                          if (e.target.checked)
-                            setValue("facilitiesAndExtras", [...current, facility]);
-                          else
-                            setValue(
-                              "facilitiesAndExtras",
-                              current.filter((x) => x !== facility)
-                            );
+                        checked={watchedFacilities.includes(facility)}
+                        onChange={e => {
+                          const current = watchedFacilities;
+                          if (e.target.checked) setValue("facilitiesAndExtras", [...current, facility]);
+                          else setValue("facilitiesAndExtras", current.filter(x => x !== facility));
                         }}
                       />
                       <span>{facility}</span>
                     </label>
                   ))}
+                  {errors.facilitiesAndExtras && <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>}
                 </div>
 
                 {/* Continue */}
                 <div className="pt-8">
-                  <Button
-                    type="submit"
-                    className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white"
-                  >
+                  <Button type="submit" className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white">
                     Continue
                   </Button>
                 </div>
+
               </form>
             </div>
           </div>
