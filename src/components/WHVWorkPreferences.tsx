@@ -16,6 +16,7 @@ interface Role {
   industryId: number;
 }
 interface Region {
+  region_rules_id: number;
   state: string;
   area: string;
 }
@@ -106,7 +107,7 @@ const WHVWorkPreferences: React.FC = () => {
       // 4. Regions
       const { data: regionData } = await supabase
         .from("region_rules")
-        .select("state, area");
+        .select("region_rules_id, state, area");
 
       if (regionData) {
         const uniqueRegions = regionData.filter(
