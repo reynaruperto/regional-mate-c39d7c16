@@ -52,10 +52,10 @@ const EmployerAccountConfirmation: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Sign In Button (Navy Blue) */}
+                {/* Sign In Button */}
                 <Button 
                   onClick={handleContinue}
-                  className="w-full h-12 text-base rounded-xl bg-slate-800 hover:bg-slate-700 text-white"
+                  className="w-full h-12 text-base rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   Sign In
                 </Button>
