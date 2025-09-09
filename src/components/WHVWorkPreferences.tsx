@@ -78,15 +78,18 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (industryData) {
         console.log("Raw industries:", industryData);
+        
+        // Cast to bypass stale TypeScript types
+        const castedData = industryData as any[];
 
-        const filtered = industryData.filter(
-          (i) =>
+        const filtered = castedData.filter(
+          (i: any) =>
             i.country_name.trim().toLowerCase() ===
             country?.name.trim().toLowerCase()
         );
 
         setIndustries(
-          filtered.map((i) => ({
+          filtered.map((i: any) => ({
             id: Number(i.industry_id),
             name: i.industry_name,
           }))
