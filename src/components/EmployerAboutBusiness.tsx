@@ -66,17 +66,6 @@ const facilitiesExtras = [
   "Other",
 ];
 
-const AUSTRALIAN_STATES = [
-  "Australian Capital Territory",
-  "New South Wales",
-  "Northern Territory",
-  "Queensland",
-  "South Australia",
-  "Tasmania",
-  "Victoria",
-  "Western Australia",
-];
-
 const EmployerAboutBusiness: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -101,13 +90,19 @@ const EmployerAboutBusiness: React.FC = () => {
 
   useEffect(() => {
     const loadOptions = async () => {
-      const { data: ind } = await supabase.from("industry").select("industry_id, name");
+      const { data: ind } = await supabase
+        .from("industry")
+        .select("industry_id, name");
       if (ind) setIndustriesData(ind);
 
-      const { data: fac } = await supabase.from("facility").select("facility_id, name");
+      const { data: fac } = await supabase
+        .from("facility")
+        .select("facility_id, name");
       if (fac) setFacilitiesData(fac);
 
-      const { data: jt } = await supabase.from("job_type").select("type_id, type");
+      const { data: jt } = await supabase
+        .from("job_type")
+        .select("type_id, type");
       if (jt) setJobTypesData(jt);
     };
     loadOptions();
@@ -138,7 +133,6 @@ const EmployerAboutBusiness: React.FC = () => {
         employee_count: data.employeeCount,
         industry_id: industry?.industry_id,
         pay_range: data.payRange,
-        state: data.state as (typeof AUSTRALIAN_STATES)[number],
         updated_at: new Date().toISOString(),
       } as any); // 👈 bypass type mismatch
 
@@ -195,7 +189,9 @@ const EmployerAboutBusiness: React.FC = () => {
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
               <div className="flex items-center justify-between mt-6">
-                <h1 className="text-2xl font-bold text-gray-900">About Your Business</h1>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  About Your Business
+                </h1>
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                   <span className="text-sm font-medium text-gray-600">4/5</span>
                 </div>
@@ -264,13 +260,19 @@ const EmployerAboutBusiness: React.FC = () => {
                           <SelectValue placeholder="Select employees" />
                         </SelectTrigger>
                         <SelectContent>
-                          {["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"].map(
-                            (opt) => (
-                              <SelectItem key={opt} value={opt}>
-                                {opt}
-                              </SelectItem>
-                            )
-                          )}
+                          {[
+                            "1",
+                            "2-5",
+                            "6-10",
+                            "11-20",
+                            "21-50",
+                            "51-100",
+                            "100+",
+                          ].map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
