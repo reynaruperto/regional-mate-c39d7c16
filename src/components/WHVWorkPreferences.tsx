@@ -16,7 +16,6 @@ interface Role {
   industryId: number;
 }
 interface Region {
-  region_rules_id: number;
   state: string;
   area: string;
 }
