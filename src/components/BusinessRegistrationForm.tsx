@@ -87,13 +87,12 @@ const BusinessRegistrationForm: React.FC = () => {
     resolver: zodResolver(formSchema),
   });
 
-  // ✅ Submit handler with Supabase insert
+  // ✅ Save to Supabase
   const onSubmit = async (data: FormData) => {
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) {
         toast({
           title: "Not logged in",
@@ -103,8 +102,24 @@ const BusinessRegistrationForm: React.FC = () => {
         return;
       }
 
+      // Get profile row
+      const { data: profile, error: profileError } = await supabase
+        .from("profile")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        toast({
+          title: "Error",
+          description: "Profile not found.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase.from("employer").upsert({
-        user_id: user.id,
+        user_id: profile.user_id, // ✅ safely from profile
         given_name: data.givenName,
         middle_name: data.middleName || null,
         family_name: data.familyName,
@@ -116,7 +131,7 @@ const BusinessRegistrationForm: React.FC = () => {
         address_line1: data.addressLine1,
         address_line2: data.addressLine2 || null,
         suburb_city: data.suburbCity,
-        state: data.state,
+        state: data.state, // ✅ matches enum via dropdown
         postcode: data.postCode,
         updated_at: new Date().toISOString(),
       });
@@ -432,4 +447,5 @@ const BusinessRegistrationForm: React.FC = () => {
 };
 
 export default BusinessRegistrationForm;
+
 
