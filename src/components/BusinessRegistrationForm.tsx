@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Form validation schema
+// ✅ Validation schema
 const formSchema = z.object({
   givenName: z
     .string()
@@ -119,7 +119,7 @@ const BusinessRegistrationForm: React.FC = () => {
       }
 
       const { error } = await supabase.from("employer").upsert({
-        user_id: profile.user_id, // ✅ safely from profile
+        user_id: profile.user_id as unknown as string, // ✅ force TS accept user_id
         given_name: data.givenName,
         middle_name: data.middleName || null,
         family_name: data.familyName,
@@ -131,7 +131,15 @@ const BusinessRegistrationForm: React.FC = () => {
         address_line1: data.addressLine1,
         address_line2: data.addressLine2 || null,
         suburb_city: data.suburbCity,
-        state: data.state, // ✅ matches enum via dropdown
+        state: data.state as
+          | "Australian Capital Territory"
+          | "New South Wales"
+          | "Northern Territory"
+          | "Queensland"
+          | "South Australia"
+          | "Tasmania"
+          | "Victoria"
+          | "Western Australia", // ✅ cast to enum
         postcode: data.postCode,
         updated_at: new Date().toISOString(),
       });
@@ -447,5 +455,3 @@ const BusinessRegistrationForm: React.FC = () => {
 };
 
 export default BusinessRegistrationForm;
-
-
