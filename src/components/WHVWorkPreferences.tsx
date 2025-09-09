@@ -18,7 +18,7 @@ interface Role {
 interface Region {
   state: string;
   area: string;
-  region_rules_id: string;
+  region_rules_id: number;
 }
 
 const WHVWorkPreferences: React.FC = () => {
@@ -107,9 +107,7 @@ const WHVWorkPreferences: React.FC = () => {
   // 4. Regions
   const { data: regionData } = await supabase
     .from("region_rules")
-    .select("id, state, area");
-
-  console.log("Region data:", regionData);
+    .select("region_rules_id, state, area");
 
   if (regionData) {
     const uniqueRegions = regionData.filter(
@@ -121,7 +119,7 @@ const WHVWorkPreferences: React.FC = () => {
     setRegions(uniqueRegions.map(r => ({ 
       state: r.state, 
       area: r.area, 
-      region_rules_id: r.id // Use the UUID id as the region_rules_id
+      region_rules_id: r.region_rules_id
     })));
   }
     };
@@ -148,7 +146,7 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
 
     // 2. Save preferences into maker_preference
-    const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: string}> = [];
+    const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: number}> = [];
     
     // Create combinations of selected roles and selected locations
     selectedRoles.forEach((roleId) => {
