@@ -31,16 +31,30 @@ const SignIn: React.FC = () => {
         return;
       }
 
-      const userType = data.user?.user_metadata?.user_type;
+      // Get user_type from profile table (safer than relying on metadata)
+      const { data: profile, error: profileError } = await supabase
+        .from("profile")
+        .select("user_type")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
 
-      if (userType === "employer") {
+      if (profileError) {
+        setMessage({ type: "error", text: "Error fetching user profile." });
+        setLoading(false);
+        return;
+      }
+
+      if (profile?.user_type === "employer") {
         setMessage({ type: "success", text: "Welcome back, Employer!" });
-        setTimeout(() => navigate("/employer/dashboard"), 1000);
-      } else if (userType === "whv") {
+        setTimeout(() => navigate("/employer/dashboard"), 800);
+      } else if (profile?.user_type === "whv") {
         setMessage({ type: "success", text: "Welcome back, WHV Holder!" });
-        setTimeout(() => navigate("/whv/dashboard"), 1000);
+        setTimeout(() => navigate("/whv/dashboard"), 800);
       } else {
-        setMessage({ type: "error", text: "No user type found. Please contact support." });
+        setMessage({
+          type: "error",
+          text: "No user type found. Please contact support.",
+        });
       }
     } catch (err) {
       setMessage({ type: "error", text: "Unexpected error. Please try again." });
@@ -84,7 +98,10 @@ const SignIn: React.FC = () => {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 overflow-y-auto px-6 pb-6 space-y-6"
+            >
               <div>
                 <Label>Email</Label>
                 <Input
@@ -92,6 +109,7 @@ const SignIn: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-12 bg-gray-100 border-0 text-gray-900"
+                  required
                 />
               </div>
               <div>
@@ -101,6 +119,7 @@ const SignIn: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-12 bg-gray-100 border-0 text-gray-900"
+                  required
                 />
               </div>
 
