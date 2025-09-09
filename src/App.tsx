@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // General pages
 import Index from "./pages/Index";
 import LetsBegin from "./pages/LetsBegin";
-import RoleSelection from "./pages/RoleSelection";
+
 import NotFound from "./pages/NotFound";
 
 // Employer pages
@@ -88,7 +88,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/lets-begin" element={<LetsBegin />} />
           <Route path="/sign-in" element={<SignInAsModal />} />
-          <Route path="/role-selection" element={<RoleSelection />} />
+          
 
           {/* Employer flow */}
           <Route path="/employer/onboarding" element={<EmployerOnboarding />} />
