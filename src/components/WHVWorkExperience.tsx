@@ -51,7 +51,7 @@ const WHVWorkExperience: React.FC = () => {
 
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
-  const [licenses, setLicenses] = useState<number[]>([]); // store license_id instead of name
+  const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
 
   // ==========================
@@ -164,6 +164,99 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   // ==========================
+  // Save helpers
+  // ==========================
+  const saveWorkExperiences = async (userId: string) => {
+    if (workExperiences.length === 0) return;
+
+    const validRows = workExperiences.filter(
+      (exp) =>
+        exp.company.trim() &&
+        exp.position.trim() &&
+        exp.industryId !== null &&
+        exp.startDate &&
+        exp.endDate
+    );
+
+    if (validRows.length === 0) {
+      console.warn("⚠️ No valid work experiences to save.");
+      return;
+    }
+
+    const workRows = validRows.map((exp) => ({
+      user_id: userId,
+      company: exp.company.trim(),
+      position: exp.position.trim(),
+      start_date: exp.startDate,
+      end_date: exp.endDate,
+      location: exp.location || null,
+      industry_id: exp.industryId!,
+      job_description: exp.description || null,
+    }));
+
+    console.log("📦 Inserting work experiences:", workRows);
+
+    const { error: expError } = await supabase
+      .from("maker_work_experience")
+      .insert(workRows);
+
+    if (expError) {
+      console.error("❌ Work experience insert failed");
+      console.error("Message:", expError.message);
+      console.error("Details:", expError.details);
+      console.error("Hint:", expError.hint);
+    } else {
+      console.log("✅ Work experiences saved!");
+    }
+  };
+
+  const saveJobReferences = async (userId: string) => {
+    if (jobReferences.length === 0) return;
+
+    const refRows = jobReferences.map((ref) => ({
+      user_id: userId,
+      name: ref.name || null,
+      business_name: ref.businessName || null,
+      email: ref.email || null,
+      mobile_num: ref.phone || null,
+      role: ref.role || null,
+    }));
+
+    const { error: refError } = await supabase
+      .from("maker_reference")
+      .insert(refRows);
+
+    if (refError) {
+      console.error("❌ Job reference insert failed:", refError);
+    } else {
+      console.log("✅ Job references saved!");
+    }
+  };
+
+  const saveLicenses = async (userId: string) => {
+    if (licenses.length === 0) return;
+
+    const licRows = licenses.map((licenseId) => ({
+      user_id: userId,
+      license_id: licenseId,
+      other:
+        allLicenses.find((l) => l.id === licenseId)?.name === "Other"
+          ? otherLicense
+          : null,
+    }));
+
+    const { error: licError } = await supabase
+      .from("maker_license")
+      .upsert(licRows as any, { onConflict: "user_id,license_id" });
+
+    if (licError) {
+      console.error("❌ License insert failed:", licError);
+    } else {
+      console.log("✅ Licenses saved!");
+    }
+  };
+
+  // ==========================
   // Submit handler
   // ==========================
   const handleSubmit = async (e: React.FormEvent) => {
@@ -172,69 +265,16 @@ const WHVWorkExperience: React.FC = () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
     if (!user) {
       console.error("Not logged in");
       return;
     }
 
-    const userId = user.id;
+    const userId = user.id; // matches profile.user_id
 
-    // 1. Save work experiences
-    if (workExperiences.length > 0) {
-      const workRows = workExperiences.map((exp) => ({
-        user_id: userId,
-        company: exp.company || null,
-        position: exp.position || null,
-        start_date: exp.startDate || null,
-        end_date: exp.endDate || null,
-        location: exp.location || null,
-        industry_id: exp.industryId ?? null,
-        job_description: exp.description || null,
-      }));
-
-      const { error: expError } = await supabase
-        .from("maker_work_experience")
-        .insert(workRows);
-
-      if (expError) console.error("Error saving work experiences:", expError);
-    }
-
-    // 2. Save job references
-    if (jobReferences.length > 0) {
-      const refRows = jobReferences.map((ref) => ({
-        user_id: userId,
-        name: ref.name || null,
-        business_name: ref.businessName || null,
-        email: ref.email || null,
-        mobile_num: ref.phone || null,
-        role: ref.role || null,
-      }));
-
-      const { error: refError } = await supabase
-        .from("maker_reference")
-        .insert(refRows);
-
-      if (refError) console.error("Error saving job references:", refError);
-    }
-
-    // 3. Save licenses (upsert)
-    if (licenses.length > 0) {
-      const licRows = licenses.map((licenseId) => ({
-        user_id: userId,
-        license_id: licenseId,
-        other:
-          allLicenses.find((l) => l.id === licenseId)?.name === "Other"
-            ? otherLicense
-            : null,
-      }));
-
-      const { error: licError } = await supabase
-        .from("maker_license")
-        .upsert(licRows as any, { onConflict: "user_id,license_id" });
-
-      if (licError) console.error("Error saving licenses:", licError);
-    }
+    await saveWorkExperiences(userId);
+    await saveJobReferences(userId);
+    await saveLicenses(userId);
 
     navigate("/whv/photo-upload");
   };
@@ -267,7 +307,7 @@ const WHVWorkExperience: React.FC = () => {
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-10">
             <form onSubmit={handleSubmit} className="space-y-10 pb-20">
-              {/* Work Experience */}
+              {/* Work Experience Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -310,7 +350,11 @@ const WHVWorkExperience: React.FC = () => {
                       <Select
                         value={exp.industryId ? String(exp.industryId) : ""}
                         onValueChange={(value) =>
-                          updateWorkExperience(exp.id, "industryId", Number(value))
+                          updateWorkExperience(
+                            exp.id,
+                            "industryId",
+                            Number(value)
+                          )
                         }
                       >
                         <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
@@ -335,6 +379,7 @@ const WHVWorkExperience: React.FC = () => {
                       }
                       className="h-10 bg-gray-100 border-0 text-sm"
                       placeholder="Position"
+                      required
                     />
 
                     {/* Company */}
@@ -346,6 +391,7 @@ const WHVWorkExperience: React.FC = () => {
                       }
                       className="h-10 bg-gray-100 border-0 text-sm"
                       placeholder="Company"
+                      required
                     />
 
                     {/* Location */}
@@ -376,9 +422,14 @@ const WHVWorkExperience: React.FC = () => {
                         type="date"
                         value={exp.startDate}
                         onChange={(e) =>
-                          updateWorkExperience(exp.id, "startDate", e.target.value)
+                          updateWorkExperience(
+                            exp.id,
+                            "startDate",
+                            e.target.value
+                          )
                         }
                         className="h-10 bg-gray-100 border-0 text-sm"
+                        required
                       />
                       <Input
                         type="date"
@@ -387,6 +438,7 @@ const WHVWorkExperience: React.FC = () => {
                           updateWorkExperience(exp.id, "endDate", e.target.value)
                         }
                         className="h-10 bg-gray-100 border-0 text-sm"
+                        required
                       />
                     </div>
                   </div>
@@ -512,7 +564,7 @@ const WHVWorkExperience: React.FC = () => {
                 ))}
               </div>
 
-              {/* Continue */}
+              {/* Continue Button */}
               <div className="pt-10 pb-6">
                 <Button
                   type="submit"
@@ -530,5 +582,4 @@ const WHVWorkExperience: React.FC = () => {
 };
 
 export default WHVWorkExperience;
-
 
