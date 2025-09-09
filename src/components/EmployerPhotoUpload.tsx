@@ -1,81 +1,94 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Camera } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const EmployerPhotoUpload: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => setPreviewUrl(e.target?.result as string);
-      reader.readAsDataURL(selectedFile);
-    }
-  };
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const handleReUpload = () => {
-    setPreviewUrl(null);
-    setFile(null);
-    fileInputRef.current?.click();
-  };
-
-  const handleSubmit = async () => {
-    if (!file) {
+    if (!file.type.startsWith("image/")) {
       toast({
-        title: 'Photo required',
-        description: 'Please upload a business photo to continue',
-        variant: 'destructive',
+        title: "Invalid file type",
+        description: "Please upload an image",
+        variant: "destructive",
       });
       return;
     }
 
     try {
+      setLoading(true);
+      const user = (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("Not authenticated");
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `employer-${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
       // ✅ Upload to Supabase Storage
-      const fileName = `employer-${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
-        .from('profile_photos')
-        .upload(fileName, file);
+        .from("profile_photos")
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('profile_photos')
-        .getPublicUrl(fileName);
+      // ✅ Get public URL
+      const { data } = supabase.storage.from("profile_photos").getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
 
-      // ✅ Save URL to employer table
+      // ✅ Save into employer table
       const { error: dbError } = await supabase
-        .from('employer')
-        .update({ profile_photo: publicUrl, updated_at: new Date().toISOString() })
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+        .from("employer")
+        .update({ profile_photo: publicUrl })
+        .eq("user_id", user.id);
 
       if (dbError) throw dbError;
 
+      setUploadedPhoto(publicUrl);
+
       toast({
-        title: 'Profile completed!',
-        description: 'Your business account has been created successfully',
+        title: "Photo uploaded!",
+        description: "Your business photo has been saved.",
       });
-      navigate('/employer/account-confirmation');
-    } catch (error: any) {
-      console.error('Upload error:', error);
+    } catch (err: any) {
       toast({
-        title: 'Upload failed',
-        description: error.message || 'Please try again later',
-        variant: 'destructive',
+        title: "Upload failed",
+        description: err.message,
+        variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleReUpload = () => {
+    setUploadedPhoto(null);
+    fileInputRef.current?.click();
+  };
+
+  const handleComplete = () => {
+    if (!uploadedPhoto) {
+      toast({
+        title: "Photo required",
+        description: "Please upload a photo before continuing",
+        variant: "destructive",
+      });
+      return;
+    }
+    navigate("/employer/account-confirmation");
+  };
+
   const handleSkip = () => {
-    navigate('/employer/account-confirmation');
+    navigate("/employer/account-confirmation");
   };
 
   return (
@@ -85,17 +98,16 @@ const EmployerPhotoUpload: React.FC = () => {
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          
+
           <div className="w-full h-full flex flex-col relative bg-white">
-            
             {/* Header */}
             <div className="px-6 pt-16 pb-6">
               <div className="flex items-center justify-between mb-8">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="w-12 h-12 bg-gray-100 rounded-xl shadow-sm"
-                  onClick={() => navigate('/employer/about-business')}
+                  onClick={() => navigate("/employer/about-business")}
                 >
                   <ArrowLeft className="w-6 h-6 text-gray-700" />
                 </Button>
@@ -112,59 +124,63 @@ const EmployerPhotoUpload: React.FC = () => {
               </div>
             </div>
 
-            {/* Upload area (fixed to match WHV style) */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6">
-              <div className="w-full max-w-sm mb-8">
-                {previewUrl ? (
-                  <div className="w-full h-64 bg-gray-100 rounded-2xl flex items-center justify-center overflow-hidden">
-                    <img 
-                      src={previewUrl} 
-                      alt="Uploaded business photo" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div 
-                    className="w-full h-64 bg-gray-100 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors border-2 border-dashed border-gray-300"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Camera className="w-12 h-12 text-gray-400 mb-4" />
-                    <p className="text-gray-500 text-sm">Tap to upload business photo</p>
-                  </div>
-                )}
+            {/* Upload area */}
+            <div className="flex-1 px-6 flex flex-col justify-center">
+              <div className="text-center mb-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload your photo</h2>
               </div>
 
-              {/* Hidden input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+              <div className="flex justify-center mb-8">
+                <div className="relative w-64 h-64">
+                  {uploadedPhoto ? (
+                    <img
+                      src={uploadedPhoto}
+                      alt="Uploaded"
+                      className="w-full h-full object-cover rounded-2xl border"
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full bg-gray-100 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-gray-300 cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Camera className="w-12 h-12 text-gray-400 mb-2" />
+                      <p className="text-gray-500 text-sm">Tap to upload business photo</p>
+                    </div>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+              </div>
 
-              {/* Re-upload */}
-              {previewUrl && (
-                <Button 
-                  variant="outline"
-                  onClick={handleReUpload}
-                  className="w-full max-w-sm h-14 text-base rounded-xl border-gray-300 hover:bg-gray-50 mb-6"
-                >
-                  Re Upload
-                </Button>
+              {uploadedPhoto && (
+                <div className="flex justify-center mb-8">
+                  <Button
+                    variant="outline"
+                    onClick={handleReUpload}
+                    className="h-12 px-8 rounded-xl border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    Re Upload
+                  </Button>
+                </div>
               )}
             </div>
 
             {/* Bottom buttons */}
             <div className="px-6 pb-8 space-y-4">
-              <Button 
-                onClick={handleSubmit}
+              <Button
+                onClick={handleComplete}
+                disabled={loading}
                 className="w-full h-14 text-lg rounded-xl bg-slate-800 hover:bg-slate-700 text-white"
               >
-                {previewUrl ? 'Complete your profile' : 'Continue'}
+                {loading ? "Saving..." : uploadedPhoto ? "Complete your profile" : "Continue"}
               </Button>
-              
-              {!previewUrl && (
+
+              {!uploadedPhoto && (
                 <div className="text-center">
                   <button
                     type="button"
@@ -176,7 +192,6 @@ const EmployerPhotoUpload: React.FC = () => {
                 </div>
               )}
             </div>
-
           </div>
         </div>
       </div>
@@ -185,3 +200,6 @@ const EmployerPhotoUpload: React.FC = () => {
 };
 
 export default EmployerPhotoUpload;
+
+
+
