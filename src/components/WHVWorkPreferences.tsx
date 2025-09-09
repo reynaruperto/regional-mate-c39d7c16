@@ -16,6 +16,7 @@ interface Role {
   industryId: number;
 }
 interface Region {
+  region_rules_id: number;
   state: string;
   area: string;
 }
@@ -106,7 +107,7 @@ const WHVWorkPreferences: React.FC = () => {
       // 4. Regions
       const { data: regionData } = await supabase
         .from("region_rules")
-        .select("state, area");
+        .select("region_rules_id, state, area");
 
       if (regionData) {
         const uniqueRegions = regionData.filter(
@@ -143,20 +144,30 @@ const WHVWorkPreferences: React.FC = () => {
     // 2. Save preferences into maker_preference
     const preferenceRows = selectedIndustries.flatMap((industryId) => {
       const industryRoles = roles.filter((r) => r.industryId === industryId);
-      return preferredStates.flatMap((state) =>
-        preferredAreas.map((area) => ({
-          user_id: user.id,
-          state: state as any, // cast to fix enum mismatch
-          area,
-          industry_id: industryId,
-          industry_role_id:
-            industryRoles.find((r) => selectedRoles.includes(r.id))?.id ?? null,
-        }))
+      return industryRoles
+        .filter((r) => selectedRoles.includes(r.id))
+        .flatMap((role) =>
+            preferredStates.flatMap((state_ =>
+                preferredAreas.map((area) => {
+                  const region = regions.find(
+                    (r) => r.state === state && r.area === area
+                  );
+                  if (!region) return null;
+
+                  return {
+                    user_id: user.id,
+                    industry_role_id: role.id,
+                    region_rules_id: region.region_rules_id,
+                  };
+          })
+        )              
       );
     });
 
+    const rows = preferenceRows.filter(Boolean) as any[];
+    
     if (preferenceRows.length > 0) {
-      await supabase.from("maker_preference").upsert(preferenceRows as any);
+      await supabase.from("maker_preference").upsert(rows);
     }
 
     navigate("/whv/work-experience");
