@@ -1,55 +1,77 @@
-import React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
+import React from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
+// ✅ Form validation schema
 const formSchema = z.object({
-  givenName: z.string()
+  givenName: z
+    .string()
     .min(2, { message: "Given name must be at least 2 characters." })
     .regex(/^[a-zA-Z\s]*$/, { message: "Given name can only contain letters." }),
-  middleName: z.string()
+  middleName: z
+    .string()
     .optional()
-    .refine((val) => !val || /^[a-zA-Z\s]*$/.test(val), { message: "Middle name can only contain letters." }),
-  familyName: z.string()
+    .refine((val) => !val || /^[a-zA-Z\s]*$/.test(val), {
+      message: "Middle name can only contain letters.",
+    }),
+  familyName: z
+    .string()
     .min(2, { message: "Family name must be at least 2 characters." })
     .regex(/^[a-zA-Z\s]*$/, { message: "Family name can only contain letters." }),
-  abn: z.string()
+  abn: z
+    .string()
     .min(11, { message: "ABN must be 11 digits." })
     .max(11, { message: "ABN must be 11 digits." })
     .regex(/^\d+$/, { message: "ABN must contain only numbers." }),
   companyName: z.string().min(2, { message: "Company name is required." }),
-  website: z.string().url({ message: "Please enter a valid website URL." }).optional().or(z.literal("")),
-  businessPhone: z.string()
+  website: z
+    .string()
+    .url({ message: "Please enter a valid website URL." })
+    .optional()
+    .or(z.literal("")),
+  businessPhone: z
+    .string()
     .min(10, { message: "Please enter a valid phone number." })
-    .regex(/^[\d\s\+\-\(\)]+$/, { message: "Please enter a valid phone number." }),
+    .regex(/^[\d\s\+\-\(\)]+$/, {
+      message: "Please enter a valid phone number.",
+    }),
   addressLine1: z.string().min(2, { message: "Address line 1 is required." }),
   addressLine2: z.string().optional(),
   suburbCity: z.string().min(2, { message: "Suburb / City is required." }),
   state: z.string().min(1, { message: "Please select a state." }),
-  postCode: z.string()
+  postCode: z
+    .string()
     .min(4, { message: "Please enter a valid post code." })
     .max(4, { message: "Post code must be 4 digits." })
-    .regex(/^\d+$/, { message: "Post code must contain only numbers." })
+    .regex(/^\d+$/, { message: "Post code must contain only numbers." }),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 const AUSTRALIAN_STATES = [
-  'Australian Capital Territory',
-  'New South Wales',
-  'Northern Territory',
-  'Queensland',
-  'South Australia',
-  'Tasmania',
-  'Victoria',
-  'Western Australia'
+  "Australian Capital Territory",
+  "New South Wales",
+  "Northern Territory",
+  "Queensland",
+  "South Australia",
+  "Tasmania",
+  "Victoria",
+  "Western Australia",
 ];
 
 const BusinessRegistrationForm: React.FC = () => {
@@ -60,19 +82,69 @@ const BusinessRegistrationForm: React.FC = () => {
     register,
     handleSubmit,
     setValue,
-    formState: { errors }
+    formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(formSchema)
+    resolver: zodResolver(formSchema),
   });
 
-  const onSubmit = (data: FormData) => {
-    console.log('Business registration submitted:', data);
-    localStorage.setItem('businessRegistration', JSON.stringify(data));
-    toast({
-      title: "Business details saved!",
-      description: "Let's continue with information about your business",
-    });
-    navigate('/employer/about-business');
+  // ✅ Submit handler with Supabase insert
+  const onSubmit = async (data: FormData) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        toast({
+          title: "Not logged in",
+          description: "Please log in first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error } = await supabase.from("employer").upsert({
+        user_id: user.id,
+        given_name: data.givenName,
+        middle_name: data.middleName || null,
+        family_name: data.familyName,
+        abn: data.abn,
+        company_name: data.companyName,
+        website:
+          data.website && data.website.trim() !== "" ? data.website : null,
+        mobile_num: data.businessPhone,
+        address_line1: data.addressLine1,
+        address_line2: data.addressLine2 || null,
+        suburb_city: data.suburbCity,
+        state: data.state,
+        postcode: data.postCode,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error("Supabase error:", error);
+        toast({
+          title: "Error saving business details",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Business details saved!",
+        description: "Let's continue with information about your business",
+      });
+
+      navigate("/employer/about-business");
+    } catch (err: any) {
+      console.error("Unexpected error:", err);
+      toast({
+        title: "Error",
+        description: err.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -84,15 +156,14 @@ const BusinessRegistrationForm: React.FC = () => {
 
           {/* Main content */}
           <div className="w-full h-full flex flex-col relative bg-white">
-            
             {/* Header */}
             <div className="px-6 pt-16 pb-6">
               <div className="flex items-center justify-between mb-8">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="w-12 h-12 bg-gray-100 rounded-xl shadow-sm"
-                  onClick={() => navigate('/employer/email-confirmation')}
+                  onClick={() => navigate("/employer/email-confirmation")}
                 >
                   <ArrowLeft className="w-6 h-6 text-gray-700" />
                 </Button>
@@ -102,9 +173,13 @@ const BusinessRegistrationForm: React.FC = () => {
               {/* Progress */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-6">
-                  <h1 className="text-2xl font-bold text-gray-900">Business Registration</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Business Registration
+                  </h1>
                   <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                    <span className="text-sm font-medium text-gray-600">3/5</span>
+                    <span className="text-sm font-medium text-gray-600">
+                      3/5
+                    </span>
                   </div>
                 </div>
               </div>
@@ -113,35 +188,70 @@ const BusinessRegistrationForm: React.FC = () => {
             {/* Form */}
             <div className="flex-1 overflow-y-auto px-6 pb-20">
               <div className="mb-8">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Register your business</h2>
-                <p className="text-gray-600">We need your personal details and business information.</p>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                  Register your business
+                </h2>
+                <p className="text-gray-600">
+                  We need your personal details and business information.
+                </p>
               </div>
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 {/* Given Name */}
                 <div>
-                  <Label htmlFor="givenName">Given Name(s) <span className="text-red-500">*</span></Label>
-                  <Input id="givenName" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("givenName")} />
-                  {errors.givenName && <p className="text-red-500 text-sm mt-1">{errors.givenName.message}</p>}
+                  <Label htmlFor="givenName">
+                    Given Name(s) <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="givenName"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("givenName")}
+                  />
+                  {errors.givenName && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.givenName.message}
+                    </p>
+                  )}
                 </div>
 
-                {/* Middle Name - Optional */}
+                {/* Middle Name */}
                 <div>
                   <Label htmlFor="middleName">Middle Name(s)</Label>
-                  <Input id="middleName" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("middleName")} />
-                  {errors.middleName && <p className="text-red-500 text-sm mt-1">{errors.middleName.message}</p>}
+                  <Input
+                    id="middleName"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("middleName")}
+                  />
+                  {errors.middleName && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.middleName.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Family Name */}
                 <div>
-                  <Label htmlFor="familyName">Family Name(s) <span className="text-red-500">*</span></Label>
-                  <Input id="familyName" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("familyName")} />
-                  {errors.familyName && <p className="text-red-500 text-sm mt-1">{errors.familyName.message}</p>}
+                  <Label htmlFor="familyName">
+                    Family Name(s) <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="familyName"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("familyName")}
+                  />
+                  {errors.familyName && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.familyName.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* ABN */}
                 <div>
-                  <Label htmlFor="abn">Australian Business Number (ABN) <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="abn">
+                    Australian Business Number (ABN){" "}
+                    <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     id="abn"
                     type="text"
@@ -150,89 +260,165 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("abn")}
                     onChange={(e) => {
-                      e.target.value = e.target.value.replace(/\D/g, '');
+                      e.target.value = e.target.value.replace(/\D/g, "");
                       register("abn").onChange(e);
                     }}
                   />
-                  {errors.abn && <p className="text-red-500 text-sm mt-1">{errors.abn.message}</p>}
+                  {errors.abn && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.abn.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Company Name */}
                 <div>
-                  <Label htmlFor="companyName">Company Name <span className="text-red-500">*</span></Label>
-                  <Input id="companyName" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("companyName")} />
-                  {errors.companyName && <p className="text-red-500 text-sm mt-1">{errors.companyName.message}</p>}
+                  <Label htmlFor="companyName">
+                    Company Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="companyName"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("companyName")}
+                  />
+                  {errors.companyName && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.companyName.message}
+                    </p>
+                  )}
                 </div>
 
-                {/* Website - Optional */}
+                {/* Website */}
                 <div>
                   <Label htmlFor="website">Business Website</Label>
-                  <Input id="website" type="url" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("website")} />
-                  {errors.website && <p className="text-red-500 text-sm mt-1">{errors.website.message}</p>}
+                  <Input
+                    id="website"
+                    type="url"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("website")}
+                  />
+                  {errors.website && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.website.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Business Phone */}
                 <div>
-                  <Label htmlFor="businessPhone">Business Phone Number <span className="text-red-500">*</span></Label>
-                  <Input id="businessPhone" type="tel" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("businessPhone")} />
-                  {errors.businessPhone && <p className="text-red-500 text-sm mt-1">{errors.businessPhone.message}</p>}
+                  <Label htmlFor="businessPhone">
+                    Business Phone Number <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="businessPhone"
+                    type="tel"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("businessPhone")}
+                  />
+                  {errors.businessPhone && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.businessPhone.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Address Line 1 */}
                 <div>
-                  <Label htmlFor="addressLine1">Business Address Line 1 <span className="text-red-500">*</span></Label>
-                  <Input id="addressLine1" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("addressLine1")} />
-                  {errors.addressLine1 && <p className="text-red-500 text-sm mt-1">{errors.addressLine1.message}</p>}
+                  <Label htmlFor="addressLine1">
+                    Business Address Line 1{" "}
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="addressLine1"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("addressLine1")}
+                  />
+                  {errors.addressLine1 && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.addressLine1.message}
+                    </p>
+                  )}
                 </div>
 
-                {/* Address Line 2 - Optional */}
+                {/* Address Line 2 */}
                 <div>
                   <Label htmlFor="addressLine2">Address Line 2</Label>
-                  <Input id="addressLine2" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("addressLine2")} />
+                  <Input
+                    id="addressLine2"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("addressLine2")}
+                  />
                 </div>
 
                 {/* Suburb / City */}
                 <div>
-                  <Label htmlFor="suburbCity">Suburb / City <span className="text-red-500">*</span></Label>
-                  <Input id="suburbCity" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("suburbCity")} />
-                  {errors.suburbCity && <p className="text-red-500 text-sm mt-1">{errors.suburbCity.message}</p>}
+                  <Label htmlFor="suburbCity">
+                    Suburb / City <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="suburbCity"
+                    className="h-14 text-base bg-gray-100 border-0 rounded-xl"
+                    {...register("suburbCity")}
+                  />
+                  {errors.suburbCity && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.suburbCity.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* State */}
                 <div>
-                  <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="state">
+                    State <span className="text-red-500">*</span>
+                  </Label>
                   <Select onValueChange={(value) => setValue("state", value)}>
                     <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
                       <SelectValue placeholder="Select a state" />
                     </SelectTrigger>
                     <SelectContent>
                       {AUSTRALIAN_STATES.map((state) => (
-                        <SelectItem key={state} value={state}>{state}</SelectItem>
+                        <SelectItem key={state} value={state}>
+                          {state}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.state && <p className="text-red-500 text-sm mt-1">{errors.state.message}</p>}
+                  {errors.state && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.state.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Post Code */}
                 <div>
-                  <Label htmlFor="postCode">Post Code <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="postCode">
+                    Post Code <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     id="postCode"
                     maxLength={4}
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("postCode")}
                     onChange={(e) => {
-                      e.target.value = e.target.value.replace(/\D/g, '');
+                      e.target.value = e.target.value.replace(/\D/g, "");
                       register("postCode").onChange(e);
                     }}
                   />
-                  {errors.postCode && <p className="text-red-500 text-sm mt-1">{errors.postCode.message}</p>}
+                  {errors.postCode && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.postCode.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Continue */}
                 <div className="pt-8">
-                  <Button type="submit" className="w-full h-14 text-lg rounded-xl bg-[#1E293B] hover:opacity-90 text-white">
+                  <Button
+                    type="submit"
+                    className="w-full h-14 text-lg rounded-xl bg-[#1E293B] hover:opacity-90 text-white"
+                  >
                     Continue
                   </Button>
                 </div>
