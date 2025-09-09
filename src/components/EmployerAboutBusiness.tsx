@@ -93,20 +93,46 @@ const EmployerAboutBusiness: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not logged in");
 
-      // 1. Update employer core info
-      const { error: employerError } = await supabase
+      // 1. Check if employer record exists, if not create it with required fields
+      const { data: existingEmployer } = await supabase
         .from("employer")
-        .update({
-          tagline: data.businessTagline,
-          business_tenure: data.yearsInBusiness as any,
-          employee_count: data.employeeCount as any,
-          industry_id: parseInt(data.industryId, 10),
-          pay_range: data.payRange as any,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", user.id);
+        .select("user_id")
+        .eq("user_id", user.id)
+        .single();
 
-      if (employerError) throw employerError;
+      if (!existingEmployer) {
+        // Create employer record with required fields
+        const { error: createError } = await supabase
+          .from("employer")
+          .insert({
+            user_id: user.id,
+            abn: "000000000", // Placeholder - user will update in profile
+            given_name: "Update Required", // Placeholder - user will update in profile
+            tagline: data.businessTagline,
+            business_tenure: data.yearsInBusiness as any,
+            employee_count: data.employeeCount as any,
+            industry_id: parseInt(data.industryId, 10),
+            pay_range: data.payRange as any,
+            updated_at: new Date().toISOString(),
+          });
+
+        if (createError) throw createError;
+      } else {
+        // Update existing employer record
+        const { error: employerError } = await supabase
+          .from("employer")
+          .update({
+            tagline: data.businessTagline,
+            business_tenure: data.yearsInBusiness as any,
+            employee_count: data.employeeCount as any,
+            industry_id: parseInt(data.industryId, 10),
+            pay_range: data.payRange as any,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id);
+
+        if (employerError) throw employerError;
+      }
 
       // 2. Job types
       await supabase.from("employer_job_type").delete().eq("user_id", user.id);
