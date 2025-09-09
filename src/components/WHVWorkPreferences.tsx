@@ -18,6 +18,7 @@ interface Role {
 interface Region {
   state: string;
   area: string;
+  id: string;
 }
 
 const WHVWorkPreferences: React.FC = () => {
@@ -103,20 +104,20 @@ const WHVWorkPreferences: React.FC = () => {
         }
       }
 
-      // 4. Regions
-      const { data: regionData } = await supabase
-        .from("region_rules")
-        .select("state, area");
+  // 4. Regions
+  const { data: regionData } = await supabase
+    .from("region_rules")
+    .select("id, state, area");
 
-      if (regionData) {
-        const uniqueRegions = regionData.filter(
-          (r, idx, arr) =>
-            arr.findIndex(
-              (x) => x.state === r.state && x.area === r.area
-            ) === idx
-        );
-        setRegions(uniqueRegions);
-      }
+  if (regionData) {
+    const uniqueRegions = regionData.filter(
+      (r, idx, arr) =>
+        arr.findIndex(
+          (x) => x.state === r.state && x.area === r.area
+        ) === idx
+    );
+    setRegions(uniqueRegions.map(r => ({ state: r.state, area: r.area, id: r.id })));
+  }
     };
 
     loadData();
@@ -141,22 +142,33 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
 
     // 2. Save preferences into maker_preference
-    const preferenceRows = selectedIndustries.flatMap((industryId) => {
-      const industryRoles = roles.filter((r) => r.industryId === industryId);
-      return preferredStates.flatMap((state) =>
-        preferredAreas.map((area) => ({
-          user_id: user.id,
-          state: state as any, // cast to fix enum mismatch
-          area,
-          industry_id: industryId,
-          industry_role_id:
-            industryRoles.find((r) => selectedRoles.includes(r.id))?.id ?? null,
-        }))
-      );
+    const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: string}> = [];
+    
+    // Create combinations of selected roles and selected locations
+    selectedRoles.forEach((roleId) => {
+      preferredStates.forEach((state) => {
+        preferredAreas.forEach((area) => {
+          // Find the region_rules_id for this state/area combination
+          const region = regions.find(r => r.state === state && r.area === area);
+          if (region) {
+            preferenceRows.push({
+              user_id: user.id,
+              industry_role_id: roleId,
+              region_rules_id: region.id
+            });
+          }
+        });
+      });
     });
 
+    // Insert preferences, ignoring duplicates
     if (preferenceRows.length > 0) {
-      await supabase.from("maker_preference").upsert(preferenceRows as any);
+      try {
+        await supabase.from("maker_preference").insert(preferenceRows);
+      } catch (error) {
+        // Silently handle duplicate constraint violations
+        console.log("Some preferences may already exist, continuing...");
+      }
     }
 
     navigate("/whv/work-experience");
