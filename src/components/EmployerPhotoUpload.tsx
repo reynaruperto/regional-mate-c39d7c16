@@ -24,7 +24,7 @@ const EmployerPhotoUpload: React.FC = () => {
       if (!user) return;
 
       const { data, error } = await supabase
-        .from("profile")
+        .from("employer") // 👈 use employer table
         .select("profile_photo")
         .eq("user_id", user.id)
         .maybeSingle();
@@ -45,16 +45,23 @@ const EmployerPhotoUpload: React.FC = () => {
   // ==========================
   // File Handlers
   // ==========================
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.type.startsWith("image/")) {
-        setSelectedFile(file);
+      let finalFile = file;
+
+      // ✅ Convert HEIC to JPEG
+      if (file.type === "image/heic" || file.name.toLowerCase().endsWith(".heic")) {
+        finalFile = await convertHeicToJpeg(file);
+      }
+
+      if (finalFile.type.startsWith("image/")) {
+        setSelectedFile(finalFile);
         const reader = new FileReader();
         reader.onload = (e) => {
           setSelectedImage(e.target?.result as string);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(finalFile);
       } else {
         toast({
           title: "Invalid file type",
@@ -102,14 +109,14 @@ const EmployerPhotoUpload: React.FC = () => {
 
     try {
       // 1. Delete old photo if exists
-      const { data: profileData } = await supabase
-        .from("profile")
+      const { data: employerData } = await supabase
+        .from("employer")
         .select("profile_photo")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (profileData?.profile_photo) {
-        const url = new URL(profileData.profile_photo);
+      if (employerData?.profile_photo) {
+        const url = new URL(employerData.profile_photo);
         const pathParts = url.pathname.split("/");
         const bucketIndex = pathParts.indexOf("profile_photo");
         if (bucketIndex !== -1) {
@@ -118,8 +125,9 @@ const EmployerPhotoUpload: React.FC = () => {
         }
       }
 
-      // 2. Upload new file
-      const filePath = `${user.id}/${Date.now()}-${selectedFile.name}`;
+      // 2. Upload new file (sanitize filename)
+      const cleanFileName = selectedFile.name.replace(/\s+/g, "_");
+      const filePath = `${user.id}/${Date.now()}-${cleanFileName}`;
       const { error: uploadError } = await supabase.storage
         .from("profile_photo")
         .upload(filePath, selectedFile, { upsert: true });
@@ -127,14 +135,12 @@ const EmployerPhotoUpload: React.FC = () => {
       if (uploadError) throw uploadError;
 
       // 3. Get public URL
-      const { data } = supabase.storage
-        .from("profile_photo")
-        .getPublicUrl(filePath);
+      const { data } = supabase.storage.from("profile_photo").getPublicUrl(filePath);
       const publicUrl = data.publicUrl;
 
-      // 4. Save to DB
+      // 4. Save to Employer table
       const { error: dbError } = await supabase
-        .from("profile")
+        .from("employer") // 👈 update employer table
         .update({ profile_photo: publicUrl })
         .eq("user_id", user.id);
 
@@ -165,7 +171,6 @@ const EmployerPhotoUpload: React.FC = () => {
   // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone frame matching WHV */}
       <div className="w-[390px] h-[844px] bg-black rounded-[50px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[40px] overflow-hidden relative flex flex-col">
           {/* Header */}
@@ -177,9 +182,7 @@ const EmployerPhotoUpload: React.FC = () => {
               >
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Account Set Up
-              </h1>
+              <h1 className="text-lg font-medium text-gray-900">Account Set Up</h1>
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-600">5/5</span>
               </div>
@@ -260,4 +263,30 @@ const EmployerPhotoUpload: React.FC = () => {
   );
 };
 
+// ==========================
+// HEIC to JPEG Converter
+// ==========================
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const imageBitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = imageBitmap.width;
+  canvas.height = imageBitmap.height;
+
+  const ctx = canvas.getContext("2d");
+  ctx?.drawImage(imageBitmap, 0, 0);
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const converted = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
+        type: "image/jpeg",
+      });
+      resolve(converted);
+    }, "image/jpeg", 0.9);
+  });
+}
+
 export default EmployerPhotoUpload;
+
+
+
