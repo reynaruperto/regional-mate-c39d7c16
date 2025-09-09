@@ -11,15 +11,12 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Schema
 const formSchema = z.object({
   businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
   yearsInBusiness: z.string().min(1, "Required"),
   employeeCount: z.string().min(1, "Required"),
   industry: z.string().min(1, "Required"),
-  jobType: z.array(z.string()).min(1, "Select at least one job type"),
   payRange: z.string().min(1, "Select a pay range"),
-  facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -29,82 +26,69 @@ interface Industry {
   name: string;
 }
 
-const jobTypes = ["Full-time", "Part-time", "Casual", "Seasonal", "Contract"];
-const payRanges = ["$25-30/hour", "$30-35/hour", "$35-40/hour", "$40-45/hour", "$45+/hour"];
-const facilitiesExtras = [
-  "Accommodation provided", "Meals included", "Transport provided",
-  "Training provided", "Equipment provided", "Flexible hours",
-  "Career progression", "Team environment", "Other"
-];
-
 const EmployerAboutBusiness: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-
   const [industries, setIndustries] = useState<Industry[]>([]);
 
   const {
     register,
     handleSubmit,
     control,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      jobType: [],
-      facilitiesAndExtras: [],
-    },
   });
 
-  // ✅ Load industries from Supabase
+  // Load industries from Supabase
   useEffect(() => {
     const loadIndustries = async () => {
-      const { data, error } = await supabase
-        .from("industry")
-        .select("industry_id, name")
-        .order("industry_id", { ascending: true });
-
+      const { data, error } = await supabase.from("industry").select("industry_id, name");
       if (error) {
         console.error("Error fetching industries:", error);
       } else {
         setIndustries(data || []);
       }
     };
-
     loadIndustries();
   }, []);
 
-  const watchedFacilities = watch("facilitiesAndExtras") || [];
-
   const onSubmit = async (data: FormData) => {
-    console.log("Business info submitted:", data);
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
+        throw new Error("User not logged in");
+      }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+      const user = userData.user;
 
-    // find industry id from selected name
-    const selectedIndustry = industries.find((i) => i.name === data.industry);
+      const selectedIndustry = industries.find(i => i.name === data.industry);
 
-    const { error } = await supabase.from("employer").upsert({
-      user_id: user.id,
-      tagline: data.businessTagline,
-      business_tenure: data.yearsInBusiness,
-      employee_count: data.employeeCount,
-      industry_id: selectedIndustry?.industry_id,
-      pay_range: data.payRange,
-      updated_at: new Date().toISOString(),
-    } as any);
+      const { error } = await supabase.from("employer").upsert({
+        user_id: user.id,
+        tagline: data.businessTagline,
+        business_tenure: data.yearsInBusiness,   // enum match
+        employee_count: data.employeeCount,      // enum match
+        industry_id: selectedIndustry?.industry_id,
+        pay_range: data.payRange,                // enum match
+        updated_at: new Date().toISOString(),
+      });
 
-    if (error) {
-      console.error("Error saving employer:", error);
-      toast({ title: "Error", description: "Could not save business info", variant: "destructive" });
-    } else {
-      toast({ title: "Business setup complete!", description: "Your employer profile has been created successfully" });
+      if (error) throw error;
+
+      toast({
+        title: "Business info saved!",
+        description: "Let's continue to upload your company photo",
+      });
+
       navigate("/employer/photo-upload");
+    } catch (err: any) {
+      console.error("Error saving business info:", err);
+      toast({
+        title: "Error",
+        description: "Could not save business info",
+        variant: "destructive",
+      });
     }
   };
 
@@ -149,9 +133,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Years in Business */}
                 <div>
-                  <Label>
-                    Years in Business <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Years in Business <span className="text-red-500">*</span></Label>
                   <Controller
                     name="yearsInBusiness"
                     control={control}
@@ -171,9 +153,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Employee Count */}
                 <div>
-                  <Label>
-                    Employees <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Employees <span className="text-red-500">*</span></Label>
                   <Controller
                     name="employeeCount"
                     control={control}
@@ -193,9 +173,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
                 {/* Industry */}
                 <div>
-                  <Label>
-                    Industry <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Industry <span className="text-red-500">*</span></Label>
                   <Controller
                     name="industry"
                     control={control}
@@ -213,34 +191,9 @@ const EmployerAboutBusiness: React.FC = () => {
                   {errors.industry && <p className="text-red-500 text-sm">{errors.industry.message}</p>}
                 </div>
 
-                {/* Job Type */}
+                {/* Pay Range */}
                 <div>
-                  <Label>
-                    Job Type <span className="text-red-500">*</span>
-                  </Label>
-                  {jobTypes.map(type => (
-                    <label key={type} className="flex items-center space-x-2 mt-2">
-                      <input
-                        type="checkbox"
-                        value={type}
-                        checked={watch("jobType")?.includes(type)}
-                        onChange={e => {
-                          const current = watch("jobType") || [];
-                          if (e.target.checked) setValue("jobType", [...current, type]);
-                          else setValue("jobType", current.filter(a => a !== type));
-                        }}
-                      />
-                      <span>{type}</span>
-                    </label>
-                  ))}
-                  {errors.jobType && <p className="text-red-500 text-sm">{errors.jobType.message}</p>}
-                </div>
-
-                {/* Pay */}
-                <div>
-                  <Label>
-                    Pay Range <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Pay Range <span className="text-red-500">*</span></Label>
                   <Controller
                     name="payRange"
                     control={control}
@@ -248,37 +201,14 @@ const EmployerAboutBusiness: React.FC = () => {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select pay" /></SelectTrigger>
                         <SelectContent>
-                          {payRanges.map(range => (
-                            <SelectItem key={range} value={range}>{range}</SelectItem>
+                          {["$25–30/hour", "$30–35/hour", "$35–40/hour", "$40–45/hour", "$45+/hour"].map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
                   {errors.payRange && <p className="text-red-500 text-sm">{errors.payRange.message}</p>}
-                </div>
-
-                {/* Facilities */}
-                <div>
-                  <Label>
-                    Facilities & Extras <span className="text-red-500">*</span>
-                  </Label>
-                  {facilitiesExtras.map(facility => (
-                    <label key={facility} className="flex items-center space-x-2 mt-2">
-                      <input
-                        type="checkbox"
-                        value={facility}
-                        checked={watchedFacilities.includes(facility)}
-                        onChange={e => {
-                          const current = watchedFacilities;
-                          if (e.target.checked) setValue("facilitiesAndExtras", [...current, facility]);
-                          else setValue("facilitiesAndExtras", current.filter(x => x !== facility));
-                        }}
-                      />
-                      <span>{facility}</span>
-                    </label>
-                  ))}
-                  {errors.facilitiesAndExtras && <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>}
                 </div>
 
                 {/* Continue */}
