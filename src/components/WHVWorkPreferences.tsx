@@ -5,15 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/supabase-extensions";
-
-// ==========================
-// Types from Supabase schema
-// ==========================
-type IndustryRow = Database["public"]["Tables"]["industry"]["Row"];
-type IndustryRoleRow = Database["public"]["Tables"]["industry_role"]["Row"];
-type RegionRuleRow = Database["public"]["Tables"]["region_rules"]["Row"];
-type MakerVisaRow = Database["public"]["Tables"]["maker_visa"]["Row"];
 
 interface Industry {
   id: number;
@@ -22,7 +13,7 @@ interface Industry {
 interface Role {
   id: number;
   name: string;
-  industryId: number | null;
+  industryId: number;
 }
 interface Region {
   state: string;
@@ -60,55 +51,61 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get visa label (join to visa_stage)
+      // 1. Get visa info (subclass, stage, country name)
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(
-          `
+        .select(`
           stage_id,
-          visa_stage:visa_stage(label)
-        `
-        )
+          visa_stage:visa_stage(stage, sub_class, label),
+          country:country(name)
+        `)
         .eq("user_id", user.id)
-        .maybeSingle<MakerVisaRow & { visa_stage: { label: string } }>();
+        .maybeSingle();
 
-      if (visa?.visa_stage?.label) {
-        setVisaLabel(visa.visa_stage.label);
-      }
+      if (!visa) return;
 
-      // Industries
-      const { data: industryData } = await supabase
-        .from("industry")
-        .select("industry_id, name")
-        .returns<IndustryRow[]>();
+      setVisaLabel(
+        `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
+      );
 
-      if (industryData) {
+      // 2. Query temp_eligibility for industries allowed by visa
+      const { data: eligibleIndustries } = await supabase
+        .from("temp_eligibility")
+        .select("industry_id, industry_name")
+        .eq("sub_class", visa.visa_stage.sub_class)
+        .eq("stage", visa.visa_stage.stage)
+        .eq("country_name", visa.country.name);
+
+      if (eligibleIndustries) {
         setIndustries(
-          industryData.map((i) => ({ id: i.industry_id, name: i.name }))
-        );
-      }
-
-      // Roles
-      const { data: roleData } = await supabase
-        .from("industry_role")
-        .select("industry_role_id, role, industry_id")
-        .returns<IndustryRoleRow[]>();
-
-      if (roleData) {
-        setRoles(
-          roleData.map((r) => ({
-            id: r.industry_role_id,
-            name: r.role,
-            industryId: r.industry_id,
+          eligibleIndustries.map((i) => ({
+            id: i.industry_id,
+            name: i.industry_name,
           }))
         );
+
+        // 3. Fetch roles linked to those industries
+        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+        const { data: roleData } = await supabase
+          .from("industry_role")
+          .select("industry_role_id, role, industry_id")
+          .in("industry_id", industryIds);
+
+        if (roleData) {
+          setRoles(
+            roleData.map((r) => ({
+              id: r.industry_role_id,
+              name: r.role,
+              industryId: r.industry_id,
+            }))
+          );
+        }
       }
 
-      // Regions (all states + areas, deduped)
+      // 4. Regions (all)
       const { data: regionData } = await supabase
         .from("region_rules")
-        .select("state, area")
-        .returns<Pick<RegionRuleRow, "state" | "area">[]>();
+        .select("state, area");
 
       if (regionData) {
         const uniqueRegions = regionData.filter(
@@ -117,12 +114,51 @@ const WHVWorkPreferences: React.FC = () => {
               (x) => x.state === r.state && x.area === r.area
             ) === idx
         );
-        setRegions(uniqueRegions as Region[]);
+        setRegions(uniqueRegions);
       }
     };
 
     loadData();
   }, []);
+
+  // ==========================
+  // Save before continue
+  // ==========================
+  const handleContinue = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 1. Save tagline into whv_maker
+    await supabase.from("whv_maker").upsert({
+      user_id: user.id,
+      tagline: tagline.trim(),
+      updated_at: new Date().toISOString(),
+    });
+
+    // 2. Save preferences (industry + role + state + area)
+    const preferenceRows = selectedIndustries.flatMap((industryId) => {
+      const industryRoles = roles.filter((r) => r.industryId === industryId);
+      return preferredStates.flatMap((state) =>
+        preferredAreas.map((area) => ({
+          user_id: user.id,
+          state,
+          area,
+          industry_id: industryId,
+          industry_role_id:
+            industryRoles.find((r) => selectedRoles.includes(r.id))?.id ?? null,
+        }))
+      );
+    });
+
+    if (preferenceRows.length > 0) {
+      await supabase.from("maker_preference").upsert(preferenceRows);
+    }
+
+    // Navigate after saving
+    navigate("/whv/work-experience");
+  };
 
   // ==========================
   // Handlers
@@ -166,7 +202,6 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    // Keep only areas that match the new states
     const validAreas = regions
       .filter((r) => newStates.includes(r.state))
       .map((r) => r.area);
@@ -187,7 +222,7 @@ const WHVWorkPreferences: React.FC = () => {
     return regions
       .filter((r) => r.state === state)
       .map((r) => r.area)
-      .filter((a, i, arr) => a && arr.indexOf(a) === i); // unique non-empty
+      .filter((a, i, arr) => a && arr.indexOf(a) === i);
   };
 
   // ==========================
@@ -213,6 +248,9 @@ const WHVWorkPreferences: React.FC = () => {
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
             </div>
+            {visaLabel && (
+              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
+            )}
           </div>
 
           {/* Content */}
@@ -342,7 +380,6 @@ const WHVWorkPreferences: React.FC = () => {
                         <span>{state}</span>
                       </label>
 
-                      {/* Areas under state */}
                       {preferredStates.includes(state) && (
                         <div className="ml-6 space-y-1">
                           {getAreasForState(state).map((area) => (
@@ -387,6 +424,9 @@ const WHVWorkPreferences: React.FC = () => {
               {expandedSections.summary && (
                 <div className="px-4 pb-4 border-t space-y-4">
                   <p>
+                    <strong>Visa:</strong> {visaLabel}
+                  </p>
+                  <p>
                     <strong>Tagline:</strong> {tagline}
                   </p>
                   <p>
@@ -415,7 +455,7 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="pt-4">
               <Button
                 type="button"
-                onClick={() => navigate("/whv/work-experience")}
+                onClick={handleContinue}
                 disabled={
                   !tagline.trim() ||
                   selectedIndustries.length === 0 ||
@@ -434,6 +474,8 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
+
+
 
 
 
