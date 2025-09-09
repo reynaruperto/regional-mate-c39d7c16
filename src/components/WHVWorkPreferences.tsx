@@ -18,7 +18,7 @@ interface Role {
 interface Region {
   state: string;
   area: string;
-  id: string;
+  region_rules_id: string;
 }
 
 const WHVWorkPreferences: React.FC = () => {
@@ -109,6 +109,8 @@ const WHVWorkPreferences: React.FC = () => {
     .from("region_rules")
     .select("id, state, area");
 
+  console.log("Region data:", regionData);
+
   if (regionData) {
     const uniqueRegions = regionData.filter(
       (r, idx, arr) =>
@@ -116,7 +118,11 @@ const WHVWorkPreferences: React.FC = () => {
           (x) => x.state === r.state && x.area === r.area
         ) === idx
     );
-    setRegions(uniqueRegions.map(r => ({ state: r.state, area: r.area, id: r.id })));
+    setRegions(uniqueRegions.map(r => ({ 
+      state: r.state, 
+      area: r.area, 
+      region_rules_id: r.id // Use the UUID id as the region_rules_id
+    })));
   }
     };
 
@@ -154,7 +160,7 @@ const WHVWorkPreferences: React.FC = () => {
             preferenceRows.push({
               user_id: user.id,
               industry_role_id: roleId,
-              region_rules_id: region.id
+              region_rules_id: region.region_rules_id
             });
           }
         });
