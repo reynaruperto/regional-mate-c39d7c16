@@ -18,7 +18,7 @@ interface Role {
 interface Region {
   state: string;
   area: string;
-  id: string;
+  id: number;
 }
 
 const WHVWorkPreferences: React.FC = () => {
@@ -142,7 +142,7 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
 
     // 2. Save preferences into maker_preference
-    const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: string}> = [];
+    const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: number}> = [];
     
     // Create combinations of selected roles and selected locations
     selectedRoles.forEach((roleId) => {
