@@ -41,6 +41,9 @@ const WHVWorkPreferences: React.FC = () => {
     summary: false,
   });
 
+  // ==========================
+  // Load data
+  // ==========================
   useEffect(() => {
     const loadData = async () => {
       const {
@@ -48,7 +51,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Visa info
+      // 1. Get visa info
       const { data: visa } = await supabase
         .from("maker_visa")
         .select("stage_id, country_id, visa_stage(sub_class, label)")
@@ -58,7 +61,7 @@ const WHVWorkPreferences: React.FC = () => {
       if (!visa) return;
       setVisaLabel(visa.visa_stage.label);
 
-      // 2. Country name
+      // 2. Get country name
       const { data: country } = await supabase
         .from("country")
         .select("name")
@@ -66,30 +69,16 @@ const WHVWorkPreferences: React.FC = () => {
         .maybeSingle();
 
       // 3. Industries filtered by visa + stage + country
-      const { data: industryData, error: industryError } = await supabase
+      const { data: industryData } = await supabase
         .from("temp_eligibility")
-        .select("industry_id, industry_name, country_name")
+        .select("industry_id, industry_name")
         .eq("stage", visa.stage_id)
-        .eq("sub_class", visa.visa_stage.sub_class);
-
-      if (industryError) {
-        console.error("Industry fetch error:", industryError);
-      }
+        .eq("sub_class", visa.visa_stage.sub_class)
+        .eq("country_name", country?.name);
 
       if (industryData) {
-        console.log("Raw industries:", industryData);
-        
-        // Cast to bypass stale TypeScript types
-        const castedData = industryData as any[];
-
-        const filtered = castedData.filter(
-          (i: any) =>
-            i.country_name.trim().toLowerCase() ===
-            country?.name.trim().toLowerCase()
-        );
-
         setIndustries(
-          filtered.map((i: any) => ({
+          industryData.map((i) => ({
             id: Number(i.industry_id),
             name: i.industry_name,
           }))
@@ -100,7 +89,6 @@ const WHVWorkPreferences: React.FC = () => {
       const { data: roleData } = await supabase
         .from("industry_role")
         .select("industry_role_id, role, industry_id");
-
       if (roleData) {
         setRoles(
           roleData.map((r) => ({
@@ -115,7 +103,6 @@ const WHVWorkPreferences: React.FC = () => {
       const { data: regionData } = await supabase
         .from("region_rules")
         .select("state, area");
-
       if (regionData) {
         const uniqueRegions = regionData.filter(
           (r, idx, arr) =>
@@ -130,6 +117,9 @@ const WHVWorkPreferences: React.FC = () => {
     loadData();
   }, []);
 
+  // ==========================
+  // Handlers
+  // ==========================
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
@@ -192,6 +182,9 @@ const WHVWorkPreferences: React.FC = () => {
       .filter((a, i, arr) => a && arr.indexOf(a) === i);
   };
 
+  // ==========================
+  // Save preferences
+  // ==========================
   const handleContinue = async () => {
     const {
       data: { user },
@@ -200,23 +193,26 @@ const WHVWorkPreferences: React.FC = () => {
 
     const userId = user.id;
 
-    // 1. Save tagline
-    await supabase.from("whv_maker").update({ tagline }).eq("user_id", userId);
+    // 1. Save tagline → whv_maker
+    await supabase
+      .from("whv_maker")
+      .update({ tagline })
+      .eq("user_id", userId);
 
-    // 2. Clear existing preferences
+    // 2. Clear old preferences
     await supabase.from("maker_preference").delete().eq("user_id", userId);
 
-    // 3. Save preferences
+    // 3. Insert new preferences
     for (const industryId of selectedIndustries) {
       for (const roleId of selectedRoles) {
         for (const state of preferredStates) {
           for (const area of preferredAreas) {
             await supabase.from("maker_preference").insert({
               user_id: userId,
-              industry_id: industryId,
-              industry_role_id: roleId,
-              state: state as any,
-              area,
+              industry_id: industryId || null,
+              industry_role_id: roleId || null,
+              state: state as any, // must match ENUM
+              area: area,
             });
           }
         }
@@ -226,6 +222,9 @@ const WHVWorkPreferences: React.FC = () => {
     navigate("/whv/work-experience");
   };
 
+  // ==========================
+  // Render
+  // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -466,7 +465,6 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
-
 
 
 
