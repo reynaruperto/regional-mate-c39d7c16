@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,22 +17,38 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Schema validation
 const formSchema = z.object({
-  businessTagline: z.string().min(10).max(200),
-  yearsInBusiness: z.string().min(1),
-  employeeCount: z.string().min(1),
-  industryId: z.string().min(1),
-  jobTypes: z.array(z.string()).min(1),
-  payRange: z.string().min(1),
-  facilities: z.array(z.string()).min(1),
+  businessTagline: z.string().min(10, "At least 10 characters").max(200),
+  yearsInBusiness: z.string().min(1, "Required"),
+  employeeCount: z.string().min(1, "Required"),
+  industryId: z.string().min(1, "Required"),
+  payRange: z.string().min(1, "Required"),
+  jobTypes: z.array(z.string()).min(1, "Select at least one"),
+  facilities: z.array(z.string()).min(1, "Select at least one"),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
+interface Industry {
+  industry_id: number;
+  name: string;
+}
+interface JobType {
+  type_id: number;
+  type: string;
+}
+interface Facility {
+  facility_id: number;
+  name: string;
+}
+
 const EmployerAboutBusiness: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [jobTypesList, setJobTypesList] = useState<JobType[]>([]);
+  const [facilitiesList, setFacilitiesList] = useState<Facility[]>([]);
 
   const {
     register,
@@ -43,55 +59,32 @@ const EmployerAboutBusiness: React.FC = () => {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      jobTypes: [],
-      facilities: [],
-    },
+    defaultValues: { jobTypes: [], facilities: [] },
   });
 
   const watchedJobTypes = watch("jobTypes") || [];
   const watchedFacilities = watch("facilities") || [];
 
-  // ✅ Dropdown enums from Supabase
-  const yearsOptions = [
-    "<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"
-  ];
-  const employeeOptions = [
-    "1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"
-  ];
-  const payRanges = [
-    "$25–30/hour", "$30–35/hour", "$35–40/hour", "$40–45/hour", "$45+/hour"
-  ];
+  // Load dropdown data
+  useEffect(() => {
+    const loadData = async () => {
+      const { data: industriesData } = await supabase
+        .from("industry")
+        .select("industry_id, name");
+      setIndustries(industriesData || []);
 
-  // ✅ Replace with live query to `industry` table
-  const industries = [
-    { id: 1, name: "Plant & Animal Cultivation" },
-    { id: 2, name: "Natural Disaster Recovery" },
-    { id: 3, name: "Agriculture" },
-    { id: 4, name: "Health" },
-    { id: 5, name: "Aged & Disability Care" },
-    { id: 6, name: "Childcare" },
-    { id: 7, name: "Tourism & Hospitality" },
-    { id: 8, name: "Fishing & Pearling" },
-    { id: 9, name: "Tree Farming & Felling" },
-    { id: 10, name: "Construction" },
-    { id: 11, name: "Mining" },
-    { id: 12, name: "Bushfire Recovery" },
-  ];
+      const { data: jobTypeData } = await supabase
+        .from("job_type")
+        .select("type_id, type");
+      setJobTypesList(jobTypeData || []);
 
-  const facilitiesExtras = [
-    "Accommodation provided",
-    "Meals included",
-    "Transport provided",
-    "Training provided",
-    "Equipment provided",
-    "Flexible hours",
-    "Career progression",
-    "Team environment",
-    "Other",
-  ];
-
-  const jobTypes = ["Full-time", "Part-time", "Casual", "Seasonal", "Contract"];
+      const { data: facilityData } = await supabase
+        .from("facility")
+        .select("facility_id, name");
+      setFacilitiesList(facilityData || []);
+    };
+    loadData();
+  }, []);
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -100,42 +93,49 @@ const EmployerAboutBusiness: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not logged in");
 
-      // ✅ 1. Save employer core info
-      const { error: employerError } = await supabase.from("employer").upsert({
-        user_id: user.id,
-        tagline: data.businessTagline,
-        business_tenure: data.yearsInBusiness as any,
-        employee_count: data.employeeCount as any,
-        industry_id: parseInt(data.industryId, 10),
-        pay_range: data.payRange as any,
-        updated_at: new Date().toISOString(),
-      });
+      // 1. Update employer core info
+      const { error: employerError } = await supabase
+        .from("employer")
+        .update({
+          tagline: data.businessTagline,
+          business_tenure: data.yearsInBusiness as any,
+          employee_count: data.employeeCount as any,
+          industry_id: parseInt(data.industryId, 10),
+          pay_range: data.payRange as any,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
+
       if (employerError) throw employerError;
 
-      // ✅ 2. Save job types
+      // 2. Job types
       await supabase.from("employer_job_type").delete().eq("user_id", user.id);
-      if (data.jobTypes?.length) {
-        const jobTypeRows = data.jobTypes.map((jt) => ({
-          user_id: user.id,
-          job_type: jt,
-        }));
-        const { error: jtError } = await supabase
-          .from("employer_job_type")
-          .insert(jobTypeRows);
-        if (jtError) throw jtError;
+      if (data.jobTypes.length) {
+        const rows = jobTypesList
+          .filter((jt) => data.jobTypes.includes(jt.type))
+          .map((jt) => ({ user_id: user.id, type_id: jt.type_id }));
+
+        if (rows.length) {
+          const { error: jtError } = await supabase
+            .from("employer_job_type")
+            .insert(rows);
+          if (jtError) throw jtError;
+        }
       }
 
-      // ✅ 3. Save facilities
+      // 3. Facilities
       await supabase.from("employer_facility").delete().eq("user_id", user.id);
-      if (data.facilities?.length) {
-        const facilityRows = data.facilities.map((f) => ({
-          user_id: user.id,
-          facility: f,
-        }));
-        const { error: fError } = await supabase
-          .from("employer_facility")
-          .insert(facilityRows);
-        if (fError) throw fError;
+      if (data.facilities.length) {
+        const rows = facilitiesList
+          .filter((f) => data.facilities.includes(f.name))
+          .map((f) => ({ user_id: user.id, facility_id: f.facility_id }));
+
+        if (rows.length) {
+          const { error: fError } = await supabase
+            .from("employer_facility")
+            .insert(rows);
+          if (fError) throw fError;
+        }
       }
 
       toast({
@@ -157,7 +157,6 @@ const EmployerAboutBusiness: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-white">
@@ -211,11 +210,13 @@ const EmployerAboutBusiness: React.FC = () => {
                           <SelectValue placeholder="Select years" />
                         </SelectTrigger>
                         <SelectContent>
-                          {yearsOptions.map((opt) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                          {["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"].map(
+                            (opt) => (
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            )
+                          )}
                         </SelectContent>
                       </Select>
                     )}
@@ -234,11 +235,13 @@ const EmployerAboutBusiness: React.FC = () => {
                           <SelectValue placeholder="Select employees" />
                         </SelectTrigger>
                         <SelectContent>
-                          {employeeOptions.map((opt) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                          {["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"].map(
+                            (opt) => (
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            )
+                          )}
                         </SelectContent>
                       </Select>
                     )}
@@ -259,8 +262,8 @@ const EmployerAboutBusiness: React.FC = () => {
                         <SelectContent>
                           {industries.map((ind) => (
                             <SelectItem
-                              key={ind.id}
-                              value={ind.id.toString()}
+                              key={ind.industry_id}
+                              value={ind.industry_id.toString()}
                             >
                               {ind.name}
                             </SelectItem>
@@ -269,31 +272,6 @@ const EmployerAboutBusiness: React.FC = () => {
                       </Select>
                     )}
                   />
-                </div>
-
-                {/* Job Type */}
-                <div>
-                  <Label>Job Type *</Label>
-                  {jobTypes.map((type) => (
-                    <label key={type} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        value={type}
-                        checked={watchedJobTypes.includes(type)}
-                        onChange={(e) => {
-                          const current = watchedJobTypes;
-                          if (e.target.checked)
-                            setValue("jobTypes", [...current, type]);
-                          else
-                            setValue(
-                              "jobTypes",
-                              current.filter((a) => a !== type)
-                            );
-                        }}
-                      />
-                      <span>{type}</span>
-                    </label>
-                  ))}
                 </div>
 
                 {/* Pay */}
@@ -308,38 +286,65 @@ const EmployerAboutBusiness: React.FC = () => {
                           <SelectValue placeholder="Select pay" />
                         </SelectTrigger>
                         <SelectContent>
-                          {payRanges.map((range) => (
-                            <SelectItem key={range} value={range}>
-                              {range}
-                            </SelectItem>
-                          ))}
+                          {["$25–30/hour", "$30–35/hour", "$35–40/hour", "$40–45/hour", "$45+/hour"].map(
+                            (opt) => (
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            )
+                          )}
                         </SelectContent>
                       </Select>
                     )}
                   />
                 </div>
 
-                {/* Facilities */}
+                {/* Job Type */}
                 <div>
-                  <Label>Facilities & Extras *</Label>
-                  {facilitiesExtras.map((facility) => (
-                    <label key={facility} className="flex items-center space-x-2">
+                  <Label>Job Type *</Label>
+                  {jobTypesList.map((jt) => (
+                    <label key={jt.type_id} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
-                        value={facility}
-                        checked={watchedFacilities.includes(facility)}
+                        value={jt.type}
+                        checked={watchedJobTypes.includes(jt.type)}
                         onChange={(e) => {
-                          const current = watchedFacilities;
+                          const current = watchedJobTypes;
                           if (e.target.checked)
-                            setValue("facilities", [...current, facility]);
+                            setValue("jobTypes", [...current, jt.type]);
                           else
                             setValue(
-                              "facilities",
-                              current.filter((f) => f !== facility)
+                              "jobTypes",
+                              current.filter((x) => x !== jt.type)
                             );
                         }}
                       />
-                      <span>{facility}</span>
+                      <span>{jt.type}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Facilities */}
+                <div>
+                  <Label>Facilities & Extras *</Label>
+                  {facilitiesList.map((f) => (
+                    <label key={f.facility_id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        value={f.name}
+                        checked={watchedFacilities.includes(f.name)}
+                        onChange={(e) => {
+                          const current = watchedFacilities;
+                          if (e.target.checked)
+                            setValue("facilities", [...current, f.name]);
+                          else
+                            setValue(
+                              "facilities",
+                              current.filter((x) => x !== f.name)
+                            );
+                        }}
+                      />
+                      <span>{f.name}</span>
                     </label>
                   ))}
                 </div>
