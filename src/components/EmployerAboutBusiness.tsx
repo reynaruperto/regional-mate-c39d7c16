@@ -6,41 +6,19 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Enum options matching Supabase
-const yearsOptions = [
-  "<1", "1", "2", "3", "4", "5",
-  "6-10", "11-15", "16-20", "20+"
-] as const;
-
-const employeeOptions = [
-  "1", "2-5", "6-10", "11-20",
-  "21-50", "51-100", "100+"
-] as const;
-
-const payRanges = [
-  "$25-30/hour",
-  "$30-35/hour",
-  "$35-40/hour",
-  "$40-45/hour",
-  "$45+/hour"
-] as const;
+// ✅ Enum options
+const yearsOptions = ["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const;
+const employeeOptions = ["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const;
+const payRanges = ["$25-30/hour", "$30-35/hour", "$35-40/hour", "$40-45/hour", "$45+/hour"] as const;
 
 // ✅ Schema
 const formSchema = z.object({
-  businessTagline: z.string()
-    .min(10, "Please enter at least 10 characters")
-    .max(200, "Max 200 characters"),
+  businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
   yearsInBusiness: z.enum(yearsOptions),
   employeeCount: z.enum(employeeOptions),
   industryId: z.string().min(1, "Required"),
@@ -51,28 +29,13 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface Industry {
-  id: number;
-  name: string;
-}
-
-interface JobType {
-  id: number;
-  type: string;
-}
-
-interface Facility {
-  id: number;
-  name: string;
-}
-
 const EmployerAboutBusiness: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [industries, setIndustries] = useState<Industry[]>([]);
-  const [jobTypes, setJobTypes] = useState<JobType[]>([]);
-  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [jobTypes, setJobTypes] = useState<{ id: number; type: string }[]>([]);
+  const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
 
   const {
     register,
@@ -92,100 +55,68 @@ const EmployerAboutBusiness: React.FC = () => {
   const watchedJobTypes = watch("jobType") || [];
   const watchedFacilities = watch("facilitiesAndExtras") || [];
 
-  // ✅ Load industries, job types, and facilities from Supabase
+  // ✅ Load options from Supabase
   useEffect(() => {
-    const loadData = async () => {
-      const { data: industryData } = await supabase
-        .from("industry")
-        .select("industry_id, name");
-      if (industryData) {
-        setIndustries(industryData.map((i) => ({ id: i.industry_id, name: i.name })));
-      }
+    const loadOptions = async () => {
+      const { data: indData } = await supabase.from("industry").select("industry_id, name");
+      if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
 
-      const { data: jobTypeData } = await supabase
-        .from("job_type")
-        .select("type_id, type");
-      if (jobTypeData) {
-        setJobTypes(jobTypeData.map((j) => ({ id: j.type_id, type: j.type })));
-      }
+      const { data: jobData } = await supabase.from("job_type").select("type_id, type");
+      if (jobData) setJobTypes(jobData.map(j => ({ id: j.type_id, type: j.type })));
 
-      const { data: facilityData } = await supabase
-        .from("facility")
-        .select("facility_id, name");
-      if (facilityData) {
-        setFacilities(facilityData.map((f) => ({ id: f.facility_id, name: f.name })));
-      }
+      const { data: facData } = await supabase.from("facility").select("facility_id, name");
+      if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
     };
-
-    loadData();
+    loadOptions();
   }, []);
 
   const onSubmit = async (data: FormData) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      toast({ title: "Error", description: "Not logged in", variant: "destructive" });
-      return;
-    }
-
-    const userId = user.id;
-
     try {
-      // ✅ Update employer table
-      const { error: employerError } = await supabase
-        .from("employer")
-        .update({
-          tagline: data.businessTagline,
-          business_tenure: data.yearsInBusiness,
-          employee_count: data.employeeCount,
-          industry_id: parseInt(data.industryId),
-          pay_range: data.payRange,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not logged in");
 
-      if (employerError) throw employerError;
+      // ✅ Update employer
+      const { error: empError } = await supabase.from("employer").update({
+        tagline: data.businessTagline,
+        business_tenure: data.yearsInBusiness,
+        employee_count: data.employeeCount,
+        industry_id: Number(data.industryId),
+        pay_range: data.payRange,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", user.id);
 
-      // ✅ Save job types
-      if (jobTypes.length > 0) {
-        const jobTypeRows = data.jobType
-          .map((typeName) => {
-            const match = jobTypes.find((jt) => jt.type === typeName);
-            return match ? { user_id: userId, type_id: match.id } : null;
-          })
-          .filter(Boolean);
+      if (empError) throw empError;
+
+      // ✅ Insert job types
+      if (jobTypes.length) {
+        const selectedJobTypeIds = jobTypes.filter(j => watchedJobTypes.includes(j.type)).map(j => j.id);
+        const jobTypeRows = selectedJobTypeIds.map(id => ({ user_id: user.id, type_id: id }));
 
         if (jobTypeRows.length > 0) {
-          await supabase.from("employer_job_type").delete().eq("user_id", userId);
-          const { error: jtError } = await supabase.from("employer_job_type").insert(jobTypeRows as any[]);
-          if (jtError) throw jtError;
+          const { error: jobError } = await supabase.from("employer_job_type").insert(jobTypeRows);
+          if (jobError) throw jobError;
         }
       }
 
-      // ✅ Save facilities
-      if (facilities.length > 0) {
-        const facilityRows = data.facilitiesAndExtras
-          .map((facName) => {
-            const match = facilities.find((f) => f.name === facName);
-            return match ? { user_id: userId, facility_id: match.id } : null;
-          })
-          .filter(Boolean);
+      // ✅ Insert facilities
+      if (facilities.length) {
+        const selectedFacilityIds = facilities.filter(f => watchedFacilities.includes(f.name)).map(f => f.id);
+        const facilityRows = selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id }));
 
         if (facilityRows.length > 0) {
-          await supabase.from("employer_facility").delete().eq("user_id", userId);
-          const { error: facError } = await supabase.from("employer_facility").insert(facilityRows as any[]);
+          const { error: facError } = await supabase.from("employer_facility").insert(facilityRows);
           if (facError) throw facError;
         }
       }
 
-      toast({ title: "Success", description: "Business details saved!" });
+      toast({ title: "Business setup complete!", description: "Your employer profile has been updated successfully" });
       navigate("/employer/photo-upload");
     } catch (error: any) {
-      console.error("Save error:", error);
       toast({
-        title: "Error",
-        description: error.message || "Could not save business details",
+        title: "Error saving business info",
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -194,7 +125,10 @@ const EmployerAboutBusiness: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
           <div className="px-6 pt-16 pb-6">
             <Button
@@ -214,36 +148,26 @@ const EmployerAboutBusiness: React.FC = () => {
           </div>
 
           {/* Form */}
-          <div className="flex-1 overflow-y-auto px-6 pb-20">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 pb-24">
+            <form id="businessForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Tagline */}
               <div>
-                <Label>Business Tagline *</Label>
-                <Input
-                  placeholder="Quality produce, sustainable farming"
-                  {...register("businessTagline")}
-                  className="h-14 bg-gray-100 rounded-xl"
-                />
+                <Label>Business Tagline <span className="text-red-500">*</span></Label>
+                <Input placeholder="Quality produce, sustainable farming" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
                 {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
               </div>
 
-              {/* Years in Business */}
+              {/* Years */}
               <div>
-                <Label>Years in Business *</Label>
+                <Label>Years in Business <span className="text-red-500">*</span></Label>
                 <Controller
                   name="yearsInBusiness"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                        <SelectValue placeholder="Select years" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select years" /></SelectTrigger>
                       <SelectContent>
-                        {yearsOptions.map((opt) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
+                        {yearsOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
@@ -251,23 +175,17 @@ const EmployerAboutBusiness: React.FC = () => {
                 {errors.yearsInBusiness && <p className="text-red-500 text-sm">{errors.yearsInBusiness.message}</p>}
               </div>
 
-              {/* Employee Count */}
+              {/* Employees */}
               <div>
-                <Label>Employees *</Label>
+                <Label>Employees <span className="text-red-500">*</span></Label>
                 <Controller
                   name="employeeCount"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                        <SelectValue placeholder="Select employees" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select employees" /></SelectTrigger>
                       <SelectContent>
-                        {employeeOptions.map((opt) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
+                        {employeeOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
@@ -277,21 +195,15 @@ const EmployerAboutBusiness: React.FC = () => {
 
               {/* Industry */}
               <div>
-                <Label>Industry *</Label>
+                <Label>Industry <span className="text-red-500">*</span></Label>
                 <Controller
                   name="industryId"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                        <SelectValue placeholder="Select industry" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select industry" /></SelectTrigger>
                       <SelectContent>
-                        {industries.map((ind) => (
-                          <SelectItem key={ind.id} value={ind.id.toString()}>
-                            {ind.name}
-                          </SelectItem>
-                        ))}
+                        {industries.map(ind => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
@@ -301,20 +213,20 @@ const EmployerAboutBusiness: React.FC = () => {
 
               {/* Job Types */}
               <div>
-                <Label>Job Type *</Label>
-                {jobTypes.map((jt) => (
-                  <label key={jt.id} className="flex items-center space-x-2 mt-2">
+                <Label>Job Type <span className="text-red-500">*</span></Label>
+                {jobTypes.map(j => (
+                  <label key={j.id} className="flex items-center space-x-2 mt-2">
                     <input
                       type="checkbox"
-                      value={jt.type}
-                      checked={watchedJobTypes.includes(jt.type)}
-                      onChange={(e) => {
+                      value={j.type}
+                      checked={watchedJobTypes.includes(j.type)}
+                      onChange={e => {
                         const current = watchedJobTypes;
-                        if (e.target.checked) setValue("jobType", [...current, jt.type]);
-                        else setValue("jobType", current.filter((a) => a !== jt.type));
+                        if (e.target.checked) setValue("jobType", [...current, j.type]);
+                        else setValue("jobType", current.filter(a => a !== j.type));
                       }}
                     />
-                    <span>{jt.type}</span>
+                    <span>{j.type}</span>
                   </label>
                 ))}
                 {errors.jobType && <p className="text-red-500 text-sm">{errors.jobType.message}</p>}
@@ -322,21 +234,15 @@ const EmployerAboutBusiness: React.FC = () => {
 
               {/* Pay Range */}
               <div>
-                <Label>Pay Range *</Label>
+                <Label>Pay Range <span className="text-red-500">*</span></Label>
                 <Controller
                   name="payRange"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                        <SelectValue placeholder="Select pay" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select pay" /></SelectTrigger>
                       <SelectContent>
-                        {payRanges.map((range) => (
-                          <SelectItem key={range} value={range}>
-                            {range}
-                          </SelectItem>
-                        ))}
+                        {payRanges.map(range => <SelectItem key={range} value={range}>{range}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
@@ -346,34 +252,32 @@ const EmployerAboutBusiness: React.FC = () => {
 
               {/* Facilities */}
               <div>
-                <Label>Facilities & Extras *</Label>
-                {facilities.map((fac) => (
-                  <label key={fac.id} className="flex items-center space-x-2 mt-2">
+                <Label>Facilities & Extras <span className="text-red-500">*</span></Label>
+                {facilities.map(f => (
+                  <label key={f.id} className="flex items-center space-x-2 mt-2">
                     <input
                       type="checkbox"
-                      value={fac.name}
-                      checked={watchedFacilities.includes(fac.name)}
-                      onChange={(e) => {
+                      value={f.name}
+                      checked={watchedFacilities.includes(f.name)}
+                      onChange={e => {
                         const current = watchedFacilities;
-                        if (e.target.checked) setValue("facilitiesAndExtras", [...current, fac.name]);
-                        else setValue("facilitiesAndExtras", current.filter((x) => x !== fac.name));
+                        if (e.target.checked) setValue("facilitiesAndExtras", [...current, f.name]);
+                        else setValue("facilitiesAndExtras", current.filter(x => x !== f.name));
                       }}
                     />
-                    <span>{fac.name}</span>
+                    <span>{f.name}</span>
                   </label>
                 ))}
-                {errors.facilitiesAndExtras && (
-                  <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>
-                )}
-              </div>
-
-              {/* Continue */}
-              <div className="pt-8">
-                <Button type="submit" className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white">
-                  Continue
-                </Button>
+                {errors.facilitiesAndExtras && <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>}
               </div>
             </form>
+          </div>
+
+          {/* ✅ Fixed footer */}
+          <div className="px-6 py-4 border-t bg-white">
+            <Button type="submit" form="businessForm" className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white">
+              Continue
+            </Button>
           </div>
         </div>
       </div>
