@@ -30,7 +30,7 @@ interface Industry {
 }
 
 const jobTypes = ["Full-time", "Part-time", "Casual", "Seasonal", "Contract"];
-const payRanges = ["$25–30/hour", "$30–35/hour", "$35–40/hour", "$40–45/hour", "$45+/hour"];
+const payRanges = ["$25-30/hour", "$30-35/hour", "$35-40/hour", "$40-45/hour", "$45+/hour"];
 const facilitiesExtras = [
   "Accommodation provided", "Meals included", "Transport provided",
   "Training provided", "Equipment provided", "Flexible hours",
