@@ -25,13 +25,13 @@ interface License {
 
 interface WorkExperience {
   id: string;
-  industry: string;
+  industryId: number | null;
   position: string;
   company: string;
   location: string;
-  description: string;
   startDate: string;
   endDate: string;
+  description: string;
 }
 
 interface JobReference {
@@ -47,19 +47,21 @@ const WHVWorkExperience: React.FC = () => {
   const navigate = useNavigate();
 
   const [industries, setIndustries] = useState<Industry[]>([]);
-  const [licenses, setLicenses] = useState<License[]>([]);
+  const [allLicenses, setAllLicenses] = useState<License[]>([]);
 
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
-  const [selectedLicenses, setSelectedLicenses] = useState<number[]>([]);
+  const [licenses, setLicenses] = useState<number[]>([]); // store license_id instead of name
   const [otherLicense, setOtherLicense] = useState("");
 
+  // ==========================
+  // Load industries + licenses
+  // ==========================
   useEffect(() => {
-    const fetchData = async () => {
+    const loadData = async () => {
       const { data: industryData } = await supabase
         .from("industry")
         .select("industry_id, name");
-
       if (industryData) {
         setIndustries(
           industryData.map((i) => ({ id: i.industry_id, name: i.name }))
@@ -69,19 +71,17 @@ const WHVWorkExperience: React.FC = () => {
       const { data: licenseData } = await supabase
         .from("license")
         .select("license_id, name");
-
       if (licenseData) {
-        setLicenses(
+        setAllLicenses(
           licenseData.map((l) => ({ id: l.license_id, name: l.name }))
         );
       }
     };
-
-    fetchData();
+    loadData();
   }, []);
 
   // ==========================
-  // Work Experience Handlers
+  // Work Experience handlers
   // ==========================
   const addWorkExperience = () => {
     if (workExperiences.length < 8) {
@@ -89,13 +89,13 @@ const WHVWorkExperience: React.FC = () => {
         ...workExperiences,
         {
           id: Date.now().toString(),
-          industry: "",
+          industryId: null,
           position: "",
           company: "",
           location: "",
-          description: "",
           startDate: "",
           endDate: "",
+          description: "",
         },
       ]);
     }
@@ -104,7 +104,7 @@ const WHVWorkExperience: React.FC = () => {
   const updateWorkExperience = (
     id: string,
     field: keyof WorkExperience,
-    value: string
+    value: any
   ) => {
     setWorkExperiences(
       workExperiences.map((exp) =>
@@ -118,7 +118,7 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   // ==========================
-  // Job References Handlers
+  // Job Reference handlers
   // ==========================
   const addJobReference = () => {
     if (jobReferences.length < 5) {
@@ -153,18 +153,18 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   // ==========================
-  // License Handlers
+  // License handlers
   // ==========================
-  const toggleLicense = (id: number) => {
-    if (selectedLicenses.includes(id)) {
-      setSelectedLicenses(selectedLicenses.filter((l) => l !== id));
+  const toggleLicense = (licenseId: number) => {
+    if (licenses.includes(licenseId)) {
+      setLicenses(licenses.filter((l) => l !== licenseId));
     } else {
-      setSelectedLicenses([...selectedLicenses, id]);
+      setLicenses([...licenses, licenseId]);
     }
   };
 
   // ==========================
-  // Save to Supabase
+  // Submit handler
   // ==========================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,57 +172,71 @@ const WHVWorkExperience: React.FC = () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
 
-    try {
-      // 1. Save work experiences
-      if (workExperiences.length > 0) {
-        const workRows = workExperiences.map((exp) => ({
-          user_id: user.id,
-          industry_id: industries.find((i) => i.name === exp.industry)?.id || null,
-          position: exp.position,
-          company: exp.company,
-          location: exp.location,
-          job_description: exp.description,
-          start_date: exp.startDate,
-          end_date: exp.endDate,
-        }));
-
-        await supabase.from("maker_work_experience").insert(workRows);
-      }
-
-      // 2. Save job references
-      if (jobReferences.length > 0) {
-        const refRows = jobReferences.map((ref) => ({
-          user_id: user.id,
-          name: ref.name,
-          business_name: ref.businessName,
-          email: ref.email,
-          mobile_num: ref.phone,
-          role: ref.role,
-        }));
-
-        await supabase.from("maker_reference").insert(refRows);
-      }
-
-      // 3. Save licenses
-      if (selectedLicenses.length > 0) {
-        const rows = selectedLicenses.map((id) => {
-          const licenseName = licenses.find((l) => l.id === id)?.name;
-          return {
-            user_id: user.id,
-            license_id: id,
-            other: licenseName === "Other" ? otherLicense : null,
-          };
-        });
-
-        await supabase.from("maker_license").insert(rows);
-      }
-
-      navigate("/whv/photo-upload");
-    } catch (err) {
-      console.error("Error saving work experience:", err);
+    if (!user) {
+      console.error("Not logged in");
+      return;
     }
+
+    const userId = user.id;
+
+    // 1. Save work experiences
+    if (workExperiences.length > 0) {
+      const workRows = workExperiences.map((exp) => ({
+        user_id: userId,
+        company: exp.company || null,
+        position: exp.position || null,
+        start_date: exp.startDate || null,
+        end_date: exp.endDate || null,
+        location: exp.location || null,
+        industry_id: exp.industryId ?? null,
+        job_description: exp.description || null,
+      }));
+
+      const { error: expError } = await supabase
+        .from("maker_work_experience")
+        .insert(workRows);
+
+      if (expError) console.error("Error saving work experiences:", expError);
+    }
+
+    // 2. Save job references
+    if (jobReferences.length > 0) {
+      const refRows = jobReferences.map((ref) => ({
+        user_id: userId,
+        name: ref.name || null,
+        business_name: ref.businessName || null,
+        email: ref.email || null,
+        mobile_num: ref.phone || null,
+        role: ref.role || null,
+      }));
+
+      const { error: refError } = await supabase
+        .from("maker_reference")
+        .insert(refRows);
+
+      if (refError) console.error("Error saving job references:", refError);
+    }
+
+    // 3. Save licenses (upsert)
+    if (licenses.length > 0) {
+      const licRows = licenses.map((licenseId) => ({
+        user_id: userId,
+        license_id: licenseId,
+        other:
+          allLicenses.find((l) => l.id === licenseId)?.name === "Other"
+            ? otherLicense
+            : null,
+      }));
+
+      const { error: licError } = await supabase
+        .from("maker_license")
+        .upsert(licRows as any, { onConflict: "user_id,license_id" });
+
+      if (licError) console.error("Error saving licenses:", licError);
+    }
+
+    navigate("/whv/photo-upload");
   };
 
   // ==========================
@@ -253,7 +267,7 @@ const WHVWorkExperience: React.FC = () => {
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-10">
             <form onSubmit={handleSubmit} className="space-y-10 pb-20">
-              {/* Work Experience Section */}
+              {/* Work Experience */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -294,9 +308,9 @@ const WHVWorkExperience: React.FC = () => {
                         Industry <span className="text-red-500">*</span>
                       </Label>
                       <Select
-                        value={exp.industry}
+                        value={exp.industryId ? String(exp.industryId) : ""}
                         onValueChange={(value) =>
-                          updateWorkExperience(exp.id, "industry", value)
+                          updateWorkExperience(exp.id, "industryId", Number(value))
                         }
                       >
                         <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
@@ -304,7 +318,7 @@ const WHVWorkExperience: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {industries.map((ind) => (
-                            <SelectItem key={ind.id} value={ind.name}>
+                            <SelectItem key={ind.id} value={String(ind.id)}>
                               {ind.name}
                             </SelectItem>
                           ))}
@@ -312,62 +326,67 @@ const WHVWorkExperience: React.FC = () => {
                       </Select>
                     </div>
 
-                    {/* Position, Company, Location */}
+                    {/* Position */}
                     <Input
                       type="text"
-                      placeholder="Position"
                       value={exp.position}
                       onChange={(e) =>
                         updateWorkExperience(exp.id, "position", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Position"
                     />
+
+                    {/* Company */}
                     <Input
                       type="text"
-                      placeholder="Company"
                       value={exp.company}
                       onChange={(e) =>
                         updateWorkExperience(exp.id, "company", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Company"
                     />
+
+                    {/* Location */}
                     <Input
                       type="text"
-                      placeholder="Location"
                       value={exp.location}
                       onChange={(e) =>
                         updateWorkExperience(exp.id, "location", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Location"
                     />
 
                     {/* Description */}
-                    <Input
-                      type="text"
-                      placeholder="Job Description (max 100 chars)"
+                    <textarea
                       value={exp.description}
-                      maxLength={100}
                       onChange={(e) =>
                         updateWorkExperience(exp.id, "description", e.target.value)
                       }
+                      className="w-full bg-gray-100 border-0 text-sm p-2 rounded"
+                      placeholder="Describe your responsibilities (max 100 chars)"
+                      maxLength={100}
                     />
 
                     {/* Dates */}
                     <div className="grid grid-cols-2 gap-4">
                       <Input
-                        type="text"
-                        placeholder="Start Date (MM/YYYY)"
+                        type="date"
                         value={exp.startDate}
-                        maxLength={7}
                         onChange={(e) =>
                           updateWorkExperience(exp.id, "startDate", e.target.value)
                         }
+                        className="h-10 bg-gray-100 border-0 text-sm"
                       />
                       <Input
-                        type="text"
-                        placeholder="End Date (MM/YYYY)"
+                        type="date"
                         value={exp.endDate}
-                        maxLength={7}
                         onChange={(e) =>
                           updateWorkExperience(exp.id, "endDate", e.target.value)
                         }
+                        className="h-10 bg-gray-100 border-0 text-sm"
                       />
                     </div>
                   </div>
@@ -380,27 +399,32 @@ const WHVWorkExperience: React.FC = () => {
                   Licenses & Tickets
                 </h2>
                 <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-100 rounded-lg p-3">
-                  {licenses.map((l) => (
-                    <div key={l.id} className="flex items-center gap-3">
+                  {allLicenses.map((license) => (
+                    <div key={license.id} className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={selectedLicenses.includes(l.id)}
-                        onChange={() => toggleLicense(l.id)}
+                        id={`license-${license.id}`}
+                        checked={licenses.includes(license.id)}
+                        onChange={() => toggleLicense(license.id)}
+                        className="w-4 h-4 text-orange-500 border-gray-300 rounded"
                       />
-                      <Label className="text-sm">{l.name}</Label>
+                      <Label
+                        htmlFor={`license-${license.id}`}
+                        className="text-sm text-gray-700 cursor-pointer"
+                      >
+                        {license.name}
+                      </Label>
                     </div>
                   ))}
                 </div>
-
-                {/* Other license text */}
-                {selectedLicenses.some(
-                  (id) => licenses.find((l) => l.id === id)?.name === "Other"
+                {licenses.some(
+                  (id) => allLicenses.find((l) => l.id === id)?.name === "Other"
                 ) && (
                   <Input
                     type="text"
                     value={otherLicense}
-                    maxLength={100}
                     onChange={(e) => setOtherLicense(e.target.value)}
+                    className="h-10 bg-gray-100 border-0 text-sm mt-2"
                     placeholder="Specify other license"
                   />
                 )}
@@ -408,57 +432,81 @@ const WHVWorkExperience: React.FC = () => {
 
               {/* Job References */}
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Job References
-                </h2>
-                <Button
-                  type="button"
-                  onClick={addJobReference}
-                  disabled={jobReferences.length >= 5}
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add
-                </Button>
-
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Job References
+                  </h2>
+                  <Button
+                    type="button"
+                    onClick={addJobReference}
+                    disabled={jobReferences.length >= 5}
+                    className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 py-2 text-sm"
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Add
+                  </Button>
+                </div>
                 {jobReferences.map((ref, index) => (
                   <div
                     key={ref.id}
-                    className="border border-gray-200 rounded-lg p-4 space-y-2"
+                    className="border border-gray-200 rounded-lg p-4 space-y-4"
                   >
-                    <h3 className="font-medium">Reference {index + 1}</h3>
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-medium text-gray-800">
+                        Reference {index + 1}
+                      </h3>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => removeJobReference(ref.id)}
+                        className="text-red-500"
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
                     <Input
-                      placeholder="Name"
+                      type="text"
                       value={ref.name}
                       onChange={(e) =>
                         updateJobReference(ref.id, "name", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Name"
                     />
                     <Input
-                      placeholder="Business Name"
+                      type="text"
                       value={ref.businessName}
                       onChange={(e) =>
                         updateJobReference(ref.id, "businessName", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Business Name"
                     />
                     <Input
-                      placeholder="Email"
+                      type="email"
                       value={ref.email}
                       onChange={(e) =>
                         updateJobReference(ref.id, "email", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Email"
                     />
                     <Input
-                      placeholder="Phone"
+                      type="text"
                       value={ref.phone}
                       onChange={(e) =>
                         updateJobReference(ref.id, "phone", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Phone Number"
                     />
                     <Input
-                      placeholder="Role"
+                      type="text"
                       value={ref.role}
                       onChange={(e) =>
                         updateJobReference(ref.id, "role", e.target.value)
                       }
+                      className="h-10 bg-gray-100 border-0 text-sm"
+                      placeholder="Role"
                     />
                   </div>
                 ))}
@@ -466,7 +514,10 @@ const WHVWorkExperience: React.FC = () => {
 
               {/* Continue */}
               <div className="pt-10 pb-6">
-                <Button type="submit" className="w-full h-14 bg-orange-500 text-white">
+                <Button
+                  type="submit"
+                  className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
+                >
                   Continue →
                 </Button>
               </div>
@@ -479,4 +530,5 @@ const WHVWorkExperience: React.FC = () => {
 };
 
 export default WHVWorkExperience;
+
 
