@@ -1,201 +1,92 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, X, Check } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// ✅ Eligible countries
-const countries417 = [
-  "Belgium","Canada","Republic of Cyprus","Denmark","Estonia","Finland","France","Germany","Hong Kong","Ireland",
-  "Italy","Japan","Republic of Korea","Malta","Netherlands","Norway","Sweden","Taiwan","United Kingdom",
-];
-const countries462 = [
-  "Argentina","Austria","Brazil","Chile","China","Czech Republic","Ecuador","Greece","Hungary","India","Indonesia",
-  "Israel","Luxembourg","Malaysia","Mongolia","Papua New Guinea","Peru","Poland","Portugal","San Marino","Singapore",
-  "Slovak Republic","Slovenia","Spain","Switzerland","Thailand","Türkiye","United States of America","Uruguay","Vietnam",
-];
+// Import your existing form sections
+// For now they’re placeholders — you can split your current form into these 3 components.
+const PersonalInfoForm = ({ state, setState }: any) => (
+  <div>
+    <h2 className="text-xl font-semibold mb-4">Visa & Personal Info</h2>
+    {/* Example inputs — replace with your actual fields */}
+    <p className="text-gray-600 text-sm">Nationality (read-only): {state.nationality}</p>
+    <p className="text-gray-600 text-sm">DOB (read-only): {state.dob}</p>
+    <input
+      value={state.visaExpiryDate}
+      onChange={(e) => setState({ ...state, visaExpiryDate: e.target.value })}
+      placeholder="Visa Expiry"
+      className="border rounded w-full p-2"
+    />
+    <input
+      value={state.phoneNumber}
+      onChange={(e) => setState({ ...state, phoneNumber: e.target.value })}
+      placeholder="Phone"
+      className="border rounded w-full p-2 mt-2"
+    />
+  </div>
+);
 
-const getVisaOptions = (nationality: string) => {
-  if (countries417.includes(nationality)) {
-    return ["417 (Working Holiday Visa)", "417 Second Year Extension", "417 Third Year Extension"];
-  }
-  if (countries462.includes(nationality)) {
-    return ["462 (Work and Holiday Visa)", "462 Second Year Extension", "462 Third Year Extension"];
-  }
-  return [];
-};
+const PreferencesForm = ({ state, setState }: any) => (
+  <div>
+    <h2 className="text-xl font-semibold mb-4">Work & Location Preferences</h2>
+    <textarea
+      value={state.tagline}
+      onChange={(e) => setState({ ...state, tagline: e.target.value })}
+      placeholder="Tagline"
+      className="border rounded w-full p-2"
+    />
+    {/* Add industries, roles, state, area inputs here */}
+  </div>
+);
 
-// ✅ WHV industries
-const industries = [
-  "Plant & Animal Cultivation",
-  "Fishing & Pearling",
-  "Tree Farming & Forestry",
-  "Mining",
-  "Construction",
-  "Bushfire Recovery",
-  "Tourism & Hospitality",
-  "Aged & Disability Care",
-  "Childcare",
-  "Health",
-];
-
-// ✅ Roles by industry
-const industryRoles: Record<string, string[]> = {
-  "Plant & Animal Cultivation": [
-    "Fruit Picker","Farm Hand","Packer","Crop Harvester","Irrigation Worker",
-  ],
-  "Fishing & Pearling": ["Deckhand","Aquaculture Worker","Diver"],
-  "Tree Farming & Forestry": ["Tree Planter","Chainsaw Operator","Forest Worker"],
-  Mining: ["Driller","Truck Operator","Plant Operator","Trades Assistant"],
-  Construction: ["Construction Labourer","Carpenter","Plumber","Electrician","Painter"],
-  "Bushfire Recovery": ["Rebuilding fences","Demolition","Land clearing","Wildlife care","Construction repairs"],
-  "Tourism & Hospitality": ["Bartender","Waitstaff","Chef / Cook","Housekeeper","Tour Guide"],
-  "Aged & Disability Care": ["Personal Care Worker","Support Worker","Nurse Assistant"],
-  Childcare: ["Daycare Staff","Nanny/Au Pair","Out-of-School Care"],
-  Health: ["Nurse","Doctor","Hospital Cleaner","Allied Health Assistant"],
-};
-
-// ✅ Licenses
-const licenseOptions = [
-  "Driver's License",
-  "Forklift License",
-  "White Card (Construction)",
-  "RSA (Responsible Service of Alcohol)",
-  "First Aid Certificate",
-  "Heavy Vehicle License",
-  "Other",
-];
-
-const australianStates = [
-  "Australian Capital Territory","New South Wales","Northern Territory","Queensland",
-  "South Australia","Tasmania","Victoria","Western Australia",
-];
-
-// Interfaces
-interface WorkExperience {
-  id: string;
-  industry: string;
-  position: string;
-  company: string;
-  location: string;
-  startDate: string;
-  endDate: string;
-}
-interface JobReference {
-  id: string;
-  name: string;
-  businessName: string;
-  email: string;
-  phone: string;
-  role: string;
-}
+const ExperienceLicensesForm = ({ state, setState }: any) => (
+  <div>
+    <h2 className="text-xl font-semibold mb-4">Work Experience + Licenses & References</h2>
+    {/* Map over workExperiences */}
+    {state.workExperiences.map((exp: any) => (
+      <div key={exp.id} className="border p-2 rounded mb-2">
+        <input
+          value={exp.company}
+          onChange={(e) =>
+            setState({
+              ...state,
+              workExperiences: state.workExperiences.map((w: any) =>
+                w.id === exp.id ? { ...w, company: e.target.value } : w
+              ),
+            })
+          }
+          placeholder="Company"
+          className="border rounded w-full p-2"
+        />
+      </div>
+    ))}
+    {/* Licenses + References sections go here */}
+  </div>
+);
 
 const WHVEditProfile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Personal info
-  const [dob, setDob] = useState("15/03/1995");
-  const [nationality, setNationality] = useState("Argentina");
-  const [visaType, setVisaType] = useState("462 (Work and Holiday Visa)");
-  const [visaExpiryDate, setVisaExpiryDate] = useState("01/01/2026");
-  const [phoneNumber, setPhoneNumber] = useState("0492333444");
-
-  // Address
-  const [address, setAddress] = useState({
-    addressLine1: "22 Valley St.",
-    addressLine2: "",
-    suburb: "Spring Hill",
-    city: "Brisbane",
-    state: "Queensland",
-    postCode: "4000",
+  // Centralized state (later fetch from Supabase)
+  const [formState, setFormState] = useState({
+    dob: "15/03/1995",
+    nationality: "Argentina",
+    visaType: "462 (Work and Holiday Visa)",
+    visaExpiryDate: "01/01/2026",
+    phoneNumber: "0492333444",
+    tagline: "Enthusiastic farm worker from Argentina seeking agricultural opportunities",
+    workExperiences: [{ id: "1", company: "Farm Co." }],
+    licenses: ["RSA"],
+    references: [],
   });
 
-  // Work preferences
-  const [tagline, setTagline] = useState(
-    "Enthusiastic farm worker from Argentina seeking agricultural opportunities"
-  );
-  const [selectedIndustries, setSelectedIndustries] = useState<string[]>(["Plant & Animal Cultivation"]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(["Fruit Picker"]);
-  const [preferredState, setPreferredState] = useState("Queensland");
-  const [preferredCity, setPreferredCity] = useState("Brisbane");
-
-  // Licenses
-  const [licenses, setLicenses] = useState<string[]>(["RSA (Responsible Service of Alcohol)"]);
-  const [otherLicense, setOtherLicense] = useState("");
-
-  // Work experiences & references
-  const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
-  const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
-
-  // Handlers
-  const toggleIndustry = (industry: string) => {
-    if (selectedIndustries.includes(industry)) {
-      setSelectedIndustries(selectedIndustries.filter((i) => i !== industry));
-      setSelectedRoles(selectedRoles.filter((r) => !industryRoles[industry]?.includes(r)));
-    } else if (selectedIndustries.length < 3) {
-      setSelectedIndustries([...selectedIndustries, industry]);
-    }
-  };
-  const toggleRole = (role: string) => {
-    if (selectedRoles.includes(role)) {
-      setSelectedRoles(selectedRoles.filter((r) => r !== role));
-    } else {
-      setSelectedRoles([...selectedRoles, role]);
-    }
-  };
-  const toggleLicense = (license: string) => {
-    setLicenses(
-      licenses.includes(license)
-        ? licenses.filter((l) => l !== license)
-        : [...licenses, license]
-    );
-  };
-
-  const addWorkExperience = () => {
-    setWorkExperiences([
-      ...workExperiences,
-      { id: Date.now().toString(), industry: "", position: "", company: "", location: "", startDate: "", endDate: "" },
-    ]);
-  };
-  const updateWorkExperience = (id: string, field: keyof WorkExperience, value: string) => {
-    setWorkExperiences(workExperiences.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp)));
-  };
-  const removeWorkExperience = (id: string) => {
-    setWorkExperiences(workExperiences.filter((exp) => exp.id !== id));
-  };
-
-  const addJobReference = () => {
-    setJobReferences([
-      ...jobReferences,
-      { id: Date.now().toString(), name: "", businessName: "", email: "", phone: "", role: "" },
-    ]);
-  };
-  const updateJobReference = (id: string, field: keyof JobReference, value: string) => {
-    setJobReferences(jobReferences.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref)));
-  };
-  const removeJobReference = (id: string) => {
-    setJobReferences(jobReferences.filter((ref) => ref.id !== id));
-  };
+  const [step, setStep] = useState(1);
 
   const handleSave = () => {
-    console.log("Profile data saved:", {
-      dob,nationality,visaType,visaExpiryDate,phoneNumber,address,
-      tagline,selectedIndustries,selectedRoles,preferredState,preferredCity,
-      licenses,otherLicense,workExperiences,jobReferences,
-    });
-    toast({ title: "Profile Updated", description: "Your WHV profile has been successfully updated" });
-    navigate("/whv/dashboard");
+    console.log("Saved step", step, formState);
+    toast({ title: "Saved", description: `Step ${step} updated.` });
   };
 
   return (
@@ -208,172 +99,59 @@ const WHVEditProfile: React.FC = () => {
 
           {/* Header */}
           <div className="px-4 py-3 border-b flex-shrink-0 flex justify-between items-center">
-            <button onClick={() => navigate("/whv/dashboard")} className="text-orange-500 font-medium underline">
+            <button
+              onClick={() => navigate("/whv/dashboard")}
+              className="text-orange-500 font-medium underline"
+            >
               Cancel
             </button>
             <h1 className="text-lg font-medium text-gray-900">Edit Profile</h1>
-            <button onClick={handleSave} className="flex items-center text-orange-500 font-medium underline">
+            <button
+              onClick={handleSave}
+              className="flex items-center text-orange-500 font-medium underline"
+            >
               <Check size={16} className="mr-1" /> Save
             </button>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8">
-            
-            {/* Personal Info */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Personal Information</h2>
-              <Input value={dob} onChange={(e) => setDob(e.target.value)} placeholder="DD/MM/YYYY" />
-              <Select value={nationality} onValueChange={setNationality}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[...countries417, ...countries462].map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={visaType} onValueChange={setVisaType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {getVisaOptions(nationality).map((v) => (
-                    <SelectItem key={v} value={v}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input value={visaExpiryDate} onChange={(e) => setVisaExpiryDate(e.target.value)} placeholder="DD/MM/YYYY" />
-              <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="04xxxxxxxx" />
-              <Input value={address.addressLine1} onChange={(e) => setAddress({ ...address, addressLine1: e.target.value })} placeholder="Address Line 1" />
-              <Input value={address.addressLine2} onChange={(e) => setAddress({ ...address, addressLine2: e.target.value })} placeholder="Address Line 2" />
-              <Input value={address.suburb} onChange={(e) => setAddress({ ...address, suburb: e.target.value })} placeholder="Suburb" />
-              <Input value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} placeholder="City" />
-              <Select value={address.state} onValueChange={(value) => setAddress({ ...address, state: value })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {australianStates.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input value={address.postCode} onChange={(e) => setAddress({ ...address, postCode: e.target.value })} placeholder="Postcode" />
-            </div>
+          <div className="flex-1 overflow-y-auto px-4 py-6">
+            {step === 1 && <PersonalInfoForm state={formState} setState={setFormState} />}
+            {step === 2 && <PreferencesForm state={formState} setState={setFormState} />}
+            {step === 3 && <ExperienceLicensesForm state={formState} setState={setFormState} />}
+          </div>
 
-            {/* Work Preferences */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Work Preferences</h2>
-              <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={60} />
-              <div className="flex flex-wrap gap-2">
-                {industries.map((ind) => (
-                  <button
-                    key={ind}
-                    type="button"
-                    onClick={() => toggleIndustry(ind)}
-                    className={`px-3 py-1 rounded-full text-sm border ${
-                      selectedIndustries.includes(ind) ? "bg-orange-500 text-white" : "bg-gray-100"
-                    }`}
-                  >
-                    {ind}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedIndustries.flatMap((i) => industryRoles[i]).map((role) => (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => toggleRole(role)}
-                    className={`px-2.5 py-1 text-xs rounded-full border ${
-                      selectedRoles.includes(role) ? "bg-orange-500 text-white" : "bg-gray-100"
-                    }`}
-                  >
-                    {role}
-                  </button>
-                ))}
-              </div>
-              <Select value={preferredState} onValueChange={setPreferredState}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {australianStates.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input value={preferredCity} onChange={(e) => setPreferredCity(e.target.value)} placeholder="City/Suburb" />
-            </div>
-
-            {/* Licenses */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Licenses & Tickets</h2>
-              {licenseOptions.map((l) => (
-                <div key={l} className="flex items-center gap-2">
-                  <input type="checkbox" checked={licenses.includes(l)} onChange={() => toggleLicense(l)} />
-                  <span>{l}</span>
-                </div>
-              ))}
-              {licenses.includes("Other") && (
-                <Input value={otherLicense} onChange={(e) => setOtherLicense(e.target.value)} placeholder="Other license" />
-              )}
-            </div>
-
-            {/* Work Experience */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Work Experience</h2>
-                <Button type="button" onClick={addWorkExperience} className="bg-orange-500 text-white">
-                  <Plus size={16} className="mr-1" /> Add
-                </Button>
-              </div>
-              {workExperiences.map((exp, i) => (
-                <div key={exp.id} className="border p-3 rounded-lg space-y-2">
-                  <Input value={exp.industry} onChange={(e) => updateWorkExperience(exp.id, "industry", e.target.value)} placeholder="Industry" />
-                  <Input value={exp.position} onChange={(e) => updateWorkExperience(exp.id, "position", e.target.value)} placeholder="Position" />
-                  <Input value={exp.company} onChange={(e) => updateWorkExperience(exp.id, "company", e.target.value)} placeholder="Company" />
-                  <Input value={exp.location} onChange={(e) => updateWorkExperience(exp.id, "location", e.target.value)} placeholder="Location" />
-                  <div className="flex gap-2">
-                    <Input value={exp.startDate} onChange={(e) => updateWorkExperience(exp.id, "startDate", e.target.value)} placeholder="Start MM/YYYY" />
-                    <Input value={exp.endDate} onChange={(e) => updateWorkExperience(exp.id, "endDate", e.target.value)} placeholder="End MM/YYYY" />
-                  </div>
-                  <Button type="button" onClick={() => removeWorkExperience(exp.id)} variant="ghost" className="text-red-500">
-                    <X size={16} /> Remove
-                  </Button>
-                </div>
+          {/* Footer: Progress + Navigation */}
+          <div className="p-4 flex flex-col items-center">
+            {/* Progress Dots */}
+            <div className="flex gap-2 mb-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`h-2 w-6 rounded-full ${
+                    step === i ? "bg-orange-500" : "bg-gray-300"
+                  }`}
+                />
               ))}
             </div>
 
-            {/* Job References */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Job References</h2>
-                <Button type="button" onClick={addJobReference} className="bg-orange-500 text-white">
-                  <Plus size={16} className="mr-1" /> Add
-                </Button>
-              </div>
-              {jobReferences.map((ref) => (
-                <div key={ref.id} className="border p-3 rounded-lg space-y-2">
-                  <Input value={ref.name} onChange={(e) => updateJobReference(ref.id, "name", e.target.value)} placeholder="Name" />
-                  <Input value={ref.businessName} onChange={(e) => updateJobReference(ref.id, "businessName", e.target.value)} placeholder="Business Name" />
-                  <Input value={ref.email} onChange={(e) => updateJobReference(ref.id, "email", e.target.value)} placeholder="Email" />
-                  <Input value={ref.phone} onChange={(e) => updateJobReference(ref.id, "phone", e.target.value)} placeholder="Phone" />
-                  <Input value={ref.role} onChange={(e) => updateJobReference(ref.id, "role", e.target.value)} placeholder="Role" />
-                  <Button type="button" onClick={() => removeJobReference(ref.id)} variant="ghost" className="text-red-500">
-                    <X size={16} /> Remove
-                  </Button>
-                </div>
-              ))}
-            </div>
-
-            {/* Preview Match Card */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Preview Match Card</h2>
-              <p className="text-sm text-gray-600">See how your profile looks to employers</p>
-              <Button 
-                type="button" 
-                onClick={() => navigate("/whv/match-card")} 
-                className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white"
+            {/* Navigation */}
+            <div className="flex justify-between w-full">
+              <Button
+                disabled={step === 1}
+                onClick={() => setStep(step - 1)}
+                variant="outline"
               >
-                VIEW
+                Back
+              </Button>
+              <Button
+                disabled={step === 3}
+                onClick={() => setStep(step + 1)}
+                className="bg-orange-500 text-white"
+              >
+                Next
               </Button>
             </div>
-
           </div>
         </div>
       </div>
