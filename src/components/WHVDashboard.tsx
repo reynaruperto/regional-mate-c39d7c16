@@ -68,14 +68,17 @@ const Dashboard: React.FC = () => {
 
           console.log("Normalized photo path:", photoPath);
 
-          const { data } = supabase
+          // ✅ Get a signed URL valid for 1 hour
+          const { data, error } = await supabase
             .storage
-            .from('profile_photo') // ✅ correct bucket
-            .getPublicUrl(photoPath);
+            .from('profile_photo')
+            .createSignedUrl(photoPath, 3600);
 
-          if (data?.publicUrl) {
-            console.log("Final public URL:", data.publicUrl);
-            setProfilePhoto(data.publicUrl);
+          if (error) {
+            console.error("Error creating signed URL:", error);
+          } else if (data?.signedUrl) {
+            console.log("Final signed URL:", data.signedUrl);
+            setProfilePhoto(data.signedUrl);
           }
         }
       } else {
