@@ -1,28 +1,17 @@
 import React, { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
-// ---------- Types ----------
-interface Country {
-  country_id: number;
-  name: string;
-}
-interface VisaStage {
-  stage_id: number;
-  label: string;
-  sub_class: string;
-  stage: number;
-}
 interface Industry {
   id: number;
   name: string;
@@ -60,26 +49,16 @@ interface JobReference {
   role: string;
 }
 
-// ---------- Main ----------
 const WHVEditProfile: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
 
-  // General
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
-  const [eligibility, setEligibility] = useState<{ country_id: number; stage_id: number }[]>([]);
-  const [industries, setIndustries] = useState<Industry[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [allLicenses, setAllLicenses] = useState<License[]>([]);
-
-  // Step 1: Personal Info
+  // Personal info
   const [formData, setFormData] = useState({
     givenName: "",
     middleName: "",
     familyName: "",
     dateOfBirth: "",
-    countryId: null as number | null,
+    nationality: "",
     visaType: "",
     visaExpiry: "",
     phone: "",
@@ -89,160 +68,91 @@ const WHVEditProfile: React.FC = () => {
     state: "",
     postcode: "",
   });
+  const [countries, setCountries] = useState<{ id: number; name: string }[]>([]);
+  const [visaStages, setVisaStages] = useState<any[]>([]);
+  const [eligibility, setEligibility] = useState<any[]>([]);
 
-  // Step 2: Preferences
+  // Work preferences
   const [tagline, setTagline] = useState("");
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
 
-  // Step 3: Work Experience, Licenses, References
+  // Work exp + refs
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
+  const [allLicenses, setAllLicenses] = useState<License[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
 
-  // ---------- Load data ----------
+  // Load initial
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: c } = await supabase.from("country").select("*").order("name");
-      if (c) setCountries(c as Country[]);
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      const { data: s } = await supabase.from("visa_stage").select("*").order("stage");
-      if (s) setVisaStages(s as VisaStage[]);
-
+      // Countries, visas, eligibility
+      const { data: c } = await supabase.from("country").select("country_id,name");
+      if (c) setCountries(c.map((x) => ({ id: x.country_id, name: x.name })));
+      const { data: v } = await supabase.from("visa_stage").select("*");
+      if (v) setVisaStages(v);
       const { data: e } = await supabase.from("country_eligibility").select("*");
       if (e) setEligibility(e);
 
-      const { data: ind } = await supabase.from("industry").select("industry_id, name");
-      if (ind) setIndustries(ind.map((i) => ({ id: i.industry_id, name: i.name })));
-
-      const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role, industry_id");
-      if (roleData) {
-        setRoles(
-          roleData.map((r) => ({
-            id: r.industry_role_id,
-            name: r.role,
-            industryId: r.industry_id,
-          }))
-        );
+      // User profile
+      const { data: profile } = await supabase.from("whv_maker").select("*").eq("user_id", user.id).maybeSingle();
+      if (profile) {
+        setFormData((f) => ({
+          ...f,
+          givenName: profile.given_name || "",
+          middleName: profile.middle_name || "",
+          familyName: profile.family_name || "",
+          dateOfBirth: profile.birth_date || "",
+          nationality: profile.nationality || "",
+          phone: profile.mobile_num || "",
+          address1: profile.address_line1 || "",
+          address2: profile.address_line2 || "",
+          suburb: profile.suburb || "",
+          state: profile.state || "",
+          postcode: profile.postcode || "",
+        }));
+        setTagline(profile.tagline || "");
       }
 
-      const { data: regionData } = await supabase.from("region_rules").select("region_rules_id, state, area");
-      if (regionData) {
-        const uniqueRegions = regionData.filter(
-          (r, idx, arr) => arr.findIndex((x) => x.state === r.state && x.area === r.area) === idx
-        );
-        setRegions(uniqueRegions.map((r) => ({ ...r })));
+      // Visa
+      const { data: visa } = await supabase.from("maker_visa").select("*").eq("user_id", user.id).maybeSingle();
+      if (visa) {
+        setFormData((f) => ({
+          ...f,
+          visaType: visa.stage_id?.toString() || "",
+          visaExpiry: visa.expiry_date || "",
+        }));
       }
 
-      const { data: licenseData } = await supabase.from("license").select("license_id, name");
-      if (licenseData) {
-        setAllLicenses(licenseData.map((l) => ({ id: l.license_id, name: l.name })));
-      }
+      // Industries
+      const { data: inds } = await supabase.from("industry").select("industry_id,name");
+      if (inds) setIndustries(inds.map((i) => ({ id: i.industry_id, name: i.name })));
 
-      // Prefill existing user data
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: whv } = await supabase.from("whv_maker").select("*").eq("user_id", user.id).maybeSingle();
-        if (whv) {
-          setFormData((f) => ({
-            ...f,
-            givenName: whv.given_name,
-            middleName: whv.middle_name || "",
-            familyName: whv.family_name,
-            dateOfBirth: whv.birth_date,
-            countryId: countries.find((c) => c.name === whv.nationality)?.country_id || null,
-            phone: whv.mobile_num,
-            address1: whv.address_line1,
-            address2: whv.address_line2 || "",
-            suburb: whv.suburb,
-            state: whv.state,
-            postcode: whv.postcode,
-          }));
-          setTagline(whv.tagline || "");
-        }
-      }
+      // Roles
+      const { data: r } = await supabase.from("industry_role").select("industry_role_id,role,industry_id");
+      if (r) setRoles(r.map((x) => ({ id: x.industry_role_id, name: x.role, industryId: x.industry_id })));
+
+      // Regions
+      const { data: reg } = await supabase.from("region_rules").select("region_rules_id,state,area");
+      if (reg) setRegions(reg);
+
+      // Licenses
+      const { data: l } = await supabase.from("license").select("license_id,name");
+      if (l) setAllLicenses(l.map((x) => ({ id: x.license_id, name: x.name })));
     };
-    fetchData();
+    load();
   }, []);
 
-  // ---------- Handlers ----------
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
-
-  const handleSelect = (name: string, value: string | number) => {
-    setFormData({ ...formData, [name]: value });
-  };
-
-  const toggleIndustry = (id: number) => {
-    if (selectedIndustries.includes(id)) {
-      setSelectedIndustries(selectedIndustries.filter((i) => i !== id));
-      setSelectedRoles(selectedRoles.filter((r) => roles.find((ro) => ro.id === r)?.industryId !== id));
-    } else if (selectedIndustries.length < 3) {
-      setSelectedIndustries([...selectedIndustries, id]);
-    }
-  };
-
-  const toggleRole = (id: number) => {
-    setSelectedRoles(
-      selectedRoles.includes(id) ? selectedRoles.filter((r) => r !== id) : [...selectedRoles, id]
-    );
-  };
-
-  const toggleState = (state: string) => {
-    if (preferredStates.includes(state)) {
-      setPreferredStates(preferredStates.filter((s) => s !== state));
-      setPreferredAreas(preferredAreas.filter((a) => regions.find((r) => r.state === state)?.area !== a));
-    } else if (preferredStates.length < 3) {
-      setPreferredStates([...preferredStates, state]);
-    }
-  };
-
-  const toggleArea = (area: string) => {
-    setPreferredAreas(
-      preferredAreas.includes(area) ? preferredAreas.filter((a) => a !== area) : [...preferredAreas, area]
-    );
-  };
-
-  const toggleLicense = (id: number) => {
-    setLicenses(licenses.includes(id) ? licenses.filter((l) => l !== id) : [...licenses, id]);
-  };
-
-  const addWorkExperience = () => {
-    setWorkExperiences([
-      ...workExperiences,
-      { id: Date.now().toString(), industryId: null, position: "", company: "", location: "", startDate: "", endDate: "", description: "" },
-    ]);
-  };
-
-  const updateWorkExperience = (id: string, field: keyof WorkExperience, value: any) => {
-    setWorkExperiences(workExperiences.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp)));
-  };
-
-  const removeWorkExperience = (id: string) => {
-    setWorkExperiences(workExperiences.filter((exp) => exp.id !== id));
-  };
-
-  const addJobReference = () => {
-    setJobReferences([
-      ...jobReferences,
-      { id: Date.now().toString(), name: "", businessName: "", email: "", phone: "", role: "" },
-    ]);
-  };
-
-  const updateJobReference = (id: string, field: keyof JobReference, value: string) => {
-    setJobReferences(jobReferences.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref)));
-  };
-
-  const removeJobReference = (id: string) => {
-    setJobReferences(jobReferences.filter((ref) => ref.id !== id));
-  };
-
-  // ---------- Save per step ----------
+  // Save step
   const saveStep = async (step: number) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -251,33 +161,29 @@ const WHVEditProfile: React.FC = () => {
       await supabase.from("whv_maker").upsert({
         user_id: user.id,
         given_name: formData.givenName,
-        middle_name: formData.middleName,
+        middle_name: formData.middleName || null,
         family_name: formData.familyName,
         birth_date: formData.dateOfBirth,
-        nationality: countries.find((c) => c.country_id === formData.countryId)?.name || "",
+        nationality: formData.nationality,
         mobile_num: formData.phone,
         address_line1: formData.address1,
-        address_line2: formData.address2,
+        address_line2: formData.address2 || null,
         suburb: formData.suburb,
-        state: formData.state,
+        state: formData.state as any,
         postcode: formData.postcode,
-      }, { onConflict: "user_id" });
+      } as any, { onConflict: "user_id" });
 
-      const stage = visaStages.find((v) => v.label === formData.visaType);
-      if (stage && formData.countryId) {
-        await supabase.from("maker_visa").upsert({
-          user_id: user.id,
-          country_id: formData.countryId,
-          stage_id: stage.stage_id,
-          dob: formData.dateOfBirth,
-          expiry_date: formData.visaExpiry,
-        }, { onConflict: "user_id" });
-      }
+      await supabase.from("maker_visa").upsert({
+        user_id: user.id,
+        country_id: countries.find(c => c.name === formData.nationality)?.id || 0,
+        stage_id: Number(formData.visaType),
+        dob: formData.dateOfBirth,
+        expiry_date: formData.visaExpiry,
+      } as any, { onConflict: "user_id" });
     }
 
     if (step === 2) {
       await supabase.from("whv_maker").update({ tagline }).eq("user_id", user.id);
-
       const preferenceRows: Array<{ user_id: string; industry_role_id: number; region_rules_id: number }> = [];
       selectedRoles.forEach((roleId) => {
         preferredStates.forEach((state) => {
@@ -288,140 +194,146 @@ const WHVEditProfile: React.FC = () => {
         });
       });
       if (preferenceRows.length > 0) {
-        await supabase.from("maker_preference").insert(preferenceRows).catch(() => {});
+        const { error } = await supabase.from("maker_preference").insert(preferenceRows);
+        if (error) console.warn("Preference insert skipped:", error.message);
       }
     }
 
     if (step === 3) {
-      const validExps = workExperiences.filter((exp) => exp.company && exp.position && exp.industryId);
-      if (validExps.length > 0) {
-        await supabase.from("maker_work_experience").insert(
-          validExps.map((exp) => ({
-            user_id: user.id,
-            company: exp.company,
-            position: exp.position,
-            location: exp.location,
-            start_date: exp.startDate,
-            end_date: exp.endDate,
-            industry_id: exp.industryId!,
-            job_description: exp.description,
-          }))
-        );
+      const validRows = workExperiences.filter((exp) =>
+        exp.company && exp.position && exp.industryId && exp.startDate && exp.endDate
+      );
+      if (validRows.length > 0) {
+        await supabase.from("maker_work_experience").insert(validRows.map((exp) => ({
+          user_id: user.id,
+          company: exp.company,
+          position: exp.position,
+          start_date: exp.startDate,
+          end_date: exp.endDate,
+          location: exp.location || null,
+          industry_id: exp.industryId!,
+          job_description: exp.description || null,
+        })) as any);
       }
-
       if (jobReferences.length > 0) {
-        await supabase.from("maker_reference").insert(
-          jobReferences.map((ref) => ({
-            user_id: user.id,
-            name: ref.name,
-            business_name: ref.businessName,
-            email: ref.email,
-            mobile_num: ref.phone,
-            role: ref.role,
-          }))
-        );
+        await supabase.from("maker_reference").insert(jobReferences.map((ref) => ({
+          user_id: user.id,
+          name: ref.name,
+          business_name: ref.businessName,
+          email: ref.email,
+          mobile_num: ref.phone,
+          role: ref.role,
+        })) as any);
       }
-
       if (licenses.length > 0) {
-        await supabase.from("maker_license").upsert(
-          licenses.map((l) => ({
-            user_id: user.id,
-            license_id: l,
-            other: allLicenses.find((x) => x.id === l)?.name === "Other" ? otherLicense : null,
-          })),
-          { onConflict: "user_id,license_id" }
-        );
+        await supabase.from("maker_license").upsert(licenses.map((lid) => ({
+          user_id: user.id,
+          license_id: lid,
+          other: allLicenses.find((l) => l.id === lid)?.name === "Other" ? otherLicense : null,
+        })) as any, { onConflict: "user_id,license_id" });
       }
     }
   };
 
-  const nextStep = async () => {
-    await saveStep(currentStep);
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
-  };
-  const prevStep = () => setCurrentStep(currentStep - 1);
+  // Step navigation
+  const nextStep = async () => { await saveStep(currentStep); setCurrentStep((s) => Math.min(3, s + 1)); };
+  const prevStep = () => setCurrentStep((s) => Math.max(1, s - 1));
 
-  // ---------- Render ----------
+  // Handlers
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const toggleIndustry = (id: number) =>
+    setSelectedIndustries((s) => s.includes(id) ? s.filter((x) => x !== id) : s.length < 3 ? [...s, id] : s);
+  const toggleRole = (id: number) =>
+    setSelectedRoles((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+  const toggleState = (st: string) =>
+    setPreferredStates((s) => s.includes(st) ? s.filter((x) => x !== st) : s.length < 3 ? [...s, st] : s);
+  const toggleArea = (a: string) =>
+    setPreferredAreas((s) => s.includes(a) ? s.filter((x) => x !== a) : [...s, a]);
+
+  const addWorkExperience = () =>
+    setWorkExperiences([...workExperiences, { id: Date.now().toString(), industryId: null, position: "", company: "", location: "", startDate: "", endDate: "", description: "" }]);
+  const updateWorkExperience = (id: string, field: keyof WorkExperience, val: any) =>
+    setWorkExperiences(workExperiences.map((exp) => exp.id === id ? { ...exp, [field]: val } : exp));
+  const removeWorkExperience = (id: string) =>
+    setWorkExperiences(workExperiences.filter((exp) => exp.id !== id));
+
+  const addJobReference = () =>
+    setJobReferences([...jobReferences, { id: Date.now().toString(), name: "", businessName: "", email: "", phone: "", role: "" }]);
+  const updateJobReference = (id: string, field: keyof JobReference, val: any) =>
+    setJobReferences(jobReferences.map((r) => r.id === id ? { ...r, [field]: val } : r));
+  const removeJobReference = (id: string) =>
+    setJobReferences(jobReferences.filter((r) => r.id !== id));
+
+  const toggleLicense = (lid: number) =>
+    setLicenses((s) => s.includes(lid) ? s.filter((x) => x !== lid) : [...s, lid]);
+
+  // UI
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl overflow-hidden">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col relative">
-          {/* Progress Dots */}
-          <div className="flex justify-center space-x-2 mt-4">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+          {/* Progress */}
+          <div className="flex justify-center mt-4 space-x-2">
             {[1, 2, 3].map((s) => (
-              <div key={s} className={`w-3 h-3 rounded-full ${s === currentStep ? "bg-orange-500" : "bg-gray-300"}`} />
+              <div key={s} className={`w-3 h-3 rounded-full ${currentStep === s ? "bg-orange-500" : "bg-gray-300"}`} />
             ))}
           </div>
 
           {/* Carousel */}
-          <div className="flex-1 flex transition-transform duration-500"
-            style={{ transform: `translateX(-${(currentStep - 1) * 100}%)`, width: "300%" }}>
-            
-            {/* Step 1: Personal Info */}
+          <div className="flex-1 flex transition-transform duration-500" style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}>
+            {/* Step 1 */}
             <div className="w-full flex-shrink-0 p-6 space-y-3 overflow-y-auto">
               <h2 className="text-xl font-semibold mb-4">Personal Information</h2>
-              <Label>Given Name</Label>
-              <Input name="givenName" value={formData.givenName} onChange={handleChange} />
-              <Label>Middle Name</Label>
-              <Input name="middleName" value={formData.middleName} onChange={handleChange} />
-              <Label>Family Name</Label>
-              <Input name="familyName" value={formData.familyName} onChange={handleChange} />
-              <Label>Nationality</Label>
-              <Input value={countries.find((c) => c.country_id === formData.countryId)?.name || ""} disabled />
-              <Label>Date of Birth</Label>
-              <Input type="date" value={formData.dateOfBirth} disabled />
+              <Label>Given Name</Label><Input name="givenName" value={formData.givenName} onChange={handleChange} />
+              <Label>Middle Name</Label><Input name="middleName" value={formData.middleName} onChange={handleChange} />
+              <Label>Family Name</Label><Input name="familyName" value={formData.familyName} onChange={handleChange} />
+              <Label>Nationality</Label><Input value={formData.nationality} disabled />
+              <Label>Date of Birth</Label><Input type="date" value={formData.dateOfBirth} disabled />
               <Label>Visa Type</Label>
-              <Select value={formData.visaType} onValueChange={(v) => handleSelect("visaType", v)}>
+              <Select value={formData.visaType} onValueChange={(v) => setFormData({ ...formData, visaType: v })}>
                 <SelectTrigger><SelectValue placeholder="Select visa" /></SelectTrigger>
-                <SelectContent>
-                  {visaStages
-                    .filter((v) => formData.countryId && eligibility.some((e) => e.country_id === formData.countryId && e.stage_id === v.stage_id))
-                    .map((v) => (
-                      <SelectItem key={v.stage_id} value={v.label}>{v.label}</SelectItem>
-                    ))}
-                </SelectContent>
+                <SelectContent>{visaStages.map((v) => <SelectItem key={v.stage_id} value={String(v.stage_id)}>{v.label}</SelectItem>)}</SelectContent>
               </Select>
-              <Label>Visa Expiry</Label>
-              <Input type="date" name="visaExpiry" value={formData.visaExpiry} onChange={handleChange} />
-              <Label>Phone</Label>
-              <Input name="phone" value={formData.phone} onChange={handleChange} />
-              <Label>Address Line 1</Label>
-              <Input name="address1" value={formData.address1} onChange={handleChange} />
-              <Label>Address Line 2</Label>
-              <Input name="address2" value={formData.address2} onChange={handleChange} />
-              <Label>Suburb</Label>
-              <Input name="suburb" value={formData.suburb} onChange={handleChange} />
-              <Label>State</Label>
-              <Input name="state" value={formData.state} onChange={handleChange} />
-              <Label>Postcode</Label>
-              <Input name="postcode" value={formData.postcode} onChange={handleChange} />
+              <Label>Visa Expiry</Label><Input type="date" name="visaExpiry" value={formData.visaExpiry} onChange={handleChange} />
+              <Label>Phone</Label><Input name="phone" value={formData.phone} onChange={handleChange} />
+              <Label>Address Line 1</Label><Input name="address1" value={formData.address1} onChange={handleChange} />
+              <Label>Address Line 2</Label><Input name="address2" value={formData.address2} onChange={handleChange} />
+              <Label>Suburb</Label><Input name="suburb" value={formData.suburb} onChange={handleChange} />
+              <Label>State</Label><Input name="state" value={formData.state} onChange={handleChange} />
+              <Label>Postcode</Label><Input name="postcode" value={formData.postcode} onChange={handleChange} />
             </div>
 
-            {/* Step 2: Preferences */}
+            {/* Step 2 */}
             <div className="w-full flex-shrink-0 p-6 space-y-3 overflow-y-auto">
               <h2 className="text-xl font-semibold mb-4">Work Preferences</h2>
-              <Label>Tagline</Label>
-              <Input value={tagline} onChange={(e) => setTagline(e.target.value)} />
+              <Label>Tagline</Label><Input value={tagline} onChange={(e) => setTagline(e.target.value)} />
               <Label>Industries (max 3)</Label>
-              <div className="flex flex-wrap gap-2">
-                {industries.map((ind) => (
-                  <button key={ind.id} type="button" onClick={() => toggleIndustry(ind.id)}
-                    className={`px-3 py-1 rounded-full border ${selectedIndustries.includes(ind.id) ? "bg-orange-500 text-white" : "bg-gray-100"}`}>
-                    {ind.name}
-                  </button>
-                ))}
-              </div>
-              <Label>Roles</Label>
-              <div className="flex flex-wrap gap-2">
-                {roles.filter((r) => selectedIndustries.includes(r.industryId)).map((role) => (
-                  <button key={role.id} type="button" onClick={() => toggleRole(role.id)}
-                    className={`px-2 py-1 rounded-full border text-xs ${selectedRoles.includes(role.id) ? "bg-orange-500 text-white" : "bg-gray-100"}`}>
-                    {role.name}
-                  </button>
-                ))}
-              </div>
+              {industries.map((ind) => (
+                <label key={ind.id} className="flex items-center space-x-2">
+                  <input type="checkbox" checked={selectedIndustries.includes(ind.id)} onChange={() => toggleIndustry(ind.id)} />
+                  <span>{ind.name}</span>
+                </label>
+              ))}
+              {selectedIndustries.map((iid) => {
+                const industry = industries.find((i) => i.id === iid);
+                const industryRoles = roles.filter((r) => r.industryId === iid);
+                return (
+                  <div key={iid}>
+                    <Label>Roles for {industry?.name}</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {industryRoles.map((role) => (
+                        <button key={role.id} type="button" onClick={() => toggleRole(role.id)}
+                          className={`px-3 py-1 rounded-full text-sm border ${selectedRoles.includes(role.id) ? "bg-orange-500 text-white" : "bg-white"}`}>
+                          {role.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
               <Label>States (max 3)</Label>
-              {Array.from(new Set(regions.map((r) => r.state))).map((s) => (
+              {[...new Set(regions.map((r) => r.state))].map((s) => (
                 <div key={s}>
                   <label className="flex items-center space-x-2">
                     <input type="checkbox" checked={preferredStates.includes(s)} onChange={() => toggleState(s)} />
@@ -441,7 +353,7 @@ const WHVEditProfile: React.FC = () => {
               ))}
             </div>
 
-            {/* Step 3: Work Exp & References */}
+            {/* Step 3 */}
             <div className="w-full flex-shrink-0 p-6 space-y-3 overflow-y-auto">
               <h2 className="text-xl font-semibold mb-4">Work Experience & References</h2>
               <Button type="button" onClick={addWorkExperience} className="bg-orange-500 text-white">Add Experience</Button>
@@ -450,18 +362,12 @@ const WHVEditProfile: React.FC = () => {
                   <Label>Industry</Label>
                   <Select value={exp.industryId ? String(exp.industryId) : ""} onValueChange={(v) => updateWorkExperience(exp.id, "industryId", Number(v))}>
                     <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
-                    <SelectContent>
-                      {industries.map((ind) => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{industries.map((ind) => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}</SelectContent>
                   </Select>
-                  <Label>Position</Label>
-                  <Input value={exp.position} onChange={(e) => updateWorkExperience(exp.id, "position", e.target.value)} />
-                  <Label>Company</Label>
-                  <Input value={exp.company} onChange={(e) => updateWorkExperience(exp.id, "company", e.target.value)} />
-                  <Label>Location</Label>
-                  <Input value={exp.location} onChange={(e) => updateWorkExperience(exp.id, "location", e.target.value)} />
-                  <Label>Description</Label>
-                  <Input value={exp.description} onChange={(e) => updateWorkExperience(exp.id, "description", e.target.value)} />
+                  <Label>Position</Label><Input value={exp.position} onChange={(e) => updateWorkExperience(exp.id, "position", e.target.value)} />
+                  <Label>Company</Label><Input value={exp.company} onChange={(e) => updateWorkExperience(exp.id, "company", e.target.value)} />
+                  <Label>Location</Label><Input value={exp.location} onChange={(e) => updateWorkExperience(exp.id, "location", e.target.value)} />
+                  <Label>Description</Label><Input value={exp.description} onChange={(e) => updateWorkExperience(exp.id, "description", e.target.value)} />
                   <div className="flex gap-2">
                     <Input type="date" value={exp.startDate} onChange={(e) => updateWorkExperience(exp.id, "startDate", e.target.value)} />
                     <Input type="date" value={exp.endDate} onChange={(e) => updateWorkExperience(exp.id, "endDate", e.target.value)} />
@@ -485,37 +391,24 @@ const WHVEditProfile: React.FC = () => {
               <Button type="button" onClick={addJobReference} className="bg-orange-500 text-white">Add Reference</Button>
               {jobReferences.map((ref) => (
                 <div key={ref.id} className="border p-3 rounded-lg space-y-2">
-                  <Label>Name</Label>
-                  <Input value={ref.name} onChange={(e) => updateJobReference(ref.id, "name", e.target.value)} />
-                  <Label>Business</Label>
-                  <Input value={ref.businessName} onChange={(e) => updateJobReference(ref.id, "businessName", e.target.value)} />
-                  <Label>Email</Label>
-                  <Input value={ref.email} onChange={(e) => updateJobReference(ref.id, "email", e.target.value)} />
-                  <Label>Phone</Label>
-                  <Input value={ref.phone} onChange={(e) => updateJobReference(ref.id, "phone", e.target.value)} />
-                  <Label>Role</Label>
-                  <Input value={ref.role} onChange={(e) => updateJobReference(ref.id, "role", e.target.value)} />
+                  <Label>Name</Label><Input value={ref.name} onChange={(e) => updateJobReference(ref.id, "name", e.target.value)} />
+                  <Label>Business</Label><Input value={ref.businessName} onChange={(e) => updateJobReference(ref.id, "businessName", e.target.value)} />
+                  <Label>Email</Label><Input value={ref.email} onChange={(e) => updateJobReference(ref.id, "email", e.target.value)} />
+                  <Label>Phone</Label><Input value={ref.phone} onChange={(e) => updateJobReference(ref.id, "phone", e.target.value)} />
+                  <Label>Role</Label><Input value={ref.role} onChange={(e) => updateJobReference(ref.id, "role", e.target.value)} />
                   <Button type="button" onClick={() => removeJobReference(ref.id)} className="bg-red-500 text-white">Remove</Button>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Navigation */}
+          {/* Nav */}
           <div className="flex justify-between items-center p-4 border-t bg-gray-50">
-            {currentStep > 1 && (
-              <Button onClick={prevStep} className="bg-gray-200 text-gray-800">
-                <ArrowLeft className="w-4 h-4 mr-1" /> Back
-              </Button>
-            )}
+            {currentStep > 1 && <Button onClick={prevStep} className="bg-gray-200 text-gray-800"><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>}
             {currentStep < 3 ? (
-              <Button onClick={nextStep} className="ml-auto bg-orange-500 text-white">
-                Next <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
+              <Button onClick={nextStep} className="ml-auto bg-orange-500 text-white">Next <ArrowRight className="w-4 h-4 ml-1" /></Button>
             ) : (
-              <Button onClick={async () => { await saveStep(3); }} className="ml-auto bg-green-600 text-white">
-                <Check className="w-4 h-4 mr-1" /> Save & Finish
-              </Button>
+              <Button onClick={async () => { await saveStep(3); }} className="ml-auto bg-green-600 text-white"><Check className="w-4 h-4 mr-1" /> Save & Finish</Button>
             )}
           </div>
         </div>
