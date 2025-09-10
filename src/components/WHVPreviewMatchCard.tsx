@@ -85,10 +85,10 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id);
 
         const formattedPreferences: Preference[] = (preferencesData || []).map((pref: any) => ({
-          industry: pref.industry_role?.industry?.name || 'Not specified',
-          role: pref.industry_role?.role || 'Not specified',
-          state: pref.region_rules?.state || 'Not specified',
-          area: pref.region_rules?.area || 'Not specified',
+          industry: String(pref.industry_role?.industry?.name || 'Not specified'),
+          role: String(pref.industry_role?.role || 'Not specified'),
+          state: String(pref.region_rules?.state || 'Not specified'),
+          area: String(pref.region_rules?.area || 'Not specified'),
         }));
 
         // 4. Work experience
@@ -113,7 +113,9 @@ const WHVPreviewMatchCard: React.FC = () => {
           .select('license(name)')
           .eq('user_id', user.id);
 
-        const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown');
+        const formattedLicenses: string[] = (licenseRows || []).map((l: any) => 
+          typeof l.license === 'string' ? l.license : (l.license?.name || 'Unknown License')
+        );
 
         // 6. References
         const { data: referenceRows } = await supabase
