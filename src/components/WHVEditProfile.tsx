@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -19,8 +20,8 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 // ==============================
 // Types
@@ -77,23 +78,14 @@ interface VisaStage {
   sub_class: string;
   stage: number;
 }
+interface Country {
+  country_id: number;
+  name: string;
+}
 interface CountryEligibility {
+  country_id: number;
   stage_id: number;
 }
-
-// ==============================
-// Validation helpers
-// ==============================
-const isValidAUPhone = (phone: string) =>
-  /^(\+614\d{8}|04\d{8})$/.test(phone);
-
-const isValidExpiry = (date: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const expiryDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return expiryDate > today;
-};
 
 // ==============================
 // Component
@@ -104,10 +96,15 @@ const WHVEditProfile: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  // Core state
+  // Step 1
+  const [givenName, setGivenName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [familyName, setFamilyName] = useState("");
   const [dob, setDob] = useState("");
   const [nationality, setNationality] = useState("");
+  const [countryId, setCountryId] = useState<number | null>(null);
   const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
+  const [eligibility, setEligibility] = useState<CountryEligibility[]>([]);
   const [visaType, setVisaType] = useState("");
   const [visaExpiry, setVisaExpiry] = useState("");
   const [phone, setPhone] = useState("");
@@ -125,7 +122,7 @@ const WHVEditProfile: React.FC = () => {
     postcode: "",
   });
 
-  // Work preferences
+  // Step 2
   const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -134,26 +131,24 @@ const WHVEditProfile: React.FC = () => {
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
-  const [expandedSections, setExpandedSections] = useState({
-    industries: true,
-    states: false,
-    summary: false,
-    workExp: false,
-    references: false,
-  });
 
-  // Work exp + licenses + refs
+  // Step 3
   const [allLicenses, setAllLicenses] = useState<License[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
 
-  // Errors
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  // Collapsibles
+  const [expandedSections, setExpandedSections] = useState({
+    industries: true,
+    states: false,
+    workExp: false,
+    references: false,
+  });
 
   // ==============================
-  // Fetch on mount (prefill)
+  // Load Data (prefill)
   // ==============================
   useEffect(() => {
     const loadProfile = async () => {
@@ -163,42 +158,55 @@ const WHVEditProfile: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load from DB (same logic as before) ...
-      // For brevity I won’t repeat everything here
-      // But this is where you load maker, visa, preferences, workExp, references, licenses
-      // and prefill all state variables
+      // 1. Fetch country + visa eligibility + visa stages
+      const { data: countries } = await supabase.from("country").select("*").order("name");
+      const { data: stages } = await supabase.from("visa_stage").select("*").order("stage");
+      const { data: elig } = await supabase.from("country_eligibility").select("*");
+
+      if (countries) {
+        const userCountry = countries.find((c) => c.name === nationality);
+        if (userCountry) setCountryId(userCountry.country_id);
+      }
+      if (stages) setVisaStages(stages);
+      if (elig) setEligibility(elig);
+
+      // TODO: Prefill whv_maker, maker_visa, maker_preference, etc. like onboarding
       setLoading(false);
     };
     loadProfile();
   }, []);
 
   // ==============================
-  // Step 1: Visa & Personal Info
+  // Step 1 Render
   // ==============================
   const renderStep1 = () => (
-    <div className="px-6 py-6 space-y-4 overflow-y-auto">
-      <h2 className="text-lg font-semibold">Visa & Personal Info</h2>
+    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+      <h2 className="text-lg font-semibold">Profile & Visa</h2>
       <p className="text-sm text-gray-500">Nationality: {nationality}</p>
       <p className="text-sm text-gray-500">DOB: {dob}</p>
 
       <div>
-        <label className="text-sm font-medium">Visa Type *</label>
+        <Label>Visa Type *</Label>
         <Select value={visaType} onValueChange={setVisaType}>
           <SelectTrigger>
             <SelectValue placeholder="Select visa type" />
           </SelectTrigger>
           <SelectContent>
-            {visaStages.map((v) => (
-              <SelectItem key={v.stage_id} value={v.label}>
-                {v.label}
-              </SelectItem>
-            ))}
+            {visaStages
+              .filter((v) =>
+                countryId ? eligibility.some((e) => e.country_id === countryId && e.stage_id === v.stage_id) : true
+              )
+              .map((v) => (
+                <SelectItem key={v.stage_id} value={v.label}>
+                  {v.label}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
 
       <div>
-        <label className="text-sm font-medium">Visa Expiry *</label>
+        <Label>Visa Expiry *</Label>
         <Input
           type="date"
           value={visaExpiry}
@@ -207,7 +215,7 @@ const WHVEditProfile: React.FC = () => {
       </div>
 
       <div>
-        <label className="text-sm font-medium">Phone Number *</label>
+        <Label>Phone Number *</Label>
         <Input
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
@@ -216,42 +224,34 @@ const WHVEditProfile: React.FC = () => {
       </div>
 
       <div>
-        <label className="text-sm font-medium">Address Line 1 *</label>
+        <Label>Address Line 1 *</Label>
         <Input
           value={address.address1}
-          onChange={(e) =>
-            setAddress({ ...address, address1: e.target.value })
-          }
+          onChange={(e) => setAddress({ ...address, address1: e.target.value })}
         />
       </div>
 
       <div>
-        <label className="text-sm font-medium">Address Line 2</label>
+        <Label>Address Line 2</Label>
         <Input
           value={address.address2}
-          onChange={(e) =>
-            setAddress({ ...address, address2: e.target.value })
-          }
+          onChange={(e) => setAddress({ ...address, address2: e.target.value })}
         />
       </div>
 
       <div>
-        <label className="text-sm font-medium">Suburb *</label>
+        <Label>Suburb *</Label>
         <Input
           value={address.suburb}
-          onChange={(e) =>
-            setAddress({ ...address, suburb: e.target.value })
-          }
+          onChange={(e) => setAddress({ ...address, suburb: e.target.value })}
         />
       </div>
 
       <div>
-        <label className="text-sm font-medium">State *</label>
+        <Label>State *</Label>
         <Select
           value={address.state}
-          onValueChange={(v) =>
-            setAddress({ ...address, state: v as AustralianState })
-          }
+          onValueChange={(v) => setAddress({ ...address, state: v as AustralianState })}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select state" />
@@ -267,26 +267,26 @@ const WHVEditProfile: React.FC = () => {
       </div>
 
       <div>
-        <label className="text-sm font-medium">Postcode *</label>
+        <Label>Postcode *</Label>
         <Input
           value={address.postcode}
-          onChange={(e) =>
-            setAddress({ ...address, postcode: e.target.value })
-          }
+          onChange={(e) => setAddress({ ...address, postcode: e.target.value })}
         />
       </div>
     </div>
   );
 
+  // Continue with Step 2 + Step 3 + Save in Part 2…
   // ==============================
   // Step 2: Work Preferences
   // ==============================
   const renderStep2 = () => (
-    <div className="px-6 py-6 space-y-4 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
       <h2 className="text-lg font-semibold">Work Preferences</h2>
 
+      {/* Tagline */}
       <div>
-        <label className="text-sm font-medium">Profile Tagline *</label>
+        <Label>Profile Tagline *</Label>
         <Textarea
           value={tagline}
           onChange={(e) => setTagline(e.target.value)}
@@ -294,7 +294,7 @@ const WHVEditProfile: React.FC = () => {
         />
       </div>
 
-      {/* Collapsible Industries */}
+      {/* Industries & Roles */}
       <div className="border rounded-lg">
         <button
           type="button"
@@ -304,11 +304,7 @@ const WHVEditProfile: React.FC = () => {
           className="w-full flex items-center justify-between p-4 text-left"
         >
           <span className="font-medium">Industries & Roles</span>
-          {expandedSections.industries ? (
-            <ChevronDown size={20} />
-          ) : (
-            <ChevronRight size={20} />
-          )}
+          {expandedSections.industries ? <ChevronDown /> : <ChevronRight />}
         </button>
         {expandedSections.industries && (
           <div className="px-4 pb-4 border-t space-y-4">
@@ -364,7 +360,7 @@ const WHVEditProfile: React.FC = () => {
         )}
       </div>
 
-      {/* Collapsible Preferred Locations */}
+      {/* Preferred Locations */}
       <div className="border rounded-lg">
         <button
           type="button"
@@ -374,11 +370,7 @@ const WHVEditProfile: React.FC = () => {
           className="w-full flex items-center justify-between p-4 text-left"
         >
           <span className="font-medium">Preferred Locations</span>
-          {expandedSections.states ? (
-            <ChevronDown size={20} />
-          ) : (
-            <ChevronRight size={20} />
-          )}
+          {expandedSections.states ? <ChevronDown /> : <ChevronRight />}
         </button>
         {expandedSections.states && (
           <div className="px-4 pb-4 border-t space-y-4">
@@ -394,10 +386,6 @@ const WHVEditProfile: React.FC = () => {
                           ? prev.filter((s) => s !== state)
                           : [...prev, state]
                       )
-                    }
-                    disabled={
-                      preferredStates.length >= 3 &&
-                      !preferredStates.includes(state)
                     }
                   />
                   <span>{state}</span>
@@ -423,10 +411,6 @@ const WHVEditProfile: React.FC = () => {
                                   : [...prev, area]
                               )
                             }
-                            disabled={
-                              preferredAreas.length >= 3 &&
-                              !preferredAreas.includes(area)
-                            }
                           />
                           <span>{area}</span>
                         </label>
@@ -441,12 +425,11 @@ const WHVEditProfile: React.FC = () => {
     </div>
   );
 
-  // Continue with Step 3 + Save in Part 2...
   // ==============================
   // Step 3: Work Experience, Licenses, References
   // ==============================
   const renderStep3 = () => (
-    <div className="px-6 py-6 space-y-4 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
       <h2 className="text-lg font-semibold">Work Experience, Licenses & References</h2>
 
       {/* Work Experience */}
@@ -459,18 +442,48 @@ const WHVEditProfile: React.FC = () => {
           className="w-full flex items-center justify-between p-4 text-left"
         >
           <span className="font-medium">Work Experience</span>
-          {expandedSections.workExp ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+          {expandedSections.workExp ? <ChevronDown /> : <ChevronRight />}
         </button>
         {expandedSections.workExp && (
           <div className="px-4 pb-4 border-t space-y-4">
             {workExperiences.map((exp, index) => (
               <div key={exp.id} className="border p-3 rounded-lg space-y-2">
                 <h3 className="font-medium">Experience {index + 1}</h3>
+
+                <Label>Industry</Label>
+                <Select
+                  value={exp.industryId ? String(exp.industryId) : ""}
+                  onValueChange={(value) =>
+                    setWorkExperiences((prev) =>
+                      prev.map((w) =>
+                        w.id === exp.id
+                          ? { ...w, industryId: Number(value) }
+                          : w
+                      )
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {industries.map((ind) => (
+                      <SelectItem key={ind.id} value={String(ind.id)}>
+                        {ind.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Input
                   value={exp.company}
                   onChange={(e) =>
                     setWorkExperiences((prev) =>
-                      prev.map((w) => (w.id === exp.id ? { ...w, company: e.target.value } : w))
+                      prev.map((w) =>
+                        w.id === exp.id
+                          ? { ...w, company: e.target.value }
+                          : w
+                      )
                     )
                   }
                   placeholder="Company"
@@ -479,7 +492,11 @@ const WHVEditProfile: React.FC = () => {
                   value={exp.position}
                   onChange={(e) =>
                     setWorkExperiences((prev) =>
-                      prev.map((w) => (w.id === exp.id ? { ...w, position: e.target.value } : w))
+                      prev.map((w) =>
+                        w.id === exp.id
+                          ? { ...w, position: e.target.value }
+                          : w
+                      )
                     )
                   }
                   placeholder="Position"
@@ -488,7 +505,11 @@ const WHVEditProfile: React.FC = () => {
                   value={exp.location}
                   onChange={(e) =>
                     setWorkExperiences((prev) =>
-                      prev.map((w) => (w.id === exp.id ? { ...w, location: e.target.value } : w))
+                      prev.map((w) =>
+                        w.id === exp.id
+                          ? { ...w, location: e.target.value }
+                          : w
+                      )
                     )
                   }
                   placeholder="Location"
@@ -497,7 +518,11 @@ const WHVEditProfile: React.FC = () => {
                   value={exp.description}
                   onChange={(e) =>
                     setWorkExperiences((prev) =>
-                      prev.map((w) => (w.id === exp.id ? { ...w, description: e.target.value } : w))
+                      prev.map((w) =>
+                        w.id === exp.id
+                          ? { ...w, description: e.target.value }
+                          : w
+                      )
                     )
                   }
                   placeholder="Job Description"
@@ -508,7 +533,11 @@ const WHVEditProfile: React.FC = () => {
                     value={exp.startDate}
                     onChange={(e) =>
                       setWorkExperiences((prev) =>
-                        prev.map((w) => (w.id === exp.id ? { ...w, startDate: e.target.value } : w))
+                        prev.map((w) =>
+                          w.id === exp.id
+                            ? { ...w, startDate: e.target.value }
+                            : w
+                        )
                       )
                     }
                   />
@@ -517,7 +546,11 @@ const WHVEditProfile: React.FC = () => {
                     value={exp.endDate}
                     onChange={(e) =>
                       setWorkExperiences((prev) =>
-                        prev.map((w) => (w.id === exp.id ? { ...w, endDate: e.target.value } : w))
+                        prev.map((w) =>
+                          w.id === exp.id
+                            ? { ...w, endDate: e.target.value }
+                            : w
+                        )
                       )
                     }
                   />
@@ -526,7 +559,9 @@ const WHVEditProfile: React.FC = () => {
                   type="button"
                   variant="ghost"
                   onClick={() =>
-                    setWorkExperiences((prev) => prev.filter((w) => w.id !== exp.id))
+                    setWorkExperiences((prev) =>
+                      prev.filter((w) => w.id !== exp.id)
+                    )
                   }
                   className="text-red-500"
                 >
@@ -599,7 +634,7 @@ const WHVEditProfile: React.FC = () => {
           className="w-full flex items-center justify-between p-4 text-left"
         >
           <span className="font-medium">Job References</span>
-          {expandedSections.references ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+          {expandedSections.references ? <ChevronDown /> : <ChevronRight />}
         </button>
         {expandedSections.references && (
           <div className="px-4 pb-4 border-t space-y-4">
@@ -610,7 +645,9 @@ const WHVEditProfile: React.FC = () => {
                   value={ref.name}
                   onChange={(e) =>
                     setJobReferences((prev) =>
-                      prev.map((r) => (r.id === ref.id ? { ...r, name: e.target.value } : r))
+                      prev.map((r) =>
+                        r.id === ref.id ? { ...r, name: e.target.value } : r
+                      )
                     )
                   }
                   placeholder="Name"
@@ -630,7 +667,9 @@ const WHVEditProfile: React.FC = () => {
                   value={ref.email}
                   onChange={(e) =>
                     setJobReferences((prev) =>
-                      prev.map((r) => (r.id === ref.id ? { ...r, email: e.target.value } : r))
+                      prev.map((r) =>
+                        r.id === ref.id ? { ...r, email: e.target.value } : r
+                      )
                     )
                   }
                   placeholder="Email"
@@ -639,7 +678,9 @@ const WHVEditProfile: React.FC = () => {
                   value={ref.phone}
                   onChange={(e) =>
                     setJobReferences((prev) =>
-                      prev.map((r) => (r.id === ref.id ? { ...r, phone: e.target.value } : r))
+                      prev.map((r) =>
+                        r.id === ref.id ? { ...r, phone: e.target.value } : r
+                      )
                     )
                   }
                   placeholder="Phone"
@@ -648,7 +689,9 @@ const WHVEditProfile: React.FC = () => {
                   value={ref.role}
                   onChange={(e) =>
                     setJobReferences((prev) =>
-                      prev.map((r) => (r.id === ref.id ? { ...r, role: e.target.value } : r))
+                      prev.map((r) =>
+                        r.id === ref.id ? { ...r, role: e.target.value } : r
+                      )
                     )
                   }
                   placeholder="Role"
@@ -657,7 +700,9 @@ const WHVEditProfile: React.FC = () => {
                   type="button"
                   variant="ghost"
                   onClick={() =>
-                    setJobReferences((prev) => prev.filter((r) => r.id !== ref.id))
+                    setJobReferences((prev) =>
+                      prev.filter((r) => r.id !== ref.id)
+                    )
                   }
                   className="text-red-500"
                 >
@@ -701,35 +746,41 @@ const WHVEditProfile: React.FC = () => {
 
     try {
       await Promise.all([
-        // Update maker
+        // Save maker
         supabase.from("whv_maker").upsert({
           user_id: user.id,
+          given_name: givenName,
+          middle_name: middleName || null,
+          family_name: familyName,
+          birth_date: dob,
+          nationality,
           tagline,
           mobile_num: phone,
           address_line1: address.address1,
-          address_line2: address.address2,
+          address_line2: address.address2 || null,
           suburb: address.suburb,
-          state: address.state,
+          state: address.state === "" ? null : address.state,
           postcode: address.postcode,
           updated_at: new Date().toISOString(),
         }),
-        // Update visa
+        // Save visa
         supabase.from("maker_visa").upsert({
           user_id: user.id,
-          expiry_date: visaExpiry,
+          country_id: countryId!,
+          stage_id: visaStages.find((s) => s.label === visaType)?.stage_id!,
           dob,
-          stage_id: visaStages.find((s) => s.label === visaType)?.stage_id,
+          expiry_date: visaExpiry,
         }),
-        // Replace preferences
+        // Preferences
         (async () => {
           await supabase.from("maker_preference").delete().eq("user_id", user.id);
-          const preferenceRows: Array<{ user_id: string; industry_role_id: number; region_rules_id: number }> = [];
+          const rows: Array<{ user_id: string; industry_role_id: number; region_rules_id: number }> = [];
           selectedRoles.forEach((roleId) => {
             preferredStates.forEach((state) => {
               preferredAreas.forEach((area) => {
                 const region = regions.find((r) => r.state === state && r.area === area);
                 if (region) {
-                  preferenceRows.push({
+                  rows.push({
                     user_id: user.id,
                     industry_role_id: roleId,
                     region_rules_id: region.region_rules_id,
@@ -738,11 +789,9 @@ const WHVEditProfile: React.FC = () => {
               });
             });
           });
-          if (preferenceRows.length > 0) {
-            await supabase.from("maker_preference").insert(preferenceRows);
-          }
+          if (rows.length > 0) await supabase.from("maker_preference").insert(rows);
         })(),
-        // Replace work experiences
+        // Work experiences
         (async () => {
           await supabase.from("maker_work_experience").delete().eq("user_id", user.id);
           const rows = workExperiences.map((exp) => ({
@@ -752,14 +801,12 @@ const WHVEditProfile: React.FC = () => {
             location: exp.location,
             start_date: exp.startDate,
             end_date: exp.endDate,
-            industry_id: exp.industryId,
+            industry_id: exp.industryId!,
             job_description: exp.description,
           }));
-          if (rows.length > 0) {
-            await supabase.from("maker_work_experience").insert(rows);
-          }
+          if (rows.length > 0) await supabase.from("maker_work_experience").insert(rows);
         })(),
-        // Replace licenses
+        // Licenses
         (async () => {
           await supabase.from("maker_license").delete().eq("user_id", user.id);
           const rows = licenses.map((lid) => ({
@@ -767,11 +814,9 @@ const WHVEditProfile: React.FC = () => {
             license_id: lid,
             other: allLicenses.find((l) => l.id === lid)?.name === "Other" ? otherLicense : null,
           }));
-          if (rows.length > 0) {
-            await supabase.from("maker_license").insert(rows);
-          }
+          if (rows.length > 0) await supabase.from("maker_license").insert(rows);
         })(),
-        // Replace references
+        // References
         (async () => {
           await supabase.from("maker_reference").delete().eq("user_id", user.id);
           const rows = jobReferences.map((ref) => ({
@@ -782,9 +827,7 @@ const WHVEditProfile: React.FC = () => {
             mobile_num: ref.phone,
             role: ref.role,
           }));
-          if (rows.length > 0) {
-            await supabase.from("maker_reference").insert(rows);
-          }
+          if (rows.length > 0) await supabase.from("maker_reference").insert(rows);
         })(),
       ]);
 
@@ -793,11 +836,11 @@ const WHVEditProfile: React.FC = () => {
         description: "Your changes have been saved successfully",
       });
       navigate("/whv/dashboard");
-    } catch (error: any) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       toast({
         title: "Error",
-        description: "Something went wrong saving your profile",
+        description: "Failed to save profile",
         variant: "destructive",
       });
     }
@@ -812,6 +855,17 @@ const WHVEditProfile: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="px-6 pt-6 pb-4 border-b flex justify-between items-center">
+            <button onClick={() => navigate("/whv/dashboard")}>
+              <ArrowLeft />
+            </button>
+            <h1 className="text-lg font-semibold">
+              Edit Profile ({step}/3)
+            </h1>
+            <span />
+          </div>
+
           {/* Steps */}
           {step === 1 && renderStep1()}
           {step === 2 && renderStep2()}
@@ -819,32 +873,26 @@ const WHVEditProfile: React.FC = () => {
 
           {/* Footer */}
           <div className="p-4 border-t flex justify-between items-center">
-            <button
-              onClick={() => navigate("/whv/dashboard")}
-              className="text-gray-500 underline"
-            >
-              Cancel
-            </button>
-            <div className="flex space-x-2">
-              {step > 1 && (
-                <Button onClick={() => setStep(step - 1)}>Back</Button>
-              )}
-              {step < 3 ? (
-                <Button
-                  onClick={() => setStep(step + 1)}
-                  className="bg-orange-500 text-white"
-                >
-                  Continue →
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSave}
-                  className="bg-orange-500 text-white"
-                >
-                  <Check size={16} className="mr-1" /> Save
-                </Button>
-              )}
-            </div>
+            {step > 1 ? (
+              <Button onClick={() => setStep(step - 1)}>Back</Button>
+            ) : (
+              <span />
+            )}
+            {step < 3 ? (
+              <Button
+                onClick={() => setStep(step + 1)}
+                className="bg-orange-500 text-white"
+              >
+                Continue →
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSave}
+                className="bg-orange-500 text-white"
+              >
+                <Check className="mr-1" size={16} /> Save
+              </Button>
+            )}
           </div>
         </div>
       </div>
