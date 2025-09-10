@@ -2,25 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { Edit, FileText, Shield, Bell, Lock, HelpCircle, Info, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from './BottomNavigation';
+import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  const [profileTagline, setProfileTagline] = useState<string>('Backpacker from Argentina with experience in farm work, currently in Brisbane, QLD');
+  const [profileTagline, setProfileTagline] = useState<string>('');
+  const [fullName, setFullName] = useState<string>('User');
 
   useEffect(() => {
-    // Retrieve the uploaded photo from localStorage
-    const storedPhoto = localStorage.getItem('userProfilePhoto');
-    if (storedPhoto) {
-      setProfilePhoto(storedPhoto);
-    }
+    const fetchWHVProfile = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error('No user logged in', userError);
+        navigate('/sign-in');
+        return;
+      }
 
-    // Retrieve the profile tagline from localStorage
-    const storedTagline = localStorage.getItem('profileTagline');
-    if (storedTagline) {
-      setProfileTagline(storedTagline);
-    }
-  }, []);
+      const { data, error } = await supabase
+        .from('whv_maker')
+        .select('given_name, middle_name, family_name, tagline, profile_photo')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching WHV profile:', error);
+      } else if (data) {
+        // Build full name with middle name if present
+        const nameParts = [data.given_name, data.middle_name, data.family_name].filter(Boolean);
+        setFullName(nameParts.join(' '));
+
+        setProfileTagline(data.tagline || '');
+        setProfilePhoto(data.profile_photo || null);
+      }
+    };
+
+    fetchWHVProfile();
+  }, [navigate]);
 
   const settingsItems = [
     { icon: FileText, label: 'Edit WHV Profile', color: 'text-gray-600' },
@@ -52,25 +70,31 @@ const Dashboard: React.FC = () => {
               {/* User Name Badge */}
               <div className="flex justify-center mb-6">
                 <div className="bg-orange-500 text-white px-6 py-3 rounded-2xl">
-                  <span className="font-medium text-base">Peter Parker</span>
+                  <span className="font-medium text-base">{fullName}</span>
                 </div>
               </div>
 
               {/* Profile Picture */}
               <div className="flex justify-center mb-6">
                 <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden">
-                  <img 
-                    src="/lovable-uploads/5171768d-7ee5-4242-8d48-29d87d896302.png" 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                  />
+                  {profilePhoto ? (
+                    <img 
+                      src={profilePhoto}
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
+                      No Photo
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Profile Description */}
               <div className="text-center mb-6">
                 <p className="text-gray-700 text-base leading-relaxed">
-                  {profileTagline}
+                  {profileTagline || 'No tagline added yet.'}
                 </p>
               </div>
 
@@ -97,10 +121,10 @@ const Dashboard: React.FC = () => {
                       <button
                         key={index}
                         onClick={() => {
-                          if (item.label === 'Security') {
-                            navigate('/security');
-                          } else if (item.label === 'Edit WHV Profile') {
+                          if (item.label === 'Edit WHV Profile') {
                             navigate('/whv/edit-WHVdetails');
+                          } else if (item.label === 'Security') {
+                            navigate('/security');
                           } else if (item.label === 'Notifications') {
                             navigate('/notifications');
                           } else if (item.label === 'Privacy') {
@@ -110,6 +134,7 @@ const Dashboard: React.FC = () => {
                           } else if (item.label === 'Terms and Policies') {
                             navigate('/terms-policies');
                           } else if (item.label === 'Log out') {
+                            supabase.auth.signOut();
                             navigate('/');
                           }
                         }}
