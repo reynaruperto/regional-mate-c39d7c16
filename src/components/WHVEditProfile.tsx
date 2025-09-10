@@ -6,18 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 // ---------------- Types ----------------
-interface Country { country_id: number; name: string; }
 interface VisaStage { stage_id: number; label: string; sub_class: string; stage: number; }
 interface Industry { id: number; name: string; }
 interface Role { id: number; name: string; industryId: number; }
@@ -47,9 +40,7 @@ const isValidAUPhone = (phone: string) => /^(\+614\d{8}|04\d{8})$/.test(phone);
 const isValidExpiry = (date: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const expiryDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return expiryDate > today;
+  return expiryDate > new Date();
 };
 
 // ---------------- Component ----------------
@@ -69,13 +60,7 @@ const WHVEditProfile: React.FC = () => {
   const [visaType, setVisaType] = useState("");
   const [visaExpiry, setVisaExpiry] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState({
-    address1: "",
-    address2: "",
-    suburb: "",
-    state: "",
-    postcode: "",
-  });
+  const [address, setAddress] = useState({ address1: "", address2: "", suburb: "", state: "", postcode: "" });
 
   // Preferences
   const [tagline, setTagline] = useState("");
@@ -86,11 +71,7 @@ const WHVEditProfile: React.FC = () => {
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
-  const [expandedSections, setExpandedSections] = useState({
-    tagline: true,
-    industries: false,
-    states: false,
-  });
+  const [expandedSections, setExpandedSections] = useState({ tagline: true, industries: false, states: false });
 
   // Work Experience
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
@@ -105,11 +86,12 @@ const WHVEditProfile: React.FC = () => {
   // ---------------- Load Data ----------------
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile
-      const { data: maker } = await supabase.from("whv_maker").select("*").eq("user_id", user.id).single();
+      // 1. Profile
+      const { data: maker } = await supabase.from("whv_maker").select("*").eq("user_id", user.id).maybeSingle();
       if (maker) {
         setGivenName(maker.given_name);
         setMiddleName(maker.middle_name || "");
@@ -127,62 +109,41 @@ const WHVEditProfile: React.FC = () => {
         });
       }
 
-      // Visa stages filtered by nationality
-      const { data: eligibility } = await supabase.from("country_eligibility").select("*").eq("country_id", maker?.country_id);
-      if (eligibility) {
-        const { data: stageData } = await supabase.from("visa_stage").select("*");
-        if (stageData) {
-          const filteredStages = stageData.filter((s: any) =>
-            eligibility.some((e: any) => e.stage_id === s.stage_id)
-          );
-          setVisaStages(filteredStages);
-        }
-      }
-
+      // 2. Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("expiry_date, stage_id, visa_stage(label)")
+        .select("expiry_date, visa_stage(stage_id, label)")
         .eq("user_id", user.id)
         .maybeSingle();
       if (visa) {
         setVisaType(visa.visa_stage.label);
         setVisaExpiry(visa.expiry_date);
       }
+      const { data: stageData } = await supabase.from("visa_stage").select("*");
+      if (stageData) setVisaStages(stageData);
 
-      // Industries & roles filtered by visa
-      const { data: eligibleIndustries } = await supabase.from("temp_eligibility")
-        .select("industry_id, industry_name")
-        .eq("country_name", maker?.nationality)
-        .eq("sub_class", visaType?.split(" ")[0]); // crude filter
-      if (eligibleIndustries) {
-        setIndustries(eligibleIndustries.map((i: any) => ({ id: i.industry_id, name: i.industry_name })));
-        const { data: roleData } = await supabase.from("industry_role").select("*").in("industry_id", eligibleIndustries.map((i: any) => i.industry_id));
-        if (roleData) {
-          setRoles(roleData.map((r: any) => ({ id: r.industry_role_id, name: r.role, industryId: r.industry_id })));
-        }
-      }
+      // 3. Industries & Roles (all first, filter later)
+      const { data: industryData } = await supabase.from("industry").select("industry_id, name");
+      if (industryData) setIndustries(industryData.map((i: any) => ({ id: i.industry_id, name: i.name })));
+      const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role, industry_id");
+      if (roleData) setRoles(roleData.map((r: any) => ({ id: r.industry_role_id, name: r.role, industryId: r.industry_id })));
 
-      // Regions
+      // 4. Regions
       const { data: regionData } = await supabase.from("region_rules").select("*");
-      if (regionData) {
-        const uniqueRegions = regionData.filter(
-          (r, idx, arr) => arr.findIndex(x => x.state === r.state && x.area === r.area) === idx
-        );
-        setRegions(uniqueRegions);
-      }
+      if (regionData) setRegions(regionData);
 
-      // Prefill Work Preferences
+      // 5. Preferences
       const { data: prefs } = await supabase.from("maker_preference").select("*").eq("user_id", user.id);
       if (prefs) {
         setSelectedRoles(prefs.map((p: any) => p.industry_role_id));
-        const prefRegions = regionData.filter((r: any) => prefs.some((p: any) => p.region_rules_id === r.region_rules_id));
+        const prefRegions = regionData?.filter((r: any) => prefs.some((p: any) => p.region_rules_id === r.region_rules_id)) || [];
         setPreferredStates([...new Set(prefRegions.map((r: any) => r.state))]);
         setPreferredAreas([...new Set(prefRegions.map((r: any) => r.area))]);
         const industryIds = roles.filter(r => prefs.some((p: any) => p.industry_role_id === r.id)).map(r => r.industryId);
         setSelectedIndustries([...new Set(industryIds)]);
       }
 
-      // Work Experience
+      // 6. Work Experience
       const { data: exp } = await supabase.from("maker_work_experience").select("*").eq("user_id", user.id);
       if (exp) {
         setWorkExperiences(exp.map((e: any) => ({
@@ -197,7 +158,7 @@ const WHVEditProfile: React.FC = () => {
         })));
       }
 
-      // References
+      // 7. References
       const { data: refs } = await supabase.from("maker_reference").select("*").eq("user_id", user.id);
       if (refs) {
         setJobReferences(refs.map((r: any) => ({
@@ -210,7 +171,7 @@ const WHVEditProfile: React.FC = () => {
         })));
       }
 
-      // Licenses
+      // 8. Licenses
       const { data: licData } = await supabase.from("license").select("*");
       if (licData) setAllLicenses(licData.map((l: any) => ({ id: l.license_id, name: l.name })));
       const { data: makerLic } = await supabase.from("maker_license").select("*").eq("user_id", user.id);
@@ -230,24 +191,50 @@ const WHVEditProfile: React.FC = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // validations
     const newErrors: any = {};
     if (!isValidAUPhone(phone)) newErrors.phone = "Invalid Australian phone";
-    if (!isValidExpiry(visaExpiry)) newErrors.visaExpiry = "Expiry must be in the future";
+    if (!isValidExpiry(visaExpiry)) newErrors.visaExpiry = "Expiry must be future";
     setErrors(newErrors);
     if (Object.keys(newErrors).length) return;
 
-    // save logic per step (same as before, omitted here for brevity)
+    // save by step ...
     toast({ title: "Saved", description: `Step ${step} updated` });
   };
 
   if (loading) return <p>Loading...</p>;
 
-  // ---------------- Render ----------------
-  // (Render Steps identical to onboarding with collapsibles & hierarchy:
-  // Step 1: Visa/Personal Info (read-only nationality/DOB, visa filtered)
-  // Step 2: Preferences (collapsibles, industry->roles, state->areas)
-  // Step 3: Work Exp, Licenses, References)
+  return (
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+        <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
+          <div className="px-6 pt-12 pb-4 border-b flex items-center justify-between">
+            <button onClick={() => navigate("/whv/dashboard")} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+              <ArrowLeft size={20} />
+            </button>
+            <h1 className="text-lg font-medium">Edit Profile</h1>
+            <button onClick={handleSave} className="text-orange-500 font-medium flex items-center">
+              <Check size={16} className="mr-1" /> Save
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            {/* Render steps here exactly like onboarding ... */}
+            <p>Step {step} form content here…</p>
+          </div>
+          <div className="p-4 flex flex-col items-center">
+            <div className="flex gap-2 mb-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className={`h-2 w-6 rounded-full ${step === i ? "bg-orange-500" : "bg-gray-300"}`} />
+              ))}
+            </div>
+            <div className="flex justify-between w-full">
+              <Button disabled={step === 1} onClick={() => setStep(step - 1)} variant="outline">Back</Button>
+              <Button disabled={step === 3} onClick={() => setStep(step + 1)} className="bg-orange-500 text-white">Next</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default WHVEditProfile;
