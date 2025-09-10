@@ -216,15 +216,25 @@ const EditProfile: React.FC = () => {
                 </div>
               </div>
 
-              {/* Preview Profile Card */}
+              {/* Preview Profile Card + Match Card Group */}
               <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Preview Profile card</h3>
+                  <h3 className="font-semibold text-gray-900">Preview Profile Card</h3>
                   <Button 
                     onClick={handlePreviewProfile}
                     className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-full text-sm"
                   >
                     VIEW
+                  </Button>
+                </div>
+
+                {/* Preview Match Card Button (below) */}
+                <div className="mt-4">
+                  <Button 
+                    onClick={() => navigate('/whv/match-card')}
+                    className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white px-6 py-3 rounded-2xl font-semibold"
+                  >
+                    Preview Match Card
                   </Button>
                 </div>
               </div>
