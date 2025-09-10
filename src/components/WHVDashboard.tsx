@@ -59,18 +59,18 @@ const Dashboard: React.FC = () => {
         if (whv.profile_photo) {
           let photoPath = whv.profile_photo;
 
-          // ✅ If DB stored a full URL, strip it to just the path
+          // ✅ Normalize: strip full URL to just the bucket path
           if (photoPath.startsWith('http')) {
-            const parts = photoPath.split('/object/public/profile_photos/');
-            if (parts.length > 1) {
-              photoPath = parts[1];
+            const marker = '/object/public/profile_photos/';
+            const idx = photoPath.indexOf(marker);
+            if (idx !== -1) {
+              photoPath = photoPath.substring(idx + marker.length);
             }
           }
 
-          // ✅ Generate public URL from bucket
           const { data } = supabase
             .storage
-            .from('profile_photos') // 👈 make sure this matches your bucket name
+            .from('profile_photos') // 👈 bucket name
             .getPublicUrl(photoPath);
 
           if (data?.publicUrl) {
@@ -142,7 +142,7 @@ const Dashboard: React.FC = () => {
               {/* Edit Profile Button */}
               <div className="flex justify-center mb-8">
                 <button 
-                  onClick={() => navigate('/whv/profile-edit')}
+                  onClick={() => navigate('/whv/edit-profile')} 
                   className="flex items-center bg-gray-200 px-6 py-3 rounded-2xl hover:bg-gray-300 transition-colors"
                 >
                   <Edit size={16} className="mr-2 text-gray-700" />
@@ -161,7 +161,7 @@ const Dashboard: React.FC = () => {
                       <button
                         key={index}
                         onClick={() => {
-                          if (item.label === 'Edit WHV Profile') navigate('/whv/edit-WHVdetails');
+                          if (item.label === 'Edit WHV Profile') navigate('/whv/edit-profile');
                           else if (item.label === 'Security') navigate('/security');
                           else if (item.label === 'Notifications') navigate('/notifications');
                           else if (item.label === 'Privacy') navigate('/privacy');
