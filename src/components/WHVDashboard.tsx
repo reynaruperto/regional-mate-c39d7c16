@@ -13,35 +13,21 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchWHVProfile = async () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log("Auth user id:", user?.id);
+
       if (userError || !user) {
-        console.error('No user logged in', userError);
         navigate('/sign-in');
         return;
       }
 
-      // Step 1: find profile row for this auth user
-      const { data: profileRow, error: profileError } = await supabase
-        .from('profile')
-        .select('user_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profileRow) {
-        console.error('Profile not found for auth user:', profileError);
-        return;
-      }
-
-      console.log("Matched profile row:", profileRow);
-
-      // Step 2: fetch WHV maker row using profile.user_id
-      const { data: whv, error: whvError } = await supabase
+      const { data: whv, error } = await supabase
         .from('whv_maker')
         .select('given_name, middle_name, family_name, tagline, profile_photo')
-        .eq('user_id', profileRow.user_id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
-      if (whvError) {
-        console.error('Error fetching WHV profile:', whvError);
+      if (error) {
+        console.error('Error fetching WHV profile:', error);
         return;
       }
 
@@ -50,7 +36,6 @@ const Dashboard: React.FC = () => {
       if (whv) {
         const nameParts = [whv.given_name, whv.middle_name, whv.family_name].filter(Boolean);
         setFullName(nameParts.join(' '));
-
         setProfileTagline(whv.tagline || '');
         setProfilePhoto(whv.profile_photo || null);
       }
@@ -71,37 +56,23 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          
-          {/* Main content container */}
           <div className="w-full h-full flex flex-col relative bg-gray-100">
-            {/* Content */}
             <div className="flex-1 px-6 pt-16 pb-24 overflow-y-auto">
-              {/* Welcome Back Header */}
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-semibold text-gray-900">Welcome Back</h1>
               </div>
-
-              {/* User Name Badge */}
               <div className="flex justify-center mb-6">
                 <div className="bg-orange-500 text-white px-6 py-3 rounded-2xl">
                   <span className="font-medium text-base">{fullName}</span>
                 </div>
               </div>
-
-              {/* Profile Picture */}
               <div className="flex justify-center mb-6">
                 <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden">
                   {profilePhoto ? (
-                    <img 
-                      src={profilePhoto}
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
                       No Photo
@@ -109,15 +80,11 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
-
-              {/* Profile Description */}
               <div className="text-center mb-6">
                 <p className="text-gray-700 text-base leading-relaxed">
                   {profileTagline || 'No tagline added yet.'}
                 </p>
               </div>
-
-              {/* Edit Profile Button */}
               <div className="flex justify-center mb-8">
                 <button 
                   onClick={() => navigate('/whv/profile-edit')}
@@ -127,11 +94,8 @@ const Dashboard: React.FC = () => {
                   <span className="text-gray-700 font-medium">Edit Profile</span>
                 </button>
               </div>
-
-              {/* Settings Section */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 px-2">Settings</h3>
-                
                 <div className="space-y-1">
                   {settingsItems.map((item, index) => {
                     const Icon = item.icon;
@@ -140,19 +104,13 @@ const Dashboard: React.FC = () => {
                       <button
                         key={index}
                         onClick={() => {
-                          if (item.label === 'Edit WHV Profile') {
-                            navigate('/whv/edit-WHVdetails');
-                          } else if (item.label === 'Security') {
-                            navigate('/security');
-                          } else if (item.label === 'Notifications') {
-                            navigate('/notifications');
-                          } else if (item.label === 'Privacy') {
-                            navigate('/privacy');
-                          } else if (item.label === 'Help & Support') {
-                            navigate('/help-support');
-                          } else if (item.label === 'Terms and Policies') {
-                            navigate('/terms-policies');
-                          } else if (item.label === 'Log out') {
+                          if (item.label === 'Edit WHV Profile') navigate('/whv/edit-WHVdetails');
+                          else if (item.label === 'Security') navigate('/security');
+                          else if (item.label === 'Notifications') navigate('/notifications');
+                          else if (item.label === 'Privacy') navigate('/privacy');
+                          else if (item.label === 'Help & Support') navigate('/help-support');
+                          else if (item.label === 'Terms and Policies') navigate('/terms-policies');
+                          else if (item.label === 'Log out') {
                             supabase.auth.signOut();
                             navigate('/');
                           }
@@ -167,8 +125,6 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* Bottom Navigation - Inside phone frame */}
             <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
               <BottomNavigation />
             </div>
@@ -180,3 +136,4 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+
