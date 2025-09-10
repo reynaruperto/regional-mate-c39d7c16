@@ -1,3 +1,4 @@
+// src/components/WHVPreviewMatchCard.tsx
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Briefcase, Award, User, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,21 @@ const WHVPreviewMatchCard: React.FC = () => {
           area: String(pref.region_rules?.area || 'Not specified'),
         }));
 
+        // Deduplicate work & location preferences
+        const uniqueWorkPrefs = Array.from(
+          new Set(formattedPreferences.map(p => `${p.industry} – ${p.role}`))
+        ).map(str => {
+          const [industry, role] = str.split(' – ');
+          return { industry, role } as Preference;
+        });
+
+        const uniqueLocationPrefs = Array.from(
+          new Set(formattedPreferences.map(p => `${p.state} – ${p.area}`))
+        ).map(str => {
+          const [state, area] = str.split(' – ');
+          return { state, area } as Preference;
+        });
+
         // 4. Work experience
         const { data: experiences } = await supabase
           .from('maker_work_experience')
@@ -150,7 +166,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           visaExpiry: visa?.expiry_date || 'Not specified',
         });
 
-        setPreferences(formattedPreferences);
+        setPreferences([...uniqueWorkPrefs, ...uniqueLocationPrefs]); // keep both grouped
         setWorkExperiences(formattedExperiences);
         setLicenses(formattedLicenses);
         setReferences(referenceRows || []);
@@ -171,6 +187,10 @@ const WHVPreviewMatchCard: React.FC = () => {
       </div>
     );
   }
+
+  // Separate unique sets for rendering
+  const workPrefs = Array.from(new Set(preferences.map(p => `${p.industry} – ${p.role}`)));
+  const locationPrefs = Array.from(new Set(preferences.map(p => `${p.state} – ${p.area}`)));
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
@@ -228,11 +248,9 @@ const WHVPreviewMatchCard: React.FC = () => {
                 {/* Work Preferences */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">Work Preferences</h3>
-                  {preferences.length > 0 ? (
-                    preferences.map((pref, idx) => (
-                      <p key={idx} className="text-sm text-gray-700">
-                        {pref.industry} – {pref.role}
-                      </p>
+                  {workPrefs.length > 0 ? (
+                    workPrefs.map((wp, idx) => (
+                      <p key={idx} className="text-sm text-gray-700">{wp}</p>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No work preferences set</p>
@@ -242,11 +260,9 @@ const WHVPreviewMatchCard: React.FC = () => {
                 {/* Location Preferences */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">Location Preferences</h3>
-                  {preferences.length > 0 ? (
-                    preferences.map((pref, idx) => (
-                      <p key={idx} className="text-sm text-gray-700">
-                        {pref.state} – {pref.area}
-                      </p>
+                  {locationPrefs.length > 0 ? (
+                    locationPrefs.map((lp, idx) => (
+                      <p key={idx} className="text-sm text-gray-700">{lp}</p>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No location preferences set</p>
