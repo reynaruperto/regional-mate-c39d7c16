@@ -19,26 +19,40 @@ const Dashboard: React.FC = () => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('whv_maker')
-        .select('given_name, middle_name, family_name, tagline, profile_photo')
+      // Step 1: find profile row for this auth user
+      const { data: profileRow, error: profileError } = await supabase
+        .from('profile')
+        .select('user_id')
         .eq('user_id', user.id)
         .single();
 
-      if (error) {
-        console.error('Error fetching WHV profile:', error);
+      if (profileError || !profileRow) {
+        console.error('Profile not found for auth user:', profileError);
         return;
       }
 
-      if (data) {
-        console.log('Fetched WHV data:', data); // 👈 Debug output
+      console.log("Matched profile row:", profileRow);
 
-        // Build full name including middle name if present
-        const nameParts = [data.given_name, data.middle_name, data.family_name].filter(Boolean);
+      // Step 2: fetch WHV maker row using profile.user_id
+      const { data: whv, error: whvError } = await supabase
+        .from('whv_maker')
+        .select('given_name, middle_name, family_name, tagline, profile_photo')
+        .eq('user_id', profileRow.user_id)
+        .maybeSingle();
+
+      if (whvError) {
+        console.error('Error fetching WHV profile:', whvError);
+        return;
+      }
+
+      console.log("Fetched WHV data:", whv);
+
+      if (whv) {
+        const nameParts = [whv.given_name, whv.middle_name, whv.family_name].filter(Boolean);
         setFullName(nameParts.join(' '));
 
-        setProfileTagline(data.tagline || '');
-        setProfilePhoto(data.profile_photo || null);
+        setProfileTagline(whv.tagline || '');
+        setProfilePhoto(whv.profile_photo || null);
       }
     };
 
