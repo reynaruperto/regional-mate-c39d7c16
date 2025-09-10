@@ -53,11 +53,20 @@ const Dashboard: React.FC = () => {
         console.log("Fetched WHV data:", whv);
 
         const nameParts = [whv.given_name, whv.middle_name, whv.family_name].filter(Boolean);
-
-        // ✅ Only set if values exist (avoids null overwrites)
         if (nameParts.length > 0) setFullName(nameParts.join(' '));
         if (whv.tagline) setProfileTagline(whv.tagline);
-        if (whv.profile_photo) setProfilePhoto(whv.profile_photo);
+
+        if (whv.profile_photo) {
+          // ✅ Generate public URL from private bucket
+          const { data } = supabase
+            .storage
+            .from('profile_photos') // 👈 replace with your bucket name
+            .getPublicUrl(whv.profile_photo);
+
+          if (data?.publicUrl) {
+            setProfilePhoto(data.publicUrl);
+          }
+        }
       } else {
         console.warn("WHV fetch returned null — ignoring");
       }
@@ -176,3 +185,4 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+
