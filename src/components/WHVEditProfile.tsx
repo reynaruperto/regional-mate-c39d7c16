@@ -1,3 +1,4 @@
+// src/components/WHVEditProfile.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Plus, X } from "lucide-react";
@@ -77,6 +78,9 @@ const WHVEditProfile: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Core info
+  const [givenName, setGivenName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [familyName, setFamilyName] = useState("");
   const [dob, setDob] = useState("");
   const [nationality, setNationality] = useState("");
   const [visaStages, setVisaStages] = useState<VisaStage[]>([]);
@@ -87,7 +91,7 @@ const WHVEditProfile: React.FC = () => {
     address1: "",
     address2: "",
     suburb: "",
-    state: "", // keep string (avoid TS2322)
+    state: "", // string (avoid TS2322)
     postcode: "",
   });
 
@@ -120,6 +124,9 @@ const WHVEditProfile: React.FC = () => {
       // Profile
       const { data: maker } = await supabase.from("whv_maker").select("*").eq("user_id", user.id).single();
       if (maker) {
+        setGivenName(maker.given_name);
+        setMiddleName(maker.middle_name || "");
+        setFamilyName(maker.family_name);
         setNationality(maker.nationality);
         setDob(maker.birth_date);
         setTagline(maker.tagline || "");
@@ -321,6 +328,9 @@ const WHVEditProfile: React.FC = () => {
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">Visa & Personal Info</h2>
+                <p><strong>Given Name:</strong> {givenName}</p>
+                <p><strong>Middle Name:</strong> {middleName}</p>
+                <p><strong>Family Name:</strong> {familyName}</p>
                 <p><strong>Nationality:</strong> {nationality}</p>
                 <p><strong>DOB:</strong> {dob}</p>
                 <Label>Visa Type *</Label>
