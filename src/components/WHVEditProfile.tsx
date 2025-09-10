@@ -197,7 +197,6 @@ const WHVEditProfile: React.FC = () => {
       if (visa) {
         setVisaType(visa.visa_stage.label);
         setVisaExpiry(visa.expiry_date);
-        // filter visa stages by eligibility
         const { data: eligibility } = await supabase
           .from("country_eligibility")
           .select("stage_id")
@@ -381,9 +380,8 @@ const WHVEditProfile: React.FC = () => {
   };
 
   // ==============================
-  // Save handler (same as before)
+  // TODO: Save handler (same as before)
   // ==============================
-  // ... keep save logic here (unchanged from earlier version) ...
 
   // ==============================
   // Render
@@ -394,8 +392,8 @@ const WHVEditProfile: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
-          {/* Header + steps + form content (unchanged) */}
-          {/* Just ensure in the State Select: */}
+          {/* Step 1, Step 2, Step 3 rendering here (omitted for brevity) */}
+          {/* Make sure the State Select looks like this: */}
           <Select
             value={address.state}
             onValueChange={(v) =>
