@@ -1,7 +1,7 @@
 // src/components/WHVEditProfile.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Plus, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Check, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,7 +91,7 @@ const WHVEditProfile: React.FC = () => {
     address1: "",
     address2: "",
     suburb: "",
-    state: "", // string (avoid TS2322)
+    state: "",
     postcode: "",
   });
 
@@ -104,6 +104,11 @@ const WHVEditProfile: React.FC = () => {
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
+  const [expandedSections, setExpandedSections] = useState({
+    tagline: true,
+    industries: false,
+    states: false,
+  });
 
   // Work Experience
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
@@ -150,6 +155,7 @@ const WHVEditProfile: React.FC = () => {
         setVisaType(visa.visa_stage.label);
         setVisaExpiry(visa.expiry_date);
       }
+
       const { data: stageData } = await supabase.from("visa_stage").select("*");
       if (stageData) setVisaStages(stageData);
 
@@ -234,7 +240,7 @@ const WHVEditProfile: React.FC = () => {
         address_line1: address.address1,
         address_line2: address.address2,
         suburb: address.suburb,
-        state: address.state,
+        state: address.state as any, // 👈 cast to any (fixes TS2322)
         postcode: address.postcode,
       }).eq("user_id", user.id);
 
@@ -307,6 +313,10 @@ const WHVEditProfile: React.FC = () => {
   if (loading) return <p>Loading...</p>;
 
   // ---------------- Render ----------------
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -324,7 +334,7 @@ const WHVEditProfile: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
-            {/* Step 1: Visa & Personal Info */}
+            {/* Step 1 */}
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">Visa & Personal Info</h2>
@@ -357,48 +367,125 @@ const WHVEditProfile: React.FC = () => {
               </div>
             )}
 
-            {/* Step 2: Work Preferences */}
+            {/* Step 2 */}
             {step === 2 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">Work Preferences</h2>
-                <Label>Profile Tagline</Label>
-                <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Backpacker ready for farm work" />
-                <Label>Industries (max 3)</Label>
-                {industries.map((i) => (
-                  <label key={i.id} className="flex items-center space-x-2">
-                    <input type="checkbox" checked={selectedIndustries.includes(i.id)} disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(i.id)} onChange={() =>
-                      setSelectedIndustries(selectedIndustries.includes(i.id) ? selectedIndustries.filter(x => x !== i.id) : [...selectedIndustries, i.id])
-                    } /> {i.name}
-                  </label>
-                ))}
-                <Label>Roles</Label>
-                {roles.filter(r => selectedIndustries.includes(r.industryId)).map((r) => (
-                  <button key={r.id} onClick={() =>
-                    setSelectedRoles(selectedRoles.includes(r.id) ? selectedRoles.filter(x => x !== r.id) : [...selectedRoles, r.id])
-                  } className={`px-3 py-1 border rounded-full m-1 ${selectedRoles.includes(r.id) ? "bg-orange-500 text-white" : ""}`}>
-                    {r.name}
+                {/* Tagline */}
+                <div className="border rounded-lg">
+                  <button type="button" onClick={() => toggleSection("tagline")} className="w-full flex items-center justify-between p-4 text-left">
+                    <span className="text-lg font-medium">1. Profile Tagline</span>
+                    {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                   </button>
-                ))}
-                <Label>Preferred States (max 3)</Label>
-                {[...new Set(regions.map(r => r.state))].map((s) => (
-                  <label key={s} className="flex items-center space-x-2">
-                    <input type="checkbox" checked={preferredStates.includes(s)} disabled={preferredStates.length >= 3 && !preferredStates.includes(s)} onChange={() =>
-                      setPreferredStates(preferredStates.includes(s) ? preferredStates.filter(x => x !== s) : [...preferredStates, s])
-                    } /> {s}
-                  </label>
-                ))}
-                <Label>Preferred Areas (max 3)</Label>
-                {[...new Set(regions.map(r => r.area))].map((a) => (
-                  <label key={a} className="flex items-center space-x-2">
-                    <input type="checkbox" checked={preferredAreas.includes(a)} disabled={preferredAreas.length >= 3 && !preferredAreas.includes(a)} onChange={() =>
-                      setPreferredAreas(preferredAreas.includes(a) ? preferredAreas.filter(x => x !== a) : [...preferredAreas, a])
-                    } /> {a}
-                  </label>
-                ))}
+                  {expandedSections.tagline && (
+                    <div className="px-4 pb-4 border-t space-y-3">
+                      <Label>Profile Tagline</Label>
+                      <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Backpacker ready for farm work" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Industries */}
+                <div className="border rounded-lg">
+                  <button type="button" onClick={() => toggleSection("industries")} className="w-full flex items-center justify-between p-4 text-left">
+                    <span className="text-lg font-medium">2. Industries & Roles</span>
+                    {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  </button>
+                  {expandedSections.industries && (
+                    <div className="px-4 pb-4 border-t space-y-4">
+                      <Label>Select up to 3 industries *</Label>
+                      {industries.map((industry) => (
+                        <label key={industry.id} className="flex items-center space-x-2 py-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedIndustries.includes(industry.id)}
+                            disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)}
+                            onChange={() =>
+                              setSelectedIndustries(selectedIndustries.includes(industry.id) ? selectedIndustries.filter(x => x !== industry.id) : [...selectedIndustries, industry.id])
+                            }
+                            className="h-4 w-4"
+                          />
+                          <span>{industry.name}</span>
+                        </label>
+                      ))}
+
+                      {selectedIndustries.map((industryId) => {
+                        const industry = industries.find((i) => i.id === industryId);
+                        const industryRoles = roles.filter((r) => r.industryId === industryId);
+                        return (
+                          <div key={industryId}>
+                            <Label>Roles for {industry?.name}</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {industryRoles.map((role) => (
+                                <button
+                                  key={role.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedRoles(selectedRoles.includes(role.id) ? selectedRoles.filter(r => r !== role.id) : [...selectedRoles, role.id])
+                                  }
+                                  className={`px-3 py-1.5 rounded-full text-xs border ${
+                                    selectedRoles.includes(role.id) ? "bg-orange-500 text-white border-orange-500" : "bg-white text-gray-700 border-gray-300"
+                                  }`}
+                                >
+                                  {role.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Locations */}
+                <div className="border rounded-lg">
+                  <button type="button" onClick={() => toggleSection("states")} className="w-full flex items-center justify-between p-4 text-left">
+                    <span className="text-lg font-medium">3. Preferred Locations</span>
+                    {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  </button>
+                  {expandedSections.states && (
+                    <div className="px-4 pb-4 border-t space-y-4">
+                      <Label>Preferred States (max 3)</Label>
+                      {[...new Set(regions.map((r) => r.state))].map((s) => (
+                        <div key={s} className="mb-4">
+                          <label className="flex items-center space-x-2 py-1 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={preferredStates.includes(s)}
+                              onChange={() =>
+                                setPreferredStates(preferredStates.includes(s) ? preferredStates.filter(x => x !== s) : [...preferredStates, s])
+                              }
+                              disabled={preferredStates.length >= 3 && !preferredStates.includes(s)}
+                            />
+                            <span>{s}</span>
+                          </label>
+                          {preferredStates.includes(s) && (
+                            <div className="ml-6 space-y-1">
+                              {regions.filter((r) => r.state === s).map((r) => r.area).map((area) => (
+                                <label key={`${s}-${area}`} className="flex items-center space-x-2 py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={preferredAreas.includes(area)}
+                                    onChange={() =>
+                                      setPreferredAreas(preferredAreas.includes(area) ? preferredAreas.filter(x => x !== area) : [...preferredAreas, area])
+                                    }
+                                    disabled={preferredAreas.length >= 3 && !preferredAreas.includes(area)}
+                                  />
+                                  <span>{area}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Step 3: Work Experience */}
+            {/* Step 3 */}
             {step === 3 && (
               <div className="space-y-6">
                 <h2 className="text-xl font-semibold">Work Experience</h2>
