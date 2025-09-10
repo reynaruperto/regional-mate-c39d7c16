@@ -1,4 +1,3 @@
-// src/components/WHVEditProfile.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Plus, X } from "lucide-react";
@@ -88,7 +87,7 @@ const WHVEditProfile: React.FC = () => {
     address1: "",
     address2: "",
     suburb: "",
-    state: "", // treat as string to avoid TS2322 error
+    state: "", // keep string (avoid TS2322)
     postcode: "",
   });
 
@@ -150,20 +149,23 @@ const WHVEditProfile: React.FC = () => {
       // Eligible industries/roles
       const { data: eligibility } = await supabase.from("temp_eligibility").select("*").eq("country_name", maker?.nationality);
       if (eligibility) {
-        setIndustries(eligibility.map((e: any) => ({ id: e.industry_id, name: e.industry_name })));
+        const uniqueIndustries = Array.from(new Map(eligibility.map((e: any) => [e.industry_id, { id: e.industry_id, name: e.industry_name }])).values());
+        setIndustries(uniqueIndustries);
         const { data: roleData } = await supabase.from("industry_role").select("*").in("industry_id", eligibility.map((e: any) => e.industry_id));
         if (roleData) {
-          setRoles(roleData.map((r: any) => ({
-            id: r.industry_role_id,
-            name: r.role,
-            industryId: r.industry_id,
-          })));
+          const uniqueRoles = Array.from(new Map(roleData.map((r: any) => [r.industry_role_id, { id: r.industry_role_id, name: r.role, industryId: r.industry_id }])).values());
+          setRoles(uniqueRoles);
         }
       }
 
-      // Regions
+      // Regions (deduped)
       const { data: regionData } = await supabase.from("region_rules").select("*");
-      if (regionData) setRegions(regionData);
+      if (regionData) {
+        const uniqueRegions = regionData.filter(
+          (r, idx, arr) => arr.findIndex(x => x.state === r.state && x.area === r.area) === idx
+        );
+        setRegions(uniqueRegions);
+      }
 
       // Work Experience
       const { data: exp } = await supabase.from("maker_work_experience").select("*").eq("user_id", user.id);
@@ -256,7 +258,6 @@ const WHVEditProfile: React.FC = () => {
     }
 
     if (step === 3) {
-      // Work experiences
       await supabase.from("maker_work_experience").delete().eq("user_id", user.id);
       for (let exp of workExperiences.slice(0, 8)) {
         await supabase.from("maker_work_experience").insert({
@@ -271,7 +272,6 @@ const WHVEditProfile: React.FC = () => {
         });
       }
 
-      // Licenses
       await supabase.from("maker_license").delete().eq("user_id", user.id);
       for (let lic of licenses) {
         await supabase.from("maker_license").insert({
@@ -281,7 +281,6 @@ const WHVEditProfile: React.FC = () => {
         });
       }
 
-      // References
       await supabase.from("maker_reference").delete().eq("user_id", user.id);
       for (let ref of jobReferences.slice(0, 5)) {
         await supabase.from("maker_reference").insert({
@@ -318,37 +317,27 @@ const WHVEditProfile: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
-            {/* Step 1 */}
+            {/* Step 1: Visa & Personal Info */}
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">Visa & Personal Info</h2>
                 <p><strong>Nationality:</strong> {nationality}</p>
                 <p><strong>DOB:</strong> {dob}</p>
-
-                <div>
-                  <Label>Visa Type *</Label>
-                  <Select value={visaType} onValueChange={setVisaType}>
-                    <SelectTrigger><SelectValue placeholder="Select visa" /></SelectTrigger>
-                    <SelectContent>
-                      {visaStages.map((v) => (
-                        <SelectItem key={v.stage_id} value={v.label}>{v.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Visa Expiry *</Label>
-                  <Input type="date" value={visaExpiry} onChange={(e) => setVisaExpiry(e.target.value)} />
-                  {errors.visaExpiry && <p className="text-red-500">{errors.visaExpiry}</p>}
-                </div>
-
-                <div>
-                  <Label>Phone *</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="04xxxxxxxx or +614xxxxxxxx" />
-                  {errors.phone && <p className="text-red-500">{errors.phone}</p>}
-                </div>
-
+                <Label>Visa Type *</Label>
+                <Select value={visaType} onValueChange={setVisaType}>
+                  <SelectTrigger><SelectValue placeholder="Select visa" /></SelectTrigger>
+                  <SelectContent>
+                    {visaStages.map((v) => (
+                      <SelectItem key={v.stage_id} value={v.label}>{v.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Label>Visa Expiry *</Label>
+                <Input type="date" value={visaExpiry} onChange={(e) => setVisaExpiry(e.target.value)} />
+                {errors.visaExpiry && <p className="text-red-500">{errors.visaExpiry}</p>}
+                <Label>Phone *</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="04xxxxxxxx or +614xxxxxxxx" />
+                {errors.phone && <p className="text-red-500">{errors.phone}</p>}
                 <Label>Address *</Label>
                 <Input value={address.address1} onChange={(e) => setAddress({ ...address, address1: e.target.value })} placeholder="Address Line 1" />
                 <Input value={address.address2} onChange={(e) => setAddress({ ...address, address2: e.target.value })} placeholder="Address Line 2" />
@@ -358,62 +347,48 @@ const WHVEditProfile: React.FC = () => {
               </div>
             )}
 
-            {/* Step 2 */}
+            {/* Step 2: Work Preferences */}
             {step === 2 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">Work Preferences</h2>
-                <div>
-                  <Label>Profile Tagline</Label>
-                  <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Backpacker ready for farm work" />
-                </div>
-
-                <div>
-                  <Label>Select Industries (max 3)</Label>
-                  {industries.map((i) => (
-                    <label key={i.id} className="flex items-center space-x-2">
-                      <input type="checkbox" checked={selectedIndustries.includes(i.id)} disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(i.id)} onChange={() =>
-                        setSelectedIndustries(selectedIndustries.includes(i.id) ? selectedIndustries.filter(x => x !== i.id) : [...selectedIndustries, i.id])
-                      } /> {i.name}
-                    </label>
-                  ))}
-                </div>
-
-                <div>
-                  <Label>Roles</Label>
-                  {roles.filter(r => selectedIndustries.includes(r.industryId)).map((r) => (
-                    <button key={r.id} onClick={() =>
-                      setSelectedRoles(selectedRoles.includes(r.id) ? selectedRoles.filter(x => x !== r.id) : [...selectedRoles, r.id])
-                    } className={`px-3 py-1 border rounded-full m-1 ${selectedRoles.includes(r.id) ? "bg-orange-500 text-white" : ""}`}>
-                      {r.name}
-                    </button>
-                  ))}
-                </div>
-
-                <div>
-                  <Label>Preferred States (max 3)</Label>
-                  {[...new Set(regions.map(r => r.state))].map((s) => (
-                    <label key={s} className="flex items-center space-x-2">
-                      <input type="checkbox" checked={preferredStates.includes(s)} disabled={preferredStates.length >= 3 && !preferredStates.includes(s)} onChange={() =>
-                        setPreferredStates(preferredStates.includes(s) ? preferredStates.filter(x => x !== s) : [...preferredStates, s])
-                      } /> {s}
-                    </label>
-                  ))}
-                </div>
-
-                <div>
-                  <Label>Preferred Areas (max 3)</Label>
-                  {[...new Set(regions.map(r => r.area))].map((a) => (
-                    <label key={a} className="flex items-center space-x-2">
-                      <input type="checkbox" checked={preferredAreas.includes(a)} disabled={preferredAreas.length >= 3 && !preferredAreas.includes(a)} onChange={() =>
-                        setPreferredAreas(preferredAreas.includes(a) ? preferredAreas.filter(x => x !== a) : [...preferredAreas, a])
-                      } /> {a}
-                    </label>
-                  ))}
-                </div>
+                <Label>Profile Tagline</Label>
+                <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Backpacker ready for farm work" />
+                <Label>Industries (max 3)</Label>
+                {industries.map((i) => (
+                  <label key={i.id} className="flex items-center space-x-2">
+                    <input type="checkbox" checked={selectedIndustries.includes(i.id)} disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(i.id)} onChange={() =>
+                      setSelectedIndustries(selectedIndustries.includes(i.id) ? selectedIndustries.filter(x => x !== i.id) : [...selectedIndustries, i.id])
+                    } /> {i.name}
+                  </label>
+                ))}
+                <Label>Roles</Label>
+                {roles.filter(r => selectedIndustries.includes(r.industryId)).map((r) => (
+                  <button key={r.id} onClick={() =>
+                    setSelectedRoles(selectedRoles.includes(r.id) ? selectedRoles.filter(x => x !== r.id) : [...selectedRoles, r.id])
+                  } className={`px-3 py-1 border rounded-full m-1 ${selectedRoles.includes(r.id) ? "bg-orange-500 text-white" : ""}`}>
+                    {r.name}
+                  </button>
+                ))}
+                <Label>Preferred States (max 3)</Label>
+                {[...new Set(regions.map(r => r.state))].map((s) => (
+                  <label key={s} className="flex items-center space-x-2">
+                    <input type="checkbox" checked={preferredStates.includes(s)} disabled={preferredStates.length >= 3 && !preferredStates.includes(s)} onChange={() =>
+                      setPreferredStates(preferredStates.includes(s) ? preferredStates.filter(x => x !== s) : [...preferredStates, s])
+                    } /> {s}
+                  </label>
+                ))}
+                <Label>Preferred Areas (max 3)</Label>
+                {[...new Set(regions.map(r => r.area))].map((a) => (
+                  <label key={a} className="flex items-center space-x-2">
+                    <input type="checkbox" checked={preferredAreas.includes(a)} disabled={preferredAreas.length >= 3 && !preferredAreas.includes(a)} onChange={() =>
+                      setPreferredAreas(preferredAreas.includes(a) ? preferredAreas.filter(x => x !== a) : [...preferredAreas, a])
+                    } /> {a}
+                  </label>
+                ))}
               </div>
             )}
 
-            {/* Step 3 */}
+            {/* Step 3: Work Experience */}
             {step === 3 && (
               <div className="space-y-6">
                 <h2 className="text-xl font-semibold">Work Experience</h2>
