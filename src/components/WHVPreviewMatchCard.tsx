@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Briefcase, Award, User } from 'lucide-react';
+import { ArrowLeft, MapPin, Briefcase, Award, User, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +12,8 @@ interface WHVProfileData {
   preferredLocation: string;
   preferredRole: string;
   currentLocation: string;
+  email: string;
+  phone: string;
 }
 
 interface WorkExperience {
@@ -38,14 +40,14 @@ const WHVPreviewMatchCard: React.FC = () => {
           return;
         }
 
-        // 1. Fetch WHV maker profile
+        // 1. WHV maker profile
         const { data: whvMaker } = await supabase
           .from('whv_maker')
-          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state')
+          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num')
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 2. Fetch preferences
+        // 2. Preferences
         const { data: preferences } = await supabase
           .from('maker_preference')
           .select(`
@@ -54,20 +56,27 @@ const WHVPreviewMatchCard: React.FC = () => {
           `)
           .eq('user_id', user.id);
 
-        // 3. Fetch work experiences
+        // 3. Work experience
         const { data: experiences } = await supabase
           .from('maker_work_experience')
           .select('start_date, end_date, position, company')
           .eq('user_id', user.id)
           .order('start_date', { ascending: false });
 
-        // 4. Fetch licenses
+        // 4. Licenses
         const { data: licenseRows } = await supabase
           .from('maker_license')
           .select('license(name)')
           .eq('user_id', user.id);
 
-        // 5. Handle profile photo signed URL
+        // 5. Email from profile
+        const { data: profileRow } = await supabase
+          .from('profile')
+          .select('email')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // 6. Handle signed profile photo
         let signedPhoto: string | null = null;
         if (whvMaker?.profile_photo) {
           let photoPath = whvMaker.profile_photo;
@@ -81,6 +90,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           signedPhoto = data?.signedUrl ?? null;
         }
 
+        // Format profile
         const formattedProfile: WHVProfileData = {
           name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name].filter(Boolean).join(' '),
           tagline: whvMaker?.tagline || 'Working Holiday Maker seeking opportunities',
@@ -90,7 +100,9 @@ const WHVPreviewMatchCard: React.FC = () => {
             ? `${preferences[0].region_rules.state} (${preferences[0].region_rules.area})`
             : 'Not set',
           preferredRole: preferences && preferences.length > 0 && preferences[0]?.industry_role?.role || 'Not set',
-          currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified'
+          currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified',
+          email: profileRow?.email || 'Not provided',
+          phone: whvMaker?.mobile_num || 'Not provided',
         };
 
         setProfileData(formattedProfile);
@@ -130,19 +142,21 @@ const WHVPreviewMatchCard: React.FC = () => {
           
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4 bg-white shadow-sm">
-              <div className="flex items-center justify-between">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="w-10 h-10"
-                  onClick={() => navigate('/edit-profile')}
-                >
-                  <ArrowLeft className="w-5 h-5 text-gray-700" />
-                </Button>
-                <h1 className="text-lg font-semibold text-gray-900">Match Card Preview</h1>
-                <div className="w-10"></div>
-              </div>
+            <div className="px-6 pt-16 pb-4 bg-gradient-to-r from-orange-500 to-slate-800 text-center text-white">
+              <h1 className="text-xl font-bold">🎉 It’s a Match! 🎉</h1>
+              <p className="text-sm mt-1">This is how employers will see your full profile</p>
+            </div>
+
+            {/* Back Button */}
+            <div className="absolute top-16 left-6">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="w-10 h-10 bg-white shadow-md"
+                onClick={() => navigate('/edit-profile')}
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-700" />
+              </Button>
             </div>
 
             {/* Content */}
@@ -171,18 +185,12 @@ const WHVPreviewMatchCard: React.FC = () => {
 
                 {/* Core Details */}
                 <div className="space-y-2">
-                  <div className="flex items-center space-x-3">
-                    <MapPin size={16} className="text-orange-500" />
-                    <span className="text-sm text-gray-700">
-                      <span className="font-medium">Current Location:</span> {profileData?.currentLocation}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <User size={16} className="text-orange-500" />
-                    <span className="text-sm text-gray-700">
-                      <span className="font-medium">Nationality:</span> {profileData?.nationality}
-                    </span>
-                  </div>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Current Location:</span> {profileData?.currentLocation}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Nationality:</span> {profileData?.nationality}
+                  </p>
                 </div>
               </div>
 
@@ -192,14 +200,12 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <Briefcase size={18} className="text-orange-500 mr-2" />
                   Work Preferences
                 </h3>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">Preferred Location:</span> {profileData?.preferredLocation}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">Preferred Role:</span> {profileData?.preferredRole}
-                  </p>
-                </div>
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium">Preferred Location:</span> {profileData?.preferredLocation}
+                </p>
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium">Preferred Role:</span> {profileData?.preferredRole}
+                </p>
               </div>
 
               {/* Work Experience */}
@@ -247,10 +253,21 @@ const WHVPreviewMatchCard: React.FC = () => {
                 )}
               </div>
 
-              {/* Footer Note */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
-                <p className="text-sm text-gray-600">👀 This is how employers will see your full profile</p>
+              {/* Contact Details (Unlocked after match) */}
+              <div className="bg-gradient-to-r from-orange-500 to-slate-800 text-white rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold mb-4">🎉 Contact Details Unlocked 🎉</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <Mail size={16} />
+                    <span>{profileData?.email}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Phone size={16} />
+                    <span>{profileData?.phone}</span>
+                  </div>
+                </div>
               </div>
+
             </div>
           </div>
         </div>
