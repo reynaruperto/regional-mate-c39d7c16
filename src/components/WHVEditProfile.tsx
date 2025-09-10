@@ -60,20 +60,11 @@ interface JobReference {
   role: string;
 }
 
-// ---------------- Validation ----------------
-const isValidAUPhone = (phone: string) => /^(\+614\d{8}|04\d{8})$/.test(phone);
-const isValidExpiry = (date: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const expiryDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return expiryDate > today;
-};
-
 // ---------------- Component ----------------
 const WHVEditProfile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
 
@@ -117,9 +108,6 @@ const WHVEditProfile: React.FC = () => {
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
 
-  // Errors
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
   // ---------------- Load Data ----------------
   useEffect(() => {
     const loadData = async () => {
@@ -148,13 +136,15 @@ const WHVEditProfile: React.FC = () => {
       // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("expiry_date, stage_id, visa_stage(label, sub_class, stage)")
+        .select("expiry_date, stage_id, visa_stage(label, sub_class, stage), country(name)")
         .eq("user_id", user.id)
         .maybeSingle();
+
       if (visa) {
         setVisaType(visa.visa_stage.label);
         setVisaExpiry(visa.expiry_date);
       }
+
       const { data: stageData } = await supabase.from("visa_stage").select("*");
       if (stageData) setVisaStages(stageData);
 
@@ -211,7 +201,7 @@ const WHVEditProfile: React.FC = () => {
         }
       }
 
-      // Prefill Preferences
+      // Prefill Work Preferences
       const { data: prefs } = await supabase.from("maker_preference").select("*").eq("user_id", user.id);
       if (prefs && prefs.length > 0) {
         setSelectedRoles(prefs.map((p: any) => p.industry_role_id));
@@ -265,11 +255,7 @@ const WHVEditProfile: React.FC = () => {
     loadData();
   }, []);
 
-  // ---------------- Handlers ----------------
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
+  // ---------------- Render ----------------
   if (loading) return <p>Loading...</p>;
 
   return (
@@ -287,408 +273,333 @@ const WHVEditProfile: React.FC = () => {
             </button>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-            {/* STEP 1: Visa & Personal Info */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <Label>Nationality</Label>
-                <Input value={nationality} disabled />
-                <Label>Date of Birth</Label>
-                <Input value={dob} disabled />
-                <Label>Visa Type</Label>
-                <Select value={visaType} onValueChange={setVisaType}>
-                  <SelectTrigger><SelectValue placeholder="Select visa" /></SelectTrigger>
-                  <SelectContent>
-                    {visaStages.map(v => <SelectItem key={v.stage_id} value={v.label}>{v.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Label>Visa Expiry</Label>
-                <Input type="date" value={visaExpiry} onChange={(e) => setVisaExpiry(e.target.value)} />
-                <Label>Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-                <Label>Address Line 1</Label>
-                <Input value={address.address1} onChange={(e) => setAddress({ ...address, address1: e.target.value })} />
-                <Label>Address Line 2</Label>
-                <Input value={address.address2} onChange={(e) => setAddress({ ...address, address2: e.target.value })} />
-                <Label>Suburb</Label>
-                <Input value={address.suburb} onChange={(e) => setAddress({ ...address, suburb: e.target.value })} />
-                <Label>State</Label>
-                <Input value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} />
-                <Label>Postcode</Label>
-                <Input value={address.postcode} onChange={(e) => setAddress({ ...address, postcode: e.target.value })} />
+          {/* STEP 1: Visa & Personal Info */}
+          {step === 1 && (
+            <div className="px-6 py-6 space-y-4">
+              <Label>Nationality</Label>
+              <Input value={nationality} disabled />
+              <Label>Date of Birth</Label>
+              <Input value={dob} disabled />
+              <Label>Visa Type</Label>
+              <Select value={visaType} onValueChange={setVisaType}>
+                <SelectTrigger><SelectValue placeholder="Select visa" /></SelectTrigger>
+                <SelectContent>
+                  {visaStages.map(v => <SelectItem key={v.stage_id} value={v.label}>{v.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Label>Visa Expiry</Label>
+              <Input type="date" value={visaExpiry} onChange={(e) => setVisaExpiry(e.target.value)} />
+              <Label>Phone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Label>Address Line 1</Label>
+              <Input value={address.address1} onChange={(e) => setAddress({ ...address, address1: e.target.value })} />
+              <Label>Address Line 2</Label>
+              <Input value={address.address2} onChange={(e) => setAddress({ ...address, address2: e.target.value })} />
+              <Label>Suburb</Label>
+              <Input value={address.suburb} onChange={(e) => setAddress({ ...address, suburb: e.target.value })} />
+              <Label>State</Label>
+              <Input value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} />
+              <Label>Postcode</Label>
+              <Input value={address.postcode} onChange={(e) => setAddress({ ...address, postcode: e.target.value })} />
+            </div>
+          )}
+
+          {/* STEP 2: Preferences (collapsibles) */}
+          {step === 2 && (
+            <div className="px-6 py-6 space-y-4">
+              <div className="border rounded-lg">
+                <button onClick={() => setExpandedSections({ ...expandedSections, tagline: !expandedSections.tagline })} className="w-full flex items-center justify-between p-4 text-left">
+                  <span className="text-lg font-medium">1. Profile Tagline</span>
+                  {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.tagline && (
+                  <div className="px-4 pb-4 border-t space-y-3">
+                    <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Backpacker ready for farm work" />
+                  </div>
+                )}
               </div>
-            )}
 
-            {/* STEP 2: Industries, Roles, Locations */}
-            {step === 2 && (
-              <div className="space-y-4">
-                <div className="border rounded-lg">
-                  <button onClick={() => toggleSection("tagline")} className="w-full flex items-center justify-between p-4 text-left">
-                    <span className="text-lg font-medium">1. Profile Tagline</span>
-                    {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.tagline && (
-                    <div className="px-4 pb-4 border-t space-y-3">
-                      <Textarea value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Backpacker ready for farm work" />
-                    </div>
-                  )}
-                </div>
+              <div className="border rounded-lg">
+                <button onClick={() => setExpandedSections({ ...expandedSections, industries: !expandedSections.industries })} className="w-full flex items-center justify-between p-4 text-left">
+                  <span className="text-lg font-medium">2. Industries & Roles</span>
+                  {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.industries && (
+                  <div className="px-4 pb-4 border-t space-y-4">
+                    <Label>Select up to 3 industries *</Label>
+                    {industries.map((industry) => (
+                      <label key={industry.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedIndustries.includes(industry.id)}
+                          disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)}
+                          onChange={() =>
+                            setSelectedIndustries(
+                              selectedIndustries.includes(industry.id)
+                                ? selectedIndustries.filter((id) => id !== industry.id)
+                                : [...selectedIndustries, industry.id]
+                            )
+                          }
+                          className="h-4 w-4"
+                        />
+                        <span>{industry.name}</span>
+                      </label>
+                    ))}
 
-                <div className="border rounded-lg">
-                  <button onClick={() => toggleSection("industries")} className="w-full flex items-center justify-between p-4 text-left">
-                    <span className="text-lg font-medium">2. Industries & Roles</span>
-                    {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.industries && (
-                    <div className="px-4 pb-4 border-t space-y-4">
-                      <Label>Select up to 3 industries *</Label>
-                      {industries.map((industry) => (
-                        <label key={industry.id} className="flex items-center space-x-2 py-1">
+                    {selectedIndustries.map((industryId) => {
+                      const industryRoles = roles.filter((r) => r.industryId === industryId);
+                      return (
+                        <div key={industryId}>
+                          <Label>Roles</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {industryRoles.map((role) => (
+                              <button
+                                key={role.id}
+                                type="button"
+                                onClick={() =>
+                                  setSelectedRoles(
+                                    selectedRoles.includes(role.id)
+                                      ? selectedRoles.filter((r) => r !== role.id)
+                                      : [...selectedRoles, role.id]
+                                  )
+                                }
+                                className={`px-3 py-1 rounded-full text-xs border ${
+                                  selectedRoles.includes(role.id)
+                                    ? "bg-orange-500 text-white border-orange-500"
+                                    : "bg-white text-gray-700 border-gray-300"
+                                }`}
+                              >
+                                {role.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="border rounded-lg">
+                <button onClick={() => setExpandedSections({ ...expandedSections, states: !expandedSections.states })} className="w-full flex items-center justify-between p-4 text-left">
+                  <span className="text-lg font-medium">3. Preferred Locations</span>
+                  {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </button>
+                {expandedSections.states && (
+                  <div className="px-4 pb-4 border-t space-y-4">
+                    <Label>Preferred States (up to 3)</Label>
+                    {[...new Set(regions.map((r) => r.state))].map((state) => (
+                      <div key={state} className="mb-4">
+                        <label className="flex items-center space-x-2 py-1 font-medium">
                           <input
                             type="checkbox"
-                            checked={selectedIndustries.includes(industry.id)}
-                            disabled={selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)}
+                            checked={preferredStates.includes(state)}
                             onChange={() =>
-                              setSelectedIndustries(
-                                selectedIndustries.includes(industry.id)
-                                  ? selectedIndustries.filter((id) => id !== industry.id)
-                                  : [...selectedIndustries, industry.id]
+                              setPreferredStates(
+                                preferredStates.includes(state)
+                                  ? preferredStates.filter((s) => s !== state)
+                                  : [...preferredStates, state]
                               )
                             }
-                            className="h-4 w-4"
+                            disabled={preferredStates.length >= 3 && !preferredStates.includes(state)}
                           />
-                          <span>{industry.name}</span>
+                          <span>{state}</span>
                         </label>
-                      ))}
 
-                      {selectedIndustries.map((industryId) => {
-                        const industryRoles = roles.filter((r) => r.industryId === industryId);
-                        return (
-                          <div key={industryId}>
-                            <Label>Roles</Label>
-                            <div className="flex flex-wrap gap-2">
-                              {industryRoles.map((role) => (
-                                <button
-                                  key={role.id}
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedRoles(
-                                      selectedRoles.includes(role.id)
-                                        ? selectedRoles.filter((r) => r !== role.id)
-                                        : [...selectedRoles, role.id]
-                                    )
-                                  }
-                                  className={`px-3 py-1 rounded-full text-xs border ${
-                                    selectedRoles.includes(role.id)
-                                      ? "bg-orange-500 text-white border-orange-500"
-                                      : "bg-white text-gray-700 border-gray-300"
-                                  }`}
-                                >
-                                  {role.name}
-                                </button>
+                        {preferredStates.includes(state) && (
+                          <div className="ml-6 space-y-1">
+                            {regions
+                              .filter((r) => r.state === state)
+                              .map((r) => r.area)
+                              .filter((a, i, arr) => arr.indexOf(a) === i)
+                              .map((area) => (
+                                <label key={`${state}-${area}`} className="flex items-center space-x-2 py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={preferredAreas.includes(area)}
+                                    onChange={() =>
+                                      setPreferredAreas(
+                                        preferredAreas.includes(area)
+                                          ? preferredAreas.filter((a) => a !== area)
+                                          : [...preferredAreas, area]
+                                      )
+                                    }
+                                  />
+                                  <span>{area}</span>
+                                </label>
                               ))}
-                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border rounded-lg">
-                  <button onClick={() => toggleSection("states")} className="w-full flex items-center justify-between p-4 text-left">
-                    <span className="text-lg font-medium">3. Preferred Locations</span>
-                    {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                  {expandedSections.states && (
-                    <div className="px-4 pb-4 border-t space-y-4">
-                      <Label>Preferred States (up to 3)</Label>
-                      {[...new Set(regions.map((r) => r.state))].map((state) => (
-                        <div key={state} className="mb-4">
-                          <label className="flex items-center space-x-2 py-1 font-medium">
-                            <input
-                              type="checkbox"
-                              checked={preferredStates.includes(state)}
-                              onChange={() =>
-                                setPreferredStates(
-                                  preferredStates.includes(state)
-                                    ? preferredStates.filter((s) => s !== state)
-                                    : [...preferredStates, state]
-                                )
-                              }
-                              disabled={preferredStates.length >= 3 && !preferredStates.includes(state)}
-                            />
-                            <span>{state}</span>
-                          </label>
-
-                          {preferredStates.includes(state) && (
-                            <div className="ml-6 space-y-1">
-                              {regions
-                                .filter((r) => r.state === state)
-                                .map((r) => r.area)
-                                .filter((a, i, arr) => arr.indexOf(a) === i)
-                                .map((area) => (
-                                  <label key={`${state}-${area}`} className="flex items-center space-x-2 py-1">
-                                    <input
-                                      type="checkbox"
-                                      checked={
-                                      checked={preferredAreas.includes(area)}
-                                      onChange={() =>
-                                        setPreferredAreas(
-                                          preferredAreas.includes(area)
-                                            ? preferredAreas.filter((a) => a !== area)
-                                            : [...preferredAreas, area]
-                                        )
-                                      }
-                                    />
-                                    <span>{area}</span>
-                                  </label>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Work Experience, Licenses, References */}
-            {step === 3 && (
-              <div className="space-y-6">
-                <h2 className="text-lg font-semibold">Work Experience</h2>
-                <Button
-                  onClick={() =>
-                    setWorkExperiences([
-                      ...workExperiences,
-                      {
-                        id: Date.now().toString(),
-                        industryId: null,
-                        position: "",
-                        company: "",
-                        location: "",
-                        startDate: "",
-                        endDate: "",
-                        description: "",
-                      },
-                    ])
-                  }
-                  className="bg-orange-500 text-white"
-                >
-                  <Plus size={16} className="mr-1" /> Add Experience
-                </Button>
-                {workExperiences.map((exp) => (
-                  <div key={exp.id} className="border p-4 rounded-lg space-y-2">
-                    <Input
-                      value={exp.company}
-                      onChange={(e) =>
-                        setWorkExperiences(
-                          workExperiences.map((w) =>
-                            w.id === exp.id ? { ...w, company: e.target.value } : w
-                          )
-                        )
-                      }
-                      placeholder="Company"
-                    />
-                    <Input
-                      value={exp.position}
-                      onChange={(e) =>
-                        setWorkExperiences(
-                          workExperiences.map((w) =>
-                            w.id === exp.id ? { ...w, position: e.target.value } : w
-                          )
-                        )
-                      }
-                      placeholder="Position"
-                    />
-                    <Input
-                      value={exp.location}
-                      onChange={(e) =>
-                        setWorkExperiences(
-                          workExperiences.map((w) =>
-                            w.id === exp.id ? { ...w, location: e.target.value } : w
-                          )
-                        )
-                      }
-                      placeholder="Location"
-                    />
-                    <Input
-                      type="date"
-                      value={exp.startDate}
-                      onChange={(e) =>
-                        setWorkExperiences(
-                          workExperiences.map((w) =>
-                            w.id === exp.id ? { ...w, startDate: e.target.value } : w
-                          )
-                        )
-                      }
-                    />
-                    <Input
-                      type="date"
-                      value={exp.endDate}
-                      onChange={(e) =>
-                        setWorkExperiences(
-                          workExperiences.map((w) =>
-                            w.id === exp.id ? { ...w, endDate: e.target.value } : w
-                          )
-                        )
-                      }
-                    />
-                    <Textarea
-                      value={exp.description}
-                      onChange={(e) =>
-                        setWorkExperiences(
-                          workExperiences.map((w) =>
-                            w.id === exp.id ? { ...w, description: e.target.value } : w
-                          )
-                        )
-                      }
-                      placeholder="Description"
-                    />
-                    <Button
-                      variant="ghost"
-                      onClick={() =>
-                        setWorkExperiences(workExperiences.filter((w) => w.id !== exp.id))
-                      }
-                    >
-                      <X size={16} /> Remove
-                    </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-
-                <h2 className="text-lg font-semibold">Licenses</h2>
-                <div className="max-h-40 overflow-y-auto space-y-2">
-                  {allLicenses.map((l) => (
-                    <label key={l.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={licenses.includes(l.id)}
-                        onChange={() =>
-                          setLicenses(
-                            licenses.includes(l.id)
-                              ? licenses.filter((x) => x !== l.id)
-                              : [...licenses, l.id]
-                          )
-                        }
-                      />
-                      <span>{l.name}</span>
-                    </label>
-                  ))}
-                </div>
-                {licenses.some((id) => allLicenses.find((l) => l.id === id)?.name === "Other") && (
-                  <Input
-                    value={otherLicense}
-                    onChange={(e) => setOtherLicense(e.target.value)}
-                    placeholder="Other license"
-                  />
                 )}
+              </div>
+            </div>
+          )}
 
-                <h2 className="text-lg font-semibold">Job References</h2>
-                <Button
-                  onClick={() =>
-                    setJobReferences([
-                      ...jobReferences,
-                      { id: Date.now().toString(), name: "", businessName: "", email: "", phone: "", role: "" },
-                    ])
-                  }
-                  className="bg-orange-500 text-white"
-                >
-                  <Plus size={16} className="mr-1" /> Add Reference
-                </Button>
-                {jobReferences.map((ref) => (
-                  <div key={ref.id} className="border p-4 rounded-lg space-y-2">
-                    <Input
-                      value={ref.name}
-                      onChange={(e) =>
-                        setJobReferences(
-                          jobReferences.map((r) =>
-                            r.id === ref.id ? { ...r, name: e.target.value } : r
-                          )
+          {/* STEP 3: Work Experience, Licenses, References */}
+          {step === 3 && (
+            <div className="px-6 py-6 space-y-6">
+              <h2 className="text-lg font-semibold">Work Experience</h2>
+              <Button
+                onClick={() =>
+                  setWorkExperiences([
+                    ...workExperiences,
+                    {
+                      id: Date.now().toString(),
+                      industryId: null,
+                      position: "",
+                      company: "",
+                      location: "",
+                      startDate: "",
+                      endDate: "",
+                      description: "",
+                    },
+                  ])
+                }
+                className="bg-orange-500 text-white"
+              >
+                <Plus size={16} className="mr-1" /> Add
+              </Button>
+              {workExperiences.map((exp) => (
+                <div key={exp.id} className="border p-4 rounded-lg space-y-2">
+                  <Input
+                    value={exp.company}
+                    onChange={(e) =>
+                      setWorkExperiences(workExperiences.map((w) => (w.id === exp.id ? { ...w, company: e.target.value } : w)))
+                    }
+                    placeholder="Company"
+                  />
+                  <Input
+                    value={exp.position}
+                    onChange={(e) =>
+                      setWorkExperiences(workExperiences.map((w) => (w.id === exp.id ? { ...w, position: e.target.value } : w)))
+                    }
+                    placeholder="Position"
+                  />
+                  <Input
+                    value={exp.location}
+                    onChange={(e) =>
+                      setWorkExperiences(workExperiences.map((w) => (w.id === exp.id ? { ...w, location: e.target.value } : w)))
+                    }
+                    placeholder="Location"
+                  />
+                  <Input
+                    type="date"
+                    value={exp.startDate}
+                    onChange={(e) =>
+                      setWorkExperiences(workExperiences.map((w) => (w.id === exp.id ? { ...w, startDate: e.target.value } : w)))
+                    }
+                  />
+                  <Input
+                    type="date"
+                    value={exp.endDate}
+                    onChange={(e) =>
+                      setWorkExperiences(workExperiences.map((w) => (w.id === exp.id ? { ...w, endDate: e.target.value } : w)))
+                    }
+                  />
+                  <Textarea
+                    value={exp.description}
+                    onChange={(e) =>
+                      setWorkExperiences(workExperiences.map((w) => (w.id === exp.id ? { ...w, description: e.target.value } : w)))
+                    }
+                    placeholder="Description"
+                  />
+                  <Button variant="ghost" onClick={() => setWorkExperiences(workExperiences.filter((w) => w.id !== exp.id))}>
+                    <X size={16} /> Remove
+                  </Button>
+                </div>
+              ))}
+
+              <h2 className="text-lg font-semibold">Licenses</h2>
+              <div className="max-h-40 overflow-y-auto space-y-2">
+                {allLicenses.map((l) => (
+                  <label key={l.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={licenses.includes(l.id)}
+                      onChange={() =>
+                        setLicenses(
+                          licenses.includes(l.id) ? licenses.filter((x) => x !== l.id) : [...licenses, l.id]
                         )
                       }
-                      placeholder="Name"
                     />
-                    <Input
-                      value={ref.businessName}
-                      onChange={(e) =>
-                        setJobReferences(
-                          jobReferences.map((r) =>
-                            r.id === ref.id ? { ...r, businessName: e.target.value } : r
-                          )
-                        )
-                      }
-                      placeholder="Business Name"
-                    />
-                    <Input
-                      value={ref.email}
-                      onChange={(e) =>
-                        setJobReferences(
-                          jobReferences.map((r) =>
-                            r.id === ref.id ? { ...r, email: e.target.value } : r
-                          )
-                        )
-                      }
-                      placeholder="Email"
-                    />
-                    <Input
-                      value={ref.phone}
-                      onChange={(e) =>
-                        setJobReferences(
-                          jobReferences.map((r) =>
-                            r.id === ref.id ? { ...r, phone: e.target.value } : r
-                          )
-                        )
-                      }
-                      placeholder="Phone"
-                    />
-                    <Input
-                      value={ref.role}
-                      onChange={(e) =>
-                        setJobReferences(
-                          jobReferences.map((r) =>
-                            r.id === ref.id ? { ...r, role: e.target.value } : r
-                          )
-                        )
-                      }
-                      placeholder="Role"
-                    />
-                    <Button
-                      variant="ghost"
-                      onClick={() =>
-                        setJobReferences(jobReferences.filter((r) => r.id !== ref.id))
-                      }
-                    >
-                      <X size={16} /> Remove
-                    </Button>
-                  </div>
+                    <span>{l.name}</span>
+                  </label>
                 ))}
               </div>
-            )}
-          </div>
+              {licenses.some((id) => allLicenses.find((l) => l.id === id)?.name === "Other") && (
+                <Input value={otherLicense} onChange={(e) => setOtherLicense(e.target.value)} placeholder="Other license" />
+              )}
+
+              <h2 className="text-lg font-semibold">Job References</h2>
+              <Button
+                onClick={() =>
+                  setJobReferences([
+                    ...jobReferences,
+                    { id: Date.now().toString(), name: "", businessName: "", email: "", phone: "", role: "" },
+                  ])
+                }
+                className="bg-orange-500 text-white"
+              >
+                <Plus size={16} className="mr-1" /> Add
+              </Button>
+              {jobReferences.map((ref) => (
+                <div key={ref.id} className="border p-4 rounded-lg space-y-2">
+                  <Input
+                    value={ref.name}
+                    onChange={(e) => setJobReferences(jobReferences.map((r) => (r.id === ref.id ? { ...r, name: e.target.value } : r)))}
+                    placeholder="Name"
+                  />
+                  <Input
+                    value={ref.businessName}
+                    onChange={(e) =>
+                      setJobReferences(jobReferences.map((r) => (r.id === ref.id ? { ...r, businessName: e.target.value } : r)))
+                    }
+                    placeholder="Business Name"
+                  />
+                  <Input
+                    value={ref.email}
+                    onChange={(e) =>
+                      setJobReferences(jobReferences.map((r) => (r.id === ref.id ? { ...r, email: e.target.value } : r)))
+                    }
+                    placeholder="Email"
+                  />
+                  <Input
+                    value={ref.phone}
+                    onChange={(e) =>
+                      setJobReferences(jobReferences.map((r) => (r.id === ref.id ? { ...r, phone: e.target.value } : r)))
+                    }
+                    placeholder="Phone"
+                  />
+                  <Input
+                    value={ref.role}
+                    onChange={(e) =>
+                      setJobReferences(jobReferences.map((r) => (r.id === ref.id ? { ...r, role: e.target.value } : r)))
+                    }
+                    placeholder="Role"
+                  />
+                  <Button variant="ghost" onClick={() => setJobReferences(jobReferences.filter((r) => r.id !== ref.id))}>
+                    <X size={16} /> Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Footer stepper */}
           <div className="p-4 flex flex-col items-center">
             <div className="flex gap-2 mb-3">
               {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={`h-2 w-6 rounded-full ${
-                    step === i ? "bg-orange-500" : "bg-gray-300"
-                  }`}
-                />
+                <div key={i} className={`h-2 w-6 rounded-full ${step === i ? "bg-orange-500" : "bg-gray-300"}`} />
               ))}
             </div>
             <div className="flex justify-between w-full">
               <Button disabled={step === 1} onClick={() => setStep(step - 1)} variant="outline">
                 Back
               </Button>
-              <Button
-                disabled={step === 3}
-                onClick={() => setStep(step + 1)}
-                className="bg-orange-500 text-white"
-              >
+              <Button disabled={step === 3} onClick={() => setStep(step + 1)} className="bg-orange-500 text-white">
                 Next
               </Button>
             </div>
