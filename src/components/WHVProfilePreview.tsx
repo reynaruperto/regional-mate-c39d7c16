@@ -1,304 +1,185 @@
-// src/pages/WHVWorkPreferences.tsx
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Heart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
-const WHVWorkPreferences: React.FC = () => {
+const WHVProfilePreview: React.FC = () => {
   const navigate = useNavigate();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [workExperiences, setWorkExperiences] = useState<any[]>([]);
+  const [licenses, setLicenses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [tagline, setTagline] = useState("");
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [roles, setRoles] = useState<{ id: number; name: string; industryId: number }[]>([]);
-  const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
-  const [states, setStates] = useState<string[]>([]);
-  const [areas, setAreas] = useState<string[]>([]);
-  const [availableAreas, setAvailableAreas] = useState<{ [state: string]: string[] }>({});
-  const [preferredStates, setPreferredStates] = useState<string[]>([]);
-  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
-  const [visaLabel, setVisaLabel] = useState<string>("");
-  const [stageId, setStageId] = useState<number | null>(null);
-  const [countryId, setCountryId] = useState<number | null>(null);
-
-  // ==========================
-  // Load data from Supabase
-  // ==========================
   useEffect(() => {
-    const loadData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 1. Visa info
-      const { data: visa, error: visaError } = await supabase
-        .from("maker_visa")
-        .select("stage_id, country_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (visaError) {
-        console.error("Error fetching visa:", visaError);
-        return;
-      }
-      if (!visa) return;
-
-      setStageId(visa.stage_id);
-      setCountryId(visa.country_id);
-
-      // 2. Visa label
-      const { data: visaStage, error: stageError } = await supabase
-        .from("visa_stage")
-        .select("label")
-        .eq("stage_id", visa.stage_id)
-        .single();
-
-      if (stageError) console.error("Error fetching visa stage:", stageError);
-      if (visaStage) setVisaLabel(visaStage.label);
-
-      // 3. Eligible industries/roles/states/areas - using any type to bypass type issues
-      const { data: eligibilityData, error: eligibilityError } = await supabase
-        .from("v_visa_stage_industries_roles" as any)
-        .select(
-          "industry_id, industry_name, industry_role_id, role_name, state, area, country_id, stage_id"
-        )
-        .eq("stage_id", visa.stage_id)
-        .eq("country_id", visa.country_id);
-
-      if (eligibilityError) {
-        console.error("Error fetching eligibility data:", eligibilityError);
+    const fetchProfile = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error("No user logged in", userError);
+        navigate('/sign-in');
         return;
       }
 
-      console.log("Eligibility raw data:", eligibilityData);
+      // 1. Fetch WHV maker profile
+      const { data: whv } = await supabase
+        .from('whv_maker')
+        .select('given_name, middle_name, family_name, tagline, profile_photo')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (eligibilityData && Array.isArray(eligibilityData)) {
-        const data = eligibilityData as any[];
-        
-        // ✅ Industries
-        const uniqueIndustries = Array.from(
-          new Map(
-            data
-              .filter((item: any) => item.industry_id && item.industry_name)
-              .map((item: any) => [item.industry_id, { id: item.industry_id, name: item.industry_name }])
-          ).values()
-        );
-        setIndustries(uniqueIndustries);
+      // 2. Fetch preferences (state/area + role)
+      const { data: preference } = await supabase
+        .from('maker_preference')
+        .select(`
+          region_rules(state, area),
+          industry_role(role)
+        `)
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        // ✅ Roles
-        const uniqueRoles = Array.from(
-          new Map(
-            data
-              .filter((item: any) => item.industry_role_id && item.role_name && item.industry_id)
-              .map((item: any) => [
-                item.industry_role_id,
-                { id: item.industry_role_id, name: item.role_name, industryId: item.industry_id },
-              ])
-          ).values()
-        );
-        setRoles(uniqueRoles);
+      // 3. Fetch work experiences
+      const { data: experiences } = await supabase
+        .from('maker_work_experience')
+        .select('start_date, end_date, position, company')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: false });
 
-        // ✅ States
-        const uniqueStates = Array.from(new Set(data.map((item: any) => item.state).filter(Boolean)));
-        setStates(uniqueStates);
+      // 4. Fetch licenses
+      const { data: licenseRows } = await supabase
+        .from('maker_license')
+        .select('license(name)')
+        .eq('user_id', user.id);
 
-        // ✅ Areas
-        const uniqueAreas = Array.from(new Set(data.map((item: any) => item.area).filter(Boolean)));
-        setAreas(uniqueAreas);
-
-        // ✅ Group areas by state
-        const areasByState: { [state: string]: string[] } = {};
-        data.forEach((item: any) => {
-          if (item.state && item.area) {
-            if (!areasByState[item.state]) areasByState[item.state] = [];
-            if (!areasByState[item.state].includes(item.area)) {
-              areasByState[item.state].push(item.area);
-            }
-          }
-        });
-        setAvailableAreas(areasByState);
+      // 5. Handle profile photo signed URL
+      let signedPhoto: string | null = null;
+      if (whv?.profile_photo) {
+        let photoPath = whv.profile_photo;
+        if (photoPath.includes('/profile_photo/')) {
+          photoPath = photoPath.split('/profile_photo/')[1];
+        }
+        const { data } = await supabase
+          .storage
+          .from('profile_photo')
+          .createSignedUrl(photoPath, 3600);
+        signedPhoto = data?.signedUrl ?? null;
       }
 
-      // 4. Tagline
-      const { data: makerData, error: makerError } = await supabase
-        .from("whv_maker")
-        .select("tagline")
-        .eq("user_id", user.id)
-        .single();
+      setProfileData({
+        name: [whv?.given_name, whv?.middle_name, whv?.family_name].filter(Boolean).join(' '),
+        tagline: whv?.tagline,
+        profilePhoto: signedPhoto,
+        preferredLocation: preference?.region_rules
+          ? `${preference.region_rules.state} (${preference.region_rules.area})`
+          : 'Not set',
+        preferredRole: preference?.industry_role?.role || 'Not set',
+      });
 
-      if (makerError) console.error("Error fetching maker data:", makerError);
-      if (makerData?.tagline) setTagline(makerData.tagline);
+      setWorkExperiences(experiences || []);
+      setLicenses(licenseRows?.map(l => l.license?.name) || []);
+      setLoading(false);
     };
 
-    loadData();
-  }, []);
+    fetchProfile();
+  }, [navigate]);
 
-  // ==========================
-  // Helpers
-  // ==========================
-  const handleIndustrySelect = (industryId: number) => {
-    if (!selectedIndustries.includes(industryId) && selectedIndustries.length < 3) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
-    } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
-      const industryRoles = roles.filter((role) => role.industryId === industryId).map((role) => role.id);
-      setSelectedRoles(selectedRoles.filter((roleId) => !industryRoles.includes(roleId)));
-    }
-  };
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
 
-  const toggleRole = (roleId: number) => {
-    setSelectedRoles(
-      selectedRoles.includes(roleId)
-        ? selectedRoles.filter((r) => r !== roleId)
-        : [...selectedRoles, roleId]
-    );
-  };
-
-  const togglePreferredState = (state: string) => {
-    const newStates = preferredStates.includes(state)
-      ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 3
-      ? [...preferredStates, state]
-      : preferredStates;
-    setPreferredStates(newStates);
-
-    const availableAreasForStates = newStates.flatMap((s) => availableAreas[s] || []);
-    setPreferredAreas(preferredAreas.filter((area) => availableAreasForStates.includes(area)));
-  };
-
-  const togglePreferredArea = (area: string) => {
-    setPreferredAreas(
-      preferredAreas.includes(area)
-        ? preferredAreas.filter((a) => a !== area)
-        : preferredAreas.length < 3
-        ? [...preferredAreas, area]
-        : preferredAreas
-    );
-  };
-
-  const getAvailableAreasForSelectedStates = () => {
-    return preferredStates.flatMap((state) => availableAreas[state] || []);
-  };
-
-  // ==========================
-  // Render
-  // ==========================
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/whv/profile-setup")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">Work Preferences</h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                <span className="text-sm font-medium text-gray-600">4/6</span>
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          
+          <div className="w-full h-full flex flex-col relative bg-gray-200">
+            <div className="flex-1 px-6 pt-16 pb-24 overflow-y-auto">
+              {/* Profile Card */}
+              <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 shadow-lg">
+                
+                {/* Name Header */}
+                <div className="bg-orange-500 text-white text-center py-4 rounded-2xl mb-6">
+                  <h2 className="text-xl font-bold">{profileData?.name}</h2>
+                </div>
+
+                {/* Profile Picture */}
+                <div className="flex justify-center mb-6">
+                  <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden">
+                    {profileData?.profilePhoto ? (
+                      <img 
+                        src={profileData.profilePhoto}
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">No Photo</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tagline */}
+                <div className="text-center mb-6">
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    {profileData?.tagline || "No tagline yet"}
+                  </p>
+                </div>
+
+                {/* Preferred Location & Role */}
+                <div className="space-y-2 text-sm mb-6">
+                  <div><span className="font-semibold">Preferred Location:</span> {profileData?.preferredLocation}</div>
+                  <div><span className="font-semibold">Preferred Role:</span> {profileData?.preferredRole}</div>
+                </div>
+
+                {/* Work Experience */}
+                <div className="mb-6">
+                  <span className="font-semibold text-sm">Work Experience:</span>
+                  <div className="mt-2 text-xs space-y-1">
+                    {workExperiences.length > 0 ? (
+                      workExperiences.map((exp, i) => (
+                        <div key={i}>
+                          {exp.start_date} - {exp.end_date || 'Present'}: {exp.position} at {exp.company}
+                        </div>
+                      ))
+                    ) : (
+                      <p>No work experience added</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Licenses / Tickets */}
+                <div className="mb-6">
+                  <span className="font-semibold text-sm">Licenses / Tickets:</span>
+                  <div className="mt-2 text-xs space-y-1">
+                    {licenses.length > 0 ? (
+                      licenses.map((license, i) => <div key={i}>{license}</div>)
+                    ) : (
+                      <p>No licenses added</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action */}
+                <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white px-8 py-3 rounded-2xl flex items-center gap-3 justify-center">
+                  <span className="font-semibold">Heart to Match</span>
+                  <div className="bg-orange-500 rounded-full p-2">
+                    <Heart size={20} className="text-white fill-white" />
+                  </div>
+                </Button>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Eligible industries based on <strong>{visaLabel}</strong>
-            </p>
-          </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-6">
-            {industries.length === 0 ? (
-              <p className="text-gray-500 text-sm">No eligible industries found for your visa.</p>
-            ) : (
-              <form className="space-y-6 pb-20">
-                {/* Industries */}
-                <div className="space-y-2">
-                  <Label>Select up to 3 industries *</Label>
-                  {industries.map((industry) => (
-                    <label key={industry.id} className="flex items-center space-x-2 py-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedIndustries.includes(industry.id)}
-                        disabled={
-                          selectedIndustries.length >= 3 && !selectedIndustries.includes(industry.id)
-                        }
-                        onChange={() => handleIndustrySelect(industry.id)}
-                        className="h-4 w-4"
-                      />
-                      <span>{industry.name}</span>
-                    </label>
-                  ))}
-                </div>
-
-                {/* Roles */}
-                {selectedIndustries.map((industryId) => {
-                  const industry = industries.find((i) => i.id === industryId);
-                  const industryRoles = roles.filter((r) => r.industryId === industryId);
-                  return (
-                    <div key={industryId}>
-                      <Label>Roles for {industry?.name}</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {industryRoles.map((role) => (
-                          <button
-                            type="button"
-                            key={role.id}
-                            onClick={() => toggleRole(role.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs border ${
-                              selectedRoles.includes(role.id)
-                                ? "bg-orange-500 text-white border-orange-500"
-                                : "bg-white text-gray-700 border-gray-300"
-                            }`}
-                          >
-                            {role.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* States */}
-                <div className="space-y-2">
-                  <Label>Preferred States (up to 3)</Label>
-                  {states.map((state) => (
-                    <label key={state} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={preferredStates.includes(state)}
-                        onChange={() => togglePreferredState(state)}
-                        className="h-4 w-4"
-                      />
-                      <span>{state}</span>
-                    </label>
-                  ))}
-                </div>
-
-                {/* Areas */}
-                <div className="space-y-2">
-                  <Label>Preferred Areas (up to 3)</Label>
-                  {getAvailableAreasForSelectedStates().map((area) => (
-                    <label key={area} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={preferredAreas.includes(area)}
-                        onChange={() => togglePreferredArea(area)}
-                        className="h-4 w-4"
-                      />
-                      <span>{area}</span>
-                    </label>
-                  ))}
-                </div>
-
-                {/* Submit */}
-                <Button type="submit" className="w-full h-14 bg-orange-500 text-white rounded-xl">
-                  Continue →
-                </Button>
-              </form>
-            )}
+            {/* Back Button */}
+            <div className="absolute bottom-8 left-6">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="w-12 h-12 bg-white rounded-xl shadow-sm"
+                onClick={() => navigate('/edit-profile')}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -306,5 +187,4 @@ const WHVWorkPreferences: React.FC = () => {
   );
 };
 
-export default WHVWorkPreferences;
-
+export default WHVProfilePreview;
