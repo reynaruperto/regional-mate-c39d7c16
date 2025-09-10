@@ -1,0 +1,267 @@
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, MapPin, Briefcase, Award, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+
+interface WHVProfileData {
+  name: string;
+  tagline: string;
+  nationality: string;
+  profilePhoto: string | null;
+  preferredLocation: string;
+  preferredRole: string;
+  currentLocation: string;
+}
+
+interface WorkExperience {
+  start_date: string;
+  end_date: string | null;
+  position: string;
+  company: string;
+}
+
+const WHVPreviewMatchCard: React.FC = () => {
+  const navigate = useNavigate();
+  const [profileData, setProfileData] = useState<WHVProfileData | null>(null);
+  const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
+  const [licenses, setLicenses] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          console.error("No user logged in", userError);
+          navigate('/whv/dashboard');
+          return;
+        }
+
+        // 1. Fetch WHV maker profile
+        const { data: whvMaker } = await supabase
+          .from('whv_maker')
+          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // 2. Fetch preferences (region + role)
+        const { data: preferences } = await supabase
+          .from('maker_preference')
+          .select(`
+            region_rules(state, area),
+            industry_role(role)
+          `)
+          .eq('user_id', user.id);
+
+        // 3. Fetch work experiences
+        const { data: experiences } = await supabase
+          .from('maker_work_experience')
+          .select('start_date, end_date, position, company')
+          .eq('user_id', user.id)
+          .order('start_date', { ascending: false });
+
+        // 4. Fetch licenses
+        const { data: licenseRows } = await supabase
+          .from('maker_license')
+          .select('license(name)')
+          .eq('user_id', user.id);
+
+        // 5. Handle profile photo signed URL
+        let signedPhoto: string | null = null;
+        if (whvMaker?.profile_photo) {
+          let photoPath = whvMaker.profile_photo;
+          if (photoPath.includes('/profile_photo/')) {
+            photoPath = photoPath.split('/profile_photo/')[1];
+          }
+          const { data } = await supabase
+            .storage
+            .from('profile_photo')
+            .createSignedUrl(photoPath, 3600);
+          signedPhoto = data?.signedUrl ?? null;
+        }
+
+        // Format the data
+        const formattedProfile: WHVProfileData = {
+          name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name].filter(Boolean).join(' '),
+          tagline: whvMaker?.tagline || 'Working Holiday Maker seeking opportunities',
+          nationality: whvMaker?.nationality || 'Not specified',
+          profilePhoto: signedPhoto,
+          preferredLocation: preferences && preferences.length > 0 && preferences[0]?.region_rules
+            ? `${preferences[0].region_rules.state} (${preferences[0].region_rules.area})`
+            : 'Not set',
+          preferredRole: preferences && preferences.length > 0 && preferences[0]?.industry_role?.role || 'Not set',
+          currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified'
+        };
+
+        setProfileData(formattedProfile);
+        setWorkExperiences(experiences || []);
+        setLicenses(licenseRows?.map(l => l.license?.name).filter(Boolean) || []);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+          <div className="w-full h-full bg-white rounded-[48px] flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading profile...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4 bg-white shadow-sm">
+              <div className="flex items-center justify-between">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="w-10 h-10"
+                  onClick={() => navigate('/whv/edit-profile')}
+                >
+                  <ArrowLeft className="w-5 h-5 text-gray-700" />
+                </Button>
+                <h1 className="text-lg font-semibold text-gray-900">Match Card Preview</h1>
+                <div className="w-10"></div>
+              </div>
+            </div>
+
+            <div className="flex-1 px-6 py-4 overflow-y-auto space-y-4">
+              {/* Main Profile Card */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                {/* Profile Header */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="w-20 h-20 rounded-full border-2 border-orange-500 overflow-hidden flex-shrink-0">
+                    {profileData?.profilePhoto ? (
+                      <img 
+                        src={profileData.profilePhoto}
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                        <User size={32} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
+                    <p className="text-sm text-gray-600 mt-1">{profileData?.tagline}</p>
+                  </div>
+                </div>
+
+                {/* Core Details */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center space-x-3">
+                    <MapPin size={16} className="text-orange-500" />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-medium">Current:</span> {profileData?.currentLocation}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <User size={16} className="text-orange-500" />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-medium">Nationality:</span> {profileData?.nationality}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preferences Card */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Briefcase size={18} className="text-orange-500 mr-2" />
+                  Work Preferences
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Preferred Location:</span>
+                    <p className="text-sm text-gray-600 mt-1">{profileData?.preferredLocation}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Preferred Role:</span>
+                    <p className="text-sm text-gray-600 mt-1">{profileData?.preferredRole}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Work Experience Card */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Briefcase size={18} className="text-orange-500 mr-2" />
+                  Work Experience
+                </h3>
+                {workExperiences.length > 0 ? (
+                  <div className="space-y-4">
+                    {workExperiences.map((exp, index) => (
+                      <div key={index} className="border-l-2 border-orange-200 pl-4">
+                        <h4 className="font-medium text-gray-900">{exp.position}</h4>
+                        <p className="text-sm text-gray-700">{exp.company}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {exp.start_date} - {exp.end_date || 'Present'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No work experience added yet</p>
+                )}
+              </div>
+
+              {/* Licenses Card */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Award size={18} className="text-orange-500 mr-2" />
+                  Licenses & Certifications
+                </h3>
+                {licenses.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {licenses.map((license, index) => (
+                      <span 
+                        key={index}
+                        className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full"
+                      >
+                        {license}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No licenses added yet</p>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-medium">
+                  This is how employers see your profile
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default WHVPreviewMatchCard;

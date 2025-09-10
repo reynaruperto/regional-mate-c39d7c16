@@ -361,6 +361,19 @@ const WHVEditProfile: React.FC = () => {
               ))}
             </div>
 
+            {/* Preview Match Card */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Preview Match Card</h2>
+              <p className="text-sm text-gray-600">See how your profile looks to employers</p>
+              <Button 
+                type="button" 
+                onClick={() => navigate("/whv/match-card")} 
+                className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white"
+              >
+                VIEW
+              </Button>
+            </div>
+
           </div>
         </div>
       </div>
