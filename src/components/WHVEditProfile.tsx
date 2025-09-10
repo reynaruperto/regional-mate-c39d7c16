@@ -41,7 +41,6 @@ interface JobReference {
   role: string;
 }
 
-// ---------------- Component ----------------
 const WHVEditProfile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -97,7 +96,7 @@ const WHVEditProfile: React.FC = () => {
         });
       }
 
-      // Visa
+      // Visa + stages filtered by nationality
       const { data: visa } = await supabase
         .from("maker_visa")
         .select("expiry_date, visa_stage(stage_id, label)")
@@ -108,18 +107,23 @@ const WHVEditProfile: React.FC = () => {
         setVisaExpiry(visa.expiry_date);
       }
 
-      // Visa stages filtered by nationality
-      const { data: eligibility } = await supabase.from("country_eligibility").select("stage_id").eq("country_id", maker?.country_id);
-      if (eligibility?.length) {
+      const { data: eligibility } = await supabase
+        .from("country_eligibility")
+        .select("stage_id, country_id, country(name)");
+      if (eligibility && nationality) {
+        const allowedStageIds = eligibility
+          .filter((e: any) => e.country?.name === nationality)
+          .map((e: any) => e.stage_id);
+
         const { data: stages } = await supabase.from("visa_stage").select("*");
-        if (stages) setVisaStages(stages.filter((s) => eligibility.some((e: any) => e.stage_id === s.stage_id)));
+        if (stages) setVisaStages(stages.filter((s) => allowedStageIds.includes(s.stage_id)));
       }
 
       // Eligible industries + roles
       const { data: eligibleIndustries } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
-        .eq("country_name", maker?.nationality);
+        .eq("country_name", nationality);
       if (eligibleIndustries) {
         setIndustries(eligibleIndustries.map((i: any) => ({ id: i.industry_id, name: i.industry_name })));
         const { data: roleData } = await supabase.from("industry_role").select("*").in("industry_id", eligibleIndustries.map((i: any) => i.industry_id));
@@ -182,7 +186,7 @@ const WHVEditProfile: React.FC = () => {
       setLoading(false);
     };
     loadData();
-  }, [visaType]);
+  }, [nationality]);
 
   // ---------------- Save Handler ----------------
   const handleSave = async () => {
@@ -216,6 +220,41 @@ const WHVEditProfile: React.FC = () => {
       });
     }
 
+    // Work Experiences
+    for (let exp of workExperiences) {
+      await supabase.from("maker_work_experience").upsert({
+        user_id: user.id,
+        industry_id: exp.industryId,
+        company: exp.company,
+        position: exp.position,
+        location: exp.location,
+        start_date: exp.startDate,
+        end_date: exp.endDate,
+        job_description: exp.description,
+      });
+    }
+
+    // Licenses
+    for (let lic of licenses) {
+      await supabase.from("maker_license").upsert({ user_id: user.id, license_id: lic, other: null });
+    }
+    if (otherLicense) {
+      const other = allLicenses.find((l) => l.name === "Other");
+      if (other) await supabase.from("maker_license").upsert({ user_id: user.id, license_id: other.id, other: otherLicense });
+    }
+
+    // References
+    for (let ref of jobReferences) {
+      await supabase.from("maker_reference").upsert({
+        user_id: user.id,
+        name: ref.name,
+        business_name: ref.businessName,
+        email: ref.email,
+        mobile_num: ref.phone,
+        role: ref.role,
+      });
+    }
+
     toast({ title: "Profile Updated", description: `Step ${step} saved.` });
   };
 
@@ -237,7 +276,7 @@ const WHVEditProfile: React.FC = () => {
             </button>
           </div>
 
-          {/* Content (steps same as onboarding UI, just prefilled) */}
+          {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {/* STEP 1: Visa & Personal Info */}
             {step === 1 && (
@@ -336,26 +375,26 @@ const WHVEditProfile: React.FC = () => {
                   {expandedSections.states && (
                     <div className="px-4 pb-4 border-t space-y-4">
                       <Label>Preferred States (up to 3)</Label>
-                      {[...new Set(regions.map((r) => r.state))].map((s) => (
-                        <div key={s} className="mb-4">
+                      {[...new Set(regions.map((r) => r.state))].map((state) => (
+                        <div key={state} className="mb-4">
                           <label className="flex items-center space-x-2 py-1 font-medium">
                             <input
                               type="checkbox"
-                              checked={preferredStates.includes(s)}
-                              onChange={() => setPreferredStates(preferredStates.includes(s) ? preferredStates.filter(x => x !== s) : [...preferredStates, s])}
+                              checked={preferredStates.includes(state)}
+                              onChange={() => setPreferredStates(preferredStates.includes(state) ? preferredStates.filter(x => x !== state) : [...preferredStates, state])}
                             />
-                            <span>{s}</span>
+                            <span>{state}</span>
                           </label>
-                          {preferredStates.includes(s) && (
+                          {preferredStates.includes(state) && (
                             <div className="ml-6 space-y-1">
-                              {regions.filter((r) => r.state === s).map((r) => r.area).map((area) => (
-                                <label key={`${s}-${area}`} className="flex items-center space-x-2 py-1">
+                              {regions.filter((r) => r.state === state).map((r) => (
+                                <label key={r.region_rules_id} className="flex items-center space-x-2 py-1">
                                   <input
                                     type="checkbox"
-                                    checked={preferredAreas.includes(area)}
-                                    onChange={() => setPreferredAreas(preferredAreas.includes(area) ? preferredAreas.filter(x => x !== area) : [...preferredAreas, area])}
+                                    checked={preferredAreas.includes(r.area)}
+                                    onChange={() => setPreferredAreas(preferredAreas.includes(r.area) ? preferredAreas.filter(a => a !== r.area) : [...preferredAreas, r.area])}
                                   />
-                                  <span>{area}</span>
+                                  <span>{r.area}</span>
                                 </label>
                               ))}
                             </div>
