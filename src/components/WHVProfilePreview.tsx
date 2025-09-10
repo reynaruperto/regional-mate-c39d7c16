@@ -63,8 +63,12 @@ const WHVPreviewMatchCard: React.FC = () => {
         tagline: whv?.tagline || 'Working Holiday Maker seeking opportunities',
         currentLocation: whv ? `${whv.suburb}, ${whv.state}` : 'Not specified',
         profilePhoto: signedPhoto,
-        workPrefs: prefs?.map(p => `${p.industry_role?.industry?.name} – ${p.industry_role?.role}`) || [],
-        locationPrefs: prefs?.map(p => `${p.region_rules?.state} (${p.region_rules?.area})`) || []
+        workPrefs: prefs?.map(p =>
+          `${p.industry_role?.industry?.name || 'Industry'} – ${p.industry_role?.role || 'Role'}`
+        ) || [],
+        locationPrefs: prefs?.map(p =>
+          `${p.region_rules?.state || 'State'} (${p.region_rules?.area || 'Area'})`
+        ) || []
       });
 
       setWorkExperiences(exp || []);
@@ -89,8 +93,12 @@ const WHVPreviewMatchCard: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          
+          {/* Dynamic Island (top of iPhone 16 Pro Max) */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          
           {/* Header */}
-          <div className="px-4 py-4 flex items-center">
+          <div className="px-4 pt-10 pb-2 flex items-center">
             <Button
               variant="ghost"
               size="icon"
@@ -99,10 +107,12 @@ const WHVPreviewMatchCard: React.FC = () => {
             >
               <ArrowLeft className="w-5 h-5 text-gray-700" />
             </Button>
+            <h1 className="flex-1 text-center text-base font-semibold text-gray-900">Profile Preview</h1>
+            <div className="w-10" /> {/* Spacer */}
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 pb-20 space-y-6">
             {/* Photo + Basic Info */}
             <div className="flex flex-col items-center text-center">
               <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
@@ -197,8 +207,8 @@ const WHVPreviewMatchCard: React.FC = () => {
             </div>
           </div>
 
-          {/* CTA */}
-          <div className="absolute bottom-6 left-6 right-6">
+          {/* CTA Button (tight footer) */}
+          <div className="px-6 pb-4 bg-white border-t">
             <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
               <Heart size={18} className="fill-white" /> Heart to Match
             </Button>
