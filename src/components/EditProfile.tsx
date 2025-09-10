@@ -31,10 +31,8 @@ const EditProfile: React.FC = () => {
       }
       setUserId(user.id);
 
-      // Get email from auth
       setEmail(user.email ?? '');
 
-      // Fetch whv_maker row
       const { data: whv, error: whvError } = await supabase
         .from('whv_maker')
         .select('given_name, middle_name, family_name, profile_photo, is_profile_visible')
@@ -97,7 +95,6 @@ const EditProfile: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // Save only relative path in DB
       const { error: updateError } = await supabase
         .from('whv_maker')
         .update({ profile_photo: filePath })
@@ -216,7 +213,7 @@ const EditProfile: React.FC = () => {
                 </div>
               </div>
 
-              {/* Preview Profile Card + Match Card Group */}
+              {/* Preview Profile Card */}
               <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900">Preview Profile Card</h3>
@@ -227,14 +224,17 @@ const EditProfile: React.FC = () => {
                     VIEW
                   </Button>
                 </div>
+              </div>
 
-                {/* Preview Match Card Button (below) */}
-                <div className="mt-4">
+              {/* Preview Match Card */}
+              <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">Preview Match Card</h3>
                   <Button 
                     onClick={() => navigate('/whv/match-card')}
-                    className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white px-6 py-3 rounded-2xl font-semibold"
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-full text-sm"
                   >
-                    Preview Match Card
+                    VIEW
                   </Button>
                 </div>
               </div>
