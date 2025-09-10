@@ -456,17 +456,24 @@ const WHVEditProfile: React.FC = () => {
       // Clear and save preferences
       await supabase.from("maker_preference").delete().eq("user_id", user.id);
       
+      // Create unique preference combinations to avoid duplicates
       const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: number}> = [];
+      const uniqueCombos = new Set<string>();
+      
       selectedRoles.forEach(roleId => {
         preferredStates.forEach(state => {
           preferredAreas.forEach(area => {
             const region = regions.find(r => r.state === state && r.area === area);
             if (region) {
-              preferenceRows.push({
-                user_id: user.id,
-                industry_role_id: roleId,
-                region_rules_id: region.region_rules_id
-              });
+              const comboKey = `${roleId}-${region.region_rules_id}`;
+              if (!uniqueCombos.has(comboKey)) {
+                uniqueCombos.add(comboKey);
+                preferenceRows.push({
+                  user_id: user.id,
+                  industry_role_id: roleId,
+                  region_rules_id: region.region_rules_id
+                });
+              }
             }
           });
         });
@@ -683,21 +690,6 @@ const WHVEditProfile: React.FC = () => {
                   />
                 </div>
 
-                {/* Preview Match Card Section */}
-                <div className="border-t pt-6 mt-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Preview Match Card</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    See how your profile will appear to employers
-                  </p>
-                  <Button
-                    type="button"
-                    onClick={() => navigate("/whv/match-card")}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    VIEW
-                  </Button>
-                </div>
               </div>
             )}
 
