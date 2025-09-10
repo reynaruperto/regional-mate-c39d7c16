@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Heart } from 'lucide-react';
+import { ArrowLeft, Heart, MapPin, Briefcase, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -116,114 +116,95 @@ const WHVProfilePreview: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          
-          <div className="w-full h-full flex flex-col relative bg-gray-200">
-            <div className="flex-1 px-6 pt-16 pb-24 overflow-y-auto">
-              {/* Profile Card */}
-              <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 shadow-lg">
-                
-                {/* Name Badge */}
-                <div className="bg-orange-100 text-orange-700 text-center py-2 rounded-full mb-6 shadow-sm">
-                  <h2 className="text-lg font-semibold">{profileData?.name}</h2>
-                </div>
 
-                {/* Profile Picture */}
-                <div className="flex justify-center mb-6">
-                  <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden shadow-md">
-                    {profileData?.profilePhoto ? (
-                      <img 
-                        src={profileData.profilePhoto}
-                        alt="Profile" 
-                        className="w-full h-full object-cover hover:scale-105 transition-transform"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">No Photo</div>
-                    )}
+          {/* Tinder-style big photo card */}
+          <div className="relative flex-1">
+            {profileData?.profilePhoto ? (
+              <img 
+                src={profileData.profilePhoto}
+                alt="Profile" 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">No Photo</div>
+            )}
+
+            {/* Overlay bottom info */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 text-white">
+              <h2 className="text-2xl font-bold">
+                {profileData?.name}
+              </h2>
+              <p className="text-sm italic">{profileData?.tagline}</p>
+              <div className="mt-3 space-y-1 text-sm">
+                {preferences.map((pref, i) => (
+                  <div key={i}>
+                    {pref.state} ({pref.area}) • {pref.industry} – {pref.role}
                   </div>
-                </div>
-
-                {/* Tagline */}
-                <div className="text-center mb-6">
-                  <p className="text-gray-600 italic text-sm">
-                    {profileData?.tagline || "No tagline yet"}
-                  </p>
-                </div>
-
-                {/* Preferences */}
-                <div className="mb-6 text-sm">
-                  {preferences.length > 0 ? (
-                    preferences.map((pref, i) => (
-                      <div key={i} className="flex flex-col gap-1 mb-3">
-                        <span className="px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-xs font-medium inline-block">
-                          {pref.state} ({pref.area})
-                        </span>
-                        <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs inline-block">
-                          {pref.industry} – {pref.role}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-xs">No preferences added</p>
-                  )}
-                </div>
-
-                {/* Latest Work Experience */}
-                <div className="mb-6">
-                  <span className="font-semibold text-sm">Latest Work Experience:</span>
-                  <div className="mt-2 text-xs">
-                    {workExperiences.length > 0 ? (
-                      <div className="border-l-2 border-orange-200 pl-3">
-                        <p className="font-medium">{workExperiences[0].position} – {workExperiences[0].industry}</p>
-                        <p>{workExperiences[0].company} • {workExperiences[0].location}</p>
-                        <p className="text-gray-500">{formatDate(workExperiences[0].start_date)} – {formatDate(workExperiences[0].end_date)}</p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-500">No work experience added</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Licenses / Tickets */}
-                <div className="mb-6">
-                  <span className="font-semibold text-sm">Licenses / Tickets:</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {licenses.length > 0 ? (
-                      licenses.map((license, i) => (
-                        <span key={i} className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
-                          {license}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-xs text-gray-500">No licenses added</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action */}
-                <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white px-8 py-3 rounded-2xl flex items-center gap-3 justify-center shadow-md">
-                  <span className="font-semibold">Heart to Match</span>
-                  <div className="bg-orange-500 rounded-full p-2 shadow">
-                    <Heart size={20} className="text-white fill-white" />
-                  </div>
-                </Button>
+                ))}
               </div>
             </div>
+          </div>
 
-            {/* Back Button */}
-            <div className="absolute bottom-8 left-6">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="w-12 h-12 bg-white rounded-xl shadow-sm"
-                onClick={() => navigate('/edit-profile')}
-              >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
+          {/* Scrollable details area */}
+          <div className="px-6 py-4 bg-white space-y-4 overflow-y-auto">
+            {/* Work Experience */}
+            <div>
+              <h3 className="font-semibold text-gray-900 flex items-center mb-2">
+                <Briefcase className="w-4 h-4 text-orange-500 mr-2" /> Work Experience
+              </h3>
+              {workExperiences.length > 0 ? (
+                workExperiences.map((exp, i) => (
+                  <div key={i} className="text-xs mb-2 border-l-2 border-orange-200 pl-2">
+                    <p className="font-medium">{exp.position} – {exp.industry}</p>
+                    <p>{exp.company} • {exp.location}</p>
+                    <p className="text-gray-500">{formatDate(exp.start_date)} – {formatDate(exp.end_date)}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-gray-500">No work experience added</p>
+              )}
             </div>
+
+            {/* Licenses */}
+            <div>
+              <h3 className="font-semibold text-gray-900 flex items-center mb-2">
+                <Award className="w-4 h-4 text-orange-500 mr-2" /> Licenses & Tickets
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {licenses.length > 0 ? (
+                  licenses.map((license, i) => (
+                    <span key={i} className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                      {license}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500">No licenses added</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Button (floating like Tinder) */}
+          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
+            <Button className="bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl">
+              <Heart size={28} className="fill-white" />
+            </Button>
+          </div>
+
+          {/* Back Button */}
+          <div className="absolute top-16 left-6">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="w-10 h-10 bg-white rounded-full shadow"
+              onClick={() => navigate('/edit-profile')}
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Button>
           </div>
         </div>
       </div>
