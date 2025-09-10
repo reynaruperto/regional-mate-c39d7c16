@@ -23,7 +23,6 @@ const Dashboard: React.FC = () => {
 
       console.log("Auth user id:", user.id);
 
-      // Step 1: get profile row
       const { data: profileRow, error: profileError } = await supabase
         .from('profile')
         .select('user_id')
@@ -37,7 +36,6 @@ const Dashboard: React.FC = () => {
 
       console.log("Matched profile row:", profileRow);
 
-      // Step 2: get WHV data
       const { data: whv, error: whvError } = await supabase
         .from('whv_maker')
         .select('given_name, middle_name, family_name, tagline, profile_photo')
@@ -60,15 +58,12 @@ const Dashboard: React.FC = () => {
           console.log("Raw profile_photo from DB:", whv.profile_photo);
 
           let photoPath = whv.profile_photo;
-
-          // Always strip bucket prefix if full URL
           if (photoPath.includes('/profile_photo/')) {
             photoPath = photoPath.split('/profile_photo/')[1];
           }
 
           console.log("Normalized photo path:", photoPath);
 
-          // ✅ Get a signed URL valid for 1 hour
           const { data, error } = await supabase
             .storage
             .from('profile_photo')
@@ -88,7 +83,7 @@ const Dashboard: React.FC = () => {
 
     fetchWHVProfile();
 
-    return () => { isMounted = false }; // cleanup
+    return () => { isMounted = false };
   }, [navigate]);
 
   const settingsItems = [
@@ -143,10 +138,10 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Edit Profile Button */}
+              {/* Edit Profile Button (General) */}
               <div className="flex justify-center mb-8">
                 <button 
-                  onClick={() => navigate('/whv/edit-profile')} 
+                  onClick={() => navigate('/edit-profile')} 
                   className="flex items-center bg-gray-200 px-6 py-3 rounded-2xl hover:bg-gray-300 transition-colors"
                 >
                   <Edit size={16} className="mr-2 text-gray-700" />
