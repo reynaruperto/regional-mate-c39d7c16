@@ -9,11 +9,16 @@ interface WHVProfileData {
   tagline: string;
   nationality: string;
   profilePhoto: string | null;
-  preferredLocation: string;
-  preferredRole: string;
   currentLocation: string;
   email: string;
   phone: string;
+}
+
+interface Preference {
+  state: string;
+  area: string;
+  role: string;
+  industry: string;
 }
 
 interface WorkExperience {
@@ -21,14 +26,23 @@ interface WorkExperience {
   end_date: string | null;
   position: string;
   company: string;
+  location: string;
+  industry: string;
 }
 
 const WHVPreviewMatchCard: React.FC = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState<WHVProfileData | null>(null);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Present';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -47,19 +61,19 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 2. Preferences
-        const { data: preferences } = await supabase
+        // 2. Preferences (join industry + role + region)
+        const { data: preferencesData } = await supabase
           .from('maker_preference')
           .select(`
-            region_rules(state, area),
-            industry_role(role)
+            industry_role(role, industry_id, industry:industry(name)),
+            region_rules(state, area)
           `)
           .eq('user_id', user.id);
 
-        // 3. Work experience
+        // 3. Work experience (join industry)
         const { data: experiences } = await supabase
           .from('maker_work_experience')
-          .select('start_date, end_date, position, company')
+          .select('start_date, end_date, position, company, location, industry:industry(name)')
           .eq('user_id', user.id)
           .order('start_date', { ascending: false });
 
@@ -76,7 +90,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 6. Handle signed profile photo
+        // 6. Signed profile photo
         let signedPhoto: string | null = null;
         if (whvMaker?.profile_photo) {
           let photoPath = whvMaker.profile_photo;
@@ -90,23 +104,36 @@ const WHVPreviewMatchCard: React.FC = () => {
           signedPhoto = data?.signedUrl ?? null;
         }
 
-        // Format profile
-        const formattedProfile: WHVProfileData = {
+        // Profile data
+        setProfileData({
           name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name].filter(Boolean).join(' '),
           tagline: whvMaker?.tagline || 'Working Holiday Maker seeking opportunities',
           nationality: whvMaker?.nationality || 'Not specified',
           profilePhoto: signedPhoto,
-          preferredLocation: preferences && preferences.length > 0 && preferences[0]?.region_rules
-            ? `${preferences[0].region_rules.state} (${preferences[0].region_rules.area})`
-            : 'Not set',
-          preferredRole: preferences && preferences.length > 0 && preferences[0]?.industry_role?.role || 'Not set',
           currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified',
           email: profileRow?.email || 'Not provided',
           phone: whvMaker?.mobile_num || 'Not provided',
-        };
+        });
 
-        setProfileData(formattedProfile);
-        setWorkExperiences(experiences || []);
+        // Preferences
+        setPreferences((preferencesData || []).map(p => ({
+          state: p.region_rules?.state || '',
+          area: p.region_rules?.area || '',
+          role: p.industry_role?.role || '',
+          industry: p.industry_role?.industry?.name || ''
+        })));
+
+        // Work Experience
+        setWorkExperiences((experiences || []).map(exp => ({
+          start_date: exp.start_date,
+          end_date: exp.end_date,
+          position: exp.position,
+          company: exp.company,
+          location: exp.location,
+          industry: exp.industry?.name || 'Not specified',
+        })));
+
+        // Licenses
         setLicenses(licenseRows?.map(l => l.license?.name).filter(Boolean) || []);
         setLoading(false);
       } catch (error) {
@@ -141,7 +168,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
           
           <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header */}
+            {/* Banner */}
             <div className="px-6 pt-16 pb-4 bg-gradient-to-r from-orange-500 to-slate-800 text-center text-white">
               <h1 className="text-xl font-bold">🎉 It’s a Match! 🎉</h1>
               <p className="text-sm mt-1">This is how employers will see your full profile</p>
@@ -166,11 +193,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                 <div className="flex items-center space-x-4 mb-4">
                   <div className="w-20 h-20 rounded-full border-2 border-orange-500 overflow-hidden flex-shrink-0">
                     {profileData?.profilePhoto ? (
-                      <img 
-                        src={profileData.profilePhoto}
-                        alt="Profile" 
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
                         <User size={32} />
@@ -183,15 +206,8 @@ const WHVPreviewMatchCard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Core Details */}
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">Current Location:</span> {profileData?.currentLocation}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">Nationality:</span> {profileData?.nationality}
-                  </p>
-                </div>
+                <p className="text-sm text-gray-700"><span className="font-medium">Current Location:</span> {profileData?.currentLocation}</p>
+                <p className="text-sm text-gray-700"><span className="font-medium">Nationality:</span> {profileData?.nationality}</p>
               </div>
 
               {/* Preferences */}
@@ -200,12 +216,18 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <Briefcase size={18} className="text-orange-500 mr-2" />
                   Work Preferences
                 </h3>
-                <p className="text-sm text-gray-700">
-                  <span className="font-medium">Preferred Location:</span> {profileData?.preferredLocation}
-                </p>
-                <p className="text-sm text-gray-700">
-                  <span className="font-medium">Preferred Role:</span> {profileData?.preferredRole}
-                </p>
+                {preferences.length > 0 ? (
+                  <div className="space-y-2">
+                    {preferences.map((pref, index) => (
+                      <div key={index} className="text-sm text-gray-700">
+                        <p><span className="font-medium">Preferred Location:</span> {pref.state} ({pref.area})</p>
+                        <p><span className="font-medium">Preferred Work:</span> {pref.industry} – {pref.role}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No preferences added yet</p>
+                )}
               </div>
 
               {/* Work Experience */}
@@ -218,10 +240,10 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <div className="space-y-4">
                     {workExperiences.map((exp, index) => (
                       <div key={index} className="border-l-2 border-orange-200 pl-4">
-                        <h4 className="font-medium text-gray-900">{exp.position}</h4>
-                        <p className="text-sm text-gray-700">{exp.company}</p>
+                        <h4 className="font-medium text-gray-900">{exp.position} – {exp.industry}</h4>
+                        <p className="text-sm text-gray-700">{exp.company} • {exp.location}</p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {exp.start_date} – {exp.end_date || 'Present'}
+                          {formatDate(exp.start_date)} – {formatDate(exp.end_date)}
                         </p>
                       </div>
                     ))}
@@ -240,10 +262,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                 {licenses.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {licenses.map((license, index) => (
-                      <span 
-                        key={index}
-                        className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full"
-                      >
+                      <span key={index} className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
                         {license}
                       </span>
                     ))}
@@ -253,7 +272,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                 )}
               </div>
 
-              {/* Contact Details (Unlocked after match) */}
+              {/* Contact Details */}
               <div className="bg-gradient-to-r from-orange-500 to-slate-800 text-white rounded-2xl p-6 shadow-sm">
                 <h3 className="text-lg font-semibold mb-4">🎉 Contact Details Unlocked 🎉</h3>
                 <div className="space-y-2 text-sm">
@@ -267,7 +286,6 @@ const WHVPreviewMatchCard: React.FC = () => {
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
