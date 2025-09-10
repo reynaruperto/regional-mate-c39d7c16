@@ -21,8 +21,6 @@ const Dashboard: React.FC = () => {
         return;
       }
 
-      console.log("Auth user id:", user.id);
-
       // Step 1: get profile row
       const { data: profileRow, error: profileError } = await supabase
         .from('profile')
@@ -34,8 +32,6 @@ const Dashboard: React.FC = () => {
         console.error('Profile not found for auth user:', profileError);
         return;
       }
-
-      console.log("Matched profile row:", profileRow);
 
       // Step 2: get WHV data
       const { data: whv, error: whvError } = await supabase
@@ -50,8 +46,6 @@ const Dashboard: React.FC = () => {
       }
 
       if (whv && isMounted) {
-        console.log("Fetched WHV data:", whv);
-
         const nameParts = [whv.given_name, whv.middle_name, whv.family_name].filter(Boolean);
         if (nameParts.length > 0) setFullName(nameParts.join(' '));
         if (whv.tagline) setProfileTagline(whv.tagline);
@@ -61,24 +55,23 @@ const Dashboard: React.FC = () => {
 
           // ✅ Normalize: strip full URL to just the bucket path
           if (photoPath.startsWith('http')) {
-            const marker = '/object/public/profile_photos/';
+            const marker = '/object/public/profile_photo/';
             const idx = photoPath.indexOf(marker);
             if (idx !== -1) {
               photoPath = photoPath.substring(idx + marker.length);
             }
           }
 
+          // ✅ Use the correct bucket name
           const { data } = supabase
             .storage
-            .from('profile_photos') // 👈 bucket name
+            .from('profile_photo')
             .getPublicUrl(photoPath);
 
           if (data?.publicUrl) {
             setProfilePhoto(data.publicUrl);
           }
         }
-      } else {
-        console.warn("WHV fetch returned null — ignoring");
       }
     };
 
@@ -195,5 +188,3 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
-
-
