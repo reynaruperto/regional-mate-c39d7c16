@@ -10,6 +10,7 @@ interface WHVProfileData {
   profilePhoto: string | null;
   currentLocation: string;
   nationality: string;
+  visaType: string;
   visaExpiry: string;
 }
 
@@ -61,10 +62,16 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 2. Visa
+        // 2. Visa with stage join
         const { data: visa } = await supabase
           .from('maker_visa')
-          .select('expiry_date')
+          .select(`
+            expiry_date,
+            visa_stage:stage_id (
+              sub_class,
+              label
+            )
+          `)
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -106,6 +113,8 @@ const WHVPreviewMatchCard: React.FC = () => {
           .select('license(name)')
           .eq('user_id', user.id);
 
+        const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown');
+
         // 6. References
         const { data: referenceRows } = await supabase
           .from('maker_reference')
@@ -133,12 +142,15 @@ const WHVPreviewMatchCard: React.FC = () => {
           profilePhoto: signedPhoto,
           currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified',
           nationality: whvMaker?.nationality || 'Not specified',
+          visaType: visa?.visa_stage
+            ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})`
+            : 'Not specified',
           visaExpiry: visa?.expiry_date || 'Not specified',
         });
 
         setPreferences(formattedPreferences);
         setWorkExperiences(formattedExperiences);
-        setLicenses(licenseRows?.map(l => l.license?.name).filter(Boolean) || []);
+        setLicenses(formattedLicenses);
         setReferences(referenceRows || []);
         setLoading(false);
       } catch (error) {
@@ -201,7 +213,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
                   <p className="text-sm text-gray-600">{profileData?.tagline}</p>
                   <p className="text-xs text-gray-500">
-                    {profileData?.nationality} — Expires {profileData?.visaExpiry}
+                    {profileData?.nationality} — {profileData?.visaType}, Expires {profileData?.visaExpiry}
                   </p>
                 </div>
 
@@ -211,7 +223,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                   Current Location: {profileData?.currentLocation}
                 </div>
 
-                {/* Preferences */}
+                {/* Work Preferences */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">Work Preferences</h3>
                   {preferences.length > 0 ? (
@@ -225,6 +237,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                   )}
                 </div>
 
+                {/* Location Preferences */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">Location Preferences</h3>
                   {preferences.length > 0 ? (
