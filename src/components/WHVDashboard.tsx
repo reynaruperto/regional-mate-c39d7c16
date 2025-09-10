@@ -57,11 +57,21 @@ const Dashboard: React.FC = () => {
         if (whv.tagline) setProfileTagline(whv.tagline);
 
         if (whv.profile_photo) {
-          // ✅ Generate public URL from private bucket
+          let photoPath = whv.profile_photo;
+
+          // ✅ If DB stored a full URL, strip it to just the path
+          if (photoPath.startsWith('http')) {
+            const parts = photoPath.split('/object/public/profile_photos/');
+            if (parts.length > 1) {
+              photoPath = parts[1];
+            }
+          }
+
+          // ✅ Generate public URL from bucket
           const { data } = supabase
             .storage
-            .from('profile_photos') // 👈 replace with your bucket name
-            .getPublicUrl(whv.profile_photo);
+            .from('profile_photos') // 👈 make sure this matches your bucket name
+            .getPublicUrl(photoPath);
 
           if (data?.publicUrl) {
             setProfilePhoto(data.publicUrl);
@@ -185,4 +195,5 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+
 
