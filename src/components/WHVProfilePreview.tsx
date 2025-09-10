@@ -112,7 +112,7 @@ const WHVPreviewMatchCard: React.FC = () => {
               >
                 <ArrowLeft className="w-5 h-5 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Match Card Preview</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Profile Preview</h1>
               <div className="w-10"></div>
             </div>
           </div>
@@ -139,8 +139,8 @@ const WHVPreviewMatchCard: React.FC = () => {
               <p className="text-sm text-gray-600 mt-1">{profileData?.tagline}</p>
             </div>
 
-            {/* Main Info Box */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm space-y-6">
+            {/* Main Info Box with Orange Outline */}
+            <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
 
               {/* Work Preferences */}
               <div>
