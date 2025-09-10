@@ -27,8 +27,13 @@ const Dashboard: React.FC = () => {
 
       if (error) {
         console.error('Error fetching WHV profile:', error);
-      } else if (data) {
-        // Build full name with middle name if present
+        return;
+      }
+
+      if (data) {
+        console.log('Fetched WHV data:', data); // 👈 Debug output
+
+        // Build full name including middle name if present
         const nameParts = [data.given_name, data.middle_name, data.family_name].filter(Boolean);
         setFullName(nameParts.join(' '));
 
