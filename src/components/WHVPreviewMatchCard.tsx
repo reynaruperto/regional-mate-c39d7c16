@@ -22,6 +22,7 @@ interface WorkExperience {
   location: string;
   start_date: string;
   end_date: string | null;
+  description?: string;
 }
 
 interface Preference {
@@ -63,7 +64,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 2. Visa with stage join
+        // 2. Visa
         const { data: visa } = await supabase
           .from('maker_visa')
           .select(`
@@ -86,31 +87,18 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id);
 
         const formattedPreferences: Preference[] = (preferencesData || []).map((pref: any) => ({
-          industry: String(pref.industry_role?.industry?.name || 'Not specified'),
-          role: String(pref.industry_role?.role || 'Not specified'),
-          state: String(pref.region_rules?.state || 'Not specified'),
-          area: String(pref.region_rules?.area || 'Not specified'),
+          industry: pref.industry_role?.industry?.name || '',
+          role: pref.industry_role?.role || '',
+          state: pref.region_rules?.state || '',
+          area: pref.region_rules?.area || '',
         }));
 
-        // Deduplicate work & location preferences
-        const uniqueWorkPrefs = Array.from(
-          new Set(formattedPreferences.map(p => `${p.industry} – ${p.role}`))
-        ).map(str => {
-          const [industry, role] = str.split(' – ');
-          return { industry, role } as Preference;
-        });
-
-        const uniqueLocationPrefs = Array.from(
-          new Set(formattedPreferences.map(p => `${p.state} – ${p.area}`))
-        ).map(str => {
-          const [state, area] = str.split(' – ');
-          return { state, area } as Preference;
-        });
+        setPreferences(formattedPreferences);
 
         // 4. Work experience
         const { data: experiences } = await supabase
           .from('maker_work_experience')
-          .select('position, company, industry(name), location, start_date, end_date')
+          .select('position, company, industry(name), location, start_date, end_date, job_description')
           .eq('user_id', user.id)
           .order('start_date', { ascending: false });
 
@@ -121,7 +109,10 @@ const WHVPreviewMatchCard: React.FC = () => {
           location: exp.location || 'Not specified',
           start_date: exp.start_date,
           end_date: exp.end_date,
+          description: exp.job_description || '',
         }));
+
+        setWorkExperiences(formattedExperiences);
 
         // 5. Licenses
         const { data: licenseRows } = await supabase
@@ -129,17 +120,17 @@ const WHVPreviewMatchCard: React.FC = () => {
           .select('license(name)')
           .eq('user_id', user.id);
 
-        const formattedLicenses: string[] = (licenseRows || []).map((l: any) => 
-          typeof l.license === 'string' ? l.license : (l.license?.name || 'Unknown License')
-        );
+        const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown License');
+        setLicenses(formattedLicenses);
 
         // 6. References
         const { data: referenceRows } = await supabase
           .from('maker_reference')
           .select('name, business_name, email')
           .eq('user_id', user.id);
+        setReferences(referenceRows || []);
 
-        // 7. Profile photo signed URL
+        // 7. Profile photo
         let signedPhoto: string | null = null;
         if (whvMaker?.profile_photo) {
           let photoPath = whvMaker.profile_photo;
@@ -153,23 +144,15 @@ const WHVPreviewMatchCard: React.FC = () => {
         }
 
         setProfileData({
-          name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name]
-            .filter(Boolean)
-            .join(' '),
+          name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name].filter(Boolean).join(' '),
           tagline: whvMaker?.tagline || 'Working Holiday Maker seeking opportunities',
           profilePhoto: signedPhoto,
           currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified',
           nationality: whvMaker?.nationality || 'Not specified',
-          visaType: visa?.visa_stage
-            ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})`
-            : 'Not specified',
+          visaType: visa?.visa_stage ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})` : 'Not specified',
           visaExpiry: visa?.expiry_date || 'Not specified',
         });
 
-        setPreferences([...uniqueWorkPrefs, ...uniqueLocationPrefs]); // keep both grouped
-        setWorkExperiences(formattedExperiences);
-        setLicenses(formattedLicenses);
-        setReferences(referenceRows || []);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -188,15 +171,25 @@ const WHVPreviewMatchCard: React.FC = () => {
     );
   }
 
-  // Separate unique sets for rendering
-  const workPrefs = Array.from(new Set(preferences.map(p => `${p.industry} – ${p.role}`)));
-  const locationPrefs = Array.from(new Set(preferences.map(p => `${p.state} – ${p.area}`)));
+  // Group preferences
+  const groupedWorkPrefs = preferences.reduce((acc: any, pref) => {
+    if (!pref.industry || !pref.role) return acc;
+    if (!acc[pref.industry]) acc[pref.industry] = new Set();
+    acc[pref.industry].add(pref.role);
+    return acc;
+  }, {});
+
+  const groupedLocationPrefs = preferences.reduce((acc: any, pref) => {
+    if (!pref.state || !pref.area) return acc;
+    if (!acc[pref.state]) acc[pref.state] = new Set();
+    acc[pref.state].add(pref.area);
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
@@ -221,11 +214,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                 <div className="flex flex-col items-center">
                   <div className="w-24 h-24 rounded-full border-2 border-orange-500 overflow-hidden mb-3">
                     {profileData?.profilePhoto ? (
-                      <img
-                        src={profileData.profilePhoto}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
                         <User size={32} />
@@ -248,9 +237,16 @@ const WHVPreviewMatchCard: React.FC = () => {
                 {/* Work Preferences */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">Work Preferences</h3>
-                  {workPrefs.length > 0 ? (
-                    workPrefs.map((wp, idx) => (
-                      <p key={idx} className="text-sm text-gray-700">{wp}</p>
+                  {Object.keys(groupedWorkPrefs).length > 0 ? (
+                    Object.entries(groupedWorkPrefs).map(([industry, roles]) => (
+                      <div key={industry} className="mb-2">
+                        <p className="font-medium">{industry}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {Array.from(roles as Set<string>).map((role, idx) => (
+                            <li key={idx}>{role}</li>
+                          ))}
+                        </ul>
+                      </div>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No work preferences set</p>
@@ -260,9 +256,16 @@ const WHVPreviewMatchCard: React.FC = () => {
                 {/* Location Preferences */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">Location Preferences</h3>
-                  {locationPrefs.length > 0 ? (
-                    locationPrefs.map((lp, idx) => (
-                      <p key={idx} className="text-sm text-gray-700">{lp}</p>
+                  {Object.keys(groupedLocationPrefs).length > 0 ? (
+                    Object.entries(groupedLocationPrefs).map(([state, areas]) => (
+                      <div key={state} className="mb-2">
+                        <p className="font-medium">{state}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {Array.from(areas as Set<string>).map((area, idx) => (
+                            <li key={idx}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No location preferences set</p>
@@ -274,12 +277,13 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <h3 className="font-semibold text-orange-600 mb-2">Work Experience</h3>
                   {workExperiences.length > 0 ? (
                     workExperiences.map((exp, idx) => (
-                      <div key={idx} className="border-l-2 border-orange-300 pl-3 mb-2">
-                        <p className="text-sm font-medium">{exp.position} – {exp.industry}</p>
-                        <p className="text-xs text-gray-600">{exp.company}, {exp.location}</p>
-                        <p className="text-xs text-gray-500">
-                          {exp.start_date} – {exp.end_date || 'Present'}
-                        </p>
+                      <div key={idx} className="border p-3 rounded-lg mb-2 text-sm text-gray-700">
+                        <p><span className="font-medium">Company:</span> {exp.company}</p>
+                        <p><span className="font-medium">Industry:</span> {exp.industry}</p>
+                        <p><span className="font-medium">Position:</span> {exp.position}</p>
+                        <p><span className="font-medium">Location:</span> {exp.location}</p>
+                        <p><span className="font-medium">Dates:</span> {exp.start_date} – {exp.end_date || 'Present'}</p>
+                        {exp.description && <p><span className="font-medium">Description:</span> {exp.description}</p>}
                       </div>
                     ))
                   ) : (
@@ -293,10 +297,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                   {licenses.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {licenses.map((license, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                        >
+                        <span key={idx} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
                           {license}
                         </span>
                       ))}
@@ -309,14 +310,14 @@ const WHVPreviewMatchCard: React.FC = () => {
                 {/* References */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
-                    <FileText size={16} className="mr-2" />
-                    References
+                    <FileText size={16} className="mr-2" /> References
                   </h3>
                   {references.length > 0 ? (
                     references.map((ref, idx) => (
-                      <div key={idx} className="text-sm text-gray-700 mb-2">
-                        <p className="font-medium">{ref.name} — {ref.business_name}</p>
-                        <p className="text-xs text-gray-500">{ref.email}</p>
+                      <div key={idx} className="border p-3 rounded-lg mb-2 text-sm text-gray-700">
+                        <p><span className="font-medium">Name:</span> {ref.name}</p>
+                        <p><span className="font-medium">Business:</span> {ref.business_name}</p>
+                        <p><span className="font-medium">Email:</span> {ref.email}</p>
                       </div>
                     ))
                   ) : (
