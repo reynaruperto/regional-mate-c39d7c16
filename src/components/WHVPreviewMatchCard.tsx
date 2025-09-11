@@ -1,6 +1,6 @@
 // src/components/WHVPreviewMatchCard.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Briefcase, Award, User, FileText } from 'lucide-react';
+import { ArrowLeft, MapPin, Briefcase, Award, User, FileText, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,8 @@ interface WHVProfileData {
   nationality: string;
   visaType: string;
   visaExpiry: string;
+  phone?: string;
+  email?: string;
 }
 
 interface WorkExperience {
@@ -36,6 +38,8 @@ interface Reference {
   name: string;
   business_name: string;
   email: string;
+  mobile_num?: string;
+  role?: string;
 }
 
 const WHVPreviewMatchCard: React.FC = () => {
@@ -50,9 +54,8 @@ const WHVPreviewMatchCard: React.FC = () => {
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          console.error("No user logged in", userError);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
           navigate('/whv/dashboard');
           return;
         }
@@ -60,7 +63,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         // 1. WHV maker
         const { data: whvMaker } = await supabase
           .from('whv_maker')
-          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state')
+          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -123,10 +126,10 @@ const WHVPreviewMatchCard: React.FC = () => {
         const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown License');
         setLicenses(formattedLicenses);
 
-        // 6. References
+        // 6. References (with contact details now revealed)
         const { data: referenceRows } = await supabase
           .from('maker_reference')
-          .select('name, business_name, email')
+          .select('name, business_name, email, mobile_num, role')
           .eq('user_id', user.id);
         setReferences(referenceRows || []);
 
@@ -151,6 +154,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           nationality: whvMaker?.nationality || 'Not specified',
           visaType: visa?.visa_stage ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})` : 'Not specified',
           visaExpiry: visa?.expiry_date || 'Not specified',
+          phone: whvMaker?.mobile_num || '',
         });
 
         setLoading(false);
@@ -164,11 +168,7 @@ const WHVPreviewMatchCard: React.FC = () => {
   }, [navigate]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <p className="text-gray-600">Loading profile...</p>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
   // Group preferences
@@ -195,15 +195,10 @@ const WHVPreviewMatchCard: React.FC = () => {
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-10 h-10"
-                onClick={() => navigate('/edit-profile')}
-              >
+              <Button variant="ghost" size="icon" className="w-10 h-10" onClick={() => navigate('/edit-profile')}>
                 <ArrowLeft className="w-5 h-5 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Preview Match Card</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Matched Profile</h1>
               <div className="w-10"></div>
             </div>
 
@@ -226,12 +221,11 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <p className="text-xs text-gray-500">
                     {profileData?.nationality} — {profileData?.visaType}, Expires {profileData?.visaExpiry}
                   </p>
-                </div>
-
-                {/* Current Location */}
-                <div className="flex items-center text-sm text-gray-700">
-                  <MapPin size={16} className="text-orange-500 mr-2" />
-                  Current Location: {profileData?.currentLocation}
+                  {profileData?.phone && (
+                    <p className="text-sm text-gray-700 flex items-center mt-1">
+                      <Phone size={14} className="mr-1 text-orange-500" /> {profileData.phone}
+                    </p>
+                  )}
                 </div>
 
                 {/* Work Preferences */}
@@ -307,7 +301,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                   )}
                 </div>
 
-                {/* References */}
+                {/* References (contact details revealed) */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
                     <FileText size={16} className="mr-2" /> References
@@ -318,17 +312,14 @@ const WHVPreviewMatchCard: React.FC = () => {
                         <p><span className="font-medium">Name:</span> {ref.name}</p>
                         <p><span className="font-medium">Business:</span> {ref.business_name}</p>
                         <p><span className="font-medium">Email:</span> {ref.email}</p>
+                        {ref.mobile_num && <p><span className="font-medium">Phone:</span> {ref.mobile_num}</p>}
+                        {ref.role && <p><span className="font-medium">Role:</span> {ref.role}</p>}
                       </div>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No references added</p>
                   )}
                 </div>
-
-                {/* Heart to Match */}
-                <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-medium mt-4">
-                  ❤️ Heart to Match
-                </Button>
               </div>
             </div>
           </div>
