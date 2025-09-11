@@ -6,42 +6,128 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const EmployerEditProfile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [profilePhoto, setProfilePhoto] = useState<string>('/lovable-uploads/5171768d-7ee5-4242-8d48-29d87d896302.png');
+
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [profileVisible, setProfileVisible] = useState(true);
-  const [name, setName] = useState('John Doe');
-  const [email, setEmail] = useState('johndoe@gmail.com');
+  const [givenName, setGivenName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [familyName, setFamilyName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [email, setEmail] = useState('');
+
+  const [uploading, setUploading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load profile photo from localStorage
-    const storedPhoto = localStorage.getItem('employerProfilePhoto');
-    if (storedPhoto) {
-      setProfilePhoto(storedPhoto);
-    }
-  }, []);
+    const fetchProfile = async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        console.error("No user logged in", error);
+        navigate('/employer/sign-in');
+        return;
+      }
+      setUserId(user.id);
+      setEmail(user.email ?? '');
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          setProfilePhoto(result);
-          localStorage.setItem('employerProfilePhoto', result);
-        };
-        reader.readAsDataURL(file);
-      } else {
+      const { data: employer, error: empError } = await supabase
+        .from('employer')
+        .select('given_name, middle_name, family_name, company_name, tagline, profile_photo')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (empError) {
+        console.error("Error fetching employer profile:", empError);
+        return;
+      }
+
+      if (employer) {
+        setGivenName(employer.given_name || '');
+        setMiddleName(employer.middle_name || '');
+        setFamilyName(employer.family_name || '');
+        setCompanyName(employer.company_name || '');
+        setTagline(employer.tagline || '');
+
+        if (employer.profile_photo) {
+          let photoPath = employer.profile_photo;
+          if (photoPath.includes('/profile_photo/')) {
+            photoPath = photoPath.split('/profile_photo/')[1];
+          }
+
+          const { data } = await supabase
+            .storage
+            .from('profile_photo')
+            .createSignedUrl(photoPath, 3600);
+
+          if (data?.signedUrl) setProfilePhoto(data.signedUrl);
+        }
+      }
+    };
+
+    fetchProfile();
+  }, [navigate]);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file || !userId) return;
+
+      if (!file.type.startsWith('image/')) {
         toast({
           title: "Invalid file type",
           description: "Please select an image file",
           variant: "destructive"
         });
+        return;
       }
+
+      setUploading(true);
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
+
+      const { error: uploadError } = await supabase
+        .storage
+        .from('profile_photo')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from('employer')
+        .update({ profile_photo: filePath })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+
+      const { data } = await supabase
+        .storage
+        .from('profile_photo')
+        .createSignedUrl(filePath, 3600);
+
+      if (data?.signedUrl) setProfilePhoto(data.signedUrl);
+
+      toast({
+        title: "Photo updated",
+        description: "Your profile photo has been updated successfully",
+      });
+
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Upload failed",
+        description: "There was an error uploading your photo",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -49,7 +135,40 @@ const EmployerEditProfile: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!userId) return;
+
+    if (!givenName.trim() || !familyName.trim() || !companyName.trim()) {
+      toast({
+        title: "Missing required fields",
+        description: "First Name, Last Name and Company Name are mandatory",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from('employer')
+      .update({
+        given_name: givenName,
+        middle_name: middleName || null,
+        family_name: familyName,
+        company_name: companyName,
+        tagline: tagline,
+        // ✅ add profile_visible if you decide to include it in schema
+      })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error("Error updating profile:", error);
+      toast({
+        title: "Update failed",
+        description: "There was a problem updating your profile",
+        variant: "destructive"
+      });
+      return;
+    }
+
     toast({
       title: "Profile Updated",
       description: "Your employer profile has been successfully updated",
@@ -62,38 +181,24 @@ const EmployerEditProfile: React.FC = () => {
   };
 
   const handlePreviewProfile = () => {
-    navigate('/employer/profile-preview'); // short profile card
-  };
-
-  const handlePreviewFullProfile = () => {
-    navigate('/employer/full-profile-preview'); // full profile view
+    navigate('/employer/profile-preview');
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
           
-          {/* Main content container */}
           <div className="w-full h-full flex flex-col relative bg-gray-100">
-            
             {/* Header */}
             <div className="px-6 pt-16 pb-4">
               <div className="flex items-center justify-between">
-                <button 
-                  onClick={handleCancel}
-                  className="text-base font-medium text-[#1E293B] underline"
-                >
+                <button onClick={handleCancel} className="text-[#1E293B] font-medium underline">
                   Cancel
                 </button>
-                <h1 className="text-base font-semibold text-gray-900">{name}</h1>
-                <button 
-                  onClick={handleSave}
-                  className="flex items-center text-base font-medium text-[#1E293B] underline"
-                >
+                <h1 className="text-lg font-semibold text-gray-900">Edit Employer Profile</h1>
+                <button onClick={handleSave} className="flex items-center text-[#1E293B] font-medium underline">
                   <Check size={16} className="mr-1" />
                   Save
                 </button>
@@ -101,17 +206,16 @@ const EmployerEditProfile: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 px-6 overflow-y-auto pb-6">
-              
+            <div className="flex-1 px-6 overflow-y-auto">
               {/* Profile Visibility */}
-              <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm">
+              <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-base font-semibold text-gray-900 mb-1">Profile Visibility</h3>
-                    <p className="text-xs text-gray-500">Your profile is currently visible to all RegionalMate users</p>
+                    <h3 className="font-semibold text-gray-900 mb-1">Profile Visibility</h3>
+                    <p className="text-sm text-gray-500">Your profile is currently visible to all RegionalMate users</p>
                   </div>
                   <div className="flex items-center">
-                    <span className="text-sm font-medium text-gray-900 mr-3">{profileVisible ? 'ON' : 'OFF'}</span>
+                    <span className="text-sm text-gray-600 mr-2">{profileVisible ? "ON" : "OFF"}</span>
                     <Switch 
                       checked={profileVisible}
                       onCheckedChange={setProfileVisible}
@@ -122,25 +226,12 @@ const EmployerEditProfile: React.FC = () => {
               </div>
 
               {/* Preview Profile Card */}
-              <div className="bg-white rounded-2xl p-5 mb-5 shadow-sm">
+              <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-gray-900">Preview Profile Card</h3>
+                  <h3 className="font-semibold text-gray-900">Preview Profile Card</h3>
                   <Button 
                     onClick={handlePreviewProfile}
-                    className="bg-[#1E293B] hover:bg-[#334155] text-white px-6 py-2 rounded-full text-sm font-medium"
-                  >
-                    VIEW
-                  </Button>
-                </div>
-              </div>
-
-              {/* Preview Full Profile */}
-              <div className="bg-white rounded-2xl p-5 mb-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-gray-900">Preview Full Profile</h3>
-                  <Button 
-                    onClick={handlePreviewFullProfile}
-                    className="bg-[#1E293B] hover:bg-[#334155] text-white px-6 py-2 rounded-full text-sm font-medium"
+                    className="bg-[#1E293B] hover:bg-[#334155] text-white px-6 py-2 rounded-full text-sm"
                   >
                     VIEW
                   </Button>
@@ -149,24 +240,24 @@ const EmployerEditProfile: React.FC = () => {
 
               {/* Profile Picture */}
               <div className="mb-6">
-                <h3 className="text-base font-medium text-gray-600 mb-3">Profile Picture</h3>
-                <div className="relative w-28 h-28">
+                <h3 className="text-gray-600 mb-3">Profile Picture</h3>
+                <div className="relative w-24 h-24">
                   <button 
                     onClick={handlePhotoClick}
-                    className="w-28 h-28 rounded-full overflow-hidden border-4 border-[#1E293B] hover:opacity-80 transition-opacity"
+                    className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#1E293B] hover:opacity-80 transition-opacity"
                   >
-                    <img 
-                      src={profilePhoto} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
+                    {profilePhoto ? (
+                      <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
+                        No Photo
+                      </div>
+                    )}
                   </button>
-                  <div className="absolute bottom-1 right-1 w-8 h-8 bg-[#1E293B] rounded-full flex items-center justify-center pointer-events-none">
+                  <div className="absolute bottom-0 right-0 w-8 h-8 bg-[#1E293B] rounded-full flex items-center justify-center pointer-events-none">
                     <Camera size={16} className="text-white" />
                   </div>
                 </div>
-                
-                {/* Hidden file input */}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -178,31 +269,78 @@ const EmployerEditProfile: React.FC = () => {
 
               {/* Form Fields */}
               <div className="space-y-4">
-                {/* Name */}
+                {/* First Name */}
                 <div>
-                  <Label htmlFor="name" className="text-base font-medium text-gray-600 mb-2 block">Name</Label>
+                  <Label htmlFor="givenName" className="text-gray-600 mb-2 block">First Name *</Label>
                   <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-11 rounded-xl border-gray-200 bg-white text-sm px-4"
+                    id="givenName"
+                    value={givenName}
+                    onChange={(e) => setGivenName(e.target.value)}
+                    className="h-12 rounded-xl border-gray-200 bg-white"
+                    required
                   />
                 </div>
 
-                {/* Email */}
+                {/* Middle Name */}
                 <div>
-                  <Label htmlFor="email" className="text-base font-medium text-gray-600 mb-2 block">Email</Label>
+                  <Label htmlFor="middleName" className="text-gray-600 mb-2 block">Middle Name</Label>
+                  <Input
+                    id="middleName"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                    className="h-12 rounded-xl border-gray-200 bg-white"
+                  />
+                </div>
+
+                {/* Last Name */}
+                <div>
+                  <Label htmlFor="familyName" className="text-gray-600 mb-2 block">Last Name *</Label>
+                  <Input
+                    id="familyName"
+                    value={familyName}
+                    onChange={(e) => setFamilyName(e.target.value)}
+                    className="h-12 rounded-xl border-gray-200 bg-white"
+                    required
+                  />
+                </div>
+
+                {/* Company Name */}
+                <div>
+                  <Label htmlFor="companyName" className="text-gray-600 mb-2 block">Company Name *</Label>
+                  <Input
+                    id="companyName"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="h-12 rounded-xl border-gray-200 bg-white"
+                    required
+                  />
+                </div>
+
+                {/* Tagline */}
+                <div>
+                  <Label htmlFor="tagline" className="text-gray-600 mb-2 block">Tagline</Label>
+                  <Input
+                    id="tagline"
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    className="h-12 rounded-xl border-gray-200 bg-white"
+                  />
+                </div>
+
+                {/* Email (read-only) */}
+                <div>
+                  <Label htmlFor="email" className="text-gray-600 mb-2 block">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-xl border-gray-200 bg-white text-sm px-4"
+                    disabled
+                    className="h-12 rounded-xl border-gray-200 bg-gray-100 cursor-not-allowed"
                   />
                 </div>
               </div>
 
-              <div className="h-6"></div>
+              <div className="h-20"></div>
             </div>
           </div>
         </div>
