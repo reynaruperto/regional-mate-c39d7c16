@@ -1,12 +1,13 @@
 // src/pages/whv/WHVProfilePreview.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Briefcase, MapPin, Award } from "lucide-react";
+import { ArrowLeft, Briefcase, MapPin, Award, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 const WHVProfilePreview: React.FC = () => {
   const navigate = useNavigate();
+  const [profileData, setProfileData] = useState<any>(null);
   const [workPreferences, setWorkPreferences] = useState<any[]>([]);
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
@@ -21,6 +22,13 @@ const WHVProfilePreview: React.FC = () => {
         return;
       }
 
+      // Profile
+      const { data: whv } = await supabase
+        .from("whv_maker")
+        .select("given_name, middle_name, family_name, tagline, profile_photo")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       // Preferences
       const { data: preferences } = await supabase
         .from("maker_preference")
@@ -31,7 +39,6 @@ const WHVProfilePreview: React.FC = () => {
         .eq("user_id", user.id);
 
       if (preferences) {
-        // Group by industry → roles
         const groupedWorkPrefs: Record<string, string[]> = {};
         const groupedLocationPrefs: Record<string, string[]> = {};
 
@@ -72,6 +79,27 @@ const WHVProfilePreview: React.FC = () => {
         .eq("user_id", user.id);
       setLicenses(licenseRows?.map((l) => l.license?.name) || []);
 
+      // Signed profile photo
+      let signedPhoto: string | null = null;
+      if (whv?.profile_photo) {
+        let photoPath = whv.profile_photo;
+        if (photoPath.includes("/profile_photo/")) {
+          photoPath = photoPath.split("/profile_photo/")[1];
+        }
+        const { data } = await supabase.storage
+          .from("profile_photo")
+          .createSignedUrl(photoPath, 3600);
+        signedPhoto = data?.signedUrl ?? null;
+      }
+
+      setProfileData({
+        name: [whv?.given_name, whv?.middle_name, whv?.family_name]
+          .filter(Boolean)
+          .join(" "),
+        tagline: whv?.tagline || "No tagline added",
+        profilePhoto: signedPhoto,
+      });
+
       setLoading(false);
     };
 
@@ -111,6 +139,25 @@ const WHVProfilePreview: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto space-y-6">
+            {/* Profile Header */}
+            <div className="flex flex-col items-center text-center">
+              <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
+                {profileData?.profilePhoto ? (
+                  <img
+                    src={profileData.profilePhoto}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                    <User size={32} />
+                  </div>
+                )}
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
+              <p className="text-sm text-gray-600 mt-1">{profileData?.tagline}</p>
+            </div>
+
             {/* Work Preferences */}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
@@ -165,7 +212,7 @@ const WHVProfilePreview: React.FC = () => {
               {workExperiences.length > 0 ? (
                 <div className="space-y-4">
                   {workExperiences.map((exp, i) => (
-                    <div key={i} className="border rounded-lg p-3">
+                    <div key={i} className="border rounded-lg p-3 text-sm">
                       <p><span className="font-medium">Company:</span> {exp.company}</p>
                       <p><span className="font-medium">Industry:</span> {exp.industry?.name || "N/A"}</p>
                       <p><span className="font-medium">Position:</span> {exp.position}</p>
