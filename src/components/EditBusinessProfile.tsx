@@ -1,3 +1,4 @@
+// src/components/EditBusinessProfile.tsx
 import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,7 +34,7 @@ const AUSTRALIAN_STATES = [
   "Western Australia",
 ] as const;
 
-// ✅ Schema (industryId is a number now)
+// ✅ Schema
 const formSchema = z.object({
   abn: z.string().length(11, "ABN must be 11 digits").regex(/^\d+$/, "ABN must be numeric"),
   website: z.string().url().optional().or(z.literal("")),
@@ -47,7 +48,7 @@ const formSchema = z.object({
   businessTagline: z.string().min(10, "At least 10 characters").max(200),
   yearsInBusiness: z.enum(yearsOptions),
   employeeCount: z.enum(employeeOptions),
-  industryId: z.number({ invalid_type_error: "Select an industry" }),
+  industryId: z.number().refine((val) => val > 0, { message: "Select an industry" }),
   rolesOffered: z.array(z.string()).min(1, "Select at least one role"),
   jobType: z.array(z.string()).min(1, "Select at least one job type"),
   payRange: z.enum(payRanges),
@@ -88,7 +89,7 @@ const EditBusinessProfile: React.FC = () => {
   const watchedFacilities = watch("facilitiesAndExtras") || [];
   const watchedIndustryId = watch("industryId");
 
-  // ✅ Load data
+  // ✅ Load options + employer data
   useEffect(() => {
     const loadData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -97,6 +98,7 @@ const EditBusinessProfile: React.FC = () => {
         return;
       }
 
+      // Options
       const { data: indData } = await supabase.from("industry").select("industry_id, name");
       if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
 
@@ -106,12 +108,8 @@ const EditBusinessProfile: React.FC = () => {
       const { data: facData } = await supabase.from("facility").select("facility_id, name");
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
 
-      const { data: employer } = await supabase
-        .from("employer")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
+      // Employer
+      const { data: employer } = await supabase.from("employer").select("*").eq("user_id", user.id).maybeSingle();
       if (employer) {
         reset({
           abn: employer.abn,
@@ -128,10 +126,24 @@ const EditBusinessProfile: React.FC = () => {
           industryId: employer.industry_id || 0,
           payRange: employer.pay_range,
         });
+
+        // Prefill job types
+        const { data: empJobTypes } = await supabase.from("employer_job_type").select("type_id").eq("user_id", user.id);
+        if (empJobTypes) {
+          const selectedTypes = jobData?.filter(j => empJobTypes.some((e: any) => e.type_id === j.type_id)).map(j => j.type) || [];
+          setValue("jobType", selectedTypes);
+        }
+
+        // Prefill facilities
+        const { data: empFacilities } = await supabase.from("employer_facility").select("facility_id").eq("user_id", user.id);
+        if (empFacilities) {
+          const selectedFacilities = facData?.filter(f => empFacilities.some((e: any) => e.facility_id === f.facility_id)).map(f => f.name) || [];
+          setValue("facilitiesAndExtras", selectedFacilities);
+        }
       }
     };
     loadData();
-  }, [navigate, reset]);
+  }, [navigate, reset, setValue]);
 
   // ✅ Load roles dynamically
   useEffect(() => {
@@ -141,9 +153,7 @@ const EditBusinessProfile: React.FC = () => {
         .from("industry_role")
         .select("industry_role_id, role")
         .eq("industry_id", watchedIndustryId);
-      if (roleData) {
-        setRoles(roleData.map(r => ({ id: r.industry_role_id, role: r.role })));
-      }
+      if (roleData) setRoles(roleData.map(r => ({ id: r.industry_role_id, role: r.role })));
     };
     fetchRoles();
   }, [watchedIndustryId]);
@@ -154,6 +164,7 @@ const EditBusinessProfile: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not logged in");
 
+      // Update employer
       await supabase.from("employer").update({
         tagline: data.businessTagline,
         business_tenure: data.yearsInBusiness,
@@ -170,7 +181,19 @@ const EditBusinessProfile: React.FC = () => {
         updated_at: new Date().toISOString(),
       }).eq("user_id", user.id);
 
-      // replace job types + facilities + roles here ...
+      // Replace job types
+      await supabase.from("employer_job_type").delete().eq("user_id", user.id);
+      const selectedJobTypeIds = jobTypes.filter(j => data.jobType.includes(j.type)).map(j => j.id);
+      if (selectedJobTypeIds.length > 0) {
+        await supabase.from("employer_job_type").insert(selectedJobTypeIds.map(id => ({ user_id: user.id, type_id: id })));
+      }
+
+      // Replace facilities
+      await supabase.from("employer_facility").delete().eq("user_id", user.id);
+      const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
+      if (selectedFacilityIds.length > 0) {
+        await supabase.from("employer_facility").insert(selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id })));
+      }
 
       toast({ title: "Profile Updated", description: "Business profile updated successfully" });
       navigate("/employer/dashboard");
@@ -259,9 +282,7 @@ const EditBusinessProfile: React.FC = () => {
                       render={({ field }) => (
                         <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ""}>
                           <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
-                          <SelectContent>
-                            {industries.map(ind => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}
-                          </SelectContent>
+                          <SelectContent>{industries.map(ind => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}</SelectContent>
                         </Select>
                       )}
                     />
@@ -280,6 +301,53 @@ const EditBusinessProfile: React.FC = () => {
                           }}
                         />
                         <span>{r.role}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div>
+                    <Label>Job Type</Label>
+                    {jobTypes.map(j => (
+                      <label key={j.id} className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="checkbox"
+                          value={j.type}
+                          checked={watchedJobTypes.includes(j.type)}
+                          onChange={e => {
+                            if (e.target.checked) setValue("jobType", [...watchedJobTypes, j.type]);
+                            else setValue("jobType", watchedJobTypes.filter(a => a !== j.type));
+                          }}
+                        />
+                        <span>{j.type}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div>
+                    <Label>Pay Range</Label>
+                    <Controller
+                      name="payRange"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger><SelectValue placeholder="Select pay" /></SelectTrigger>
+                          <SelectContent>{payRanges.map(range => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <Label>Facilities & Extras</Label>
+                    {facilities.map(f => (
+                      <label key={f.id} className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="checkbox"
+                          value={f.name}
+                          checked={watchedFacilities.includes(f.name)}
+                          onChange={e => {
+                            if (e.target.checked) setValue("facilitiesAndExtras", [...watchedFacilities, f.name]);
+                            else setValue("facilitiesAndExtras", watchedFacilities.filter(x => x !== f.name));
+                          }}
+                        />
+                        <span>{f.name}</span>
                       </label>
                     ))}
                   </div>
