@@ -40,7 +40,7 @@ import WHVPhotoUpload from "./pages/WHVPhotoUpload";
 import WHVAccountConfirmation from "./pages/WHVAccountConfirmation";
 import WHVDashboard from "./pages/WHVDashboard";
 import WHVEditProfile from "./pages/WHVEditProfile";
-import WHVProfilePreview from "./components/WHVProfilePreview";
+import WHVProfilePreview from "./pages/WHVProfilePreview";
 import WHVMatches from "./pages/WHVMatches";
 import WHVMessages from "./components/WHVMessages";
 import WHVNotifications from "./components/WHVNotifications";
