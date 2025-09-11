@@ -1,6 +1,6 @@
 // src/components/WHVPreviewMatchCard.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Briefcase, Award, User, FileText, Phone } from 'lucide-react';
+import { ArrowLeft, MapPin, Award, User, FileText, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,7 +67,14 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 2. Visa
+        // 2. Profile email
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('email')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // 3. Visa
         const { data: visa } = await supabase
           .from('maker_visa')
           .select(`
@@ -80,7 +87,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 3. Preferences
+        // 4. Preferences
         const { data: preferencesData } = await supabase
           .from('maker_preference')
           .select(`
@@ -98,7 +105,7 @@ const WHVPreviewMatchCard: React.FC = () => {
 
         setPreferences(formattedPreferences);
 
-        // 4. Work experience
+        // 5. Work experience
         const { data: experiences } = await supabase
           .from('maker_work_experience')
           .select('position, company, industry(name), location, start_date, end_date, job_description')
@@ -117,7 +124,7 @@ const WHVPreviewMatchCard: React.FC = () => {
 
         setWorkExperiences(formattedExperiences);
 
-        // 5. Licenses
+        // 6. Licenses
         const { data: licenseRows } = await supabase
           .from('maker_license')
           .select('license(name)')
@@ -126,14 +133,14 @@ const WHVPreviewMatchCard: React.FC = () => {
         const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown License');
         setLicenses(formattedLicenses);
 
-        // 6. References (with contact details now revealed)
+        // 7. References
         const { data: referenceRows } = await supabase
           .from('maker_reference')
           .select('name, business_name, email, mobile_num, role')
           .eq('user_id', user.id);
         setReferences(referenceRows || []);
 
-        // 7. Profile photo
+        // 8. Profile photo
         let signedPhoto: string | null = null;
         if (whvMaker?.profile_photo) {
           let photoPath = whvMaker.profile_photo;
@@ -155,6 +162,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           visaType: visa?.visa_stage ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})` : 'Not specified',
           visaExpiry: visa?.expiry_date || 'Not specified',
           phone: whvMaker?.mobile_num || '',
+          email: profile?.email || '',
         });
 
         setLoading(false);
@@ -224,6 +232,11 @@ const WHVPreviewMatchCard: React.FC = () => {
                   {profileData?.phone && (
                     <p className="text-sm text-gray-700 flex items-center mt-1">
                       <Phone size={14} className="mr-1 text-orange-500" /> {profileData.phone}
+                    </p>
+                  )}
+                  {profileData?.email && (
+                    <p className="text-sm text-gray-700 flex items-center mt-1">
+                      <Mail size={14} className="mr-1 text-orange-500" /> {profileData.email}
                     </p>
                   )}
                 </div>
@@ -301,7 +314,7 @@ const WHVPreviewMatchCard: React.FC = () => {
                   )}
                 </div>
 
-                {/* References (contact details revealed) */}
+                {/* References */}
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
                     <FileText size={16} className="mr-2" /> References
