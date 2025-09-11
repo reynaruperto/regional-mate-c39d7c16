@@ -137,7 +137,7 @@ const EditBusinessProfile: React.FC = () => {
         .select("type_id")
         .eq("user_id", user.id);
       if (empJobTypes && jobData) {
-        const selectedTypes = jobData.filter(j => empJobTypes.some(e => e.type_id === j.id)).map(j => j.type);
+        const selectedTypes = jobData.filter(j => empJobTypes.some(e => e.type_id === j.type_id)).map(j => j.type);
         setValue("jobType", selectedTypes);
       }
 
@@ -147,7 +147,7 @@ const EditBusinessProfile: React.FC = () => {
         .select("facility_id")
         .eq("user_id", user.id);
       if (empFacilities && facData) {
-        const selectedFacilities = facData.filter(f => empFacilities.some(e => e.facility_id === f.id)).map(f => f.name);
+        const selectedFacilities = facData.filter(f => empFacilities.some(e => e.facility_id === f.facility_id)).map(f => f.name);
         setValue("facilitiesAndExtras", selectedFacilities);
       }
     };
