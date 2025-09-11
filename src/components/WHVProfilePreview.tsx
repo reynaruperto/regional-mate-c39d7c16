@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
-const WHVProfilePreview: React.FC = () => {
+const WHVProfilePreview: React.FC = () => { // Profile preview component
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState<any>(null);
   const [workPreferences, setWorkPreferences] = useState<any[]>([]);
