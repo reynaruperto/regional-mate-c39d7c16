@@ -19,7 +19,6 @@ const EmployerEditProfile: React.FC = () => {
   const [middleName, setMiddleName] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [tagline, setTagline] = useState('');
   const [email, setEmail] = useState('');
 
   const [uploading, setUploading] = useState(false);
@@ -38,7 +37,7 @@ const EmployerEditProfile: React.FC = () => {
 
       const { data: employer, error: empError } = await supabase
         .from('employer')
-        .select('given_name, middle_name, family_name, company_name, tagline, profile_photo')
+        .select('given_name, middle_name, family_name, company_name, profile_photo')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -52,7 +51,6 @@ const EmployerEditProfile: React.FC = () => {
         setMiddleName(employer.middle_name || '');
         setFamilyName(employer.family_name || '');
         setCompanyName(employer.company_name || '');
-        setTagline(employer.tagline || '');
 
         if (employer.profile_photo) {
           let photoPath = employer.profile_photo;
@@ -154,8 +152,6 @@ const EmployerEditProfile: React.FC = () => {
         middle_name: middleName || null,
         family_name: familyName,
         company_name: companyName,
-        tagline: tagline,
-        // ✅ add profile_visible if you decide to include it in schema
       })
       .eq('user_id', userId);
 
@@ -313,17 +309,6 @@ const EmployerEditProfile: React.FC = () => {
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="h-12 rounded-xl border-gray-200 bg-white"
                     required
-                  />
-                </div>
-
-                {/* Tagline */}
-                <div>
-                  <Label htmlFor="tagline" className="text-gray-600 mb-2 block">Tagline</Label>
-                  <Input
-                    id="tagline"
-                    value={tagline}
-                    onChange={(e) => setTagline(e.target.value)}
-                    className="h-12 rounded-xl border-gray-200 bg-white"
                   />
                 </div>
 
