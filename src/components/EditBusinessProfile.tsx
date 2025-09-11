@@ -1,4 +1,3 @@
-// src/components/EditBusinessProfile.tsx
 import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Options
+// Options
 const yearsOptions = ["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const;
 const employeeOptions = ["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const;
 const payRanges = ["$25-30/hour", "$30-35/hour", "$35-40/hour", "$40-45/hour", "$45+/hour"] as const;
@@ -34,7 +33,7 @@ const AUSTRALIAN_STATES = [
   "Western Australia",
 ] as const;
 
-// ✅ Schema
+// Schema
 const formSchema = z.object({
   abn: z.string().length(11, "ABN must be 11 digits").regex(/^\d+$/, "ABN must be numeric"),
   website: z.string().url().optional().or(z.literal("")),
@@ -89,7 +88,7 @@ const EditBusinessProfile: React.FC = () => {
   const watchedFacilities = watch("facilitiesAndExtras") || [];
   const watchedIndustryId = watch("industryId");
 
-  // ✅ Load options + employer data
+  // Load options + employer data
   useEffect(() => {
     const loadData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -126,26 +125,36 @@ const EditBusinessProfile: React.FC = () => {
           industryId: employer.industry_id || 0,
           payRange: employer.pay_range,
         });
+      }
 
-        // Prefill job types
-        const { data: empJobTypes } = await supabase.from("employer_job_type").select("type_id").eq("user_id", user.id);
-        if (empJobTypes) {
-          const selectedTypes = jobData?.filter(j => empJobTypes.some((e: any) => e.type_id === j.type_id)).map(j => j.type) || [];
-          setValue("jobType", selectedTypes);
-        }
+      // Prefill job types
+      const { data: empJobTypes } = await supabase.from("employer_job_type").select("type_id").eq("user_id", user.id);
+      if (empJobTypes && jobData) {
+        const selectedTypes = jobData.filter(j => empJobTypes.some((e: any) => e.type_id === j.type_id)).map(j => j.type);
+        setValue("jobType", selectedTypes);
+      }
 
-        // Prefill facilities
-        const { data: empFacilities } = await supabase.from("employer_facility").select("facility_id").eq("user_id", user.id);
-        if (empFacilities) {
-          const selectedFacilities = facData?.filter(f => empFacilities.some((e: any) => e.facility_id === f.facility_id)).map(f => f.name) || [];
-          setValue("facilitiesAndExtras", selectedFacilities);
+      // Prefill facilities
+      const { data: empFacilities } = await supabase.from("employer_facility").select("facility_id").eq("user_id", user.id);
+      if (empFacilities && facData) {
+        const selectedFacilities = facData.filter(f => empFacilities.some((e: any) => e.facility_id === f.facility_id)).map(f => f.name);
+        setValue("facilitiesAndExtras", selectedFacilities);
+      }
+
+      // Prefill roles
+      const { data: empRoles } = await supabase.from("employer_role").select("industry_role_id").eq("user_id", user.id);
+      if (empRoles) {
+        const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role").in("industry_role_id", empRoles.map((r: any) => r.industry_role_id));
+        if (roleData) {
+          const selectedRoles = roleData.map(r => r.role);
+          setValue("rolesOffered", selectedRoles);
         }
       }
     };
     loadData();
   }, [navigate, reset, setValue]);
 
-  // ✅ Load roles dynamically
+  // Load roles dynamically when industry changes
   useEffect(() => {
     if (!watchedIndustryId) return;
     const fetchRoles = async () => {
@@ -158,7 +167,7 @@ const EditBusinessProfile: React.FC = () => {
     fetchRoles();
   }, [watchedIndustryId]);
 
-  // ✅ Save
+  // Save
   const onSubmit = async (data: FormData) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -193,6 +202,13 @@ const EditBusinessProfile: React.FC = () => {
       const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
       if (selectedFacilityIds.length > 0) {
         await supabase.from("employer_facility").insert(selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id })));
+      }
+
+      // Replace roles
+      await supabase.from("employer_role").delete().eq("user_id", user.id);
+      const selectedRoleIds = roles.filter(r => data.rolesOffered.includes(r.role)).map(r => r.id);
+      if (selectedRoleIds.length > 0) {
+        await supabase.from("employer_role").insert(selectedRoleIds.map(id => ({ user_id: user.id, industry_role_id: id })));
       }
 
       toast({ title: "Profile Updated", description: "Business profile updated successfully" });
@@ -234,9 +250,7 @@ const EditBusinessProfile: React.FC = () => {
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>
-                            {AUSTRALIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
+                          <SelectContent>{AUSTRALIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       )}
                     />
@@ -359,8 +373,8 @@ const EditBusinessProfile: React.FC = () => {
           {/* Footer with carousel */}
           <div className="px-6 py-4 border-t bg-white flex flex-col items-center">
             <div className="flex space-x-2 mb-3">
-              <span className={`w-3 h-3 rounded-full ${step === 1 ? "bg-slate-800" : "bg-gray-300"}`}></span>
-              <span className={`w-3 h-3 rounded-full ${step === 2 ? "bg-slate-800" : "bg-gray-300"}`}></span>
+              <span className={`w-3 h-3 rounded-full ${step === 1 ? "bg-slate-800" : "bg-gray-300"}`} />
+              <span className={`w-3 h-3 rounded-full ${step === 2 ? "bg-slate-800" : "bg-gray-300"}`} />
             </div>
             {step === 1 ? (
               <Button onClick={() => setStep(2)} className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white">Next</Button>
