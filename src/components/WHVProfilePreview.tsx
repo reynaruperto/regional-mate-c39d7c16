@@ -1,6 +1,6 @@
 // src/pages/whv/WHVProfilePreview.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Briefcase, MapPin, Award, User } from "lucide-react";
+import { ArrowLeft, Briefcase, MapPin, Award, User, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,7 +50,6 @@ const WHVProfilePreview: React.FC = () => {
               groupedWorkPrefs[industry].push(p.industry_role.role);
             }
           }
-
           if (p.region_rules?.state && p.region_rules?.area) {
             const state = p.region_rules.state;
             if (!groupedLocationPrefs[state]) groupedLocationPrefs[state] = [];
@@ -64,7 +63,7 @@ const WHVProfilePreview: React.FC = () => {
         setLocationPreferences(Object.entries(groupedLocationPrefs));
       }
 
-      // Work experience
+      // Work Experience
       const { data: experiences } = await supabase
         .from("maker_work_experience")
         .select("company, position, industry(name), location, start_date, end_date, job_description")
@@ -138,114 +137,121 @@ const WHVProfilePreview: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 px-6 py-6 overflow-y-auto space-y-6">
-            {/* Profile Header */}
-            <div className="flex flex-col items-center text-center">
-              <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
-                {profileData?.profilePhoto ? (
-                  <img
-                    src={profileData.profilePhoto}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-                    <User size={32} />
+          <div className="flex-1 px-6 py-6 overflow-y-auto">
+            <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
+              {/* Profile Header */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
+                  {profileData?.profilePhoto ? (
+                    <img
+                      src={profileData.profilePhoto}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <User size={32} />
+                    </div>
+                  )}
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
+                <p className="text-sm text-gray-600 mt-1">{profileData?.tagline}</p>
+              </div>
+
+              {/* Work Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Briefcase size={16} className="text-orange-500 mr-2" />
+                  Work Preferences
+                </h3>
+                {workPreferences.length > 0 ? (
+                  <div className="space-y-3">
+                    {workPreferences.map(([industry, roles]) => (
+                      <div key={industry}>
+                        <p className="font-medium text-gray-800">{industry}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-600">
+                          {(roles as string[]).map((role, i) => (
+                            <li key={i}>{role}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
-              <p className="text-sm text-gray-600 mt-1">{profileData?.tagline}</p>
-            </div>
-
-            {/* Work Preferences */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                <Briefcase size={16} className="text-orange-500 mr-2" />
-                Work Preferences
-              </h3>
-              {workPreferences.length > 0 ? (
-                <div className="space-y-3">
-                  {workPreferences.map(([industry, roles]) => (
-                    <div key={industry}>
-                      <p className="font-medium text-gray-800">{industry}</p>
-                      <ul className="list-disc list-inside text-sm text-gray-600">
-                        {(roles as string[]).map((role, i) => (
-                          <li key={i}>{role}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No work preferences set</p>
-              )}
-            </div>
-
-            {/* Location Preferences */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                <MapPin size={16} className="text-orange-500 mr-2" />
-                Location Preferences
-              </h3>
-              {locationPreferences.length > 0 ? (
-                <div className="space-y-3">
-                  {locationPreferences.map(([state, areas]) => (
-                    <div key={state}>
-                      <p className="font-medium text-gray-800">{state}</p>
-                      <ul className="list-disc list-inside text-sm text-gray-600">
-                        {(areas as string[]).map((area, i) => (
-                          <li key={i}>{area}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No location preferences set</p>
-              )}
-            </div>
-
-            {/* Work Experience */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Work Experience</h3>
-              {workExperiences.length > 0 ? (
-                <div className="space-y-4">
-                  {workExperiences.map((exp, i) => (
-                    <div key={i} className="border rounded-lg p-3 text-sm">
-                      <p><span className="font-medium">Company:</span> {exp.company}</p>
-                      <p><span className="font-medium">Industry:</span> {exp.industry?.name || "N/A"}</p>
-                      <p><span className="font-medium">Position:</span> {exp.position}</p>
-                      <p><span className="font-medium">Location:</span> {exp.location}</p>
-                      <p><span className="font-medium">Dates:</span> {formatDate(exp.start_date)} – {formatDate(exp.end_date)}</p>
-                      {exp.job_description && (
-                        <p><span className="font-medium">Description:</span> {exp.job_description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No work experience added</p>
-              )}
-            </div>
-
-            {/* Licenses */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                <Award size={16} className="text-orange-500 mr-2" />
-                Licenses & Certifications
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {licenses.length > 0 ? (
-                  licenses.map((l, i) => (
-                    <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
-                      {l}
-                    </span>
-                  ))
                 ) : (
-                  <p className="text-sm text-gray-500">No licenses added</p>
+                  <p className="text-sm text-gray-500">No work preferences set</p>
                 )}
               </div>
+
+              {/* Location Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <MapPin size={16} className="text-orange-500 mr-2" />
+                  Location Preferences
+                </h3>
+                {locationPreferences.length > 0 ? (
+                  <div className="space-y-3">
+                    {locationPreferences.map(([state, areas]) => (
+                      <div key={state}>
+                        <p className="font-medium text-gray-800">{state}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-600">
+                          {(areas as string[]).map((area, i) => (
+                            <li key={i}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No location preferences set</p>
+                )}
+              </div>
+
+              {/* Work Experience */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Work Experience</h3>
+                {workExperiences.length > 0 ? (
+                  <div className="space-y-4">
+                    {workExperiences.map((exp, i) => (
+                      <div key={i} className="border rounded-lg p-3 text-sm">
+                        <p><span className="font-medium">Company:</span> {exp.company}</p>
+                        <p><span className="font-medium">Industry:</span> {exp.industry?.name || "N/A"}</p>
+                        <p><span className="font-medium">Position:</span> {exp.position}</p>
+                        <p><span className="font-medium">Location:</span> {exp.location}</p>
+                        <p><span className="font-medium">Dates:</span> {formatDate(exp.start_date)} – {formatDate(exp.end_date)}</p>
+                        {exp.job_description && (
+                          <p><span className="font-medium">Description:</span> {exp.job_description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No work experience added</p>
+                )}
+              </div>
+
+              {/* Licenses */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Award size={16} className="text-orange-500 mr-2" />
+                  Licenses & Certifications
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {licenses.length > 0 ? (
+                    licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses added</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Heart to Match */}
+              <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
+                <Heart size={18} className="fill-white" /> Heart to Match
+              </Button>
             </div>
           </div>
         </div>
