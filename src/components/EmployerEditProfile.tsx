@@ -176,10 +176,6 @@ const EmployerEditProfile: React.FC = () => {
     navigate('/employer/dashboard');
   };
 
-  const handlePreviewProfile = () => {
-    navigate('/employer/profile-preview');
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -218,19 +214,6 @@ const EmployerEditProfile: React.FC = () => {
                       className="data-[state=checked]:bg-[#1E293B]"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Preview Profile Card */}
-              <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Preview Profile Card</h3>
-                  <Button 
-                    onClick={handlePreviewProfile}
-                    className="bg-[#1E293B] hover:bg-[#334155] text-white px-6 py-2 rounded-full text-sm"
-                  >
-                    VIEW
-                  </Button>
                 </div>
               </div>
 
