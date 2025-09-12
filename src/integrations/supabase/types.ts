@@ -212,6 +212,24 @@ export type Database = {
           },
         ]
       }
+      employer_role: {
+        Row: {
+          created_at: string
+          industry_role_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          industry_role_id: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          industry_role_id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       facility: {
         Row: {
           facility_id: number

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,7 +82,41 @@ const EditBusinessProfile: React.FC = () => {
 
   const watchedJobTypes = watch("jobType") || [];
   const watchedFacilities = watch("facilitiesAndExtras") || [];
-  const watchedIndustryId = watch("industryId");
+
+  // Form validation on step 1 
+  const validateStep1 = () => {
+    const fields = watch(["abn", "businessPhone", "addressLine1", "suburbCity", "state", "postCode"]);
+    const [abn, phone, addr1, suburb, state, postcode] = fields;
+    
+    if (!abn || !phone || !addr1 || !suburb || !state || !postcode) {
+      toast({ 
+        title: "Please fill in all required fields", 
+        description: "Complete all fields marked with * before proceeding",
+        variant: "destructive" 
+      });
+      return false;
+    }
+    
+    if (abn.length !== 11) {
+      toast({ 
+        title: "Invalid ABN", 
+        description: "ABN must be exactly 11 digits",
+        variant: "destructive" 
+      });
+      return false;
+    }
+    
+    if (postcode.length !== 4) {
+      toast({ 
+        title: "Invalid Postcode", 
+        description: "Postcode must be exactly 4 digits", 
+        variant: "destructive" 
+      });
+      return false;
+    }
+    
+    return true;
+  };
 
   // Load options + employer data
   useEffect(() => {
@@ -191,12 +226,38 @@ const EditBusinessProfile: React.FC = () => {
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button onClick={() => navigate("/employer/dashboard")} className="text-[#1E293B] underline">Cancel</button>
-            <h1 className="text-lg font-semibold">{step === 1 ? "Business Registration" : "About Business"}</h1>
-            <button type="submit" form="editForm" className="flex items-center text-[#1E293B] underline">
-              Save
-            </button>
+          <div className="px-6 pt-16 pb-6">
+            <div className="flex items-center justify-between mb-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-gray-100 rounded-xl shadow-sm"
+                onClick={() => navigate("/employer/dashboard")}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <button 
+                type="submit" 
+                form="editForm" 
+                className="text-[#1E293B] underline font-medium"
+              >
+                Save
+              </button>
+            </div>
+
+            {/* Progress */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {step === 1 ? "Business Registration" : "About Business"}
+                </h1>
+                <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+                  <span className="text-sm font-medium text-gray-600">
+                    {step}/2
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Form */}
@@ -447,7 +508,14 @@ const EditBusinessProfile: React.FC = () => {
               <span className={`w-3 h-3 rounded-full ${step === 2 ? "bg-slate-800" : "bg-gray-300"}`} />
             </div>
             {step === 1 ? (
-              <Button onClick={() => setStep(2)} className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white">
+              <Button 
+                onClick={() => {
+                  if (validateStep1()) {
+                    setStep(2);
+                  }
+                }} 
+                className="w-full h-14 text-lg rounded-xl bg-slate-800 text-white"
+              >
                 Next
               </Button>
             ) : (
