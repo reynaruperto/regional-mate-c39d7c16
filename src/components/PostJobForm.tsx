@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,78 +7,136 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { getEmployerProfile } from "@/utils/employerProfile";
 
 interface PostJobFormProps {
   onBack: () => void;
   editingJob?: {
-    id: string;
-    title: string;
-    status: "Active" | "Inactive";
+    job_id: number;
+    role: string;
+    job_status: "active" | "inactive";
   } | null;
 }
 
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
-
   const employerProfile = getEmployerProfile();
-  const employerIndustry = employerProfile?.industry || "Agriculture & Farming";
+  const employerIndustryId = employerProfile?.industry_id;
+
+  const [roles, setRoles] = useState<{ industry_role_id: number; role: string }[]>([]);
+  const [jobTypes, setJobTypes] = useState<{ type_id: number; type: string }[]>([]);
+  const [payRanges, setPayRanges] = useState<string[]>([]);
+  const [experienceRanges, setExperienceRanges] = useState<string[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
-    jobRole: editingJob?.title || "",
+    jobRole: editingJob?.role || "",
     jobDescription: "",
-    industryType: employerIndustry,
-    jobType: "Casual / Seasonal",
-    payRateMin: "",
-    payRateMax: "",
-    payType: "/hour",
-    experienceRequired: false,
-    yearsOfExperience: "",
-    requiredTickets: [] as string[],
-    otherTicket: "",
-    suburb: "",
-    state: "Queensland",
-    postCode: "",
-    status: editingJob?.status || "Active",
+    jobType: "",
+    payRange: "",
+    experienceRange: "",
+    state: "",
+    area: "",
+    status: editingJob?.job_status || "active",
   });
 
-  const payOptions = ["$25", "$30", "$35", "$40", "$45", "$50+"];
-  const yearsOptions = ["<1 year", "1-2 years", "3-5 years", "6-10 years", "10+ years"];
-  const jobTypes = ["Casual / Seasonal", "Part-time", "Full-time", "Contract"];
-  const commonTickets = [
-    "White Card (Construction)",
-    "RSA (Responsible Service of Alcohol)",
-    "RSG (Responsible Service of Gaming)",
-    "Food Safety Supervisor",
-    "First Aid Certificate",
-    "Driver's License",
-    "Forklift License",
-    "Working at Heights",
-    "Manual Handling",
-    "Chemical Handling",
-  ];
+  // Fetch dropdown options from Supabase
+  useEffect(() => {
+    const fetchDropdowns = async () => {
+      try {
+        if (employerIndustryId) {
+          const { data: rolesData } = await supabase
+            .from("industry_role")
+            .select("industry_role_id, role")
+            .eq("industry_id", employerIndustryId);
+          if (rolesData) setRoles(rolesData);
+        }
+
+        const { data: jobTypeData } = await supabase.from("job_type").select("type_id, type");
+        if (jobTypeData) setJobTypes(jobTypeData);
+
+        // enums
+        const { data: payEnum } = await supabase.rpc("enum_values", { enum_name: "pay_range" });
+        if (payEnum) setPayRanges(payEnum);
+
+        const { data: expEnum } = await supabase.rpc("enum_values", { enum_name: "experience_range" });
+        if (expEnum) setExperienceRanges(expEnum);
+
+        const { data: stateEnum } = await supabase.rpc("enum_values", { enum_name: "state_enum" });
+        if (stateEnum) setStates(stateEnum);
+      } catch (err) {
+        console.error("Error loading dropdowns:", err);
+      }
+    };
+    fetchDropdowns();
+  }, [employerIndustryId]);
+
+  // Fetch areas when state changes
+  useEffect(() => {
+    const fetchAreas = async () => {
+      if (!formData.state) return;
+      const { data } = await supabase
+        .from("region_rules")
+        .select("area")
+        .eq("state", formData.state);
+      if (data) {
+        const uniqueAreas = [...new Set(data.map((d) => d.area))];
+        setAreas(uniqueAreas);
+      }
+    };
+    fetchAreas();
+  }, [formData.state]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleTicketToggle = (ticket: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      requiredTickets: prev.requiredTickets.includes(ticket)
-        ? prev.requiredTickets.filter((t) => t !== ticket)
-        : [...prev.requiredTickets, ticket],
-    }));
-  };
+  const handleSaveAndPost = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({ title: "Error", description: "You must be logged in to post jobs." });
+      return;
+    }
 
-  const handleSaveAndPost = () => {
-    toast({
-      title: editingJob ? "Job Updated" : "Job Posted",
-      description: editingJob
-        ? "Job has been successfully updated"
-        : "Job has been successfully posted",
-    });
-    onBack();
+    const jobPayload = {
+      role: formData.jobRole,
+      description: formData.jobDescription,
+      job_type: formData.jobType,
+      pay_range: formData.payRange,
+      requires_experience: formData.experienceRange,
+      job_status: formData.status,
+      state: formData.state,
+      area: formData.area,
+      user_id: user.id,
+    };
+
+    let error;
+    if (editingJob) {
+      const { error: updateError } = await supabase
+        .from("job")
+        .update(jobPayload)
+        .eq("job_id", editingJob.job_id);
+      error = updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from("job")
+        .insert([jobPayload]);
+      error = insertError;
+    }
+
+    if (error) {
+      toast({ title: "Error", description: error.message });
+    } else {
+      toast({
+        title: editingJob ? "Job Updated" : "Job Posted",
+        description: editingJob
+          ? "Job has been successfully updated"
+          : "Job has been successfully posted",
+      });
+      onBack();
+    }
   };
 
   return (
@@ -89,66 +147,52 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
           <div className="w-full h-full flex flex-col relative bg-gray-200">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4">
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                  onClick={onBack}
-                >
-                  <ArrowLeft className="w-6 h-6 text-gray-700" />
-                </Button>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {editingJob ? "Edit Job" : "Post Job"}
-                </h1>
-              </div>
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={onBack}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">
+                {editingJob ? "Edit Job" : "Post Job"}
+              </h1>
             </div>
 
             {/* Content */}
             <div className="flex-1 px-6 overflow-y-auto pb-24">
-              {/* Job Info */}
+
+              {/* Role */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">
-                  Job Information
-                </h2>
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Role</h2>
+                <Select
+                  value={formData.jobRole}
+                  onValueChange={(value) => handleInputChange("jobRole", value)}
+                >
+                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((r) => (
+                      <SelectItem key={r.industry_role_id} value={r.role}>
+                        {r.role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Job Role
-                    </label>
-                    <Input
-                      value={formData.jobRole}
-                      onChange={(e) => handleInputChange("jobRole", e.target.value)}
-                      placeholder="e.g., Fruit Picker"
-                      className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Job Description
-                    </label>
-                    <Textarea
-                      value={formData.jobDescription}
-                      onChange={(e) => handleInputChange("jobDescription", e.target.value)}
-                      placeholder="Describe the role, duties, and work environment..."
-                      className="bg-gray-50 border-gray-200 rounded-xl text-sm min-h-[60px] resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Industry
-                    </label>
-                    <Input
-                      value={formData.industryType}
-                      disabled
-                      className="bg-gray-100 border-gray-200 rounded-xl text-sm h-9 text-gray-500"
-                    />
-                  </div>
-                </div>
+              {/* Description */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Description</h2>
+                <Textarea
+                  value={formData.jobDescription}
+                  onChange={(e) => handleInputChange("jobDescription", e.target.value)}
+                  placeholder="Describe the role..."
+                  className="bg-gray-50 border-gray-200 rounded-xl text-sm min-h-[60px] resize-none"
+                />
               </div>
 
               {/* Job Type */}
@@ -159,215 +203,107 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   onValueChange={(value) => handleInputChange("jobType", value)}
                 >
                   <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                    <SelectValue />
+                    <SelectValue placeholder="Select job type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
+                    {jobTypes.map((jt) => (
+                      <SelectItem key={jt.type_id} value={jt.type}>
+                        {jt.type}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Pay Information */}
+              {/* Salary Range */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">
-                  Pay Information
-                </h2>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Min
-                    </label>
-                    <Select
-                      value={formData.payRateMin}
-                      onValueChange={(value) => handleInputChange("payRateMin", value)}
-                    >
-                      <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                        <SelectValue placeholder="$25" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {payOptions.map((rate) => (
-                          <SelectItem key={rate} value={rate}>
-                            {rate}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Max
-                    </label>
-                    <Select
-                      value={formData.payRateMax}
-                      onValueChange={(value) => handleInputChange("payRateMax", value)}
-                    >
-                      <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                        <SelectValue placeholder="$30" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {payOptions.map((rate) => (
-                          <SelectItem key={rate} value={rate}>
-                            {rate}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Type
-                    </label>
-                    <Select
-                      value={formData.payType}
-                      onValueChange={(value) => handleInputChange("payType", value)}
-                    >
-                      <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="/hour">/hour</SelectItem>
-                        <SelectItem value="/day">/day</SelectItem>
-                        <SelectItem value="/week">/week</SelectItem>
-                        <SelectItem value="/piece">/piece</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Experience */}
-              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Experience</h2>
-                <div className="space-y-2">
-                  <Select
-                    value={formData.experienceRequired ? "Yes" : "No"}
-                    onValueChange={(value) =>
-                      handleInputChange("experienceRequired", value === "Yes")
-                    }
-                  >
-                    <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Yes">Yes</SelectItem>
-                      <SelectItem value="No">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {formData.experienceRequired && (
-                    <Select
-                      value={formData.yearsOfExperience}
-                      onValueChange={(value) =>
-                        handleInputChange("yearsOfExperience", value)
-                      }
-                    >
-                      <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                        <SelectValue placeholder="Select years" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {yearsOptions.map((opt) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
-
-              {/* Tickets & Licenses */}
-              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">
-                  Tickets & Licenses
-                </h2>
-                <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto">
-                  {commonTickets.map((ticket) => (
-                    <div key={ticket} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={ticket}
-                        checked={formData.requiredTickets.includes(ticket)}
-                        onChange={() => handleTicketToggle(ticket)}
-                        className="rounded text-[#1E293B] focus:ring-[#1E293B]"
-                      />
-                      <label
-                        htmlFor={ticket}
-                        className="text-xs text-gray-600 cursor-pointer"
-                      >
-                        {ticket}
-                      </label>
-                    </div>
-                  ))}
-                  <Input
-                    placeholder="Other..."
-                    value={formData.otherTicket}
-                    onChange={(e) => handleInputChange("otherTicket", e.target.value)}
-                    className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9 mt-2"
-                  />
-                </div>
-              </div>
-
-              {/* Job Location */}
-              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">
-                  Job Location
-                </h2>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      value={formData.suburb}
-                      onChange={(e) => handleInputChange("suburb", e.target.value)}
-                      placeholder="Suburb / City"
-                      className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9"
-                    />
-                    <Input
-                      value={formData.postCode}
-                      onChange={(e) => handleInputChange("postCode", e.target.value)}
-                      placeholder="Post Code"
-                      className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9"
-                    />
-                  </div>
-                  <Select
-                    value={formData.state}
-                    onValueChange={(value) => handleInputChange("state", value)}
-                  >
-                    <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Queensland">Queensland</SelectItem>
-                      <SelectItem value="New South Wales">New South Wales</SelectItem>
-                      <SelectItem value="Victoria">Victoria</SelectItem>
-                      <SelectItem value="South Australia">South Australia</SelectItem>
-                      <SelectItem value="Western Australia">Western Australia</SelectItem>
-                      <SelectItem value="Tasmania">Tasmania</SelectItem>
-                      <SelectItem value="Northern Territory">Northern Territory</SelectItem>
-                      <SelectItem value="Australian Capital Territory">
-                        Australian Capital Territory
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Salary Range</h2>
+                <Select
+                  value={formData.payRange}
+                  onValueChange={(value) => handleInputChange("payRange", value)}
+                >
+                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                    <SelectValue placeholder="Select pay range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {payRanges.map((pr) => (
+                      <SelectItem key={pr} value={pr}>
+                        {pr}
                       </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Experience Range */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Experience Required</h2>
+                <Select
+                  value={formData.experienceRange}
+                  onValueChange={(value) => handleInputChange("experienceRange", value)}
+                >
+                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                    <SelectValue placeholder="Select experience range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {experienceRanges.map((er) => (
+                      <SelectItem key={er} value={er}>
+                        {er}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Location */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Location</h2>
+                <Select
+                  value={formData.state}
+                  onValueChange={(value) => handleInputChange("state", value)}
+                >
+                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {states.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {formData.state && (
+                  <Select
+                    value={formData.area}
+                    onValueChange={(value) => handleInputChange("area", value)}
+                  >
+                    <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9 mt-2">
+                      <SelectValue placeholder="Select area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {areas.map((a) => (
+                        <SelectItem key={a} value={a}>
+                          {a}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                </div>
+                )}
               </div>
 
               {/* Job Status */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">
-                  Job Status
-                </h2>
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Status</h2>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-600">
                     Active / Inactive
                   </span>
                   <Switch
-                    checked={formData.status === "Active"}
+                    checked={formData.status === "active"}
                     onCheckedChange={(checked) =>
-                      handleInputChange("status", checked ? "Active" : "Inactive")
+                      handleInputChange("status", checked ? "active" : "inactive")
                     }
                     className="data-[state=checked]:bg-[#1E293B]"
                   />
