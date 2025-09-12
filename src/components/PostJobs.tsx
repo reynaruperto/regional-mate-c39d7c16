@@ -1,18 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import PostJobForm from '@/components/PostJobForm';
 import BottomNavigation from '@/components/BottomNavigation';
 
 interface Job {
-  id: string;
-  title: string;
-  location: string;
-  startDate: string;
-  status: 'Active' | 'Inactive';
+  job_id: number;
+  role: string;
+  job_status: 'draft' | 'active' | 'inactive' | 'closed';
+  employer: {
+    company_name: string;
+    industry: {
+      name: string;
+    } | null;
+  };
 }
 
 const PostJobs: React.FC = () => {
@@ -21,76 +26,86 @@ const PostJobs: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [jobs, setJobs] = useState<Job[]>([]);
 
-  const [jobs, setJobs] = useState<Job[]>([
-    {
-      id: '1',
-      title: 'Fruit Picker - September Start',
-      location: 'Clontarf, Queensland',
-      startDate: 'September 2025',
-      status: 'Active'
-    },
-    {
-      id: '2',
-      title: 'Farm Hand',
-      location: 'Clontarf, Queensland',
-      startDate: 'Ongoing',
-      status: 'Active'
-    },
-    {
-      id: '3',
-      title: 'Tractor Driver',
-      location: 'Clontarf, Queensland',
-      startDate: 'May 2025',
-      status: 'Inactive'
-    }
-  ]);
+  // ✅ Fetch current user's jobs
+  useEffect(() => {
+    const fetchJobs = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('job')
+        .select(`
+          job_id,
+          role,
+          job_status,
+          employer:employer!job_user_id_fkey (
+            company_name,
+            industry:industry_id (
+              name
+            )
+          )
+        `)
+        .eq('user_id', user.id);
+
+      if (error) {
+        toast({ title: 'Error loading jobs', description: error.message });
+      } else {
+        setJobs(data as Job[]);
+      }
+    };
+
+    fetchJobs();
+  }, [toast]);
 
   const handlePostJobs = () => {
     setEditingJob(null);
     setShowForm(true);
   };
 
-  const handleEditJob = (jobId: string) => {
-    const job = jobs.find(j => j.id === jobId);
-    if (job) {
-      setEditingJob(job);
-      setShowForm(true);
+  const handleEditJob = (job: Job) => {
+    setEditingJob(job);
+    setShowForm(true);
+  };
+
+  const handleDeleteJob = async (jobId: number) => {
+    const { error } = await supabase.from('job').delete().eq('job_id', jobId);
+    if (error) {
+      toast({ title: 'Error deleting job', description: error.message });
+    } else {
+      setJobs(prev => prev.filter(job => job.job_id !== jobId));
+      toast({ title: 'Job Deleted', description: 'Job has been successfully deleted' });
     }
   };
 
-  const handleDeleteJob = (jobId: string) => {
-    setJobs(prev => prev.filter(job => job.id !== jobId));
-    toast({
-      title: "Job Deleted",
-      description: "Job has been successfully deleted",
-    });
-  };
+  const toggleJobStatus = async (job: Job) => {
+    const newStatus = job.job_status === 'active' ? 'inactive' : 'active';
+    const { error } = await supabase
+      .from('job')
+      .update({ job_status: newStatus })
+      .eq('job_id', job.job_id);
 
-  const toggleJobStatus = (jobId: string) => {
-    setJobs(prev => prev.map(job => 
-      job.id === jobId 
-        ? { ...job, status: job.status === 'Active' ? 'Inactive' : 'Active' }
-        : job
-    ));
-    const job = jobs.find(j => j.id === jobId);
-    const newStatus = job?.status === 'Active' ? 'Inactive' : 'Active';
-    toast({
-      title: `Job ${newStatus}`,
-      description: `Job has been ${newStatus.toLowerCase()}`,
-    });
+    if (error) {
+      toast({ title: 'Error updating status', description: error.message });
+    } else {
+      setJobs(prev =>
+        prev.map(j => (j.job_id === job.job_id ? { ...j, job_status: newStatus } : j))
+      );
+      toast({ title: `Job ${newStatus}`, description: `Job has been ${newStatus}` });
+    }
   };
 
   const filteredJobs = jobs.filter(job => {
-    if (filter === 'active') return job.status === 'Active';
-    if (filter === 'inactive') return job.status === 'Inactive';
+    if (filter === 'active') return job.job_status === 'active';
+    if (filter === 'inactive') return job.job_status === 'inactive';
     return true;
   });
 
   if (showForm) {
     return (
-      <PostJobForm 
-        onBack={() => setShowForm(false)} 
+      <PostJobForm
+        onBack={() => setShowForm(false)}
         editingJob={editingJob}
       />
     );
@@ -103,7 +118,7 @@ const PostJobs: React.FC = () => {
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          
+
           {/* Main content container */}
           <div className="w-full h-full flex flex-col relative bg-gray-200">
             
@@ -111,9 +126,9 @@ const PostJobs: React.FC = () => {
             <div className="px-6 pt-16 pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
                     onClick={() => navigate('/employer/dashboard')}
                   >
@@ -121,7 +136,7 @@ const PostJobs: React.FC = () => {
                   </Button>
                   <h1 className="text-lg font-semibold text-gray-900">Your jobs</h1>
                 </div>
-                <Button 
+                <Button
                   onClick={handlePostJobs}
                   className="bg-[#1E293B] hover:bg-[#1E293B]/90 text-white rounded-2xl px-4 py-2 flex items-center gap-2"
                 >
@@ -134,120 +149,132 @@ const PostJobs: React.FC = () => {
             {/* Content */}
             <div className="flex-1 px-6 overflow-y-auto">
               
-            {/* Filter Toggle */}
-            <div className="mb-4">
-              <div className="flex bg-white rounded-xl p-1 shadow-sm">
-                <button
-                  onClick={() => setFilter('all')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'all' 
-                      ? 'bg-[#1E293B] text-white' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  All Jobs
-                </button>
-                <button
-                  onClick={() => setFilter('active')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'active' 
-                      ? 'bg-[#1E293B] text-white' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Active
-                </button>
-                <button
-                  onClick={() => setFilter('inactive')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'inactive' 
-                      ? 'bg-[#1E293B] text-white' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Closed
-                </button>
-              </div>
-            </div>
-
-            {filteredJobs.length === 0 ? (
-              /* Empty State */
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
-                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                     {filter === 'all' ? 'No Jobs Posted Yet' : `No ${filter === 'inactive' ? 'Closed' : filter} Jobs`}
-                   </h3>
-                   <p className="text-gray-600 mb-4">
-                     {filter === 'all' 
-                       ? 'Create your first job posting to start finding the right candidates.'
-                       : `You don't have any ${filter === 'inactive' ? 'closed' : filter} jobs at the moment.`
-                     }
-                   </p>
-                  {filter === 'all' && (
-                    <Button 
-                      onClick={handlePostJobs}
-                      className="bg-[#1E293B] hover:bg-[#1E293B]/90 text-white rounded-xl"
-                    >
-                      <Plus size={16} className="mr-2" />
-                      Post Your First Job
-                    </Button>
-                  )}
+              {/* Filter Toggle */}
+              <div className="mb-4">
+                <div className="flex bg-white rounded-xl p-1 shadow-sm">
+                  <button
+                    onClick={() => setFilter('all')}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                      filter === 'all' 
+                        ? 'bg-[#1E293B] text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    All Jobs
+                  </button>
+                  <button
+                    onClick={() => setFilter('active')}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                      filter === 'active' 
+                        ? 'bg-[#1E293B] text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    onClick={() => setFilter('inactive')}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                      filter === 'inactive' 
+                        ? 'bg-[#1E293B] text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Closed
+                  </button>
                 </div>
               </div>
-            ) : (
-              /* Jobs List */
-              <div className="space-y-4">
-                {filteredJobs.map((job) => (
-                  <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm">
-                    <div className="flex items-start justify-between">
-                      
-                      {/* Job Info */}
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{job.title}</h3>
-                        <p className="text-gray-600 text-sm mb-1">{job.location}</p>
-                        <p className="text-gray-600 text-sm">Starts: {job.startDate}</p>
-                      </div>
 
-                      {/* Status and Actions */}
-                      <div className="flex flex-col items-end gap-3">
-                        
-                        {/* Status Toggle Switch */}
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${
-                            job.status === 'Active' ? 'text-green-600' : 'text-gray-500'
-                          }`}>
-                            {job.status}
-                          </span>
-                          <Switch
-                            checked={job.status === 'Active'}
-                            onCheckedChange={() => toggleJobStatus(job.id)}
-                            className="data-[state=checked]:bg-green-500"
-                          />
+              {filteredJobs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {filter === 'all' ? 'No Jobs Posted Yet' : `No ${filter === 'inactive' ? 'Closed' : filter} Jobs`}
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      {filter === 'all' 
+                        ? 'Create your first job posting to start finding the right candidates.'
+                        : `You don't have any ${filter === 'inactive' ? 'closed' : filter} jobs at the moment.`}
+                    </p>
+                    {filter === 'all' && (
+                      <Button
+                        onClick={handlePostJobs}
+                        className="bg-[#1E293B] hover:bg-[#1E293B]/90 text-white rounded-xl"
+                      >
+                        <Plus size={16} className="mr-2" />
+                        Post Your First Job
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredJobs.map((job) => (
+                    <div key={job.job_id} className="bg-white rounded-2xl p-5 shadow-sm">
+                      <div className="flex items-start justify-between">
+                        {/* Job Info */}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{job.role}</h3>
+                          <p className="text-gray-700 text-sm mb-1">{job.employer?.company_name}</p>
+                          <p className="text-gray-600 text-sm mb-1">Industry: {job.employer?.industry?.name ?? 'N/A'}</p>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditJob(job.id)}
-                            className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-gray-200 transition-colors"
-                          >
-                            <Edit size={18} className="text-gray-600" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteJob(job.id)}
-                            className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-red-50 transition-colors"
-                          >
-                            <Trash2 size={18} className="text-gray-600 hover:text-red-600" />
-                          </button>
+                        {/* Status + Actions */}
+                        <div className="flex flex-col items-end gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${
+                              job.job_status === 'active' ? 'text-green-600' : 'text-gray-500'
+                            }`}>
+                              {job.job_status}
+                            </span>
+                            <Switch
+                              checked={job.job_status === 'active'}
+                              onCheckedChange={() => toggleJobStatus(job)}
+                              className="data-[state=checked]:bg-green-500"
+                            />
+                          </div>
+
+                          <div className="flex gap-2">
+                            {/* Preview */}
+                            <button
+                              onClick={() => navigate(`/jobs/preview/${job.job_id}`)}
+                              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-blue-50 transition-colors"
+                            >
+                              <span className="text-blue-600 font-bold text-xs">👁</span>
+                            </button>
+
+                            {/* Match Preview */}
+                            <button
+                              onClick={() => navigate(`/jobs/match-preview/${job.job_id}`)}
+                              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-purple-50 transition-colors"
+                            >
+                              <span className="text-purple-600 font-bold text-xs">⚡</span>
+                            </button>
+
+                            {/* Edit */}
+                            <button
+                              onClick={() => handleEditJob(job)}
+                              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-gray-200 transition-colors"
+                            >
+                              <Edit size={18} className="text-gray-600" />
+                            </button>
+
+                            {/* Delete */}
+                            <button
+                              onClick={() => handleDeleteJob(job.job_id)}
+                              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 size={18} className="text-gray-600 hover:text-red-600" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            <div className="h-20"></div>
+              <div className="h-20"></div>
             </div>
 
             {/* Bottom Navigation */}
