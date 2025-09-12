@@ -1,3 +1,4 @@
+// src/components/EditBusinessProfile.tsx
 import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -191,34 +192,35 @@ const EditBusinessProfile: React.FC = () => {
 
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button onClick={() => navigate("/employer/dashboard")} className="text-[#1E293B] underline">
-              Cancel
-            </button>
+            <button onClick={() => navigate("/employer/dashboard")} className="text-[#1E293B] underline">Cancel</button>
             <h1 className="text-lg font-semibold">{step === 1 ? "Business Registration" : "About Business"}</h1>
-            <button type="submit" form="editForm" className="flex items-center text-[#1E293B] underline">
-              Save
-            </button>
+            {step === 2 && (
+              <button type="submit" form="editForm" className="flex items-center text-[#1E293B] underline">
+                Save
+              </button>
+            )}
           </div>
 
           {/* Form */}
           <div className="flex-1 px-6 overflow-y-auto pb-20">
             <form id="editForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {/* Step 1 */}
               {step === 1 && (
                 <>
                   <div>
-                    <Label htmlFor="abn">Australian Business Number (ABN)</Label>
-                    <Input id="abn" {...register("abn")} disabled className="h-14 bg-gray-100 rounded-xl" />
+                    <Label htmlFor="abn">ABN</Label>
+                    <Input id="abn" disabled {...register("abn")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
                     <Label htmlFor="website">Business Website</Label>
-                    <Input id="website" type="url" {...register("website")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Input id="website" {...register("website")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
-                    <Label htmlFor="businessPhone">Business Phone</Label>
-                    <Input id="businessPhone" type="tel" {...register("businessPhone")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label htmlFor="businessPhone">Business Phone *</Label>
+                    <Input id="businessPhone" {...register("businessPhone")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
-                    <Label htmlFor="addressLine1">Address Line 1</Label>
+                    <Label htmlFor="addressLine1">Address Line 1 *</Label>
                     <Input id="addressLine1" {...register("addressLine1")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
@@ -226,11 +228,11 @@ const EditBusinessProfile: React.FC = () => {
                     <Input id="addressLine2" {...register("addressLine2")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
-                    <Label htmlFor="suburbCity">Suburb / City</Label>
+                    <Label htmlFor="suburbCity">Suburb / City *</Label>
                     <Input id="suburbCity" {...register("suburbCity")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
-                    <Label htmlFor="state">State</Label>
+                    <Label htmlFor="state">State *</Label>
                     <Controller
                       name="state"
                       control={control}
@@ -240,7 +242,7 @@ const EditBusinessProfile: React.FC = () => {
                             <SelectValue placeholder="Select state" />
                           </SelectTrigger>
                           <SelectContent>
-                            {AUSTRALIAN_STATES.map((s) => (
+                            {AUSTRALIAN_STATES.map(s => (
                               <SelectItem key={s} value={s}>{s}</SelectItem>
                             ))}
                           </SelectContent>
@@ -249,20 +251,21 @@ const EditBusinessProfile: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="postCode">Post Code</Label>
-                    <Input id="postCode" {...register("postCode")} maxLength={4} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label htmlFor="postCode">Post Code *</Label>
+                    <Input id="postCode" {...register("postCode")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                 </>
               )}
 
+              {/* Step 2 */}
               {step === 2 && (
                 <>
                   <div>
-                    <Label htmlFor="businessTagline">Business Tagline</Label>
+                    <Label htmlFor="businessTagline">Business Tagline *</Label>
                     <Input id="businessTagline" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
-                    <Label>Years in Business</Label>
+                    <Label>Years in Business *</Label>
                     <Controller
                       name="yearsInBusiness"
                       control={control}
@@ -272,7 +275,7 @@ const EditBusinessProfile: React.FC = () => {
                             <SelectValue placeholder="Select years" />
                           </SelectTrigger>
                           <SelectContent>
-                            {yearsOptions.map((opt) => (
+                            {yearsOptions.map(opt => (
                               <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                             ))}
                           </SelectContent>
@@ -281,7 +284,7 @@ const EditBusinessProfile: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label>Employees</Label>
+                    <Label>Employees *</Label>
                     <Controller
                       name="employeeCount"
                       control={control}
@@ -291,7 +294,7 @@ const EditBusinessProfile: React.FC = () => {
                             <SelectValue placeholder="Select employees" />
                           </SelectTrigger>
                           <SelectContent>
-                            {employeeOptions.map((opt) => (
+                            {employeeOptions.map(opt => (
                               <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                             ))}
                           </SelectContent>
@@ -300,7 +303,7 @@ const EditBusinessProfile: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label>Industry</Label>
+                    <Label>Industry *</Label>
                     <Controller
                       name="industryId"
                       control={control}
@@ -310,7 +313,7 @@ const EditBusinessProfile: React.FC = () => {
                             <SelectValue placeholder="Select industry" />
                           </SelectTrigger>
                           <SelectContent>
-                            {industries.map((ind) => (
+                            {industries.map(ind => (
                               <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>
                             ))}
                           </SelectContent>
@@ -319,17 +322,17 @@ const EditBusinessProfile: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label>Job Type</Label>
-                    {jobTypes.map((j) => (
+                    <Label>Job Type *</Label>
+                    {jobTypes.map(j => (
                       <label key={j.id} className="flex items-center space-x-2 mt-2">
                         <input
                           type="checkbox"
                           value={j.type}
                           checked={watchedJobTypes.includes(j.type)}
-                          onChange={(e) => {
+                          onChange={e => {
                             const current = watchedJobTypes;
                             if (e.target.checked) setValue("jobType", [...current, j.type]);
-                            else setValue("jobType", current.filter((a) => a !== j.type));
+                            else setValue("jobType", current.filter(a => a !== j.type));
                           }}
                         />
                         <span>{j.type}</span>
@@ -337,7 +340,7 @@ const EditBusinessProfile: React.FC = () => {
                     ))}
                   </div>
                   <div>
-                    <Label>Pay Range</Label>
+                    <Label>Pay Range *</Label>
                     <Controller
                       name="payRange"
                       control={control}
@@ -347,7 +350,7 @@ const EditBusinessProfile: React.FC = () => {
                             <SelectValue placeholder="Select pay" />
                           </SelectTrigger>
                           <SelectContent>
-                            {payRanges.map((range) => (
+                            {payRanges.map(range => (
                               <SelectItem key={range} value={range}>{range}</SelectItem>
                             ))}
                           </SelectContent>
@@ -356,17 +359,17 @@ const EditBusinessProfile: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label>Facilities & Extras</Label>
-                    {facilities.map((f) => (
+                    <Label>Facilities & Extras *</Label>
+                    {facilities.map(f => (
                       <label key={f.id} className="flex items-center space-x-2 mt-2">
                         <input
                           type="checkbox"
                           value={f.name}
                           checked={watchedFacilities.includes(f.name)}
-                          onChange={(e) => {
+                          onChange={e => {
                             const current = watchedFacilities;
                             if (e.target.checked) setValue("facilitiesAndExtras", [...current, f.name]);
-                            else setValue("facilitiesAndExtras", current.filter((x) => x !== f.name));
+                            else setValue("facilitiesAndExtras", current.filter(x => x !== f.name));
                           }}
                         />
                         <span>{f.name}</span>
@@ -378,30 +381,36 @@ const EditBusinessProfile: React.FC = () => {
             </form>
           </div>
 
-          {/* Footer with centered indicators + back/next */}
+          {/* Footer with balanced step indicators + Back/Next */}
           <div className="px-6 py-4 border-t bg-white flex items-center justify-between relative">
             {/* Back button */}
-            {step === 2 && (
+            {step > 1 && (
               <Button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => setStep(step - 1)}
                 className="h-10 px-5 rounded-lg bg-gray-200 text-gray-700 text-sm"
               >
                 Back
               </Button>
             )}
 
-            {/* Indicators */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 flex space-x-2">
-              <span className={`h-2 rounded-full ${step === 1 ? "w-8 bg-[#1E293B]" : "w-4 bg-gray-300"}`} />
-              <span className={`h-2 rounded-full ${step === 2 ? "w-8 bg-[#1E293B]" : "w-4 bg-gray-300"}`} />
+            {/* Step indicators */}
+            <div className="absolute left-1/2 transform -translate-x-1/2 flex space-x-2 w-24">
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full ${
+                    step === i ? "bg-[#1E293B]" : "bg-gray-300"
+                  }`}
+                />
+              ))}
             </div>
 
             {/* Next button */}
-            {step === 1 && (
+            {step < 2 && (
               <Button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(step + 1)}
                 className="h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Next
