@@ -109,6 +109,7 @@ const App = () => (
           <Route path="/employer/help-support" element={<EmployerHelpSupport />} />
           <Route path="/employer/security" element={<EmployerSecurity />} />
           <Route path="/employer/terms-policies" element={<EmployerTermsPolicies />} />
+          <Route path="/employer/edit-business-profile" element={<EditBusinessProfile />} />
 
           {/* WHV flow */}
           <Route path="/whv/onboarding" element={<WHVOnboarding />} />
