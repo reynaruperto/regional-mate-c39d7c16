@@ -892,6 +892,87 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_emp_full_profile: {
+        Row: {
+          business_tenure: Database["public"]["Enums"]["business_tenure"] | null
+          company_name: string | null
+          employee_count: Database["public"]["Enums"]["employee_count"] | null
+          industry: string | null
+          location: string | null
+          pay_range: Database["public"]["Enums"]["pay_range"] | null
+          tagline: string | null
+          website: string | null
+        }
+        Relationships: []
+      }
+      vw_emp_private_active_jobs: {
+        Row: {
+          job_type: Database["public"]["Enums"]["job_type_enum"] | null
+          role: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+        }
+        Relationships: []
+      }
+      vw_emp_private_all_jobs: {
+        Row: {
+          job_type: Database["public"]["Enums"]["job_type_enum"] | null
+          role: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+        }
+        Relationships: []
+      }
+      vw_emp_public_profile: {
+        Row: {
+          business_tenure: Database["public"]["Enums"]["business_tenure"] | null
+          company_name: string | null
+          employee_count: Database["public"]["Enums"]["employee_count"] | null
+          industry: string | null
+          location: string | null
+          pay_range: Database["public"]["Enums"]["pay_range"] | null
+          tagline: string | null
+          website: string | null
+        }
+        Relationships: []
+      }
+      vw_maker_private_profile: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          family_name: string | null
+          given_name: string | null
+          middle_name: string | null
+          mobile_num: string | null
+          postcode: string | null
+          state: Database["public"]["Enums"]["state"] | null
+          suburb: string | null
+          tagline: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          family_name?: string | null
+          given_name?: string | null
+          middle_name?: string | null
+          mobile_num?: string | null
+          postcode?: string | null
+          state?: Database["public"]["Enums"]["state"] | null
+          suburb?: string | null
+          tagline?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          family_name?: string | null
+          given_name?: string | null
+          middle_name?: string | null
+          mobile_num?: string | null
+          postcode?: string | null
+          state?: Database["public"]["Enums"]["state"] | null
+          suburb?: string | null
+          tagline?: string | null
+        }
+        Relationships: []
+      }
       vw_maker_work_history: {
         Row: {
           company: string | null
@@ -913,11 +994,36 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_maker_work_preference: {
+        Row: {
+          area: string | null
+          industry: string | null
+          role: string | null
+          state: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_profile_photo_url: {
         Args: { path: string }
         Returns: string
+      }
+      update_maker_basic_details: {
+        Args: {
+          p_address_line1: string
+          p_address_line2: string
+          p_mobile_num: string
+          p_postcode: string
+          p_state: Database["public"]["Enums"]["state"]
+          p_suburb: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      update_maker_visa: {
+        Args: { p_expiry_date: string; p_stage_id: number; p_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {
