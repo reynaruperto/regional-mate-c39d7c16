@@ -16,7 +16,7 @@ const LetsBeginScreen: React.FC = () => {
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div
           className="w-full h-full rounded-[48px] overflow-hidden relative"
-          style={{ backgroundColor: "#EDEADE" }}
+          style={{ backgroundColor: "#F2F1EC" }} // lighter shade
         >
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
@@ -24,7 +24,7 @@ const LetsBeginScreen: React.FC = () => {
           {/* Main content container */}
           <div
             className="w-full h-full flex flex-col relative"
-            style={{ backgroundColor: "#EDEADE" }}
+            style={{ backgroundColor: "#F2F1EC" }} // lighter shade
           >
             {/* Header with back button */}
             <div className="flex items-center justify-between px-6 pt-16 pb-4">
