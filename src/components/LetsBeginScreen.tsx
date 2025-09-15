@@ -8,15 +8,24 @@ const LetsBeginScreen: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+    <div
+      className="min-h-screen flex justify-center items-center p-4"
+      style={{ backgroundColor: "#FAF9F6" }}
+    >
       {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+        <div
+          className="w-full h-full rounded-[48px] overflow-hidden relative"
+          style={{ backgroundColor: "#FAF9F6" }}
+        >
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Main content container */}
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
+          <div
+            className="w-full h-full flex flex-col relative"
+            style={{ backgroundColor: "#FAF9F6" }}
+          >
             {/* Header with back button */}
             <div className="flex items-center justify-between px-6 pt-16 pb-4">
               <Button
@@ -90,5 +99,3 @@ const LetsBeginScreen: React.FC = () => {
 };
 
 export default LetsBeginScreen;
-
-
