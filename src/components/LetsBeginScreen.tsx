@@ -10,13 +10,13 @@ const LetsBeginScreen: React.FC = () => {
   return (
     <div
       className="min-h-screen flex justify-center items-center p-4"
-      style={{ backgroundColor: "#FAF9F6" }}
+      style={{ backgroundColor: "#EADBC8" }}
     >
       {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div
           className="w-full h-full rounded-[48px] overflow-hidden relative"
-          style={{ backgroundColor: "#FAF9F6" }}
+          style={{ backgroundColor: "#EADBC8" }}
         >
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
@@ -24,7 +24,7 @@ const LetsBeginScreen: React.FC = () => {
           {/* Main content container */}
           <div
             className="w-full h-full flex flex-col relative"
-            style={{ backgroundColor: "#FAF9F6" }}
+            style={{ backgroundColor: "#EADBC8" }}
           >
             {/* Header with back button */}
             <div className="flex items-center justify-between px-6 pt-16 pb-4">
