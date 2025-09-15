@@ -65,14 +65,23 @@ const SignIn: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+    <div
+      className="min-h-screen flex justify-center items-center p-4"
+      style={{ backgroundColor: "white" }} // outside stays white
+    >
       {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+        <div
+          className="w-full h-full rounded-[48px] overflow-hidden relative"
+          style={{ backgroundColor: "#F2F1EC" }} // lighter inside shade
+        >
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
+          <div
+            className="w-full h-full flex flex-col relative"
+            style={{ backgroundColor: "#F2F1EC" }} // lighter inside shade
+          >
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-16 pb-4">
               <Button
@@ -109,7 +118,7 @@ const SignIn: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 bg-gray-100 border-0 text-gray-900"
+                  className="h-12 bg-white border-0 text-gray-900"
                   required
                 />
               </div>
@@ -122,7 +131,7 @@ const SignIn: React.FC = () => {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 bg-gray-100 border-0 text-gray-900 pr-12"
+                    className="h-12 bg-white border-0 text-gray-900 pr-12"
                     required
                   />
                   <button
