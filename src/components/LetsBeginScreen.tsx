@@ -10,10 +10,10 @@ const LetsBeginScreen: React.FC = () => {
   return (
     <div className="min-h-screen flex justify-center items-center p-4 bg-sand">
       {/* iPhone 16 Pro Max frame */}
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+      <div className="w-[430px] h-[932px] bg-neutral-900 rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full rounded-[48px] overflow-hidden relative bg-sand">
           {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-neutral-900 rounded-full z-50"></div>
 
           {/* Main content container */}
           <div className="w-full h-full flex flex-col relative bg-sand">
