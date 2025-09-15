@@ -10,7 +10,7 @@ const LetsBeginScreen: React.FC = () => {
   return (
     <div
       className="min-h-screen flex justify-center items-center p-4"
-      style={{ backgroundColor: "#EDEADE" }}
+      style={{ backgroundColor: "white" }} // outside stays white
     >
       {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
