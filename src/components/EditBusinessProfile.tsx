@@ -129,7 +129,6 @@ const EditBusinessProfile: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not logged in");
 
-      // Update employer
       await supabase.from("employer").update({
         tagline: data.businessTagline,
         business_tenure: data.yearsInBusiness,
@@ -145,7 +144,6 @@ const EditBusinessProfile: React.FC = () => {
         updated_at: new Date().toISOString(),
       }).eq("user_id", user.id);
 
-      // Replace facilities
       await supabase.from("employer_facility").delete().eq("user_id", user.id);
       const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
       if (selectedFacilityIds.length > 0) {
@@ -189,43 +187,44 @@ const EditBusinessProfile: React.FC = () => {
                 Save
               </button>
             ) : (
-              <div className="w-10" /> // spacer so layout stays aligned
+              <div className="w-10" /> // spacer
             )}
           </div>
 
-          {/* Form */}
+          {/* Form (only inputs inside) */}
           <div className="flex-1 px-6 overflow-y-auto pb-20">
             <form id="editForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {step === 1 && (
                 <>
+                  {/* Step 1 fields */}
                   <div>
                     <Label htmlFor="abn">Australian Business Number (ABN) <span className="text-red-500">*</span></Label>
-                    <Input id="abn" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("abn")} disabled />
-                    {errors.abn && <p className="text-red-500 text-sm mt-1">{errors.abn.message}</p>}
+                    <Input id="abn" {...register("abn")} className="h-14 bg-gray-100 rounded-xl" disabled />
+                    {errors.abn && <p className="text-red-500 text-sm">{errors.abn.message}</p>}
                   </div>
                   <div>
                     <Label htmlFor="website">Business Website</Label>
-                    <Input id="website" type="url" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("website")} />
-                    {errors.website && <p className="text-red-500 text-sm mt-1">{errors.website.message}</p>}
+                    <Input id="website" {...register("website")} className="h-14 bg-gray-100 rounded-xl" />
+                    {errors.website && <p className="text-red-500 text-sm">{errors.website.message}</p>}
                   </div>
                   <div>
                     <Label htmlFor="businessPhone">Business Phone Number <span className="text-red-500">*</span></Label>
-                    <Input id="businessPhone" type="tel" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("businessPhone")} />
-                    {errors.businessPhone && <p className="text-red-500 text-sm mt-1">{errors.businessPhone.message}</p>}
+                    <Input id="businessPhone" {...register("businessPhone")} className="h-14 bg-gray-100 rounded-xl" />
+                    {errors.businessPhone && <p className="text-red-500 text-sm">{errors.businessPhone.message}</p>}
                   </div>
                   <div>
                     <Label htmlFor="addressLine1">Business Address Line 1 <span className="text-red-500">*</span></Label>
-                    <Input id="addressLine1" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("addressLine1")} />
-                    {errors.addressLine1 && <p className="text-red-500 text-sm mt-1">{errors.addressLine1.message}</p>}
+                    <Input id="addressLine1" {...register("addressLine1")} className="h-14 bg-gray-100 rounded-xl" />
+                    {errors.addressLine1 && <p className="text-red-500 text-sm">{errors.addressLine1.message}</p>}
                   </div>
                   <div>
                     <Label htmlFor="addressLine2">Address Line 2</Label>
-                    <Input id="addressLine2" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("addressLine2")} />
+                    <Input id="addressLine2" {...register("addressLine2")} className="h-14 bg-gray-100 rounded-xl" />
                   </div>
                   <div>
                     <Label htmlFor="suburbCity">Suburb / City <span className="text-red-500">*</span></Label>
-                    <Input id="suburbCity" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("suburbCity")} />
-                    {errors.suburbCity && <p className="text-red-500 text-sm mt-1">{errors.suburbCity.message}</p>}
+                    <Input id="suburbCity" {...register("suburbCity")} className="h-14 bg-gray-100 rounded-xl" />
+                    {errors.suburbCity && <p className="text-red-500 text-sm">{errors.suburbCity.message}</p>}
                   </div>
                   <div>
                     <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
@@ -234,44 +233,34 @@ const EditBusinessProfile: React.FC = () => {
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
-                            <SelectValue placeholder="Select a state" />
+                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
+                            <SelectValue placeholder="Select state" />
                           </SelectTrigger>
                           <SelectContent>
-                            {AUSTRALIAN_STATES.map((state) => (
-                              <SelectItem key={state} value={state}>
-                                {state}
-                              </SelectItem>
+                            {AUSTRALIAN_STATES.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       )}
                     />
-                    {errors.state && <p className="text-red-500 text-sm mt-1">{errors.state.message}</p>}
+                    {errors.state && <p className="text-red-500 text-sm">{errors.state.message}</p>}
                   </div>
                   <div>
                     <Label htmlFor="postCode">Post Code <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="postCode"
-                      maxLength={4}
-                      className="h-14 text-base bg-gray-100 border-0 rounded-xl"
-                      {...register("postCode")}
-                      onChange={(e) => {
-                        e.target.value = e.target.value.replace(/\D/g, "");
-                        register("postCode").onChange(e);
-                      }}
-                    />
-                    {errors.postCode && <p className="text-red-500 text-sm mt-1">{errors.postCode.message}</p>}
+                    <Input id="postCode" {...register("postCode")} maxLength={4} className="h-14 bg-gray-100 rounded-xl" />
+                    {errors.postCode && <p className="text-red-500 text-sm">{errors.postCode.message}</p>}
                   </div>
                 </>
               )}
 
               {step === 2 && (
                 <>
+                  {/* Step 2 fields */}
                   <div>
                     <Label htmlFor="businessTagline">Business Tagline <span className="text-red-500">*</span></Label>
-                    <Input id="businessTagline" placeholder="Quality produce, sustainable farming" className="h-14 text-base bg-gray-100 border-0 rounded-xl" {...register("businessTagline")} />
-                    {errors.businessTagline && <p className="text-red-500 text-sm mt-1">{errors.businessTagline.message}</p>}
+                    <Input id="businessTagline" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
+                    {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
                   </div>
                   <div>
                     <Label>Years in Business <span className="text-red-500">*</span></Label>
@@ -280,16 +269,18 @@ const EditBusinessProfile: React.FC = () => {
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
+                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
                             <SelectValue placeholder="Select years" />
                           </SelectTrigger>
                           <SelectContent>
-                            {yearsOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            {yearsOptions.map((o) => (
+                              <SelectItem key={o} value={o}>{o}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
                     />
-                    {errors.yearsInBusiness && <p className="text-red-500 text-sm mt-1">{errors.yearsInBusiness.message}</p>}
+                    {errors.yearsInBusiness && <p className="text-red-500 text-sm">{errors.yearsInBusiness.message}</p>}
                   </div>
                   <div>
                     <Label>Employees <span className="text-red-500">*</span></Label>
@@ -298,16 +289,18 @@ const EditBusinessProfile: React.FC = () => {
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
+                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
                             <SelectValue placeholder="Select employees" />
                           </SelectTrigger>
                           <SelectContent>
-                            {employeeOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            {employeeOptions.map((o) => (
+                              <SelectItem key={o} value={o}>{o}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
                     />
-                    {errors.employeeCount && <p className="text-red-500 text-sm mt-1">{errors.employeeCount.message}</p>}
+                    {errors.employeeCount && <p className="text-red-500 text-sm">{errors.employeeCount.message}</p>}
                   </div>
                   <div>
                     <Label>Industry <span className="text-red-500">*</span></Label>
@@ -316,26 +309,28 @@ const EditBusinessProfile: React.FC = () => {
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
+                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
                             <SelectValue placeholder="Select industry" />
                           </SelectTrigger>
                           <SelectContent>
-                            {industries.map(ind => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}
+                            {industries.map((ind) => (
+                              <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
                     />
-                    {errors.industryId && <p className="text-red-500 text-sm mt-1">{errors.industryId.message}</p>}
+                    {errors.industryId && <p className="text-red-500 text-sm">{errors.industryId.message}</p>}
                   </div>
                   <div>
                     <Label>Facilities & Extras <span className="text-red-500">*</span></Label>
-                    {facilities.map(f => (
+                    {facilities.map((f) => (
                       <label key={f.id} className="flex items-center space-x-2 mt-2">
                         <input
                           type="checkbox"
                           value={f.name}
                           checked={watchedFacilities.includes(f.name)}
-                          onChange={e => {
+                          onChange={(e) => {
                             const current = watchedFacilities;
                             if (e.target.checked) setValue("facilitiesAndExtras", [...current, f.name]);
                             else setValue("facilitiesAndExtras", current.filter(x => x !== f.name));
@@ -344,9 +339,7 @@ const EditBusinessProfile: React.FC = () => {
                         <span>{f.name}</span>
                       </label>
                     ))}
-                    {errors.facilitiesAndExtras && (
-                      <p className="text-red-500 text-sm mt-1">{errors.facilitiesAndExtras.message}</p>
-                    )}
+                    {errors.facilitiesAndExtras && <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>}
                   </div>
                 </>
               )}
@@ -355,7 +348,6 @@ const EditBusinessProfile: React.FC = () => {
 
           {/* Footer */}
           <div className="px-6 py-4 border-t bg-white flex items-center relative">
-            {/* Back button */}
             {step > 1 && (
               <Button
                 type="button"
@@ -366,7 +358,6 @@ const EditBusinessProfile: React.FC = () => {
               </Button>
             )}
 
-            {/* Step indicators */}
             <div className="absolute left-1/2 transform -translate-x-1/2 flex space-x-2 w-24">
               {[1, 2].map((i) => (
                 <div
@@ -378,7 +369,6 @@ const EditBusinessProfile: React.FC = () => {
               ))}
             </div>
 
-            {/* Next / Finish Setup button */}
             {step < 2 ? (
               <Button
                 type="button"
