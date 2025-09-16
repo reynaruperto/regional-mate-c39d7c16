@@ -41,7 +41,6 @@ const formSchema = z.object({
   suburbCity: z.string().min(2, "Suburb / City required"),
   state: z.enum(AUSTRALIAN_STATES),
   postCode: z.string().length(4, "Postcode must be 4 digits").regex(/^\d+$/, "Must be numeric"),
-
   businessTagline: z.string().min(10, "At least 10 characters").max(200),
   yearsInBusiness: z.enum(yearsOptions),
   employeeCount: z.enum(employeeOptions),
@@ -69,9 +68,7 @@ const EditBusinessProfile: React.FC = () => {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      facilitiesAndExtras: [],
-    },
+    defaultValues: { facilitiesAndExtras: [] },
   });
 
   const watchedFacilities = watch("facilitiesAndExtras") || [];
@@ -144,6 +141,7 @@ const EditBusinessProfile: React.FC = () => {
         updated_at: new Date().toISOString(),
       }).eq("user_id", user.id);
 
+      // Replace facilities
       await supabase.from("employer_facility").delete().eq("user_id", user.id);
       const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
       if (selectedFacilityIds.length > 0) {
@@ -187,54 +185,53 @@ const EditBusinessProfile: React.FC = () => {
                 Save
               </button>
             ) : (
-              <div className="w-10" /> // spacer
+              <div className="w-10" />
             )}
           </div>
 
-          {/* Form (only inputs inside) */}
+          {/* Form (fields only) */}
           <div className="flex-1 px-6 overflow-y-auto pb-20">
             <form id="editForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {step === 1 && (
                 <>
-                  {/* Step 1 fields */}
                   <div>
-                    <Label htmlFor="abn">Australian Business Number (ABN) <span className="text-red-500">*</span></Label>
-                    <Input id="abn" {...register("abn")} className="h-14 bg-gray-100 rounded-xl" disabled />
+                    <Label htmlFor="abn">Australian Business Number (ABN)</Label>
+                    <Input id="abn" {...register("abn")} disabled />
                     {errors.abn && <p className="text-red-500 text-sm">{errors.abn.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="website">Business Website</Label>
-                    <Input id="website" {...register("website")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Business Website</Label>
+                    <Input id="website" type="url" {...register("website")} />
                     {errors.website && <p className="text-red-500 text-sm">{errors.website.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="businessPhone">Business Phone Number <span className="text-red-500">*</span></Label>
-                    <Input id="businessPhone" {...register("businessPhone")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Business Phone Number *</Label>
+                    <Input id="businessPhone" type="tel" {...register("businessPhone")} />
                     {errors.businessPhone && <p className="text-red-500 text-sm">{errors.businessPhone.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="addressLine1">Business Address Line 1 <span className="text-red-500">*</span></Label>
-                    <Input id="addressLine1" {...register("addressLine1")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Business Address Line 1 *</Label>
+                    <Input id="addressLine1" {...register("addressLine1")} />
                     {errors.addressLine1 && <p className="text-red-500 text-sm">{errors.addressLine1.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="addressLine2">Address Line 2</Label>
-                    <Input id="addressLine2" {...register("addressLine2")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Address Line 2</Label>
+                    <Input id="addressLine2" {...register("addressLine2")} />
                   </div>
                   <div>
-                    <Label htmlFor="suburbCity">Suburb / City <span className="text-red-500">*</span></Label>
-                    <Input id="suburbCity" {...register("suburbCity")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Suburb / City *</Label>
+                    <Input id="suburbCity" {...register("suburbCity")} />
                     {errors.suburbCity && <p className="text-red-500 text-sm">{errors.suburbCity.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
+                    <Label>State *</Label>
                     <Controller
                       name="state"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
-                            <SelectValue placeholder="Select state" />
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a state" />
                           </SelectTrigger>
                           <SelectContent>
                             {AUSTRALIAN_STATES.map((s) => (
@@ -247,8 +244,16 @@ const EditBusinessProfile: React.FC = () => {
                     {errors.state && <p className="text-red-500 text-sm">{errors.state.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="postCode">Post Code <span className="text-red-500">*</span></Label>
-                    <Input id="postCode" {...register("postCode")} maxLength={4} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Post Code *</Label>
+                    <Input
+                      id="postCode"
+                      maxLength={4}
+                      {...register("postCode")}
+                      onChange={(e) => {
+                        e.target.value = e.target.value.replace(/\D/g, "");
+                        register("postCode").onChange(e);
+                      }}
+                    />
                     {errors.postCode && <p className="text-red-500 text-sm">{errors.postCode.message}</p>}
                   </div>
                 </>
@@ -256,25 +261,24 @@ const EditBusinessProfile: React.FC = () => {
 
               {step === 2 && (
                 <>
-                  {/* Step 2 fields */}
                   <div>
-                    <Label htmlFor="businessTagline">Business Tagline <span className="text-red-500">*</span></Label>
-                    <Input id="businessTagline" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
+                    <Label>Business Tagline *</Label>
+                    <Input id="businessTagline" {...register("businessTagline")} />
                     {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
                   </div>
                   <div>
-                    <Label>Years in Business <span className="text-red-500">*</span></Label>
+                    <Label>Years in Business *</Label>
                     <Controller
                       name="yearsInBusiness"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
+                          <SelectTrigger>
                             <SelectValue placeholder="Select years" />
                           </SelectTrigger>
                           <SelectContent>
-                            {yearsOptions.map((o) => (
-                              <SelectItem key={o} value={o}>{o}</SelectItem>
+                            {yearsOptions.map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -283,18 +287,18 @@ const EditBusinessProfile: React.FC = () => {
                     {errors.yearsInBusiness && <p className="text-red-500 text-sm">{errors.yearsInBusiness.message}</p>}
                   </div>
                   <div>
-                    <Label>Employees <span className="text-red-500">*</span></Label>
+                    <Label>Employees *</Label>
                     <Controller
                       name="employeeCount"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
+                          <SelectTrigger>
                             <SelectValue placeholder="Select employees" />
                           </SelectTrigger>
                           <SelectContent>
-                            {employeeOptions.map((o) => (
-                              <SelectItem key={o} value={o}>{o}</SelectItem>
+                            {employeeOptions.map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -303,13 +307,13 @@ const EditBusinessProfile: React.FC = () => {
                     {errors.employeeCount && <p className="text-red-500 text-sm">{errors.employeeCount.message}</p>}
                   </div>
                   <div>
-                    <Label>Industry <span className="text-red-500">*</span></Label>
+                    <Label>Industry *</Label>
                     <Controller
                       name="industryId"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 bg-gray-100 rounded-xl">
+                          <SelectTrigger>
                             <SelectValue placeholder="Select industry" />
                           </SelectTrigger>
                           <SelectContent>
@@ -323,7 +327,7 @@ const EditBusinessProfile: React.FC = () => {
                     {errors.industryId && <p className="text-red-500 text-sm">{errors.industryId.message}</p>}
                   </div>
                   <div>
-                    <Label>Facilities & Extras <span className="text-red-500">*</span></Label>
+                    <Label>Facilities & Extras *</Label>
                     {facilities.map((f) => (
                       <label key={f.id} className="flex items-center space-x-2 mt-2">
                         <input
@@ -350,7 +354,7 @@ const EditBusinessProfile: React.FC = () => {
           <div className="px-6 py-4 border-t bg-white flex items-center relative">
             {step > 1 && (
               <Button
-                type="button"
+                type="button" // ✅ not submit
                 onClick={() => setStep((step - 1) as 1 | 2)}
                 className="h-10 px-5 rounded-lg bg-gray-200 text-gray-700 text-sm"
               >
@@ -362,16 +366,14 @@ const EditBusinessProfile: React.FC = () => {
               {[1, 2].map((i) => (
                 <div
                   key={i}
-                  className={`h-1 flex-1 rounded-full ${
-                    step === i ? "bg-[#1E293B]" : "bg-gray-300"
-                  }`}
+                  className={`h-1 flex-1 rounded-full ${step === i ? "bg-[#1E293B]" : "bg-gray-300"}`}
                 />
               ))}
             </div>
 
             {step < 2 ? (
               <Button
-                type="button"
+                type="button" // ✅ not submit
                 onClick={() => setStep((step + 1) as 1 | 2)}
                 className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
@@ -380,7 +382,7 @@ const EditBusinessProfile: React.FC = () => {
             ) : (
               <Button
                 type="submit"
-                form="editForm"
+                form="editForm" // ✅ only save here
                 className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Finish Setup
