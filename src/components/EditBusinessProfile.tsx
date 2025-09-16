@@ -234,13 +234,148 @@ const EditBusinessProfile: React.FC = () => {
             <form id="businessProfileForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {step === 1 && (
                 <>
-                  {/* Step 1 fields here (abn, website, phone, address...) */}
+                  {/* ABN */}
+                  <div>
+                    <Label>ABN *</Label>
+                    <Input {...register('abn')} disabled className="h-12 rounded-xl bg-gray-100" />
+                    {errors.abn && <p className="text-red-500 text-sm">{errors.abn.message}</p>}
+                  </div>
+                  {/* Website */}
+                  <div>
+                    <Label>Website</Label>
+                    <Input {...register('website')} className="h-12 rounded-xl bg-white" />
+                  </div>
+                  {/* Phone */}
+                  <div>
+                    <Label>Business Phone *</Label>
+                    <Input {...register('businessPhone')} className="h-12 rounded-xl bg-white" />
+                  </div>
+                  {/* Address 1 */}
+                  <div>
+                    <Label>Address Line 1 *</Label>
+                    <Input {...register('addressLine1')} className="h-12 rounded-xl bg-white" />
+                  </div>
+                  {/* Address 2 */}
+                  <div>
+                    <Label>Address Line 2</Label>
+                    <Input {...register('addressLine2')} className="h-12 rounded-xl bg-white" />
+                  </div>
+                  {/* Suburb */}
+                  <div>
+                    <Label>Suburb / City *</Label>
+                    <Input {...register('suburbCity')} className="h-12 rounded-xl bg-white" />
+                  </div>
+                  {/* State */}
+                  <div>
+                    <Label>State *</Label>
+                    <Controller
+                      name="state"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger className="h-12 rounded-xl bg-white">
+                            <SelectValue placeholder="Select a state" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AUSTRALIAN_STATES.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  {/* Postcode */}
+                  <div>
+                    <Label>Postcode *</Label>
+                    <Input {...register('postcode')} className="h-12 rounded-xl bg-white" />
+                  </div>
                 </>
               )}
 
               {step === 2 && (
                 <>
-                  {/* Step 2 fields here (tagline, years, employees, industry, facilities) */}
+                  {/* Tagline */}
+                  <div>
+                    <Label>Business Tagline *</Label>
+                    <Input {...register('businessTagline')} className="h-12 rounded-xl bg-white" />
+                  </div>
+                  {/* Years */}
+                  <div>
+                    <Label>Years in Business *</Label>
+                    <Controller
+                      name="yearsInBusiness"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger className="h-12 rounded-xl bg-white">
+                            <SelectValue placeholder="Select years" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {YEARS_OPTIONS.map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  {/* Employees */}
+                  <div>
+                    <Label>Employees *</Label>
+                    <Controller
+                      name="employeeCount"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger className="h-12 rounded-xl bg-white">
+                            <SelectValue placeholder="Select employees" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EMPLOYEE_OPTIONS.map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  {/* Industry */}
+                  <div>
+                    <Label>Industry *</Label>
+                    <Controller
+                      name="industryId"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger className="h-12 rounded-xl bg-white">
+                            <SelectValue placeholder="Select industry" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {industries.map((i) => (
+                              <SelectItem key={i.industry_id} value={String(i.industry_id)}>
+                                {i.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  {/* Facilities */}
+                  <div>
+                    <Label>Facilities & Extras *</Label>
+                    {facilities.map((f) => (
+                      <label key={f.facility_id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={watchedFacilities.includes(f.facility_id)}
+                          onChange={(e) => handleFacilityChange(f.facility_id, e.target.checked)}
+                        />
+                        <span>{f.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </>
               )}
             </form>
@@ -259,7 +394,7 @@ const EditBusinessProfile: React.FC = () => {
               {[1, 2].map((n) => (
                 <div
                   key={n}
-                  className={`h-1 flex-1 rounded-full transition-colors ${step >= n ? 'bg-[#1E293B]' : 'bg-gray-300'}`}
+                  className={`h-1 flex-1 rounded-full ${step >= n ? 'bg-[#1E293B]' : 'bg-gray-300'}`}
                 />
               ))}
             </div>
