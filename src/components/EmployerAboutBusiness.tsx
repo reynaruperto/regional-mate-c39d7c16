@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
-  yearsInBusiness: z.string().min(1, "Required"), // changed from enum → string
+  yearsInBusiness: z.string().min(1, "Required"),
   employeeCount: z.string().min(1, "Required"),
   industryId: z.string().min(1, "Required"),
   facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
@@ -46,7 +46,7 @@ const EmployerAboutBusiness: React.FC = () => {
 
   const watchedFacilities = watch("facilitiesAndExtras") || [];
 
-  // ✅ Load options from Supabase (industries, facilities, enums)
+  // ✅ Load options from Supabase
   useEffect(() => {
     const loadOptions = async () => {
       // Industries
@@ -113,7 +113,7 @@ const EmployerAboutBusiness: React.FC = () => {
   return (
     <div className="min-h-screen flex justify-center items-center p-4" style={{ backgroundColor: "white" }}>
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full rounded-[48px] overflow-hidden relative flex flex-col" style={{ backgroundColor: "#F2F1EC" }}>
+        <div className="w-full h-full rounded-[48px] overflow-hidden relative flex flex-col" style={{ backgroundColor: "white" }}>
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
