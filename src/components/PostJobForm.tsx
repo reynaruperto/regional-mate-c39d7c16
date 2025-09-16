@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -15,9 +21,19 @@ interface PostJobFormProps {
   editingJob?: {
     job_id: number;
     role: string;
-    job_status: "active" | "inactive" | "draft" | "closed";
+    job_status: "active" | "inactive" | "draft";
   } | null;
 }
+
+const FUTURE_STATES = [
+  "NSW",
+  "VIC",
+  "WA",
+  "SA",
+  "TAS",
+  "ACT",
+  "NT",
+];
 
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
@@ -28,8 +44,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [jobTypes, setJobTypes] = useState<{ type_id: number; type: string }[]>([]);
   const [payRanges, setPayRanges] = useState<string[]>([]);
   const [experienceRanges, setExperienceRanges] = useState<string[]>([]);
-  const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
+  const [showFuturePopup, setShowFuturePopup] = useState(false);
+  const [selectedFutureState, setSelectedFutureState] = useState<string>("");
 
   const [formData, setFormData] = useState({
     jobRole: editingJob?.role || "",
@@ -39,7 +56,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     experienceRange: "",
     state: "",
     area: "",
-    status: editingJob?.job_status || "active",
+    status: editingJob?.job_status || "draft",
   });
 
   // Fetch dropdown options from Supabase
@@ -57,10 +74,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         const { data: jobTypeData } = await supabase.from("job_type").select("type_id, type");
         if (jobTypeData) setJobTypes(jobTypeData);
 
-        // Hard-coded enum values for now
+        // Enums (or from DB if you want later)
         setPayRanges(["$25-30", "$30-35", "$35-40", "$40-45", "$45-50", "$50+"]);
         setExperienceRanges(["0-1 years", "1-3 years", "3-5 years", "5+ years"]);
-        setStates(["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]);
       } catch (err) {
         console.error("Error loading dropdowns:", err);
       }
@@ -68,14 +84,14 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     fetchDropdowns();
   }, [employerIndustryId]);
 
-  // Fetch areas when state changes
+  // Fetch areas only for QLD
   useEffect(() => {
     const fetchAreas = async () => {
-      if (!formData.state) return;
+      if (formData.state !== "QLD") return;
       const { data } = await supabase
         .from("region_rules")
         .select("area")
-        .eq("state", formData.state);
+        .eq("state", "Queensland");
       if (data) {
         const uniqueAreas = [...new Set(data.map((d) => d.area))];
         setAreas(uniqueAreas);
@@ -103,7 +119,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       max_rate: formData.payRange as any,
       pay_type: "hourly" as any,
       req_experience: formData.experienceRange as any,
-      job_status: formData.status as any,
+      job_status: editingJob ? formData.status : "draft", // ✅ default draft for new
       user_id: user.id,
     };
 
@@ -115,9 +131,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .eq("job_id", editingJob.job_id);
       error = updateError;
     } else {
-      const { error: insertError } = await supabase
-        .from("job")
-        .insert(jobPayload);
+      const { error: insertError } = await supabase.from("job").insert(jobPayload);
       error = insertError;
     }
 
@@ -125,10 +139,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       toast({ title: "Error", description: error.message });
     } else {
       toast({
-        title: editingJob ? "Job Updated" : "Job Posted",
+        title: editingJob ? "Job Updated" : "Job Drafted",
         description: editingJob
           ? "Job has been successfully updated"
-          : "Job has been successfully posted",
+          : "Job has been saved as draft",
       });
       onBack();
     }
@@ -158,7 +172,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Content */}
             <div className="flex-1 px-6 overflow-y-auto pb-24">
-
               {/* Role */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Role</h2>
@@ -255,13 +268,21 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Location</h2>
                 <Select
                   value={formData.state}
-                  onValueChange={(value) => handleInputChange("state", value)}
+                  onValueChange={(value) => {
+                    if (value !== "QLD") {
+                      setSelectedFutureState(value);
+                      setShowFuturePopup(true);
+                      return;
+                    }
+                    handleInputChange("state", value);
+                  }}
                 >
                   <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>
-                    {states.map((s) => (
+                    <SelectItem value="QLD">Queensland</SelectItem>
+                    {FUTURE_STATES.map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
                       </SelectItem>
@@ -269,7 +290,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   </SelectContent>
                 </Select>
 
-                {formData.state && (
+                {formData.state === "QLD" && (
                   <Select
                     value={formData.area}
                     onValueChange={(value) => handleInputChange("area", value)}
@@ -292,9 +313,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Status</h2>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-600">
-                    Active / Inactive
-                  </span>
+                  <span className="text-xs font-medium text-gray-600">Active / Inactive</span>
                   <Switch
                     checked={formData.status === "active"}
                     onCheckedChange={(checked) =>
@@ -311,10 +330,39 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   onClick={handleSaveAndPost}
                   className="w-full bg-[#1E293B] hover:bg-[#1E293B]/90 text-white rounded-xl h-12 text-base font-medium"
                 >
-                  {editingJob ? "Update Job" : "Post Job"}
+                  {editingJob ? "Update Job" : "Save Draft"}
                 </Button>
               </div>
             </div>
+
+            {/* Future popup */}
+            {showFuturePopup && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50">
+                <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-xl">
+                  {/* Orange Icon */}
+                  <div className="flex justify-center mb-6">
+                    <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                      <Zap className="w-8 h-8 text-orange-500" fill="currentColor" />
+                    </div>
+                  </div>
+
+                  {/* Message */}
+                  <div className="text-center mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                      These functions are for future phases
+                    </h2>
+                    <p className="text-gray-600">We'll be back</p>
+                  </div>
+
+                  <Button
+                    onClick={() => setShowFuturePopup(false)}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg font-medium"
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Bottom Navigation */}
             <div className="absolute bottom-0 left-0 right-0 bg-white">
