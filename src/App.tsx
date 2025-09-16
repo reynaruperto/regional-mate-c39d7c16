@@ -7,8 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // General pages
 import Index from "./pages/Index";
 import LetsBegin from "./pages/LetsBegin";
-import BusinessRegistrationComponent from "./components/BusinessRegistration";
-import AboutBusinessComponent from "./components/AboutBusiness";
 
 import NotFound from "./pages/NotFound";
 
@@ -111,8 +109,6 @@ const App = () => (
           <Route path="/employer/help-support" element={<EmployerHelpSupport />} />
           <Route path="/employer/security" element={<EmployerSecurity />} />
           <Route path="/employer/terms-policies" element={<EmployerTermsPolicies />} />
-          <Route path="/employer/business-registration" element={<BusinessRegistrationComponent />} />
-          <Route path="/employer/about-business" element={<AboutBusinessComponent />} />
           <Route path="/employer/edit-business-profile" element={<EditBusinessProfile />} />
 
           {/* WHV flow */}
