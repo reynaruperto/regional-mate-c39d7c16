@@ -42,7 +42,7 @@ const BottomNavigation: React.FC = () => {
             <button
               key={item.id}
               onClick={() => navigate(item.path)}
-              className={`flex-1 flex flex-col items-center justify-center transition-colors ${
+              className={`flex-1 flex flex-col items-center justify-center relative transition-colors ${
                 active 
                   ? isEmployerPage 
                     ? 'text-[#1E293B]' 
@@ -50,6 +50,14 @@ const BottomNavigation: React.FC = () => {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
+              {/* Active highlight bar */}
+              {active && (
+                <span
+                  className={`absolute top-0 left-0 right-0 h-1 ${
+                    isEmployerPage ? 'bg-[#1E293B]' : 'bg-orange-500'
+                  }`}
+                />
+              )}
               <Icon size={20} className="mb-1" />
               <span className="text-xs font-medium leading-tight">{item.label}</span>
             </button>
