@@ -22,8 +22,6 @@ const EmployerDashboard: React.FC = () => {
         return;
       }
 
-      console.log("Auth user id:", user.id);
-
       const { data: profileRow, error: profileError } = await supabase
         .from('profile')
         .select('user_id')
@@ -34,8 +32,6 @@ const EmployerDashboard: React.FC = () => {
         console.error('Profile not found for auth user:', profileError);
         return;
       }
-
-      console.log("Matched profile row:", profileRow);
 
       const { data: employer, error: employerError } = await supabase
         .from('employer')
@@ -49,22 +45,16 @@ const EmployerDashboard: React.FC = () => {
       }
 
       if (employer && isMounted) {
-        console.log("Fetched Employer data:", employer);
-
         const nameParts = [employer.given_name, employer.middle_name, employer.family_name].filter(Boolean);
         if (nameParts.length > 0) setFullName(nameParts.join(' '));
         if (employer.company_name) setCompanyName(employer.company_name);
         if (employer.tagline) setProfileTagline(employer.tagline);
 
         if (employer.profile_photo) {
-          console.log("Raw profile_photo from DB:", employer.profile_photo);
-
           let photoPath = employer.profile_photo;
           if (photoPath.includes('/profile_photo/')) {
             photoPath = photoPath.split('/profile_photo/')[1];
           }
-
-          console.log("Normalized photo path:", photoPath);
 
           const { data, error } = await supabase
             .storage
@@ -74,12 +64,9 @@ const EmployerDashboard: React.FC = () => {
           if (error) {
             console.error("Error creating signed URL:", error);
           } else if (data?.signedUrl) {
-            console.log("Final signed URL:", data.signedUrl);
             setProfilePhoto(data.signedUrl);
           }
         }
-      } else {
-        console.warn("Employer fetch returned null — ignoring");
       }
     };
 
@@ -136,19 +123,20 @@ const EmployerDashboard: React.FC = () => {
               {/* Business Info */}
               <div className="text-center mb-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-2">{companyName}</h2>
+                <p className="text-sm text-gray-500 font-medium mb-1">Business Tagline</p>
                 <p className="text-gray-700 text-base leading-relaxed italic">
                   {profileTagline || 'No tagline added yet.'}
                 </p>
               </div>
 
-              {/* Edit Profile Button (Navy theme) */}
+              {/* Edit Account Profile Button (Navy theme) */}
               <div className="flex justify-center mb-8">
                 <button 
                   onClick={() => navigate('/employer/edit-profile')} 
                   className="flex items-center bg-slate-800 px-6 py-3 rounded-2xl hover:bg-slate-700 transition-colors"
                 >
                   <Edit size={16} className="mr-2 text-white" />
-                  <span className="text-white font-medium">Edit Profile</span>
+                  <span className="text-white font-medium">Edit Account Profile</span>
                 </button>
               </div>
 
