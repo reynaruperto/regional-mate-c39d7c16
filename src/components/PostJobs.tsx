@@ -25,7 +25,7 @@ const PostJobs: React.FC = () => {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'closed'>('all');
   const [jobs, setJobs] = useState<Job[]>([]);
 
   // ✅ Fetch current user's jobs
@@ -99,6 +99,7 @@ const PostJobs: React.FC = () => {
   const filteredJobs = jobs.filter(job => {
     if (filter === 'active') return job.job_status === 'active';
     if (filter === 'inactive') return job.job_status === 'inactive';
+    if (filter === 'closed') return job.job_status === 'closed';
     return true;
   });
 
@@ -189,12 +190,18 @@ const PostJobs: React.FC = () => {
                 <div className="flex flex-col items-center justify-center h-full">
                   <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {filter === 'all' ? 'No Jobs Posted Yet' : `No ${filter === 'inactive' ? 'Closed' : filter} Jobs`}
+                      {filter === 'all'
+                        ? 'No Jobs Posted Yet'
+                        : filter === 'active'
+                        ? 'No Active Jobs'
+                        : filter === 'inactive'
+                        ? 'No Inactive Jobs'
+                        : 'No Closed Jobs'}
                     </h3>
                     <p className="text-gray-600 mb-4">
-                      {filter === 'all' 
+                      {filter === 'all'
                         ? 'Create your first job posting to start finding the right candidates.'
-                        : `You don't have any ${filter === 'inactive' ? 'closed' : filter} jobs at the moment.`}
+                        : `You don't have any ${filter === 'active' ? 'active' : filter === 'inactive' ? 'inactive' : 'closed'} jobs at the moment.`}
                     </p>
                     {filter === 'all' && (
                       <Button
@@ -222,10 +229,16 @@ const PostJobs: React.FC = () => {
                         {/* Status + Actions */}
                         <div className="flex flex-col items-end gap-3">
                           <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium ${
-                              job.job_status === 'active' ? 'text-green-600' : 'text-gray-500'
-                            }`}>
-                              {job.job_status}
+                            <span
+                              className={`text-sm font-medium ${
+                                job.job_status === 'active'
+                                  ? 'text-green-600'
+                                  : job.job_status === 'closed'
+                                  ? 'text-red-600'
+                                  : 'text-gray-500'
+                              }`}
+                            >
+                              {job.job_status.charAt(0).toUpperCase() + job.job_status.slice(1)}
                             </span>
                             <Switch
                               checked={job.job_status === 'active'}
