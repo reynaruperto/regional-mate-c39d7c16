@@ -170,12 +170,23 @@ const EditBusinessProfile: React.FC = () => {
 
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button onClick={() => navigate("/employer/dashboard")} className="text-[#1E293B] underline">Cancel</button>
-            <h1 className="text-lg font-semibold">{step === 1 ? "Business Registration" : "About Business"}</h1>
-            {/* Save only appears as Finish Setup on step 2 */}
-            {step === 2 && (
-              <button type="submit" form="editForm" className="text-[#1E293B] underline">Save</button>
-            )}
+            <button
+              onClick={() => navigate("/employer/dashboard")}
+              className="text-[#1E293B] underline"
+              type="button"
+            >
+              Cancel
+            </button>
+            <h1 className="text-lg font-semibold">
+              {step === 1 ? "Business Registration" : "About Business"}
+            </h1>
+            <button
+              type="submit"
+              form="editForm"
+              className="text-[#1E293B] underline"
+            >
+              Save
+            </button>
           </div>
 
           {/* Form */}
@@ -363,7 +374,7 @@ const EditBusinessProfile: React.FC = () => {
               ))}
             </div>
 
-            {/* Next / Finish button */}
+            {/* Next / Finish Setup button */}
             {step < 2 ? (
               <Button
                 type="button"
