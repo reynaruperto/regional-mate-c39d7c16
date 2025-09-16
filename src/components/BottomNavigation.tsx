@@ -32,8 +32,8 @@ const BottomNavigation: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex justify-between items-stretch h-16">
+    <div className="py-2 border-t border-gray-200 bg-white rounded-b-[48px]">
+      <div className="flex h-16">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
@@ -42,16 +42,16 @@ const BottomNavigation: React.FC = () => {
             <button
               key={item.id}
               onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center px-3 rounded-lg transition-colors flex-1 mx-1 ${
+              className={`flex-1 flex flex-col items-center justify-center transition-colors ${
                 active 
                   ? isEmployerPage 
-                    ? 'bg-[#1E293B]/10 text-[#1E293B]' 
-                    : 'bg-orange-500/10 text-orange-500'
+                    ? 'text-[#1E293B]' 
+                    : 'text-orange-500'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               <Icon size={20} className="mb-1" />
-              <span className="text-xs font-medium text-center leading-tight">{item.label}</span>
+              <span className="text-xs font-medium leading-tight">{item.label}</span>
             </button>
           );
         })}
