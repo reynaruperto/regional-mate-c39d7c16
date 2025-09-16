@@ -189,7 +189,8 @@ const EmployerEditProfile: React.FC = () => {
                 <button onClick={handleCancel} className="text-[#1E293B] font-medium underline">
                   Cancel
                 </button>
-                <h1 className="text-lg font-semibold text-gray-900">Edit Employer Profile</h1>
+                {/* ⬇️ Renamed heading */}
+                <h1 className="text-lg font-semibold text-gray-900">Edit Account Profile</h1>
                 <button onClick={handleSave} className="flex items-center text-[#1E293B] font-medium underline">
                   <Check size={16} className="mr-1" />
                   Save
