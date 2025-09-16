@@ -344,14 +344,18 @@ const EditBusinessProfile: React.FC = () => {
                 <h1 className="text-lg font-semibold text-gray-900">
                   {step === 1 ? 'Business Registration' : 'About Business'}
                 </h1>
-                <button
-                  type="submit"
-                  form="businessProfileForm"
-                  className="flex items-center text-[#1E293B] font-medium underline"
-                >
-                  <Check size={16} className="mr-1" />
-                  {step === 1 ? 'Save' : 'Save'}
-                </button>
+                {step === 2 ? (
+                  <button
+                    type="submit"
+                    form="businessProfileForm"
+                    className="flex items-center text-[#1E293B] font-medium underline"
+                  >
+                    <Check size={16} className="mr-1" />
+                    Save
+                  </button>
+                ) : (
+                  <div className="w-12"></div>
+                )}
               </div>
             </div>
 
