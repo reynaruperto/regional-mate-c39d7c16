@@ -19,7 +19,6 @@ import { supabase } from "@/integrations/supabase/client";
 // Options
 const yearsOptions = ["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const;
 const employeeOptions = ["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const;
-const payRanges = ["$25-30/hour", "$30-35/hour", "$35-40/hour", "$40-45/hour", "$45+/hour"] as const;
 
 const AUSTRALIAN_STATES = [
   "Australian Capital Territory",
@@ -47,8 +46,6 @@ const formSchema = z.object({
   yearsInBusiness: z.enum(yearsOptions),
   employeeCount: z.enum(employeeOptions),
   industryId: z.string().min(1, "Select an industry"),
-  jobType: z.array(z.string()).min(1, "Select at least one job type"),
-  payRange: z.enum(payRanges),
   facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
 });
 
@@ -60,7 +57,6 @@ const EditBusinessProfile: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
 
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [jobTypes, setJobTypes] = useState<{ id: number; type: string }[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
 
   const {
@@ -74,12 +70,10 @@ const EditBusinessProfile: React.FC = () => {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      jobType: [],
       facilitiesAndExtras: [],
     },
   });
 
-  const watchedJobTypes = watch("jobType") || [];
   const watchedFacilities = watch("facilitiesAndExtras") || [];
 
   // Load options + employer data
@@ -94,9 +88,6 @@ const EditBusinessProfile: React.FC = () => {
       // Options
       const { data: indData } = await supabase.from("industry").select("industry_id, name");
       if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
-
-      const { data: jobData } = await supabase.from("job_type").select("type_id, type");
-      if (jobData) setJobTypes(jobData.map(j => ({ id: j.type_id, type: j.type })));
 
       const { data: facData } = await supabase.from("facility").select("facility_id, name");
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
@@ -117,15 +108,7 @@ const EditBusinessProfile: React.FC = () => {
           yearsInBusiness: employer.business_tenure,
           employeeCount: employer.employee_count,
           industryId: employer.industry_id ? String(employer.industry_id) : "",
-          payRange: employer.pay_range,
         });
-      }
-
-      // Prefill job types
-      const { data: empJobTypes } = await supabase.from("employer_job_type").select("type_id").eq("user_id", user.id);
-      if (empJobTypes && jobData) {
-        const selectedTypes = jobData.filter(j => empJobTypes.some((e: any) => e.type_id === j.type_id)).map(j => j.type);
-        setValue("jobType", selectedTypes);
       }
 
       // Prefill facilities
@@ -150,7 +133,6 @@ const EditBusinessProfile: React.FC = () => {
         business_tenure: data.yearsInBusiness,
         employee_count: data.employeeCount,
         industry_id: Number(data.industryId),
-        pay_range: data.payRange,
         website: data.website || null,
         mobile_num: data.businessPhone,
         address_line1: data.addressLine1,
@@ -161,18 +143,15 @@ const EditBusinessProfile: React.FC = () => {
         updated_at: new Date().toISOString(),
       }).eq("user_id", user.id);
 
-      // Replace job types
-      await supabase.from("employer_job_type").delete().eq("user_id", user.id);
-      const selectedJobTypeIds = jobTypes.filter(j => data.jobType.includes(j.type)).map(j => j.id);
-      if (selectedJobTypeIds.length > 0) {
-        await supabase.from("employer_job_type").insert(selectedJobTypeIds.map(id => ({ user_id: user.id, type_id: id })));
-      }
-
       // Replace facilities
       await supabase.from("employer_facility").delete().eq("user_id", user.id);
-      const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
+      const selectedFacilityIds = facilities
+        .filter(f => data.facilitiesAndExtras.includes(f.name))
+        .map(f => f.id);
       if (selectedFacilityIds.length > 0) {
-        await supabase.from("employer_facility").insert(selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id })));
+        await supabase.from("employer_facility").insert(
+          selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id }))
+        );
       }
 
       toast({ title: "Profile Updated", description: "Business profile updated successfully" });
@@ -333,44 +312,7 @@ const EditBusinessProfile: React.FC = () => {
                     {errors.industryId && <p className="text-red-500 text-sm mt-1">{errors.industryId.message}</p>}
                   </div>
                   <div>
-                    <Label>Job Type <span className="text-red-500">*</span></Label>
-                    {jobTypes.map(j => (
-                      <label key={j.id} className="flex items-center space-x-2 mt-2">
-                        <input
-                          type="checkbox"
-                          value={j.type}
-                          checked={watchedJobTypes.includes(j.type)}
-                          onChange={e => {
-                            const current = watchedJobTypes;
-                            if (e.target.checked) setValue("jobType", [...current, j.type]);
-                            else setValue("jobType", current.filter(a => a !== j.type));
-                          }}
-                        />
-                        <span>{j.type}</span>
-                      </label>
-                    ))}
-                    {errors.jobType && <p className="text-red-500 text-sm mt-1">{errors.jobType.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Pay Range <span className="text-red-500">*</span></Label>
-                    <Controller
-                      name="payRange"
-                      control={control}
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
-                            <SelectValue placeholder="Select pay" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {payRanges.map(range => <SelectItem key={range} value={range}>{range}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.payRange && <p className="text-red-500 text-sm mt-1">{errors.payRange.message}</p>}
-                  </div>
-                  <div>
-                                        <Label>Facilities & Extras <span className="text-red-500">*</span></Label>
+                    <Label>Facilities & Extras <span className="text-red-500">*</span></Label>
                     {facilities.map(f => (
                       <label key={f.id} className="flex items-center space-x-2 mt-2">
                         <input
@@ -395,7 +337,7 @@ const EditBusinessProfile: React.FC = () => {
             </form>
           </div>
 
-          {/* Footer with balanced step indicators + navigation */}
+          {/* Footer */}
           <div className="px-6 py-4 border-t bg-white flex items-center justify-between relative">
             {/* Back button */}
             {step > 1 && (
@@ -420,14 +362,22 @@ const EditBusinessProfile: React.FC = () => {
               ))}
             </div>
 
-            {/* Next button */}
-            {step < 2 && (
+            {/* Next / Finish button */}
+            {step < 2 ? (
               <Button
                 type="button"
                 onClick={() => setStep((step + 1) as 1 | 2)}
                 className="h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Next
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="editForm"
+                className="h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
+              >
+                Finish Setup
               </Button>
             )}
           </div>
@@ -438,4 +388,3 @@ const EditBusinessProfile: React.FC = () => {
 };
 
 export default EditBusinessProfile;
-
