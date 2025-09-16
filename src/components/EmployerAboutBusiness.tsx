@@ -57,13 +57,9 @@ const EmployerAboutBusiness: React.FC = () => {
       const { data: facData } = await supabase.from("facility").select("facility_id, name");
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
 
-      // Enums - Business Tenure
-      const { data: tenureData, error: tenureError } = await supabase.rpc("get_enum_values", { enum_name: "business_tenure" });
-      if (!tenureError && tenureData) setYearsOptions(tenureData);
-
-      // Enums - Employee Count
-      const { data: empData, error: empError } = await supabase.rpc("get_enum_values", { enum_name: "employee_count" });
-      if (!empError && empData) setEmployeeOptions(empData);
+      // Hard-coded enum values for now
+      setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"]);
+      setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"]);
     };
     loadOptions();
   }, []);
@@ -79,8 +75,8 @@ const EmployerAboutBusiness: React.FC = () => {
         .from("employer")
         .update({
           tagline: data.businessTagline,
-          business_tenure: data.yearsInBusiness,
-          employee_count: data.employeeCount,
+          business_tenure: data.yearsInBusiness as any,
+          employee_count: data.employeeCount as any,
           industry_id: Number(data.industryId),
           updated_at: new Date().toISOString(),
         })

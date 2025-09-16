@@ -52,7 +52,7 @@ const PostJobs: React.FC = () => {
       if (error) {
         toast({ title: 'Error loading jobs', description: error.message });
       } else {
-        setJobs(data as Job[]);
+        setJobs(data as any);
       }
     };
 

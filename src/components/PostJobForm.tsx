@@ -15,14 +15,14 @@ interface PostJobFormProps {
   editingJob?: {
     job_id: number;
     role: string;
-    job_status: "active" | "inactive";
+    job_status: "active" | "inactive" | "draft" | "closed";
   } | null;
 }
 
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const employerProfile = getEmployerProfile();
-  const employerIndustryId = employerProfile?.industry_id;
+  const employerIndustryId = employerProfile?.industry;
 
   const [roles, setRoles] = useState<{ industry_role_id: number; role: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<{ type_id: number; type: string }[]>([]);
@@ -50,22 +50,17 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           const { data: rolesData } = await supabase
             .from("industry_role")
             .select("industry_role_id, role")
-            .eq("industry_id", employerIndustryId);
+            .eq("industry_id", parseInt(employerIndustryId));
           if (rolesData) setRoles(rolesData);
         }
 
         const { data: jobTypeData } = await supabase.from("job_type").select("type_id, type");
         if (jobTypeData) setJobTypes(jobTypeData);
 
-        // enums
-        const { data: payEnum } = await supabase.rpc("enum_values", { enum_name: "pay_range" });
-        if (payEnum) setPayRanges(payEnum);
-
-        const { data: expEnum } = await supabase.rpc("enum_values", { enum_name: "experience_range" });
-        if (expEnum) setExperienceRanges(expEnum);
-
-        const { data: stateEnum } = await supabase.rpc("enum_values", { enum_name: "state_enum" });
-        if (stateEnum) setStates(stateEnum);
+        // Hard-coded enum values for now
+        setPayRanges(["$25-30", "$30-35", "$35-40", "$40-45", "$45-50", "$50+"]);
+        setExperienceRanges(["0-1 years", "1-3 years", "3-5 years", "5+ years"]);
+        setStates(["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]);
       } catch (err) {
         console.error("Error loading dropdowns:", err);
       }
@@ -103,12 +98,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     const jobPayload = {
       role: formData.jobRole,
       description: formData.jobDescription,
-      job_type: formData.jobType,
-      pay_range: formData.payRange,
-      requires_experience: formData.experienceRange,
-      job_status: formData.status,
-      state: formData.state,
-      area: formData.area,
+      job_type: formData.jobType as any,
+      min_rate: formData.payRange as any,
+      max_rate: formData.payRange as any,
+      pay_type: "hourly" as any,
+      req_experience: formData.experienceRange as any,
+      job_status: formData.status as any,
       user_id: user.id,
     };
 
@@ -122,7 +117,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     } else {
       const { error: insertError } = await supabase
         .from("job")
-        .insert([jobPayload]);
+        .insert(jobPayload);
       error = insertError;
     }
 

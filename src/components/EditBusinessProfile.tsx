@@ -120,17 +120,38 @@ const EditBusinessProfile: React.FC = () => {
     loadData();
   }, [navigate, reset, setValue]);
 
-  // Save
+  // Validate step 1 fields
+  const validateStep1 = () => {
+    const step1Fields = ['abn', 'businessPhone', 'addressLine1', 'suburbCity', 'state', 'postCode'];
+    for (const field of step1Fields) {
+      const value = watch(field as keyof FormData);
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        toast({
+          title: "Missing Information",
+          description: "Please fill in all required fields before proceeding to the next step.",
+          variant: "destructive"
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Handle next button click
+  const handleNext = () => {
+    if (validateStep1()) {
+      setStep(2);
+    }
+  };
+
+  // Save all data when "Finish Setup" is clicked
   const onSubmit = async (data: FormData) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not logged in");
 
       await supabase.from("employer").update({
-        tagline: data.businessTagline,
-        business_tenure: data.yearsInBusiness,
-        employee_count: data.employeeCount,
-        industry_id: Number(data.industryId),
+        abn: data.abn,
         website: data.website || null,
         mobile_num: data.businessPhone,
         address_line1: data.addressLine1,
@@ -138,6 +159,10 @@ const EditBusinessProfile: React.FC = () => {
         suburb_city: data.suburbCity,
         state: data.state,
         postcode: data.postCode,
+        tagline: data.businessTagline,
+        business_tenure: data.yearsInBusiness,
+        employee_count: data.employeeCount,
+        industry_id: Number(data.industryId),
         updated_at: new Date().toISOString(),
       }).eq("user_id", user.id);
 
@@ -374,7 +399,7 @@ const EditBusinessProfile: React.FC = () => {
             {step < 2 ? (
               <Button
                 type="button"
-                onClick={() => setStep((step + 1) as 1 | 2)}
+                onClick={handleNext}
                 className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Next
