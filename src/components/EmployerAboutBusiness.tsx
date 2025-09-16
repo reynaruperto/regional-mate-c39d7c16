@@ -11,19 +11,11 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Enum options
-const yearsOptions = ["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const;
-const employeeOptions = ["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const;
-const payRanges = ["$25-30/hour", "$30-35/hour", "$35-40/hour", "$40-45/hour", "$45+/hour"] as const;
-
-// ✅ Schema
 const formSchema = z.object({
   businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
-  yearsInBusiness: z.enum(yearsOptions),
-  employeeCount: z.enum(employeeOptions),
+  yearsInBusiness: z.string().min(1, "Required"), // changed from enum → string
+  employeeCount: z.string().min(1, "Required"),
   industryId: z.string().min(1, "Required"),
-  jobType: z.array(z.string()).min(1, "Select at least one job type"),
-  payRange: z.enum(payRanges),
   facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
 });
 
@@ -34,8 +26,9 @@ const EmployerAboutBusiness: React.FC = () => {
   const { toast } = useToast();
 
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [jobTypes, setJobTypes] = useState<{ id: number; type: string }[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
+  const [yearsOptions, setYearsOptions] = useState<string[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<string[]>([]);
 
   const {
     register,
@@ -47,25 +40,30 @@ const EmployerAboutBusiness: React.FC = () => {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      jobType: [],
       facilitiesAndExtras: [],
     },
   });
 
-  const watchedJobTypes = watch("jobType") || [];
   const watchedFacilities = watch("facilitiesAndExtras") || [];
 
-  // ✅ Load options from Supabase
+  // ✅ Load options from Supabase (industries, facilities, enums)
   useEffect(() => {
     const loadOptions = async () => {
+      // Industries
       const { data: indData } = await supabase.from("industry").select("industry_id, name");
       if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
 
-      const { data: jobData } = await supabase.from("job_type").select("type_id, type");
-      if (jobData) setJobTypes(jobData.map(j => ({ id: j.type_id, type: j.type })));
-
+      // Facilities
       const { data: facData } = await supabase.from("facility").select("facility_id, name");
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
+
+      // Enums - Business Tenure
+      const { data: tenureData, error: tenureError } = await supabase.rpc("get_enum_values", { enum_name: "business_tenure" });
+      if (!tenureError && tenureData) setYearsOptions(tenureData);
+
+      // Enums - Employee Count
+      const { data: empData, error: empError } = await supabase.rpc("get_enum_values", { enum_name: "employee_count" });
+      if (!empError && empData) setEmployeeOptions(empData);
     };
     loadOptions();
   }, []);
@@ -77,28 +75,18 @@ const EmployerAboutBusiness: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("User not logged in");
 
-      // ✅ Update employer
-      const { error: empError } = await supabase.from("employer").update({
-        tagline: data.businessTagline,
-        business_tenure: data.yearsInBusiness,
-        employee_count: data.employeeCount,
-        industry_id: Number(data.industryId),
-        pay_range: data.payRange,
-        updated_at: new Date().toISOString(),
-      }).eq("user_id", user.id);
+      const { error: empError } = await supabase
+        .from("employer")
+        .update({
+          tagline: data.businessTagline,
+          business_tenure: data.yearsInBusiness,
+          employee_count: data.employeeCount,
+          industry_id: Number(data.industryId),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
 
       if (empError) throw empError;
-
-      // ✅ Insert job types
-      if (jobTypes.length) {
-        const selectedJobTypeIds = jobTypes.filter(j => watchedJobTypes.includes(j.type)).map(j => j.id);
-        const jobTypeRows = selectedJobTypeIds.map(id => ({ user_id: user.id, type_id: id }));
-
-        if (jobTypeRows.length > 0) {
-          const { error: jobError } = await supabase.from("employer_job_type").insert(jobTypeRows);
-          if (jobError) throw jobError;
-        }
-      }
 
       // ✅ Insert facilities
       if (facilities.length) {
@@ -123,9 +111,9 @@ const EmployerAboutBusiness: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+    <div className="min-h-screen flex justify-center items-center p-4" style={{ backgroundColor: "white" }}>
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
+        <div className="w-full h-full rounded-[48px] overflow-hidden relative flex flex-col" style={{ backgroundColor: "#F2F1EC" }}>
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
@@ -134,14 +122,14 @@ const EmployerAboutBusiness: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="w-12 h-12 bg-gray-100 rounded-xl shadow-sm"
+              className="w-12 h-12 bg-white rounded-xl shadow-sm"
               onClick={() => navigate("/business-registration")}
             >
               <ArrowLeft className="w-6 h-6 text-gray-700" />
             </Button>
             <div className="flex items-center justify-between mt-6">
               <h1 className="text-2xl font-bold text-gray-900">About Your Business</h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+              <div className="flex items-center justify-center w-12 h-12 bg-white rounded-full">
                 <span className="text-sm font-medium text-gray-600">4/5</span>
               </div>
             </div>
@@ -153,11 +141,11 @@ const EmployerAboutBusiness: React.FC = () => {
               {/* Tagline */}
               <div>
                 <Label>Business Tagline <span className="text-red-500">*</span></Label>
-                <Input placeholder="Quality produce, sustainable farming" {...register("businessTagline")} className="h-14 bg-gray-100 rounded-xl" />
+                <Input placeholder="Quality produce, sustainable farming" {...register("businessTagline")} className="h-14 bg-white rounded-xl" />
                 {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
               </div>
 
-              {/* Years */}
+              {/* Years in Business */}
               <div>
                 <Label>Years in Business <span className="text-red-500">*</span></Label>
                 <Controller
@@ -165,7 +153,7 @@ const EmployerAboutBusiness: React.FC = () => {
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select years" /></SelectTrigger>
+                      <SelectTrigger className="h-14 bg-white rounded-xl"><SelectValue placeholder="Select years" /></SelectTrigger>
                       <SelectContent>
                         {yearsOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                       </SelectContent>
@@ -183,7 +171,7 @@ const EmployerAboutBusiness: React.FC = () => {
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select employees" /></SelectTrigger>
+                      <SelectTrigger className="h-14 bg-white rounded-xl"><SelectValue placeholder="Select employees" /></SelectTrigger>
                       <SelectContent>
                         {employeeOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                       </SelectContent>
@@ -201,7 +189,7 @@ const EmployerAboutBusiness: React.FC = () => {
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                      <SelectTrigger className="h-14 bg-white rounded-xl"><SelectValue placeholder="Select industry" /></SelectTrigger>
                       <SelectContent>
                         {industries.map(ind => <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>)}
                       </SelectContent>
@@ -209,45 +197,6 @@ const EmployerAboutBusiness: React.FC = () => {
                   )}
                 />
                 {errors.industryId && <p className="text-red-500 text-sm">{errors.industryId.message}</p>}
-              </div>
-
-              {/* Job Types */}
-              <div>
-                <Label>Job Type <span className="text-red-500">*</span></Label>
-                {jobTypes.map(j => (
-                  <label key={j.id} className="flex items-center space-x-2 mt-2">
-                    <input
-                      type="checkbox"
-                      value={j.type}
-                      checked={watchedJobTypes.includes(j.type)}
-                      onChange={e => {
-                        const current = watchedJobTypes;
-                        if (e.target.checked) setValue("jobType", [...current, j.type]);
-                        else setValue("jobType", current.filter(a => a !== j.type));
-                      }}
-                    />
-                    <span>{j.type}</span>
-                  </label>
-                ))}
-                {errors.jobType && <p className="text-red-500 text-sm">{errors.jobType.message}</p>}
-              </div>
-
-              {/* Pay Range */}
-              <div>
-                <Label>Pay Range <span className="text-red-500">*</span></Label>
-                <Controller
-                  name="payRange"
-                  control={control}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-14 bg-gray-100 rounded-xl"><SelectValue placeholder="Select pay" /></SelectTrigger>
-                      <SelectContent>
-                        {payRanges.map(range => <SelectItem key={range} value={range}>{range}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.payRange && <p className="text-red-500 text-sm">{errors.payRange.message}</p>}
               </div>
 
               {/* Facilities */}
