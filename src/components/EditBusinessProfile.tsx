@@ -171,22 +171,26 @@ const EditBusinessProfile: React.FC = () => {
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
             <button
+              type="button"
               onClick={() => navigate("/employer/dashboard")}
               className="text-[#1E293B] underline"
-              type="button"
             >
               Cancel
             </button>
             <h1 className="text-lg font-semibold">
               {step === 1 ? "Business Registration" : "About Business"}
             </h1>
-            <button
-              type="submit"
-              form="editForm"
-              className="text-[#1E293B] underline"
-            >
-              Save
-            </button>
+            {step === 2 ? (
+              <button
+                type="submit"
+                form="editForm"
+                className="text-[#1E293B] underline"
+              >
+                Save
+              </button>
+            ) : (
+              <div className="w-10" /> // spacer so layout stays aligned
+            )}
           </div>
 
           {/* Form */}
