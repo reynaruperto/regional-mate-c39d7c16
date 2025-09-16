@@ -114,7 +114,9 @@ const EditBusinessProfile: React.FC = () => {
       // Prefill facilities
       const { data: empFacilities } = await supabase.from("employer_facility").select("facility_id").eq("user_id", user.id);
       if (empFacilities && facData) {
-        const selectedFacilities = facData.filter(f => empFacilities.some((e: any) => e.facility_id === f.facility_id)).map(f => f.name);
+        const selectedFacilities = facData
+          .filter(f => empFacilities.some((e: any) => e.facility_id === f.facility_id))
+          .map(f => f.name);
         setValue("facilitiesAndExtras", selectedFacilities);
       }
     };
@@ -145,9 +147,7 @@ const EditBusinessProfile: React.FC = () => {
 
       // Replace facilities
       await supabase.from("employer_facility").delete().eq("user_id", user.id);
-      const selectedFacilityIds = facilities
-        .filter(f => data.facilitiesAndExtras.includes(f.name))
-        .map(f => f.id);
+      const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
       if (selectedFacilityIds.length > 0) {
         await supabase.from("employer_facility").insert(
           selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id }))
@@ -172,9 +172,10 @@ const EditBusinessProfile: React.FC = () => {
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
             <button onClick={() => navigate("/employer/dashboard")} className="text-[#1E293B] underline">Cancel</button>
             <h1 className="text-lg font-semibold">{step === 1 ? "Business Registration" : "About Business"}</h1>
-            <button type="submit" form="editForm" className="flex items-center text-[#1E293B] underline">
-              Save
-            </button>
+            {/* Save only appears as Finish Setup on step 2 */}
+            {step === 2 && (
+              <button type="submit" form="editForm" className="text-[#1E293B] underline">Save</button>
+            )}
           </div>
 
           {/* Form */}
@@ -338,7 +339,7 @@ const EditBusinessProfile: React.FC = () => {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t bg-white flex items-center justify-between relative">
+          <div className="px-6 py-4 border-t bg-white flex items-center relative">
             {/* Back button */}
             {step > 1 && (
               <Button
@@ -367,7 +368,7 @@ const EditBusinessProfile: React.FC = () => {
               <Button
                 type="button"
                 onClick={() => setStep((step + 1) as 1 | 2)}
-                className="h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
+                className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Next
               </Button>
@@ -375,7 +376,7 @@ const EditBusinessProfile: React.FC = () => {
               <Button
                 type="submit"
                 form="editForm"
-                className="h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
+                className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Finish Setup
               </Button>
