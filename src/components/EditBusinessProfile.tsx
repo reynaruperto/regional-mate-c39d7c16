@@ -189,7 +189,7 @@ const EditBusinessProfile: React.FC = () => {
             )}
           </div>
 
-          {/* Form (fields only) */}
+          {/* Form (fields only, no nav buttons) */}
           <div className="flex-1 px-6 overflow-y-auto pb-20">
             <form id="editForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {step === 1 && (
@@ -354,7 +354,7 @@ const EditBusinessProfile: React.FC = () => {
           <div className="px-6 py-4 border-t bg-white flex items-center relative">
             {step > 1 && (
               <Button
-                type="button" // ✅ not submit
+                type="button" // ✅ only navigation
                 onClick={() => setStep((step - 1) as 1 | 2)}
                 className="h-10 px-5 rounded-lg bg-gray-200 text-gray-700 text-sm"
               >
@@ -373,7 +373,7 @@ const EditBusinessProfile: React.FC = () => {
 
             {step < 2 ? (
               <Button
-                type="button" // ✅ not submit
+                type="button" // ✅ only navigation
                 onClick={() => setStep((step + 1) as 1 | 2)}
                 className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
@@ -381,8 +381,8 @@ const EditBusinessProfile: React.FC = () => {
               </Button>
             ) : (
               <Button
-                type="submit"
-                form="editForm" // ✅ only save here
+                type="submit" // ✅ only this saves
+                form="editForm"
                 className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
               >
                 Finish Setup
