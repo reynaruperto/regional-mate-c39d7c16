@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
@@ -93,6 +93,22 @@ const PostJobs: React.FC = () => {
         prev.map(j => (j.job_id === job.job_id ? { ...j, job_status: newStatus } : j))
       );
       toast({ title: `Job ${newStatus}`, description: `Job has been ${newStatus}` });
+    }
+  };
+
+  const publishDraft = async (job: Job) => {
+    const { error } = await supabase
+      .from('job')
+      .update({ job_status: 'active' })
+      .eq('job_id', job.job_id);
+
+    if (error) {
+      toast({ title: 'Error publishing draft', description: error.message });
+    } else {
+      setJobs(prev =>
+        prev.map(j => (j.job_id === job.job_id ? { ...j, job_status: 'active' } : j))
+      );
+      toast({ title: 'Job Published', description: 'Draft job is now active' });
     }
   };
 
@@ -243,6 +259,17 @@ const PostJobs: React.FC = () => {
                           </div>
 
                           <div className="flex gap-2">
+                            {/* Publish Draft */}
+                            {job.job_status === 'draft' && (
+                              <button
+                                onClick={() => publishDraft(job)}
+                                className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center hover:bg-green-200 transition-colors"
+                                title="Publish Draft"
+                              >
+                                <Upload size={18} className="text-green-600" />
+                              </button>
+                            )}
+
                             {/* Preview */}
                             <button
                               onClick={() => navigate(`/jobs/preview/${job.job_id}`)}
