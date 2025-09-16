@@ -1,51 +1,82 @@
-import React, { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import React, { useState, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+} from '@/components/ui/select';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
-// Options
-const yearsOptions = ["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const;
-const employeeOptions = ["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const;
-
+// Australian States
 const AUSTRALIAN_STATES = [
-  "Australian Capital Territory",
-  "New South Wales",
-  "Northern Territory",
-  "Queensland",
-  "South Australia",
-  "Tasmania",
-  "Victoria",
-  "Western Australia",
+  'Australian Capital Territory',
+  'New South Wales',
+  'Northern Territory',
+  'Queensland',
+  'South Australia',
+  'Tasmania',
+  'Victoria',
+  'Western Australia',
 ] as const;
 
-// Schema
+// Business options
+const YEARS_OPTIONS = ['<1', '1', '2', '3', '4', '5', '6-10', '11-15', '16-20', '20+'] as const;
+const EMPLOYEE_OPTIONS = ['1', '2-5', '6-10', '11-20', '21-50', '51-100', '100+'] as const;
+
+// Interfaces
+interface Industry {
+  industry_id: number;
+  name: string;
+}
+
+interface Facility {
+  facility_id: number;
+  name: string;
+}
+
+interface EmployerData {
+  abn: string;
+  website?: string;
+  mobile_num?: string;
+  address_line1?: string;
+  address_line2?: string;
+  suburb_city?: string;
+  state?: typeof AUSTRALIAN_STATES[number];
+  postcode?: string;
+  tagline?: string;
+  business_tenure?: typeof YEARS_OPTIONS[number];
+  employee_count?: typeof EMPLOYEE_OPTIONS[number];
+  industry_id?: number;
+}
+
+// Zod Schema
 const formSchema = z.object({
-  abn: z.string().length(11, "ABN must be 11 digits").regex(/^\d+$/, "ABN must be numeric"),
-  website: z.string().url().optional().or(z.literal("")),
-  businessPhone: z.string().min(10, "Enter a valid phone number"),
-  addressLine1: z.string().min(2, "Address line 1 required"),
+  // Step 1 fields
+  abn: z.string().length(11, 'ABN must be 11 digits').regex(/^\d+$/, 'ABN must be numeric'),
+  website: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  businessPhone: z.string().min(10, 'Phone number must be at least 10 digits'),
+  addressLine1: z.string().min(1, 'Address Line 1 is required'),
   addressLine2: z.string().optional(),
-  suburbCity: z.string().min(2, "Suburb / City required"),
-  state: z.enum(AUSTRALIAN_STATES),
-  postCode: z.string().length(4, "Postcode must be 4 digits").regex(/^\d+$/, "Must be numeric"),
-  businessTagline: z.string().min(10, "At least 10 characters").max(200),
-  yearsInBusiness: z.enum(yearsOptions),
-  employeeCount: z.enum(employeeOptions),
-  industryId: z.string().min(1, "Select an industry"),
-  facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
+  suburbCity: z.string().min(1, 'Suburb/City is required'),
+  state: z.enum(AUSTRALIAN_STATES).refine(val => val !== undefined, { message: 'State is required' }),
+  postcode: z.string().length(4, 'Postcode must be 4 digits').regex(/^\d+$/, 'Postcode must be numeric'),
+  
+  // Step 2 fields
+  businessTagline: z.string().min(10, 'Tagline must be at least 10 characters').max(200, 'Tagline must be less than 200 characters'),
+  yearsInBusiness: z.enum(YEARS_OPTIONS).refine(val => val !== undefined, { message: 'Years in business is required' }),
+  employeeCount: z.enum(EMPLOYEE_OPTIONS).refine(val => val !== undefined, { message: 'Employee count is required' }),
+  industryId: z.string().min(1, 'Industry is required'),
+  facilitiesAndExtras: z.array(z.number()).min(1, 'Select at least one facility'),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -54,365 +85,600 @@ const EditBusinessProfile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState<1 | 2>(1);
-
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     control,
     reset,
-    setValue,
     watch,
+    setValue,
     formState: { errors },
+    trigger,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: { facilitiesAndExtras: [] },
+    defaultValues: {
+      facilitiesAndExtras: [],
+    },
+    mode: 'onChange',
   });
 
-  const watchedFacilities = watch("facilitiesAndExtras") || [];
+  const watchedFacilities = watch('facilitiesAndExtras') || [];
 
-  // Load options + employer data
+  // Load data from Supabase
   useEffect(() => {
     const loadData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/employer/sign-in");
-        return;
-      }
+      try {
+        // Get authenticated user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          console.error('No user logged in', userError);
+          navigate('/employer/sign-in');
+          return;
+        }
+        setUserId(user.id);
 
-      // Options
-      const { data: indData } = await supabase.from("industry").select("industry_id, name");
-      if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
+        // Load industries
+        const { data: industriesData, error: industriesError } = await supabase
+          .from('industry')
+          .select('industry_id, name')
+          .order('name');
 
-      const { data: facData } = await supabase.from("facility").select("facility_id, name");
-      if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
+        if (industriesError) throw industriesError;
+        setIndustries(industriesData || []);
 
-      // Employer
-      const { data: employer } = await supabase.from("employer").select("*").eq("user_id", user.id).maybeSingle();
-      if (employer) {
-        reset({
-          abn: employer.abn,
-          website: employer.website || "",
-          businessPhone: employer.mobile_num || "",
-          addressLine1: employer.address_line1 || "",
-          addressLine2: employer.address_line2 || "",
-          suburbCity: employer.suburb_city || "",
-          state: employer.state,
-          postCode: employer.postcode || "",
-          businessTagline: employer.tagline || "",
-          yearsInBusiness: employer.business_tenure,
-          employeeCount: employer.employee_count,
-          industryId: employer.industry_id ? String(employer.industry_id) : "",
+        // Load facilities
+        const { data: facilitiesData, error: facilitiesError } = await supabase
+          .from('facility')
+          .select('facility_id, name')
+          .order('name');
+
+        if (facilitiesError) throw facilitiesError;
+        setFacilities(facilitiesData || []);
+
+        // Load employer data
+        const { data: employerData, error: employerError } = await supabase
+          .from('employer')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (employerError) throw employerError;
+
+        // Load employer facilities
+        const { data: employerFacilities, error: facilitiesErr } = await supabase
+          .from('employer_facility')
+          .select('facility_id')
+          .eq('user_id', user.id);
+
+        if (facilitiesErr) throw facilitiesErr;
+
+        // Prefill form with existing data
+        if (employerData) {
+          reset({
+            abn: employerData.abn || '',
+            website: employerData.website || '',
+            businessPhone: employerData.mobile_num || '',
+            addressLine1: employerData.address_line1 || '',
+            addressLine2: employerData.address_line2 || '',
+            suburbCity: employerData.suburb_city || '',
+            state: employerData.state || undefined,
+            postcode: employerData.postcode || '',
+            businessTagline: employerData.tagline || '',
+            yearsInBusiness: employerData.business_tenure || undefined,
+            employeeCount: employerData.employee_count || undefined,
+            industryId: employerData.industry_id ? String(employerData.industry_id) : '',
+            facilitiesAndExtras: employerFacilities?.map(f => f.facility_id) || [],
+          });
+        }
+
+      } catch (error: any) {
+        console.error('Error loading data:', error);
+        toast({
+          title: 'Error loading data',
+          description: error.message,
+          variant: 'destructive',
         });
-      }
-
-      // Prefill facilities
-      const { data: empFacilities } = await supabase.from("employer_facility").select("facility_id").eq("user_id", user.id);
-      if (empFacilities && facData) {
-        const selectedFacilities = facData
-          .filter(f => empFacilities.some((e: any) => e.facility_id === f.facility_id))
-          .map(f => f.name);
-        setValue("facilitiesAndExtras", selectedFacilities);
+      } finally {
+        setLoading(false);
       }
     };
-    loadData();
-  }, [navigate, reset, setValue]);
 
-  // Validate step 1 fields
-  const validateStep1 = () => {
-    const step1Fields = ['abn', 'businessPhone', 'addressLine1', 'suburbCity', 'state', 'postCode'];
-    for (const field of step1Fields) {
-      const value = watch(field as keyof FormData);
-      if (!value || (typeof value === 'string' && value.trim() === '')) {
-        toast({
-          title: "Missing Information",
-          description: "Please fill in all required fields before proceeding to the next step.",
-          variant: "destructive"
-        });
-        return false;
-      }
+    loadData();
+  }, [navigate, reset, toast]);
+
+  // Validate current step before navigation
+  const validateCurrentStep = async () => {
+    if (step === 1) {
+      const step1Fields: (keyof FormData)[] = [
+        'abn', 'businessPhone', 'addressLine1', 'suburbCity', 'state', 'postcode'
+      ];
+      const isValid = await trigger(step1Fields);
+      return isValid;
     }
     return true;
   };
 
-  // Handle next button click
-  const handleNext = () => {
-    if (validateStep1()) {
+  // Handle Next button
+  const handleNext = async () => {
+    const isValid = await validateCurrentStep();
+    if (isValid) {
       setStep(2);
+    } else {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields correctly before proceeding.',
+        variant: 'destructive',
+      });
     }
   };
 
-  // Save all data when "Finish Setup" is clicked
+  // Handle Back button
+  const handleBack = () => {
+    setStep(1);
+  };
+
+  // Handle Cancel button
+  const handleCancel = () => {
+    navigate('/employer/dashboard');
+  };
+
+  // Handle Save button (step 1) and Finish Setup button (step 2)
   const onSubmit = async (data: FormData) => {
+    if (!userId) {
+      toast({
+        title: 'Error',
+        description: 'User not authenticated',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not logged in");
+      // Update employer data
+      const { error: employerError } = await supabase
+        .from('employer')
+        .update({
+          abn: data.abn,
+          website: data.website || null,
+          mobile_num: data.businessPhone,
+          address_line1: data.addressLine1,
+          address_line2: data.addressLine2 || null,
+          suburb_city: data.suburbCity,
+          state: data.state,
+          postcode: data.postcode,
+          tagline: data.businessTagline,
+          business_tenure: data.yearsInBusiness,
+          employee_count: data.employeeCount,
+          industry_id: Number(data.industryId),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
 
-      await supabase.from("employer").update({
-        abn: data.abn,
-        website: data.website || null,
-        mobile_num: data.businessPhone,
-        address_line1: data.addressLine1,
-        address_line2: data.addressLine2 || null,
-        suburb_city: data.suburbCity,
-        state: data.state,
-        postcode: data.postCode,
-        tagline: data.businessTagline,
-        business_tenure: data.yearsInBusiness,
-        employee_count: data.employeeCount,
-        industry_id: Number(data.industryId),
-        updated_at: new Date().toISOString(),
-      }).eq("user_id", user.id);
+      if (employerError) throw employerError;
 
-      // Replace facilities
-      await supabase.from("employer_facility").delete().eq("user_id", user.id);
-      const selectedFacilityIds = facilities.filter(f => data.facilitiesAndExtras.includes(f.name)).map(f => f.id);
-      if (selectedFacilityIds.length > 0) {
-        await supabase.from("employer_facility").insert(
-          selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id }))
-        );
+      // Update employer facilities
+      // First, delete existing facilities
+      const { error: deleteError } = await supabase
+        .from('employer_facility')
+        .delete()
+        .eq('user_id', userId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new facilities
+      if (data.facilitiesAndExtras.length > 0) {
+        const facilityInserts = data.facilitiesAndExtras.map(facilityId => ({
+          user_id: userId,
+          facility_id: facilityId,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('employer_facility')
+          .insert(facilityInserts);
+
+        if (insertError) throw insertError;
       }
 
-      toast({ title: "Profile Updated", description: "Business profile updated successfully" });
-      navigate("/employer/dashboard");
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({
+        title: 'Profile Updated',
+        description: 'Your business profile has been successfully updated.',
+      });
+
+      navigate('/employer/dashboard');
+
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      toast({
+        title: 'Error saving profile',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
+
+  // Handle facility checkbox changes
+  const handleFacilityChange = (facilityId: number, checked: boolean) => {
+    const currentFacilities = watchedFacilities;
+    if (checked) {
+      setValue('facilitiesAndExtras', [...currentFacilities, facilityId]);
+    } else {
+      setValue('facilitiesAndExtras', currentFacilities.filter(id => id !== facilityId));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex items-center justify-center">
+            <div className="text-gray-500">Loading...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          {/* Header */}
-          <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => navigate("/employer/dashboard")}
-              className="text-[#1E293B] underline"
-            >
-              Cancel
-            </button>
-            <h1 className="text-lg font-semibold">
-              {step === 1 ? "Business Registration" : "About Business"}
-            </h1>
-            {step === 2 ? (
-              <button
-                type="submit"
-                form="editForm"
-                className="text-[#1E293B] underline"
-              >
-                Save
-              </button>
-            ) : (
-              <div className="w-10" />
-            )}
-          </div>
-
-          {/* Form - fields only */}
-          <div className="flex-1 px-6 overflow-y-auto pb-20">
-            <form id="editForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              {step === 1 && (
-                <>
-                  <div>
-                    <Label htmlFor="abn">Australian Business Number (ABN)</Label>
-                    <Input id="abn" {...register("abn")} disabled />
-                    {errors.abn && <p className="text-red-500 text-sm">{errors.abn.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Business Website</Label>
-                    <Input id="website" type="url" {...register("website")} />
-                    {errors.website && <p className="text-red-500 text-sm">{errors.website.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Business Phone Number *</Label>
-                    <Input id="businessPhone" type="tel" {...register("businessPhone")} />
-                    {errors.businessPhone && <p className="text-red-500 text-sm">{errors.businessPhone.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Business Address Line 1 *</Label>
-                    <Input id="addressLine1" {...register("addressLine1")} />
-                    {errors.addressLine1 && <p className="text-red-500 text-sm">{errors.addressLine1.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Address Line 2</Label>
-                    <Input id="addressLine2" {...register("addressLine2")} />
-                  </div>
-                  <div>
-                    <Label>Suburb / City *</Label>
-                    <Input id="suburbCity" {...register("suburbCity")} />
-                    {errors.suburbCity && <p className="text-red-500 text-sm">{errors.suburbCity.message}</p>}
-                  </div>
-                  <div>
-                    <Label>State *</Label>
-                    <Controller
-                      name="state"
-                      control={control}
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a state" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AUSTRALIAN_STATES.map((s) => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.state && <p className="text-red-500 text-sm">{errors.state.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Post Code *</Label>
-                    <Input
-                      id="postCode"
-                      maxLength={4}
-                      {...register("postCode")}
-                      onChange={(e) => {
-                        e.target.value = e.target.value.replace(/\D/g, "");
-                        register("postCode").onChange(e);
-                      }}
-                    />
-                    {errors.postCode && <p className="text-red-500 text-sm">{errors.postCode.message}</p>}
-                  </div>
-                </>
-              )}
-
-              {step === 2 && (
-                <>
-                  <div>
-                    <Label>Business Tagline *</Label>
-                    <Input id="businessTagline" {...register("businessTagline")} />
-                    {errors.businessTagline && <p className="text-red-500 text-sm">{errors.businessTagline.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Years in Business *</Label>
-                    <Controller
-                      name="yearsInBusiness"
-                      control={control}
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select years" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {yearsOptions.map((opt) => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.yearsInBusiness && <p className="text-red-500 text-sm">{errors.yearsInBusiness.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Employees *</Label>
-                    <Controller
-                      name="employeeCount"
-                      control={control}
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select employees" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {employeeOptions.map((opt) => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.employeeCount && <p className="text-red-500 text-sm">{errors.employeeCount.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Industry *</Label>
-                    <Controller
-                      name="industryId"
-                      control={control}
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select industry" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {industries.map((ind) => (
-                              <SelectItem key={ind.id} value={String(ind.id)}>{ind.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.industryId && <p className="text-red-500 text-sm">{errors.industryId.message}</p>}
-                  </div>
-                  <div>
-                    <Label>Facilities & Extras *</Label>
-                    {facilities.map((f) => (
-                      <label key={f.id} className="flex items-center space-x-2 mt-2">
-                        <input
-                          type="checkbox"
-                          value={f.name}
-                          checked={watchedFacilities.includes(f.name)}
-                          onChange={(e) => {
-                            const current = watchedFacilities;
-                            if (e.target.checked) setValue("facilitiesAndExtras", [...current, f.name]);
-                            else setValue("facilitiesAndExtras", current.filter(x => x !== f.name));
-                          }}
-                        />
-                        <span>{f.name}</span>
-                      </label>
-                    ))}
-                    {errors.facilitiesAndExtras && <p className="text-red-500 text-sm">{errors.facilitiesAndExtras.message}</p>}
-                  </div>
-                </>
-              )}
-            </form>
-          </div>
-
-          {/* Footer */}
-          <div className="px-6 py-4 border-t bg-white flex items-center relative">
-            {step > 1 && (
-              <Button
-                type="button"
-                onClick={() => setStep((step - 1) as 1 | 2)}
-                className="h-10 px-5 rounded-lg bg-gray-200 text-gray-700 text-sm"
-              >
-                Back
-              </Button>
-            )}
-
-            <div className="absolute left-1/2 transform -translate-x-1/2 flex space-x-2 w-24">
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className={`h-1 flex-1 rounded-full ${step === i ? "bg-[#1E293B]" : "bg-gray-300"}`}
-                />
-              ))}
+          <div className="w-full h-full flex flex-col relative">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="text-[#1E293B] font-medium underline"
+                >
+                  Cancel
+                </button>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {step === 1 ? 'Business Registration' : 'About Business'}
+                </h1>
+                <button
+                  type="submit"
+                  form="businessProfileForm"
+                  className="flex items-center text-[#1E293B] font-medium underline"
+                >
+                  <Check size={16} className="mr-1" />
+                  {step === 1 ? 'Save' : 'Save'}
+                </button>
+              </div>
             </div>
 
-            {step < 2 ? (
-              <Button
-                type="button"
-                onClick={handleNext}
-                className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
-              >
-                Next
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                form="editForm"
-                className="ml-auto h-10 px-5 rounded-lg bg-[#1E293B] text-white text-sm"
-              >
-                Finish Setup
-              </Button>
-            )}
+            {/* Content */}
+            <div className="flex-1 px-6 overflow-y-auto pb-24">
+              <form id="businessProfileForm" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                {step === 1 && (
+                  <>
+                    {/* ABN */}
+                    <div>
+                      <Label htmlFor="abn" className="text-gray-600 mb-2 block">
+                        Australian Business Number (ABN) *
+                      </Label>
+                      <Input
+                        id="abn"
+                        {...register('abn')}
+                        disabled
+                        className="h-12 rounded-xl border-gray-200 bg-gray-100 cursor-not-allowed"
+                      />
+                      {errors.abn && (
+                        <p className="text-red-500 text-sm mt-1">{errors.abn.message}</p>
+                      )}
+                    </div>
+
+                    {/* Website */}
+                    <div>
+                      <Label htmlFor="website" className="text-gray-600 mb-2 block">
+                        Business Website
+                      </Label>
+                      <Input
+                        id="website"
+                        type="url"
+                        placeholder="https://example.com"
+                        {...register('website')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                      />
+                      {errors.website && (
+                        <p className="text-red-500 text-sm mt-1">{errors.website.message}</p>
+                      )}
+                    </div>
+
+                    {/* Business Phone */}
+                    <div>
+                      <Label htmlFor="businessPhone" className="text-gray-600 mb-2 block">
+                        Business Phone Number *
+                      </Label>
+                      <Input
+                        id="businessPhone"
+                        type="tel"
+                        placeholder="0412345678"
+                        {...register('businessPhone')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                      />
+                      {errors.businessPhone && (
+                        <p className="text-red-500 text-sm mt-1">{errors.businessPhone.message}</p>
+                      )}
+                    </div>
+
+                    {/* Address Line 1 */}
+                    <div>
+                      <Label htmlFor="addressLine1" className="text-gray-600 mb-2 block">
+                        Address Line 1 *
+                      </Label>
+                      <Input
+                        id="addressLine1"
+                        placeholder="123 Main Street"
+                        {...register('addressLine1')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                      />
+                      {errors.addressLine1 && (
+                        <p className="text-red-500 text-sm mt-1">{errors.addressLine1.message}</p>
+                      )}
+                    </div>
+
+                    {/* Address Line 2 */}
+                    <div>
+                      <Label htmlFor="addressLine2" className="text-gray-600 mb-2 block">
+                        Address Line 2
+                      </Label>
+                      <Input
+                        id="addressLine2"
+                        placeholder="Unit 4"
+                        {...register('addressLine2')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                      />
+                    </div>
+
+                    {/* Suburb/City */}
+                    <div>
+                      <Label htmlFor="suburbCity" className="text-gray-600 mb-2 block">
+                        Suburb / City *
+                      </Label>
+                      <Input
+                        id="suburbCity"
+                        placeholder="Sydney"
+                        {...register('suburbCity')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                      />
+                      {errors.suburbCity && (
+                        <p className="text-red-500 text-sm mt-1">{errors.suburbCity.message}</p>
+                      )}
+                    </div>
+
+                    {/* State */}
+                    <div>
+                      <Label className="text-gray-600 mb-2 block">State *</Label>
+                      <Controller
+                        name="state"
+                        control={control}
+                        render={({ field }) => (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white">
+                              <SelectValue placeholder="Select a state" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+                              {AUSTRALIAN_STATES.map((state) => (
+                                <SelectItem key={state} value={state} className="hover:bg-gray-100">
+                                  {state}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.state && (
+                        <p className="text-red-500 text-sm mt-1">{errors.state.message}</p>
+                      )}
+                    </div>
+
+                    {/* Postcode */}
+                    <div>
+                      <Label htmlFor="postcode" className="text-gray-600 mb-2 block">
+                        Postcode *
+                      </Label>
+                      <Input
+                        id="postcode"
+                        placeholder="2000"
+                        maxLength={4}
+                        {...register('postcode')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                        onChange={(e) => {
+                          e.target.value = e.target.value.replace(/\D/g, '');
+                          register('postcode').onChange(e);
+                        }}
+                      />
+                      {errors.postcode && (
+                        <p className="text-red-500 text-sm mt-1">{errors.postcode.message}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {step === 2 && (
+                  <>
+                    {/* Business Tagline */}
+                    <div>
+                      <Label htmlFor="businessTagline" className="text-gray-600 mb-2 block">
+                        Business Tagline *
+                      </Label>
+                      <Input
+                        id="businessTagline"
+                        placeholder="Quality produce, sustainable farming"
+                        {...register('businessTagline')}
+                        className="h-12 rounded-xl border-gray-200 bg-white"
+                      />
+                      {errors.businessTagline && (
+                        <p className="text-red-500 text-sm mt-1">{errors.businessTagline.message}</p>
+                      )}
+                    </div>
+
+                    {/* Years in Business */}
+                    <div>
+                      <Label className="text-gray-600 mb-2 block">Years in Business *</Label>
+                      <Controller
+                        name="yearsInBusiness"
+                        control={control}
+                        render={({ field }) => (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white">
+                              <SelectValue placeholder="Select years in business" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+                              {YEARS_OPTIONS.map((option) => (
+                                <SelectItem key={option} value={option} className="hover:bg-gray-100">
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.yearsInBusiness && (
+                        <p className="text-red-500 text-sm mt-1">{errors.yearsInBusiness.message}</p>
+                      )}
+                    </div>
+
+                    {/* Employee Count */}
+                    <div>
+                      <Label className="text-gray-600 mb-2 block">Number of Employees *</Label>
+                      <Controller
+                        name="employeeCount"
+                        control={control}
+                        render={({ field }) => (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white">
+                              <SelectValue placeholder="Select employee count" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+                              {EMPLOYEE_OPTIONS.map((option) => (
+                                <SelectItem key={option} value={option} className="hover:bg-gray-100">
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.employeeCount && (
+                        <p className="text-red-500 text-sm mt-1">{errors.employeeCount.message}</p>
+                      )}
+                    </div>
+
+                    {/* Industry */}
+                    <div>
+                      <Label className="text-gray-600 mb-2 block">Industry *</Label>
+                      <Controller
+                        name="industryId"
+                        control={control}
+                        render={({ field }) => (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white">
+                              <SelectValue placeholder="Select industry" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+                              {industries.map((industry) => (
+                                <SelectItem
+                                  key={industry.industry_id}
+                                  value={String(industry.industry_id)}
+                                  className="hover:bg-gray-100"
+                                >
+                                  {industry.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.industryId && (
+                        <p className="text-red-500 text-sm mt-1">{errors.industryId.message}</p>
+                      )}
+                    </div>
+
+                    {/* Facilities & Extras */}
+                    <div>
+                      <Label className="text-gray-600 mb-2 block">Facilities & Extras *</Label>
+                      <div className="space-y-3">
+                        {facilities.map((facility) => (
+                          <label
+                            key={facility.facility_id}
+                            className="flex items-center space-x-3 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={watchedFacilities.includes(facility.facility_id)}
+                              onChange={(e) =>
+                                handleFacilityChange(facility.facility_id, e.target.checked)
+                              }
+                              className="w-4 h-4 text-[#1E293B] border-gray-300 rounded focus:ring-[#1E293B]"
+                            />
+                            <span className="text-gray-700">{facility.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {errors.facilitiesAndExtras && (
+                        <p className="text-red-500 text-sm mt-1">{errors.facilitiesAndExtras.message}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </form>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t bg-white flex items-center justify-between relative">
+              {/* Back Button */}
+              {step > 1 && (
+                <Button
+                  type="button"
+                  onClick={handleBack}
+                  variant="outline"
+                  className="h-10 px-5 rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Back
+                </Button>
+              )}
+
+              {/* Step Indicators */}
+              <div className="absolute left-1/2 transform -translate-x-1/2 flex space-x-2">
+                {[1, 2].map((stepNumber) => (
+                  <div
+                    key={stepNumber}
+                    className={`w-2 h-2 rounded-full ${
+                      step === stepNumber ? 'bg-[#1E293B]' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Next / Finish Setup Button */}
+              {step < 2 ? (
+                <Button
+                  type="button"
+                  onClick={handleNext}
+                  className="h-10 px-5 rounded-lg bg-[#1E293B] text-white hover:bg-[#1E293B]/90 ml-auto"
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  form="businessProfileForm"
+                  className="h-10 px-5 rounded-lg bg-[#1E293B] text-white hover:bg-[#1E293B]/90 ml-auto"
+                >
+                  Finish Setup
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
