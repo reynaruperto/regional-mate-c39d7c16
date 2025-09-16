@@ -11,7 +11,7 @@ import BottomNavigation from '@/components/BottomNavigation';
 interface Job {
   job_id: number;
   role: string;
-  job_status: 'draft' | 'active' | 'inactive' | 'closed';
+  job_status: 'draft' | 'active' | 'inactive';
   employer: {
     company_name: string;
     industry: {
@@ -25,7 +25,7 @@ const PostJobs: React.FC = () => {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'closed'>('all');
+  const [filter, setFilter] = useState<'all' | 'draft' | 'active' | 'inactive'>('all');
   const [jobs, setJobs] = useState<Job[]>([]);
 
   // ✅ Fetch current user's jobs
@@ -99,7 +99,7 @@ const PostJobs: React.FC = () => {
   const filteredJobs = jobs.filter(job => {
     if (filter === 'active') return job.job_status === 'active';
     if (filter === 'inactive') return job.job_status === 'inactive';
-    if (filter === 'closed') return job.job_status === 'closed';
+    if (filter === 'draft') return job.job_status === 'draft';
     return true;
   });
 
@@ -153,36 +153,25 @@ const PostJobs: React.FC = () => {
               {/* Filter Toggle */}
               <div className="mb-4">
                 <div className="flex bg-white rounded-xl p-1 shadow-sm">
-                  <button
-                    onClick={() => setFilter('all')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      filter === 'all' 
-                        ? 'bg-[#1E293B] text-white' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    All Jobs
-                  </button>
-                  <button
-                    onClick={() => setFilter('active')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      filter === 'active' 
-                        ? 'bg-[#1E293B] text-white' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Active
-                  </button>
-                  <button
-                    onClick={() => setFilter('inactive')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      filter === 'inactive' 
-                        ? 'bg-[#1E293B] text-white' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Closed
-                  </button>
+                  {['all', 'draft', 'active', 'inactive'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setFilter(tab as any)}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                        filter === tab
+                          ? 'bg-[#1E293B] text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {tab === 'all'
+                        ? 'All Jobs'
+                        : tab === 'draft'
+                        ? 'Drafts'
+                        : tab === 'inactive'
+                        ? 'Closed'
+                        : 'Active'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -192,16 +181,22 @@ const PostJobs: React.FC = () => {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
                       {filter === 'all'
                         ? 'No Jobs Posted Yet'
-                        : filter === 'active'
-                        ? 'No Active Jobs'
+                        : filter === 'draft'
+                        ? 'No Drafts'
                         : filter === 'inactive'
-                        ? 'No Inactive Jobs'
-                        : 'No Closed Jobs'}
+                        ? 'No Closed Jobs'
+                        : 'No Active Jobs'}
                     </h3>
                     <p className="text-gray-600 mb-4">
                       {filter === 'all'
                         ? 'Create your first job posting to start finding the right candidates.'
-                        : `You don't have any ${filter === 'active' ? 'active' : filter === 'inactive' ? 'inactive' : 'closed'} jobs at the moment.`}
+                        : `You don't have any ${
+                            filter === 'inactive'
+                              ? 'closed'
+                              : filter === 'draft'
+                              ? 'draft'
+                              : 'active'
+                          } jobs at the moment.`}
                     </p>
                     {filter === 'all' && (
                       <Button
@@ -229,22 +224,22 @@ const PostJobs: React.FC = () => {
                         {/* Status + Actions */}
                         <div className="flex flex-col items-end gap-3">
                           <div className="flex items-center gap-2">
-                            <span
-                              className={`text-sm font-medium ${
-                                job.job_status === 'active'
-                                  ? 'text-green-600'
-                                  : job.job_status === 'closed'
-                                  ? 'text-red-600'
-                                  : 'text-gray-500'
-                              }`}
-                            >
-                              {job.job_status.charAt(0).toUpperCase() + job.job_status.slice(1)}
+                            <span className={`text-sm font-medium ${
+                              job.job_status === 'active'
+                                ? 'text-green-600'
+                                : job.job_status === 'draft'
+                                ? 'text-orange-500'
+                                : 'text-gray-500'
+                            }`}>
+                              {job.job_status}
                             </span>
-                            <Switch
-                              checked={job.job_status === 'active'}
-                              onCheckedChange={() => toggleJobStatus(job)}
-                              className="data-[state=checked]:bg-green-500"
-                            />
+                            {job.job_status !== 'draft' && (
+                              <Switch
+                                checked={job.job_status === 'active'}
+                                onCheckedChange={() => toggleJobStatus(job)}
+                                className="data-[state=checked]:bg-green-500"
+                              />
+                            )}
                           </div>
 
                           <div className="flex gap-2">
