@@ -14,39 +14,25 @@ import { Switch } from "@/components/ui/switch";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { getEmployerProfile } from "@/utils/employerProfile";
 
 interface PostJobFormProps {
   onBack: () => void;
   editingJob?: {
     job_id: number;
     role: string;
-    job_status: "active" | "inactive" | "draft";
+    job_status: "active" | "inactive" | "draft" | "closed";
   } | null;
 }
 
-const FUTURE_STATES = [
-  "NSW",
-  "VIC",
-  "WA",
-  "SA",
-  "TAS",
-  "ACT",
-  "NT",
-];
-
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
-  const employerProfile = getEmployerProfile();
-  const employerIndustryId = employerProfile?.industry;
+  const [employerIndustryId, setEmployerIndustryId] = useState<number | null>(null);
 
-  const [roles, setRoles] = useState<{ industry_role_id: number; role: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; role: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<{ type_id: number; type: string }[]>([]);
   const [payRanges, setPayRanges] = useState<string[]>([]);
   const [experienceRanges, setExperienceRanges] = useState<string[]>([]);
-  const [areas, setAreas] = useState<string[]>([]);
-  const [showFuturePopup, setShowFuturePopup] = useState(false);
-  const [selectedFutureState, setSelectedFutureState] = useState<string>("");
+  const [areas, setAreas] = useState<{ suburb_city: string; postcode: string }[]>([]);
 
   const [formData, setFormData] = useState({
     jobRole: editingJob?.role || "",
@@ -56,44 +42,72 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     experienceRange: "",
     state: "",
     area: "",
+    postcode: "",
     status: editingJob?.job_status || "draft",
   });
 
-  // Fetch dropdown options from Supabase
+  const [showFutureModal, setShowFutureModal] = useState(false);
+
+  // 🔹 Fetch employer industry_id
   useEffect(() => {
-    const fetchDropdowns = async () => {
-      try {
-        if (employerIndustryId) {
-          const { data: rolesData } = await supabase
-            .from("industry_role")
-            .select("industry_role_id, role")
-            .eq("industry_id", parseInt(employerIndustryId));
-          if (rolesData) setRoles(rolesData);
-        }
+    const fetchEmployerIndustry = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-        const { data: jobTypeData } = await supabase.from("job_type").select("type_id, type");
-        if (jobTypeData) setJobTypes(jobTypeData);
+      const { data: employer } = await supabase
+        .from("employer")
+        .select("industry_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-        // Enums (or from DB if you want later)
-        setPayRanges(["$25-30", "$30-35", "$35-40", "$40-45", "$45-50", "$50+"]);
-        setExperienceRanges(["0-1 years", "1-3 years", "3-5 years", "5+ years"]);
-      } catch (err) {
-        console.error("Error loading dropdowns:", err);
+      if (employer?.industry_id) {
+        setEmployerIndustryId(employer.industry_id);
       }
     };
+
+    fetchEmployerIndustry();
+  }, []);
+
+  // 🔹 Fetch job roles + job types
+  useEffect(() => {
+    const fetchDropdowns = async () => {
+      if (employerIndustryId) {
+        const { data: rolesData } = await supabase
+          .from("mvw_emp_location_roles")
+          .select("industry_role_id, industry_role")
+          .eq("industry_id", employerIndustryId);
+
+        if (rolesData) {
+          const uniqueRoles = Array.from(
+            new Map(rolesData.map((r) => [r.industry_role_id, r.industry_role])).entries()
+          ).map(([id, role]) => ({ id: id as number, role }));
+          setRoles(uniqueRoles);
+        }
+      }
+
+      const { data: jobTypeData } = await supabase.from("job_type").select("type_id, type");
+      if (jobTypeData) setJobTypes(jobTypeData);
+
+      setPayRanges(["$25-30", "$30-35", "$35-40", "$40-45", "$45-50", "$50+"]);
+      setExperienceRanges(["0-1 years", "1-3 years", "3-5 years", "5+ years"]);
+    };
+
     fetchDropdowns();
   }, [employerIndustryId]);
 
-  // Fetch areas only for QLD
+  // 🔹 Fetch suburbs/postcodes if state = Queensland
   useEffect(() => {
     const fetchAreas = async () => {
-      if (formData.state !== "QLD") return;
+      if (formData.state !== "Queensland") return;
       const { data } = await supabase
-        .from("region_rules")
-        .select("area")
+        .from("mvw_emp_location_roles")
+        .select("suburb_city, postcode")
         .eq("state", "Queensland");
+
       if (data) {
-        const uniqueAreas = [...new Set(data.map((d) => d.area))];
+        const uniqueAreas = Array.from(
+          new Map(data.map((d) => [d.suburb_city, d.postcode])).entries()
+        ).map(([suburb_city, postcode]) => ({ suburb_city, postcode }));
         setAreas(uniqueAreas);
       }
     };
@@ -104,6 +118,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // 🔹 Save to DB
   const handleSaveAndPost = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -114,13 +129,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     const jobPayload = {
       role: formData.jobRole,
       description: formData.jobDescription,
-      job_type: formData.jobType as any,
-      min_rate: formData.payRange as any,
-      max_rate: formData.payRange as any,
-      pay_type: "hourly" as any,
-      req_experience: formData.experienceRange as any,
-      job_status: editingJob ? formData.status : "draft", // ✅ default draft for new
+      type_id: jobTypes.find((jt) => jt.type === formData.jobType)?.type_id || null,
+      salary_range: formData.payRange,
+      req_experience: formData.experienceRange,
+      job_status: formData.status,
       user_id: user.id,
+      state_suburb_id: formData.area || null,
+      postcode: formData.postcode || null,
     };
 
     let error;
@@ -139,10 +154,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       toast({ title: "Error", description: error.message });
     } else {
       toast({
-        title: editingJob ? "Job Updated" : "Job Drafted",
+        title: editingJob ? "Job Updated" : "Job Posted",
         description: editingJob
           ? "Job has been successfully updated"
-          : "Job has been saved as draft",
+          : "Job has been successfully posted",
       });
       onBack();
     }
@@ -184,7 +199,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((r) => (
-                      <SelectItem key={r.industry_role_id} value={r.role}>
+                      <SelectItem key={r.id} value={r.role}>
                         {r.role}
                       </SelectItem>
                     ))}
@@ -243,7 +258,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 </Select>
               </div>
 
-              {/* Experience Range */}
+              {/* Experience */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Experience Required</h2>
                 <Select
@@ -269,10 +284,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <Select
                   value={formData.state}
                   onValueChange={(value) => {
-                    if (value !== "QLD") {
-                      setSelectedFutureState(value);
-                      setShowFuturePopup(true);
-                      return;
+                    if (value !== "Queensland") {
+                      setShowFutureModal(true);
                     }
                     handleInputChange("state", value);
                   }}
@@ -281,8 +294,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="QLD">Queensland</SelectItem>
-                    {FUTURE_STATES.map((s) => (
+                    {["Queensland", "New South Wales", "Victoria", "South Australia", "Western Australia", "Tasmania", "Northern Territory", "Australian Capital Territory"].map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
                       </SelectItem>
@@ -290,18 +302,22 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   </SelectContent>
                 </Select>
 
-                {formData.state === "QLD" && (
+                {formData.state === "Queensland" && (
                   <Select
                     value={formData.area}
-                    onValueChange={(value) => handleInputChange("area", value)}
+                    onValueChange={(value) => {
+                      const selected = areas.find((a) => a.suburb_city === value);
+                      handleInputChange("area", value);
+                      handleInputChange("postcode", selected?.postcode || "");
+                    }}
                   >
                     <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9 mt-2">
                       <SelectValue placeholder="Select area" />
                     </SelectTrigger>
                     <SelectContent>
                       {areas.map((a) => (
-                        <SelectItem key={a} value={a}>
-                          {a}
+                        <SelectItem key={a.suburb_city} value={a.suburb_city}>
+                          {a.suburb_city} ({a.postcode})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -330,39 +346,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   onClick={handleSaveAndPost}
                   className="w-full bg-[#1E293B] hover:bg-[#1E293B]/90 text-white rounded-xl h-12 text-base font-medium"
                 >
-                  {editingJob ? "Update Job" : "Save Draft"}
+                  {editingJob ? "Update Job" : "Post Job"}
                 </Button>
               </div>
             </div>
-
-            {/* Future popup */}
-            {showFuturePopup && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50">
-                <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-xl">
-                  {/* Orange Icon */}
-                  <div className="flex justify-center mb-6">
-                    <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Zap className="w-8 h-8 text-orange-500" fill="currentColor" />
-                    </div>
-                  </div>
-
-                  {/* Message */}
-                  <div className="text-center mb-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                      These functions are for future phases
-                    </h2>
-                    <p className="text-gray-600">We'll be back</p>
-                  </div>
-
-                  <Button
-                    onClick={() => setShowFuturePopup(false)}
-                    className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg font-medium"
-                  >
-                    Back
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* Bottom Navigation */}
             <div className="absolute bottom-0 left-0 right-0 bg-white">
@@ -371,6 +358,29 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           </div>
         </div>
       </div>
+
+      {/* 🔹 Future Modal with Blur */}
+      {showFutureModal && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm z-50">
+          <div className="bg-white rounded-2xl p-6 w-80 text-center shadow-xl">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                <Zap className="w-8 h-8 text-orange-500" />
+              </div>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              This feature is coming soon
+            </h2>
+            <p className="text-gray-600 mb-6">Only Queensland is available for now.</p>
+            <Button
+              onClick={() => setShowFutureModal(false)}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg"
+            >
+              Got It
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
