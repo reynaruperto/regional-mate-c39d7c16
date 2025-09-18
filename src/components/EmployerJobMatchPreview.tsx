@@ -11,6 +11,7 @@ import {
   Hash,
   Phone,
   Mail,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -35,7 +36,7 @@ interface EmployerDetails {
   tagline: string;
   profile_photo: string | null;
   abn: string;
-  website?: string;
+  website: string;
   mobile_num?: string;
   email?: string;
 }
@@ -46,6 +47,7 @@ const EmployerJobMatchPreview: React.FC = () => {
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
   const [facilities, setFacilities] = useState<string[]>([]);
+  const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ const EmployerJobMatchPreview: React.FC = () => {
         if (!jobId) return;
 
         // 1️⃣ Get job info
-        const { data: job, error: jobError } = await supabase
+        const { data: job } = await supabase
           .from("job")
           .select(
             `
@@ -75,7 +77,7 @@ const EmployerJobMatchPreview: React.FC = () => {
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
-        if (jobError || !job) return;
+        if (!job) return;
 
         setJobDetails({
           job_id: job.job_id,
@@ -94,7 +96,9 @@ const EmployerJobMatchPreview: React.FC = () => {
         // 2️⃣ Employer details
         const { data: emp } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .select(
+            "company_name, tagline, profile_photo, abn, website, mobile_num, user_id"
+          )
           .eq("user_id", job.user_id)
           .maybeSingle();
 
@@ -122,7 +126,7 @@ const EmployerJobMatchPreview: React.FC = () => {
           tagline: emp?.tagline || "",
           profile_photo: signedPhoto,
           abn: emp?.abn || "N/A",
-          website: emp?.website || "",
+          website: emp?.website || "Not applicable",
           mobile_num: emp?.mobile_num || "",
           email: profile?.email || "",
         });
@@ -135,6 +139,16 @@ const EmployerJobMatchPreview: React.FC = () => {
 
         setFacilities(
           facs?.map((f: any) => f.facility?.name).filter(Boolean) || []
+        );
+
+        // 5️⃣ Licenses
+        const { data: licenseRows } = await supabase
+          .from("job_license")
+          .select("license(name)")
+          .eq("job_id", job.job_id);
+
+        setLicenses(
+          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || []
         );
       } catch (err) {
         console.error("Error fetching job preview:", err);
@@ -224,12 +238,10 @@ const EmployerJobMatchPreview: React.FC = () => {
                       {employer.email}
                     </p>
                   )}
-                  {employer.website && (
-                    <p className="text-sm text-gray-700 flex items-center mt-1">
-                      <Globe size={14} className="mr-1 text-[#1E293B]" />{" "}
-                      {employer.website}
-                    </p>
-                  )}
+                  <p className="text-sm text-gray-700 flex items-center mt-1">
+                    <Globe size={14} className="mr-1 text-[#1E293B]" />{" "}
+                    {employer.website}
+                  </p>
                 </div>
 
                 {/* Job Info */}
@@ -257,7 +269,7 @@ const EmployerJobMatchPreview: React.FC = () => {
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-600">Experience:</span>
+                      <span className="text-gray-600">Experience Required:</span>
                       <p className="font-medium text-gray-900">
                         {jobDetails.req_experience} years
                       </p>
@@ -279,9 +291,7 @@ const EmployerJobMatchPreview: React.FC = () => {
 
                 {/* Location */}
                 <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Location
-                  </h3>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">Location</h3>
                   <p className="text-gray-900 font-medium">
                     {jobDetails.suburb_city}, {jobDetails.state}{" "}
                     {jobDetails.postcode}
@@ -306,6 +316,29 @@ const EmployerJobMatchPreview: React.FC = () => {
                     ) : (
                       <p className="text-sm text-gray-500">
                         No facilities listed
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* License Required */}
+                <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">
+                    License Required
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {licenses.length > 0 ? (
+                      licenses.map((l, i) => (
+                        <span
+                          key={i}
+                          className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                        >
+                          {l}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        No licenses required
                       </p>
                     )}
                   </div>
