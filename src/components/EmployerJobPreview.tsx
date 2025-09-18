@@ -2,11 +2,13 @@
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  Briefcase,
   MapPin,
   Calendar,
   Clock,
   DollarSign,
   User,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -44,7 +46,7 @@ const EmployerJobPreview: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1️⃣ Fetch job + employer
+        // 1️⃣ Job + Employer
         const { data, error } = await supabase
           .from("job")
           .select(
@@ -86,7 +88,7 @@ const EmployerJobPreview: React.FC = () => {
         const employer = data.profile?.employer?.[0] || null;
         const employerUserId = data.profile?.user_id;
 
-        // 2️⃣ Fetch facilities separately
+        // 2️⃣ Facilities separately
         let facilities: string[] = [];
         if (employerUserId) {
           const { data: facilityRows } = await supabase
@@ -99,7 +101,7 @@ const EmployerJobPreview: React.FC = () => {
             [];
         }
 
-        // 3️⃣ Handle company photo (signed URL if needed)
+        // 3️⃣ Company photo (signed URL)
         let signedPhoto: string | null = null;
         if (employer?.profile_photo) {
           const photoValue = employer.profile_photo;
@@ -141,7 +143,7 @@ const EmployerJobPreview: React.FC = () => {
     fetchJobDetails();
   }, [jobId, toast]);
 
-  // 🔄 Auto-refresh signed URL every 55 minutes
+  // 🔄 Auto-refresh signed URL
   useEffect(() => {
     if (!photoPath) return;
     const interval = setInterval(async () => {
@@ -191,6 +193,7 @@ const EmployerJobPreview: React.FC = () => {
       {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
@@ -220,8 +223,8 @@ const EmployerJobPreview: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-                      <User size={32} />
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 text-lg font-bold">
+                      {jobDetails.company_name.charAt(0).toUpperCase()}
                     </div>
                   )}
                 </div>
@@ -252,54 +255,23 @@ const EmployerJobPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Short Info Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <Clock className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">
-                      Type
-                    </span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">
-                    {jobDetails.employment_type}
-                  </p>
+              {/* Job Details */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center">
+                  <Clock className="w-4 h-4 text-[#1E293B] mr-2" />
+                  <span>{jobDetails.employment_type}</span>
                 </div>
-
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <DollarSign className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">
-                      Salary
-                    </span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">
-                    {jobDetails.salary_range}
-                  </p>
+                <div className="flex items-center">
+                  <DollarSign className="w-4 h-4 text-[#1E293B] mr-2" />
+                  <span>{jobDetails.salary_range}</span>
                 </div>
-
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <User className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">
-                      Experience
-                    </span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">
-                    {jobDetails.req_experience} years
-                  </p>
+                <div className="flex items-center">
+                  <User className="w-4 h-4 text-[#1E293B] mr-2" />
+                  <span>{jobDetails.req_experience} years</span>
                 </div>
-
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <Calendar className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">
-                      Start Date
-                    </span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">
-                    {formatDate(jobDetails.start_date)}
-                  </p>
+                <div className="flex items-center">
+                  <Calendar className="w-4 h-4 text-[#1E293B] mr-2" />
+                  <span>{formatDate(jobDetails.start_date)}</span>
                 </div>
               </div>
 
@@ -336,24 +308,10 @@ const EmployerJobPreview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-xl py-3"
-                  onClick={() => navigate("/post-jobs")}
-                >
-                  Back to Jobs
-                </Button>
-                <Button
-                  className="flex-1 bg-[#1E293B] text-white rounded-xl py-3"
-                  onClick={() =>
-                    navigate(`/employer/job-match-preview/${jobDetails.job_id}`)
-                  }
-                >
-                  View Match Preview
-                </Button>
-              </div>
+              {/* Heart to Match */}
+              <Button className="w-full bg-gradient-to-r from-[#1E293B] to-slate-700 hover:from-[#0f172a] hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
+                <Heart size={18} className="fill-white" /> Heart to Match
+              </Button>
             </div>
           </div>
         </div>
