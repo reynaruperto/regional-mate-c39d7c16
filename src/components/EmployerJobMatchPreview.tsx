@@ -1,332 +1,444 @@
-import React, { useEffect, useState } from "react";
-import { ArrowLeft, MapPin, Calendar, Clock, DollarSign, User, Star, Heart } from "lucide-react";
+// src/pages/employer/EmployerJobMatchPreview.tsx
+import React, { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  MapPin,
+  Award,
+  User,
+  FileText,
+  Phone,
+  Mail,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
-interface JobDetails {
-  job_id: number;
-  role: string;
-  description: string;
-  employment_type: string;
-  salary_range: string;
-  req_experience: string;
-  state: string;
-  suburb_city: string;
-  postcode: string;
-  start_date: string;
-  job_status: string;
-  company_name: string;
+interface CandidateProfile {
+  name: string;
   tagline: string;
+  profilePhoto: string | null;
+  currentLocation: string;
+  nationality: string;
+  visaType: string;
+  visaExpiry: string;
+  phone?: string;
+  email?: string;
 }
 
-interface MockCandidate {
-  id: string;
+interface WorkExperience {
+  position: string;
+  company: string;
+  industry: string;
+  location: string;
+  start_date: string;
+  end_date: string | null;
+  description?: string;
+}
+
+interface Preference {
+  industry: string;
+  role: string;
+  state: string;
+  area: string;
+}
+
+interface Reference {
   name: string;
-  age: number;
-  nationality: string;
-  profileImage: string;
-  experience: string;
-  skills: string[];
-  rating: number;
-  distance: string;
+  business_name: string;
+  email: string;
+  mobile_num?: string;
+  role?: string;
 }
 
 const EmployerJobMatchPreview: React.FC = () => {
   const navigate = useNavigate();
-  const { jobId } = useParams();
-  const { toast } = useToast();
-  const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
+  const { jobId } = useParams(); // can be used to filter candidate matches later
+  const [profileData, setProfileData] = useState<CandidateProfile | null>(null);
+  const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
+  const [licenses, setLicenses] = useState<string[]>([]);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const [references, setReferences] = useState<Reference[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0);
-
-  // Mock candidates data
-  const mockCandidates: MockCandidate[] = [
-    {
-      id: "1",
-      name: "Emma Thompson",
-      age: 24,
-      nationality: "British",
-      profileImage: "/lovable-uploads/8ff82176-d379-4d34-b436-f2c63b90c153.png",
-      experience: "2+ years",
-      skills: ["Mining Operations", "Safety Protocols", "Heavy Machinery"],
-      rating: 4.8,
-      distance: "15km away"
-    },
-    {
-      id: "2", 
-      name: "Marcus Chen",
-      age: 26,
-      nationality: "Canadian",
-      profileImage: "/lovable-uploads/5672fb16-6ddf-42ed-bddd-ea2395f6b999.png",
-      experience: "3+ years",
-      skills: ["Coal Processing", "Equipment Maintenance", "Quality Control"],
-      rating: 4.9,
-      distance: "8km away"
-    },
-    {
-      id: "3",
-      name: "Sofia Rodriguez",
-      age: 25,
-      nationality: "Spanish",
-      profileImage: "/lovable-uploads/616bea44-f5b8-46dc-8948-70e269f076a0.png", 
-      experience: "1+ years",
-      skills: ["Site Management", "Team Leadership", "Documentation"],
-      rating: 4.7,
-      distance: "22km away"
-    }
-  ];
 
   useEffect(() => {
-    const fetchJobDetails = async () => {
-      if (!jobId) return;
-
+    const fetchCandidate = async () => {
       try {
-        const { data, error } = await supabase
-          .from("job")
-          .select(`
-            job_id,
-            description,
-            employment_type,
-            salary_range,
-            req_experience,
-            state,
-            suburb_city,
-            postcode,
-            start_date,
-            job_status,
-            industry_role (
-              role
-            )
-          `)
-          .eq("job_id", parseInt(jobId))
-          .single();
-
-        if (error) {
-          toast({ title: "Error loading job", description: error.message });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate("/employer/dashboard");
           return;
         }
 
-        if (data) {
-          const jobData = data as any;
-          setJobDetails({
-            job_id: jobData.job_id,
-            description: jobData.description || "No description available", 
-            employment_type: jobData.employment_type || "Full-time",
-            salary_range: jobData.salary_range || "$25-30",
-            req_experience: jobData.req_experience || "1-2",
-            state: jobData.state || "Queensland",
-            suburb_city: jobData.suburb_city || "Brisbane",
-            postcode: jobData.postcode || "4000",
-            start_date: jobData.start_date || new Date().toISOString().split('T')[0],
-            job_status: jobData.job_status || "active",
-            role: jobData.industry_role?.role || "Unknown Role",
-            company_name: "Your Company",
-            tagline: "Leading employer in the industry"
-          });
+        // 1. WHV maker
+        const { data: whvMaker } = await supabase
+          .from("whv_maker")
+          .select(
+            "given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num"
+          )
+          .eq("user_id", user.id) // ⚠️ replace with candidate_id in real match context
+          .maybeSingle();
+
+        // 2. Profile email
+        const { data: profile } = await supabase
+          .from("profile")
+          .select("email")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        // 3. Visa
+        const { data: visa } = await supabase
+          .from("maker_visa")
+          .select(
+            `
+            expiry_date,
+            visa_stage:stage_id (
+              sub_class,
+              label
+            )
+          `
+          )
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        // 4. Preferences
+        const { data: preferencesData } = await supabase
+          .from("maker_preference")
+          .select(
+            `
+            industry_role(role, industry(name)),
+            region_rules(state, area)
+          `
+          )
+          .eq("user_id", user.id);
+
+        const formattedPreferences: Preference[] = (preferencesData || []).map(
+          (pref: any) => ({
+            industry: pref.industry_role?.industry?.name || "",
+            role: pref.industry_role?.role || "",
+            state: pref.region_rules?.state || "",
+            area: pref.region_rules?.area || "",
+          })
+        );
+        setPreferences(formattedPreferences);
+
+        // 5. Work experience
+        const { data: experiences } = await supabase
+          .from("maker_work_experience")
+          .select(
+            "position, company, industry(name), location, start_date, end_date, job_description"
+          )
+          .eq("user_id", user.id)
+          .order("start_date", { ascending: false });
+
+        const formattedExperiences: WorkExperience[] = (experiences || []).map(
+          (exp: any) => ({
+            position: exp.position,
+            company: exp.company,
+            industry: exp.industry?.name || "Not specified",
+            location: exp.location || "Not specified",
+            start_date: exp.start_date,
+            end_date: exp.end_date,
+            description: exp.job_description || "",
+          })
+        );
+        setWorkExperiences(formattedExperiences);
+
+        // 6. Licenses
+        const { data: licenseRows } = await supabase
+          .from("maker_license")
+          .select("license(name)")
+          .eq("user_id", user.id);
+
+        const formattedLicenses: string[] = (licenseRows || []).map(
+          (l: any) => l.license?.name || "Unknown License"
+        );
+        setLicenses(formattedLicenses);
+
+        // 7. References
+        const { data: referenceRows } = await supabase
+          .from("maker_reference")
+          .select("name, business_name, email, mobile_num, role")
+          .eq("user_id", user.id);
+        setReferences(referenceRows || []);
+
+        // 8. Profile photo
+        let signedPhoto: string | null = null;
+        if (whvMaker?.profile_photo) {
+          let photoPath = whvMaker.profile_photo;
+          if (photoPath.includes("/profile_photo/")) {
+            photoPath = photoPath.split("/profile_photo/")[1];
+          }
+          const { data } = await supabase.storage
+            .from("profile_photo")
+            .createSignedUrl(photoPath, 3600);
+          signedPhoto = data?.signedUrl ?? null;
         }
+
+        setProfileData({
+          name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name]
+            .filter(Boolean)
+            .join(" "),
+          tagline:
+            whvMaker?.tagline || "Working Holiday Maker seeking opportunities",
+          profilePhoto: signedPhoto,
+          currentLocation: whvMaker
+            ? `${whvMaker.suburb}, ${whvMaker.state}`
+            : "Not specified",
+          nationality: whvMaker?.nationality || "Not specified",
+          visaType: visa?.visa_stage
+            ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})`
+            : "Not specified",
+          visaExpiry: visa?.expiry_date || "Not specified",
+          phone: whvMaker?.mobile_num || "",
+          email: profile?.email || "",
+        });
+
+        setLoading(false);
       } catch (error) {
-        console.error("Error fetching job:", error);
-      } finally {
+        console.error("Error fetching candidate profile:", error);
         setLoading(false);
       }
     };
 
-    fetchJobDetails();
-  }, [jobId, toast]);
-
-  const handleLike = () => {
-    toast({ 
-      title: "Candidate Liked!", 
-      description: `You liked ${mockCandidates[currentCandidateIndex].name}` 
-    });
-    nextCandidate();
-  };
-
-  const handlePass = () => {
-    toast({ 
-      title: "Candidate Passed", 
-      description: `You passed on ${mockCandidates[currentCandidateIndex].name}` 
-    });
-    nextCandidate();
-  };
-
-  const nextCandidate = () => {
-    if (currentCandidateIndex < mockCandidates.length - 1) {
-      setCurrentCandidateIndex(currentCandidateIndex + 1);
-    } else {
-      setCurrentCandidateIndex(0);
-    }
-  };
+    fetchCandidate();
+  }, [navigate]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading match preview...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  if (!jobDetails) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <p className="text-gray-600">Job not found</p>
-                <Button onClick={() => navigate("/post-jobs")} className="mt-4">
-                  Back to Jobs
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Group preferences
+  const groupedWorkPrefs = preferences.reduce((acc: any, pref) => {
+    if (!pref.industry || !pref.role) return acc;
+    if (!acc[pref.industry]) acc[pref.industry] = new Set();
+    acc[pref.industry].add(pref.role);
+    return acc;
+  }, {});
 
-  const currentCandidate = mockCandidates[currentCandidateIndex];
+  const groupedLocationPrefs = preferences.reduce((acc: any, pref) => {
+    if (!pref.state || !pref.area) return acc;
+    if (!acc[pref.state]) acc[pref.state] = new Set();
+    acc[pref.state].add(pref.area);
+    return acc;
+  }, {});
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone frame */}
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          <div className="w-full h-full flex flex-col relative bg-gradient-to-br from-orange-50 to-pink-50">
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4 flex items-center justify-between">
+            <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-12 h-12 bg-white rounded-xl shadow-sm"
+                className="w-10 h-10"
                 onClick={() => navigate("/post-jobs")}
               >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
+                <ArrowLeft className="w-5 h-5 text-gray-700" />
               </Button>
-              <div className="text-center">
-                <h1 className="text-lg font-semibold text-gray-900">Match Preview</h1>
-                <p className="text-sm text-gray-600">{jobDetails.role}</p>
-              </div>
-              <div className="w-12 h-12"></div>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Matched Candidate
+              </h1>
+              <div className="w-10"></div>
             </div>
 
-            {/* Match Card */}
-            <div className="flex-1 px-6 overflow-y-auto">
-              <div className="bg-white rounded-3xl p-6 shadow-lg mb-6 relative overflow-hidden">
-                {/* Candidate Photo */}
-                <div className="text-center mb-6">
-                  <div className="relative">
-                    <img 
-                      src={currentCandidate.profileImage} 
-                      alt={currentCandidate.name}
-                      className="w-32 h-32 rounded-3xl mx-auto object-cover border-4 border-white shadow-lg"
-                    />
-                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-orange-400 to-pink-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
-                      {currentCandidateIndex + 1}
-                    </div>
+            {/* Content */}
+            <div className="flex-1 px-6 py-4 overflow-y-auto">
+              <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
+                {/* Profile Header */}
+                <div className="flex flex-col items-center">
+                  <div className="w-24 h-24 rounded-full border-2 border-[#1E293B] overflow-hidden mb-3">
+                    {profileData?.profilePhoto ? (
+                      <img
+                        src={profileData.profilePhoto}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                        <User size={32} />
+                      </div>
+                    )}
                   </div>
-                </div>
-
-                {/* Candidate Info */}
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-1">{currentCandidate.name}</h3>
-                  <p className="text-gray-600 mb-2">{currentCandidate.age} years old • {currentCandidate.nationality}</p>
-                  <div className="flex items-center justify-center mb-2">
-                    <Star className="w-4 h-4 text-yellow-500 mr-1" />
-                    <span className="text-gray-700 font-medium">{currentCandidate.rating}</span>
-                    <span className="text-gray-500 ml-2">• {currentCandidate.distance}</span>
-                  </div>
-                </div>
-
-                {/* Experience */}
-                <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-                  <div className="flex items-center mb-2">
-                    <User className="w-5 h-5 text-blue-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Experience</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{currentCandidate.experience}</p>
-                </div>
-
-                {/* Skills */}
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Skills & Expertise</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {currentCandidate.skills.map((skill, index) => (
-                      <span 
-                        key={index}
-                        className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Job Match Info */}
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-4 mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Match</h4>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-gray-600">Role:</span>
-                      <p className="font-medium text-gray-900">{jobDetails.role}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Type:</span>
-                      <p className="font-medium text-gray-900">{jobDetails.employment_type}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Salary:</span>
-                      <p className="font-medium text-gray-900">{jobDetails.salary_range}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Location:</span>
-                      <p className="font-medium text-gray-900">{jobDetails.suburb_city}, {jobDetails.state}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-4">
-                  <Button
-                    variant="outline"
-                    className="flex-1 rounded-2xl py-4 text-lg border-2 border-gray-300 hover:border-gray-400"
-                    onClick={handlePass}
-                  >
-                    Pass
-                  </Button>
-                  <Button
-                    className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white rounded-2xl py-4 text-lg"
-                    onClick={handleLike}
-                  >
-                    <Heart className="w-5 h-5 mr-2" />
-                    Like
-                  </Button>
-                </div>
-
-                {/* Match Counter */}
-                <div className="text-center mt-4">
-                  <p className="text-sm text-gray-500">
-                    Candidate {currentCandidateIndex + 1} of {mockCandidates.length}
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {profileData?.name}
+                  </h2>
+                  <p className="text-sm text-gray-600">{profileData?.tagline}</p>
+                  <p className="text-xs text-gray-500">
+                    {profileData?.nationality} — {profileData?.visaType}, Expires{" "}
+                    {profileData?.visaExpiry}
                   </p>
+                  {profileData?.phone && (
+                    <p className="text-sm text-gray-700 flex items-center mt-1">
+                      <Phone size={14} className="mr-1 text-[#1E293B]" />{" "}
+                      {profileData.phone}
+                    </p>
+                  )}
+                  {profileData?.email && (
+                    <p className="text-sm text-gray-700 flex items-center mt-1">
+                      <Mail size={14} className="mr-1 text-[#1E293B]" />{" "}
+                      {profileData.email}
+                    </p>
+                  )}
+                </div>
+
+                {/* Work Preferences */}
+                <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">
+                    Work Preferences
+                  </h3>
+                  {Object.keys(groupedWorkPrefs).length > 0 ? (
+                    Object.entries(groupedWorkPrefs).map(([industry, roles]) => (
+                      <div key={industry} className="mb-2">
+                        <p className="font-medium">{industry}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {Array.from(roles as Set<string>).map((role, idx) => (
+                            <li key={idx}>{role}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No work preferences set
+                    </p>
+                  )}
+                </div>
+
+                {/* Location Preferences */}
+                <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">
+                    Location Preferences
+                  </h3>
+                  {Object.keys(groupedLocationPrefs).length > 0 ? (
+                    Object.entries(groupedLocationPrefs).map(([state, areas]) => (
+                      <div key={state} className="mb-2">
+                        <p className="font-medium">{state}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {Array.from(areas as Set<string>).map((area, idx) => (
+                            <li key={idx}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No location preferences set
+                    </p>
+                  )}
+                </div>
+
+                {/* Work Experience */}
+                <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">
+                    Work Experience
+                  </h3>
+                  {workExperiences.length > 0 ? (
+                    workExperiences.map((exp, idx) => (
+                      <div
+                        key={idx}
+                        className="border p-3 rounded-lg mb-2 text-sm text-gray-700"
+                      >
+                        <p>
+                          <span className="font-medium">Company:</span>{" "}
+                          {exp.company}
+                        </p>
+                        <p>
+                          <span className="font-medium">Industry:</span>{" "}
+                          {exp.industry}
+                        </p>
+                        <p>
+                          <span className="font-medium">Position:</span>{" "}
+                          {exp.position}
+                        </p>
+                        <p>
+                          <span className="font-medium">Location:</span>{" "}
+                          {exp.location}
+                        </p>
+                        <p>
+                          <span className="font-medium">Dates:</span>{" "}
+                          {exp.start_date} – {exp.end_date || "Present"}
+                        </p>
+                        {exp.description && (
+                          <p>
+                            <span className="font-medium">Description:</span>{" "}
+                            {exp.description}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No work experience added yet
+                    </p>
+                  )}
+                </div>
+
+                {/* Licenses */}
+                <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">
+                    Licenses & Certifications
+                  </h3>
+                  {licenses.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {licenses.map((license, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                        >
+                          {license}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No licenses added yet
+                    </p>
+                  )}
+                </div>
+
+                {/* References */}
+                <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2 flex items-center">
+                    <FileText size={16} className="mr-2" /> References
+                  </h3>
+                  {references.length > 0 ? (
+                    references.map((ref, idx) => (
+                      <div
+                        key={idx}
+                        className="border p-3 rounded-lg mb-2 text-sm text-gray-700"
+                      >
+                        <p>
+                          <span className="font-medium">Name:</span> {ref.name}
+                        </p>
+                        <p>
+                          <span className="font-medium">Business:</span>{" "}
+                          {ref.business_name}
+                        </p>
+                        <p>
+                          <span className="font-medium">Email:</span> {ref.email}
+                        </p>
+                        {ref.mobile_num && (
+                          <p>
+                            <span className="font-medium">Phone:</span>{" "}
+                            {ref.mobile_num}
+                          </p>
+                        )}
+                        {ref.role && (
+                          <p>
+                            <span className="font-medium">Role:</span> {ref.role}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No references added</p>
+                  )}
                 </div>
               </div>
-              <div className="h-20"></div>
             </div>
           </div>
         </div>
