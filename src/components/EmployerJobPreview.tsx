@@ -44,6 +44,7 @@ const EmployerJobPreview: React.FC = () => {
       if (!jobId) return;
 
       try {
+        // 1️⃣ Fetch job + employer
         const { data, error } = await supabase
           .from("job")
           .select(
@@ -60,11 +61,11 @@ const EmployerJobPreview: React.FC = () => {
             job_status,
             industry_role ( role ),
             profile:user_id (
+              user_id,
               employer (
                 company_name,
                 tagline,
-                profile_photo,
-                employer_facility ( facility ( name ) )
+                profile_photo
               )
             )
           `
@@ -77,43 +78,59 @@ const EmployerJobPreview: React.FC = () => {
           return;
         }
 
-        if (data) {
-          let signedPhoto: string | null = null;
-          const employer = data.profile?.employer?.[0] || null;
-
-          if (employer?.profile_photo) {
-            const photoValue = employer.profile_photo;
-            if (photoValue.startsWith("http")) {
-              signedPhoto = photoValue;
-            } else {
-              setPhotoPath(photoValue);
-              const { data: signed } = await supabase.storage
-                .from("profile_photo")
-                .createSignedUrl(photoValue, 3600);
-              signedPhoto = signed?.signedUrl ?? null;
-            }
-          }
-
-          setJobDetails({
-            job_id: data.job_id,
-            description: data.description || "No description available",
-            employment_type: data.employment_type || "Not specified",
-            salary_range: data.salary_range || "Not specified",
-            req_experience: data.req_experience || "Not specified",
-            state: data.state,
-            suburb_city: data.suburb_city,
-            postcode: data.postcode,
-            start_date: data.start_date,
-            job_status: data.job_status,
-            role: data.industry_role?.role || "Unknown Role",
-            company_name: employer?.company_name || "Unknown Company",
-            tagline: employer?.tagline || "No tagline provided",
-            company_photo: signedPhoto,
-            facilities:
-              employer?.employer_facility?.map((f: any) => f.facility?.name) ||
-              [],
-          });
+        if (!data) {
+          setJobDetails(null);
+          return;
         }
+
+        const employer = data.profile?.employer?.[0] || null;
+        const employerUserId = data.profile?.user_id;
+
+        // 2️⃣ Fetch facilities separately
+        let facilities: string[] = [];
+        if (employerUserId) {
+          const { data: facilityRows } = await supabase
+            .from("employer_facility")
+            .select(`facility ( name )`)
+            .eq("user_id", employerUserId);
+
+          facilities =
+            facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) ||
+            [];
+        }
+
+        // 3️⃣ Handle company photo (signed URL if needed)
+        let signedPhoto: string | null = null;
+        if (employer?.profile_photo) {
+          const photoValue = employer.profile_photo;
+          if (photoValue.startsWith("http")) {
+            signedPhoto = photoValue;
+          } else {
+            setPhotoPath(photoValue);
+            const { data: signed } = await supabase.storage
+              .from("profile_photo")
+              .createSignedUrl(photoValue, 3600);
+            signedPhoto = signed?.signedUrl ?? null;
+          }
+        }
+
+        setJobDetails({
+          job_id: data.job_id,
+          description: data.description || "No description available",
+          employment_type: data.employment_type || "Not specified",
+          salary_range: data.salary_range || "Not specified",
+          req_experience: data.req_experience || "Not specified",
+          state: data.state,
+          suburb_city: data.suburb_city,
+          postcode: data.postcode,
+          start_date: data.start_date,
+          job_status: data.job_status,
+          role: data.industry_role?.role || "Unknown Role",
+          company_name: employer?.company_name || "Unknown Company",
+          tagline: employer?.tagline || "No tagline provided",
+          company_photo: signedPhoto,
+          facilities,
+        });
       } catch (error) {
         console.error("Error fetching job:", error);
       } finally {
@@ -171,6 +188,7 @@ const EmployerJobPreview: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
