@@ -1,5 +1,4 @@
-// src/components/FilterPage.tsx
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,69 +19,70 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     candidateLocation: "",
     candidateIndustry: "",
-    candidateWorkExpIndustry: "",
-    candidateWorkYears: "",
+    candidateExperience: "",
   });
 
-  const [locations, setLocations] = useState<{ state: string; suburb_city: string; postcode: string }[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [workExpIndustries, setWorkExpIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [workYearsOptions, setWorkYearsOptions] = useState<string[]>([]);
+  const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
+  // ✅ Fetch preferred locations
   useEffect(() => {
-    const fetchData = async () => {
-      // Preferred Locations
-      const { data: locData } = await supabase
+    const fetchLocations = async () => {
+      const { data, error } = await supabase
         .from("maker_pref_location")
-        .select("state, suburb_city, postcode");
-      setLocations(locData || []);
+        .select("state, suburb_city");
 
-      // Preferred Industries
-      const { data: indData } = await supabase.from("industry").select("industry_id, name");
-      setIndustries(indData?.map((i) => ({ id: i.industry_id, name: i.name })) || []);
-
-      // Work Experience
-      const { data: workExpData } = await supabase
-        .from("maker_work_experience")
-        .select("industry_id, industry(name), start_date, end_date");
-
-      if (workExpData) {
-        // Distinct industries
-        const distinctIndustries = Array.from(
-          new Map(
-            workExpData.map((w) => [w.industry_id, { id: w.industry_id, name: w.industry?.name }])
-          ).values()
+      if (!error && data) {
+        const locs = data.map(
+          (l) => `${l.suburb_city || ""}, ${l.state || ""}`.trim()
         );
-        setWorkExpIndustries(distinctIndustries || []);
-
-        // Calculate years of experience
-        const years: number[] = [];
-        workExpData.forEach((exp) => {
-          if (exp.start_date) {
-            const start = new Date(exp.start_date);
-            const end = exp.end_date ? new Date(exp.end_date) : new Date();
-            const diffYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
-            years.push(diffYears);
-          }
-        });
-
-        // Bucketize into ranges
-        const buckets = new Set<string>();
-        if (years.length === 0) {
-          buckets.add("No Experience");
-        } else {
-          years.forEach((y) => {
-            if (y < 1) buckets.add("Less than 1 year");
-            else if (y < 3) buckets.add("1-2 years");
-            else if (y < 6) buckets.add("3-5 years");
-            else buckets.add("5+ years");
-          });
-        }
-        setWorkYearsOptions(Array.from(buckets));
+        setLocations([...new Set(locs.filter(Boolean))]); // unique & non-empty
       }
     };
+    fetchLocations();
+  }, []);
 
-    fetchData();
+  // ✅ Fetch industries
+  useEffect(() => {
+    const fetchIndustries = async () => {
+      const { data, error } = await supabase
+        .from("industry")
+        .select("industry_id, name");
+
+      if (!error && data) {
+        setIndustries(
+          data.map((row) => ({ id: row.industry_id, name: row.name }))
+        );
+      }
+    };
+    fetchIndustries();
+  }, []);
+
+  // ✅ Fetch & calculate work experience levels
+  useEffect(() => {
+    const fetchExperience = async () => {
+      const { data, error } = await supabase
+        .from("maker_work_experience")
+        .select("start_date, end_date");
+
+      if (!error && data) {
+        const levels = data.map((exp) => {
+          const start = new Date(exp.start_date);
+          const end = exp.end_date ? new Date(exp.end_date) : new Date();
+          const years =
+            (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+
+          if (years >= 5) return "5+ Years";
+          if (years >= 3) return "3-5 Years";
+          if (years >= 1) return "1-2 Years";
+          return "Less than 1 Year";
+        });
+
+        setExperienceLevels([...new Set(levels)]);
+      }
+    };
+    fetchExperience();
   }, []);
 
   const handleSelectChange = (category: string, value: string) => {
@@ -119,7 +119,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         </SelectTrigger>
         <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
           {items.map((item) => (
-            <SelectItem key={item} value={item}>
+            <SelectItem key={item} value={item} className="hover:bg-gray-100">
               {item}
             </SelectItem>
           ))}
@@ -142,21 +142,21 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               <button onClick={onClose}>
                 <ArrowLeft size={24} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">Candidate Filters</h1>
+              <h1 className="text-lg font-medium text-gray-900">
+                Candidate Filters
+              </h1>
             </div>
           </div>
 
-          {/* Scrollable Content */}
+          {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            {/* Preferred Location */}
             <DropdownSection
               title="Preferred Location"
-              items={locations.map((l) => `${l.suburb_city}, ${l.state} ${l.postcode}`)}
+              items={locations}
               category="candidateLocation"
               placeholder="Any location"
             />
 
-            {/* Preferred Industry */}
             <DropdownSection
               title="Preferred Industry"
               items={industries.map((i) => i.name)}
@@ -164,24 +164,15 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               placeholder="Any industry"
             />
 
-            {/* Work Experience Industry */}
             <DropdownSection
-              title="Work Experience Industry"
-              items={workExpIndustries.map((i) => i.name)}
-              category="candidateWorkExpIndustry"
-              placeholder="Any work experience industry"
-            />
-
-            {/* Years of Work Experience */}
-            <DropdownSection
-              title="Years of Work Experience"
-              items={workYearsOptions}
-              category="candidateWorkYears"
+              title="Work Experience"
+              items={experienceLevels}
+              category="candidateExperience"
               placeholder="Any experience level"
             />
           </div>
 
-          {/* Bottom Button */}
+          {/* Apply Button */}
           <div className="bg-white border-t p-4 flex-shrink-0 rounded-b-[48px]">
             <Button
               onClick={applyFilters}
