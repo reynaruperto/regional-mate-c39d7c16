@@ -14,7 +14,6 @@ import { Switch } from "@/components/ui/switch";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { debounce } from "lodash";
 
 type JobStatus = "active" | "inactive" | "draft";
 
@@ -64,7 +63,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     state: "",
     suburbValue: "",
     postcode: "",
-    status: (editingJob?.job_status || "draft") as JobStatus,
+    status: (editingJob?.job_status || "active") as JobStatus,
     startDate: "",
   });
 
@@ -77,7 +76,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const handle = (k: keyof typeof form, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // 🔹 Load roles + locations
+  // Load roles + locations from mvw_emp_location_roles
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -92,12 +91,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
       if (!emp?.industry_id) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("mvw_emp_location_roles")
         .select("industry_role_id, industry_role, state, suburb_city, postcode")
         .eq("industry_id", emp.industry_id);
 
-      if (data) {
+      if (!error && data) {
         const roleMap = new Map<number, string>();
         data.forEach((r) =>
           roleMap.set(r.industry_role_id, r.industry_role)
@@ -108,12 +107,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             industry_role,
           }))
         );
-        setLocations(data);
+
+        setLocations(data); // keep for suburbs
       }
     })();
   }, []);
 
-  // 🔹 Load enums from helper RPCs
+  // Load enums via helper RPCs
   useEffect(() => {
     (async () => {
       const { data: jt } = await supabase.rpc("get_job_type_enum");
@@ -126,7 +126,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
-  // 🔹 Licenses
+  // Licenses
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -136,20 +136,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       if (!error && data) setLicenses(data);
     })();
   }, []);
-
-  // 🔹 Preload licenses if editing
-  useEffect(() => {
-    if (editingJob?.job_id) {
-      (async () => {
-        const { data } = await supabase
-          .from("job_license")
-          .select("license_id")
-          .eq("job_id", editingJob.job_id);
-
-        if (data) setSelectedLicenses(data.map((l) => l.license_id));
-      })();
-    }
-  }, [editingJob?.job_id]);
 
   const chosenSuburb = useMemo(
     () =>
@@ -163,65 +149,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     handle("postcode", chosenSuburb?.postcode ?? "");
   }, [chosenSuburb?.postcode]);
 
-  // 🔹 Autosave Draft
-  const saveDraft = async () => {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
-    if (!uid) return;
-
-    const draftPayload: any = {
-      user_id: uid,
-      job_status: "draft",
-      industry_role_id: form.industryRoleId ? Number(form.industryRoleId) : null,
-      description: form.description,
-      employment_type: form.employmentType || null,
-      salary_range: form.salaryRange || null,
-      req_experience: form.experienceRange || null,
-      state: form.state || null,
-      suburb_city: chosenSuburb?.suburb_city ?? "",
-      postcode: chosenSuburb?.postcode ?? form.postcode,
-      start_date: form.startDate || null,
-    };
-
-    let jobId: number | null = editingJob?.job_id ?? null;
-
-    if (jobId) {
-      await supabase.from("job").update(draftPayload).eq("job_id", jobId);
-    } else {
-      const { data: ins } = await supabase
-        .from("job")
-        .insert(draftPayload)
-        .select("job_id")
-        .single();
-      if (ins?.job_id) {
-        jobId = ins.job_id;
-      }
-    }
-
-    if (jobId) {
-      await supabase.from("job_license").delete().eq("job_id", jobId);
-      if (selectedLicenses.length) {
-        await supabase.from("job_license").insert(
-          selectedLicenses.map((lid) => ({
-            job_id: jobId!,
-            license_id: lid,
-          }))
-        );
-      }
-    }
-  };
-
-  const debouncedSaveDraft = useMemo(
-    () => debounce(saveDraft, 1500),
-    [form, selectedLicenses]
-  );
-
-  useEffect(() => {
-    debouncedSaveDraft();
-    return debouncedSaveDraft.cancel;
-  }, [form, selectedLicenses]);
-
-  // 🔹 Final Save (Post Job)
+  // Save
   const onSave = async () => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
@@ -230,8 +158,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       return;
     }
 
-    if (!form.industryRoleId)
+    if (!form.industryRoleId || isNaN(Number(form.industryRoleId))) {
       return toast({ title: "Role required", description: "Pick a job role." });
+    }
     if (!form.employmentType)
       return toast({ title: "Job type required", description: "Pick job type." });
     if (!form.salaryRange)
@@ -243,8 +172,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
     const payload = {
       user_id: uid,
-      job_status: "active",
-      industry_role_id: Number(form.industryRoleId),
+      job_status: form.status,
+      industry_role_id: Number(form.industryRoleId), // ✅ guaranteed number
       description: form.description,
       employment_type: form.employmentType,
       salary_range: form.salaryRange,
@@ -255,10 +184,25 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       start_date: form.startDate || null,
     };
 
-    const { error } = await supabase
-      .from("job")
-      .update(payload)
-      .eq("job_id", editingJob?.job_id);
+    let jobId: number | null = null;
+    let error: any = null;
+
+    if (editingJob) {
+      const { error: upd } = await supabase
+        .from("job")
+        .update(payload)
+        .eq("job_id", editingJob.job_id);
+      error = upd;
+      jobId = editingJob.job_id;
+    } else {
+      const { data: ins, error: insErr } = await supabase
+        .from("job")
+        .insert(payload)
+        .select("job_id")
+        .single();
+      error = insErr;
+      jobId = ins?.job_id ?? null;
+    }
 
     if (error) {
       console.error(error);
@@ -270,9 +214,27 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       return;
     }
 
+    // Sync licenses safely
+    if (jobId) {
+      await supabase.from("job_license").delete().eq("job_id", jobId);
+      if (selectedLicenses.length) {
+        const licenseRows = selectedLicenses
+          .filter((lid) => typeof lid === "number" && !isNaN(lid))
+          .map((lid) => ({
+            job_id: jobId!,
+            license_id: lid,
+          }));
+        if (licenseRows.length) {
+          await supabase.from("job_license").insert(licenseRows);
+        }
+      }
+    }
+
     toast({
-      title: "Job posted",
-      description: "Your job is now in the list.",
+      title: editingJob ? "Job updated" : "Job posted",
+      description: editingJob
+        ? "Your changes are saved."
+        : "Your job is now in the list.",
     });
     onBack();
   };
