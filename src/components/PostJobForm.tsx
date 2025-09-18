@@ -1,298 +1,536 @@
-import React, { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import BottomNavigation from "@/components/BottomNavigation";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getEmployerProfile } from "@/utils/employerProfile";
 
-// ✅ Ensure EmployerProfile includes industry_id
-interface EmployerProfile {
-  user_id: string;
-  industry_id: number;
+interface PostJobFormProps {
+  onBack: () => void;
+  editingJob?: {
+    job_id: number;
+    role?: string; // display label you were passing before
+    job_status: "active" | "inactive" | "draft";
+  } | null;
 }
 
-interface IndustryRole {
-  industry_role_id: number;
-  role: string;
-}
+type RoleRow = { industry_role_id: number; role: string };
+type LicenseRow = { license_id: number; name: string };
 
-interface License {
-  license_id: number;
-  name: string;
-}
+const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
+  const { toast } = useToast();
 
-// ✅ Validation schema
-const jobSchema = z.object({
-  industry_role_id: z.string(),
-  description: z.string(),
-  employment_type: z.string(),
-  salary_range: z.string(),
-  req_experience: z.string(),
-  state: z.string(),
-  suburb_city: z.string(),
-  postcode: z.string(),
-  start_date: z.string(),
-  license_id: z.string().optional(),
-});
+  // Employer profile may expose "industry" (string id) or "industry_id"
+  const employerProfile = getEmployerProfile() as any;
+  const employerIndustryId: number | undefined = useMemo(() => {
+    const raw = employerProfile?.industry_id ?? employerProfile?.industry;
+    const n = typeof raw === "string" ? parseInt(raw, 10) : raw;
+    return Number.isFinite(n) ? (n as number) : undefined;
+  }, [employerProfile]);
 
-type JobFormData = z.infer<typeof jobSchema>;
-
-const PostJobForm: React.FC<{ employerProfile: EmployerProfile }> = ({
-  employerProfile,
-}) => {
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<JobFormData>({
-    resolver: zodResolver(jobSchema),
-  });
-
-  const [roles, setRoles] = useState<IndustryRole[]>([]);
+  // Dropdown data
+  const [roles, setRoles] = useState<RoleRow[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [payRanges, setPayRanges] = useState<string[]>([]);
   const [experienceRanges, setExperienceRanges] = useState<string[]>([]);
-  const [licenses, setLicenses] = useState<License[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
+  const [licenses, setLicenses] = useState<LicenseRow[]>([]);
+  const [selectedLicenses, setSelectedLicenses] = useState<number[]>([]);
+  const [showFuturePopup, setShowFuturePopup] = useState(false);
 
-  const employerIndustryId = employerProfile?.industry_id;
+  const [saving, setSaving] = useState(false);
 
+  // Form data — store the **role id**, not the label
+  const [formData, setFormData] = useState({
+    jobRoleId: "" as number | string,
+    jobDescription: "",
+    jobType: "",
+    payRange: "",
+    experienceRange: "",
+    state: "",
+    area: "",
+    status: (editingJob?.job_status ?? "active") as "active" | "inactive" | "draft",
+  });
+
+  // Helper to normalize `get_enum_values` outputs
+  const useEnum = async (enumName: string): Promise<string[]> => {
+    const { data, error } = await (supabase.rpc as any)("get_enum_values", {
+      enum_name: enumName,
+    });
+    if (error) throw error;
+    // Supabase returns plain text[]; some setups wrap it — handle both
+    return Array.isArray(data)
+      ? (typeof data[0] === "string" ? (data as string[]) : (data[0]?.get_enum_values ?? []))
+      : [];
+  };
+
+  // Load roles (filtered), enums, licenses, and distinct states from the view
   useEffect(() => {
-    const loadDropdowns = async () => {
+    (async () => {
       try {
-        // 🎯 Roles by employer.industry_id
+        // Roles limited by employer industry
         if (employerIndustryId) {
-          const { data: rolesData, error: rolesErr } = await supabase
+          const { data } = await supabase
             .from("industry_role")
             .select("industry_role_id, role")
             .eq("industry_id", employerIndustryId);
-
-          console.log("Roles Response:", rolesData, rolesErr);
-          if (rolesData) setRoles(rolesData);
+          if (data) {
+            setRoles(data as RoleRow[]);
+            // If editing: map the provided role label to its id
+            if (editingJob?.role && !formData.jobRoleId) {
+              const match = (data as RoleRow[]).find((r) => r.role === editingJob.role);
+              if (match) setFormData((p) => ({ ...p, jobRoleId: match.industry_role_id }));
+            }
+          }
+        } else {
+          setRoles([]);
         }
 
-        // 🎯 Job types
-        const { data: jt, error: jtErr } = await (supabase.rpc as any)(
-          "get_enum_values",
-          { enum_name: "job_type_enum" }
-        );
-        console.log("Job Types Response:", jt, jtErr);
-        if (jt) setJobTypes(jt[0]?.get_enum_values || jt);
+        // Enums from DB
+        const [jt, pr, yr] = await Promise.all([
+          useEnum("job_type_enum"),
+          useEnum("pay_range"),
+          useEnum("years_experience"),
+        ]);
+        setJobTypes(jt);
+        setPayRanges(pr);
+        setExperienceRanges(yr);
 
-        // 🎯 Pay ranges
-        const { data: pr, error: prErr } = await (supabase.rpc as any)(
-          "get_enum_values",
-          { enum_name: "pay_range" }
-        );
-        console.log("Pay Ranges Response:", pr, prErr);
-        if (pr) setPayRanges(pr[0]?.get_enum_values || pr);
+        // Licenses
+        const { data: lic } = await supabase.from("license").select("license_id, name");
+        if (lic) setLicenses(lic as LicenseRow[]);
 
-        // 🎯 Experience ranges
-        const { data: er, error: erErr } = await (supabase.rpc as any)(
-          "get_enum_values",
-          { enum_name: "years_experience" }
-        );
-        console.log("Experience Ranges Response:", er, erErr);
-        if (er) setExperienceRanges(er[0]?.get_enum_values || er);
-
-        // 🎯 Licenses
-        const { data: lic, error: licErr } = await supabase
-          .from("license")
-          .select("license_id, name");
-        console.log("Licenses Response:", lic, licErr);
-        if (lic) setLicenses(lic);
-      } catch (err) {
-        console.error("Dropdown load error:", err);
+        // States (distinct) from view
+        const { data: stateRows } = await supabase
+          .from("mvw_emp_location_roles" as any)
+          .select("state");
+        if (Array.isArray(stateRows)) {
+          const uniq = Array.from(
+            new Set(
+              stateRows
+                .map((r: any) => (r?.state ?? "").toString())
+                .filter((s: string) => !!s)
+            )
+          ).sort();
+          setStates(uniq);
+        }
+      } catch (e) {
+        console.error(e);
+        toast({ title: "Load failed", description: "Could not load dropdowns." });
       }
-    };
-
-    loadDropdowns();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employerIndustryId]);
 
-  const onSubmit = async (formData: JobFormData) => {
-    console.log("Submitting job:", formData);
+  // Load areas when state changes (from the view)
+  useEffect(() => {
+    (async () => {
+      if (!formData.state) {
+        setAreas([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("mvw_emp_location_roles" as any)
+        .select("suburb_city, postcode")
+        .eq("state", formData.state);
+      if (error) {
+        console.error(error);
+        setAreas([]);
+        return;
+      }
+      if (Array.isArray(data)) {
+        const uniq = Array.from(
+          new Set(
+            data.map(
+              (d: any) => `${(d?.suburb_city ?? "").toString().trim()} (${(d?.postcode ?? "").toString().trim()})`
+            )
+          )
+        ).filter((s) => s && !s.startsWith(" ("));
+        setAreas(uniq);
+      }
+    })();
+  }, [formData.state]);
 
-    const { error } = await supabase.from("job").insert(
-      {
-        industry_role_id: parseInt(formData.industry_role_id, 10),
-        description: formData.description,
-        employment_type: formData.employment_type,
-        salary_range: formData.salary_range,
-        req_experience: formData.req_experience,
-        state: formData.state,
-        suburb_city: formData.suburb_city,
-        postcode: formData.postcode,
-        start_date: formData.start_date,
-        license_id: formData.license_id
-          ? parseInt(formData.license_id, 10)
-          : null,
-        user_id: employerProfile.user_id,
-        job_status: "active", // default status
-      } as any // 👈 bypass TypeScript type mismatch
-    );
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
-    if (error) {
-      console.error("Insert job error:", error);
-    } else {
-      console.log("Job posted successfully!");
+  const validate = (): string[] => {
+    const errs: string[] = [];
+    if (!formData.jobRoleId) errs.push("Select a job role.");
+    if (!formData.jobDescription?.trim()) errs.push("Add a job description.");
+    if (!formData.jobType) errs.push("Select a job type.");
+    if (!formData.payRange) errs.push("Select a salary range.");
+    if (!formData.experienceRange) errs.push("Select experience required.");
+    if (!formData.state) errs.push("Select a state.");
+    if (!formData.area) errs.push("Select an area.");
+    // ensure role id is in roles
+    if (formData.jobRoleId && !roles.some((r) => r.industry_role_id === Number(formData.jobRoleId))) {
+      errs.push("Selected role is not valid for your industry.");
+    }
+    return errs;
+  };
+
+  const handleSaveAndPost = async () => {
+    if (saving) return;
+
+    const problems = validate();
+    if (problems.length) {
+      toast({ title: "Missing fields", description: problems.join(" ") });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Error", description: "You must be logged in to post jobs." });
+        return;
+      }
+
+      // Parse "Suburb (Postcode)"
+      let suburb_city = "";
+      let postcode = "";
+      if (formData.area.includes("(")) {
+        suburb_city = formData.area.split("(")[0].trim();
+        postcode = formData.area.match(/\(([^)]+)\)/)?.[1]?.trim() ?? "";
+      } else {
+        suburb_city = formData.area;
+      }
+
+      const payload = {
+        industry_role_id: Number(formData.jobRoleId),
+        description: formData.jobDescription,
+        employment_type: formData.jobType as any,
+        salary_range: formData.payRange as any,
+        req_experience: formData.experienceRange as any,
+        job_status: formData.status as any,
+        state: formData.state as any,
+        suburb_city,
+        postcode,
+        user_id: user.id,
+        start_date: new Date().toISOString().split("T")[0], // required (>= today)
+      };
+
+      let jobId: number | undefined;
+      let error: any;
+
+      if (editingJob?.job_id) {
+        const { data: updated, error: updateErr } = await supabase
+          .from("job")
+          .update(payload as any)
+          .eq("job_id", editingJob.job_id)
+          .select("job_id")
+          .single();
+        error = updateErr;
+        jobId = updated?.job_id as number | undefined;
+      } else {
+        const { data: inserted, error: insertErr } = await supabase
+          .from("job")
+          .insert(payload as any) // cast to avoid stale TS types
+          .select("job_id")
+          .single();
+        error = insertErr;
+        jobId = inserted?.job_id as number | undefined;
+      }
+
+      if (error) {
+        toast({ title: "Error", description: error.message ?? "Failed to save job." });
+        return;
+      }
+
+      // Save licenses in junction table
+      if (jobId !== undefined) {
+        await supabase.from("job_license").delete().eq("job_id", jobId);
+        if (selectedLicenses.length > 0) {
+          const rows = selectedLicenses.map((lid) => ({ job_id: jobId, license_id: lid }));
+          await supabase.from("job_license").insert(rows as any);
+        }
+      }
+
+      toast({
+        title: editingJob ? "Job Updated" : "Job Posted",
+        description: editingJob ? "Job updated successfully." : "Job posted successfully.",
+      });
+      onBack();
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Error", description: e?.message ?? "Unexpected error." });
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Role */}
-      <Controller
-        name="industry_role_id"
-        control={control}
-        render={({ field }) => (
-          <Select onValueChange={field.onChange} value={field.value}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Role" />
-            </SelectTrigger>
-            <SelectContent>
-              {roles.map((role) => (
-                <SelectItem
-                  key={role.industry_role_id}
-                  value={role.industry_role_id.toString()}
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
+          <div className="w-full h-full flex flex-col relative bg-gray-200">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={onBack}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">
+                {editingJob ? "Edit Job" : "Post Job"}
+              </h1>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 px-6 overflow-y-auto pb-24">
+              {/* Job Role (by industry) */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Role</h2>
+                <Select
+                  value={formData.jobRoleId ? String(formData.jobRoleId) : ""}
+                  onValueChange={(val) => handleInputChange("jobRoleId", val)}
                 >
-                  {role.role}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((r) => (
+                      <SelectItem key={r.industry_role_id} value={r.industry_role_id.toString()}>
+                        {r.role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      {/* Job Type */}
-      <Controller
-        name="employment_type"
-        control={control}
-        render={({ field }) => (
-          <Select onValueChange={field.onChange} value={field.value}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Job Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {jobTypes.map((jt) => (
-                <SelectItem key={jt} value={jt}>
-                  {jt}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
+              {/* Description */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Description</h2>
+                <Textarea
+                  value={formData.jobDescription}
+                  onChange={(e) => handleInputChange("jobDescription", e.target.value)}
+                  placeholder="Describe the role..."
+                  className="bg-gray-50 border-gray-200 rounded-xl text-sm min-h-[60px] resize-none"
+                />
+              </div>
 
-      {/* Salary Range */}
-      <Controller
-        name="salary_range"
-        control={control}
-        render={({ field }) => (
-          <Select onValueChange={field.onChange} value={field.value}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Salary Range" />
-            </SelectTrigger>
-            <SelectContent>
-              {payRanges.map((pr) => (
-                <SelectItem key={pr} value={pr}>
-                  {pr}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
+              {/* Job Type */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Type</h2>
+                <Select
+                  value={formData.jobType}
+                  onValueChange={(value) => handleInputChange("jobType", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select job type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobTypes.map((jt) => (
+                      <SelectItem key={jt} value={jt}>
+                        {jt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      {/* Experience */}
-      <Controller
-        name="req_experience"
-        control={control}
-        render={({ field }) => (
-          <Select onValueChange={field.onChange} value={field.value}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Experience" />
-            </SelectTrigger>
-            <SelectContent>
-              {experienceRanges.map((er) => (
-                <SelectItem key={er} value={er}>
-                  {er}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
+              {/* Salary Range */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Salary Range</h2>
+                <Select
+                  value={formData.payRange}
+                  onValueChange={(value) => handleInputChange("payRange", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select salary range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {payRanges.map((pr) => (
+                      <SelectItem key={pr} value={pr}>
+                        {pr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      {/* License */}
-      <Controller
-        name="license_id"
-        control={control}
-        render={({ field }) => (
-          <Select onValueChange={field.onChange} value={field.value}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select License (optional)" />
-            </SelectTrigger>
-            <SelectContent>
-              {licenses.map((lic) => (
-                <SelectItem key={lic.license_id} value={lic.license_id.toString()}>
-                  {lic.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
+              {/* Experience */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Experience Required</h2>
+                <Select
+                  value={formData.experienceRange}
+                  onValueChange={(value) => handleInputChange("experienceRange", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select experience" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {experienceRanges.map((er) => (
+                      <SelectItem key={er} value={er}>
+                        {er}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      {/* Description */}
-      <Controller
-        name="description"
-        control={control}
-        render={({ field }) => (
-          <Input {...field} placeholder="Enter job description" />
-        )}
-      />
+              {/* Location (from mvw_emp_location_roles) */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Location</h2>
+                <Select
+                  value={formData.state}
+                  onValueChange={(value) => {
+                    // keep your gating popup if you want; still set state so areas can load
+                    if (value !== "Queensland") setShowFuturePopup(true);
+                    handleInputChange("state", value);
+                    handleInputChange("area", "");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {states.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-      {/* Location */}
-      <Controller
-        name="state"
-        control={control}
-        render={({ field }) => (
-          <Input {...field} placeholder="Enter state" />
-        )}
-      />
-      <Controller
-        name="suburb_city"
-        control={control}
-        render={({ field }) => (
-          <Input {...field} placeholder="Enter suburb / city" />
-        )}
-      />
-      <Controller
-        name="postcode"
-        control={control}
-        render={({ field }) => (
-          <Input {...field} placeholder="Enter postcode" />
-        )}
-      />
+                {formData.state && (
+                  <Select
+                    value={formData.area}
+                    onValueChange={(value) => handleInputChange("area", value)}
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue placeholder="Select area (suburb + postcode)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {areas.map((a) => (
+                        <SelectItem key={a} value={a}>
+                          {a}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-      {/* Start Date */}
-      <Controller
-        name="start_date"
-        control={control}
-        render={({ field }) => (
-          <Input {...field} type="date" placeholder="Select start date" />
-        )}
-      />
+              {/* Licenses (multi via chips) */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Required Licenses</h2>
+                <Select
+                  onValueChange={(value) => {
+                    const id = parseInt(value, 10);
+                    if (!selectedLicenses.includes(id)) {
+                      setSelectedLicenses((prev) => [...prev, id]);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Add a license" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {licenses.map((l) => (
+                      <SelectItem key={l.license_id} value={l.license_id.toString()}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-      <Button type="submit">Post Job</Button>
-    </form>
+                <div className="flex flex-wrap mt-2 gap-2">
+                  {selectedLicenses.map((id) => {
+                    const license = licenses.find((l) => l.license_id === id);
+                    return (
+                      <span
+                        key={id}
+                        className="bg-slate-100 px-3 py-1 rounded-xl text-xs font-medium flex items-center gap-1"
+                      >
+                        {license?.name}
+                        <button
+                          onClick={() =>
+                            setSelectedLicenses((prev) => prev.filter((lid) => lid !== id))
+                          }
+                          className="text-red-500"
+                          type="button"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Status */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Status</h2>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-600">Active / Inactive</span>
+                  <Switch
+                    checked={formData.status === "active"}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("status", checked ? "active" : "inactive")
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Save */}
+              <div className="pb-6">
+                <Button
+                  onClick={handleSaveAndPost}
+                  disabled={saving}
+                  className="w-full bg-[#1E293B] hover:bg-[#1E293B]/90 text-white rounded-xl h-12 text-base font-medium"
+                >
+                  {saving ? "Saving..." : editingJob ? "Update Job" : "Post Job"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Bottom Navigation */}
+            <div className="absolute bottom-0 left-0 right-0 bg-white">
+              <BottomNavigation />
+            </div>
+          </div>
+        </div>
+
+        {/* Future States Popup */}
+        {showFuturePopup && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50">
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-[90%] text-center shadow-xl">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                These functions are for future phases
+              </h2>
+              <p className="text-gray-600 mb-6">We’ll be back with more locations soon!</p>
+              <Button
+                onClick={() => setShowFuturePopup(false)}
+                className="w-full bg-slate-800 text-white rounded-lg py-2"
+              >
+                Got It
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
