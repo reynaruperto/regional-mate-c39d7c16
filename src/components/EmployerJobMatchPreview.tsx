@@ -7,12 +7,10 @@ import {
   Clock,
   DollarSign,
   User,
-  Award,
-  FileText,
-  Phone,
-  Mail,
   Globe,
   Hash,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -96,7 +94,14 @@ const EmployerJobMatchPreview: React.FC = () => {
         // 2️⃣ Employer details
         const { data: emp } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num")
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .eq("user_id", job.user_id)
+          .maybeSingle();
+
+        // 3️⃣ Employer email from profile
+        const { data: profile } = await supabase
+          .from("profile")
+          .select("email")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
@@ -119,10 +124,10 @@ const EmployerJobMatchPreview: React.FC = () => {
           abn: emp?.abn || "N/A",
           website: emp?.website || "",
           mobile_num: emp?.mobile_num || "",
-          email: "", // optional: fetch from profile if needed
+          email: profile?.email || "",
         });
 
-        // 3️⃣ Facilities
+        // 4️⃣ Facilities
         const { data: facs } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -211,6 +216,12 @@ const EmployerJobMatchPreview: React.FC = () => {
                     <p className="text-sm text-gray-700 flex items-center mt-1">
                       <Phone size={14} className="mr-1 text-[#1E293B]" />{" "}
                       {employer.mobile_num}
+                    </p>
+                  )}
+                  {employer.email && (
+                    <p className="text-sm text-gray-700 flex items-center mt-1">
+                      <Mail size={14} className="mr-1 text-[#1E293B]" />{" "}
+                      {employer.email}
                     </p>
                   )}
                   {employer.website && (
@@ -311,14 +322,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                     </p>
                   </div>
                 </div>
-
-                {/* References placeholder (if needed) */}
-                {/* <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2 flex items-center">
-                    <FileText size={16} className="mr-2" /> References
-                  </h3>
-                  <p className="text-sm text-gray-500">Employer references (optional)</p>
-                </div> */}
               </div>
             </div>
           </div>
