@@ -10,14 +10,14 @@ import BottomNavigation from '@/components/BottomNavigation';
 
 interface Job {
   job_id: number;
-  role: string;
   job_status: 'draft' | 'active' | 'inactive';
+  industry_role_id: number;
+  mvw_emp_location_roles: {
+    industry_role: string;
+  } | null;
   employer: {
     company_name: string;
-    industry: {
-      name: string;
-    } | null;
-  };
+  } | null;
 }
 
 const PostJobs: React.FC = () => {
@@ -38,13 +38,13 @@ const PostJobs: React.FC = () => {
         .from('job')
         .select(`
           job_id,
-          role,
           job_status,
+          industry_role_id,
+          mvw_emp_location_roles!inner (
+            industry_role
+          ),
           employer:employer!job_user_id_fkey (
-            company_name,
-            industry:industry_id (
-              name
-            )
+            company_name
           )
         `)
         .eq('user_id', user.id);
@@ -206,9 +206,10 @@ const PostJobs: React.FC = () => {
                       <div className="flex items-start justify-between">
                         {/* Info */}
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{job.role}</h3>
-                          <p className="text-gray-700 text-sm mb-1">{job.employer?.company_name}</p>
-                          <p className="text-gray-600 text-sm">Industry: {job.employer?.industry?.name ?? 'N/A'}</p>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                            {job.mvw_emp_location_roles?.industry_role ?? 'Unknown Role'}
+                          </h3>
+                          <p className="text-gray-700 text-sm mb-1">{job.employer?.company_name ?? 'No Company'}</p>
                         </div>
 
                         {/* Actions */}
