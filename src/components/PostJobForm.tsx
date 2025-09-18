@@ -27,8 +27,8 @@ interface PostJobFormProps {
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const employerProfile = getEmployerProfile();
-  const employerIndustryId = employerProfile?.industry
-    ? parseInt(employerProfile.industry, 10)
+  const employerIndustryId = employerProfile?.industry_id
+    ? parseInt(employerProfile.industry_id, 10)
     : undefined;
 
   const [roles, setRoles] = useState<{ industry_role_id: number; role: string }[]>([]);
@@ -53,53 +53,61 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   // Fetch enums + roles + licenses
   useEffect(() => {
-    const loadData = async () => {
+    const loadDropdowns = async () => {
       try {
         // Roles filtered by employer industry
         if (employerIndustryId) {
-          const { data: rolesData } = await supabase
+          const { data: rolesData, error: rolesErr } = await supabase
             .from("industry_role")
             .select("industry_role_id, role")
             .eq("industry_id", employerIndustryId);
+          console.log("Roles Response:", rolesData, rolesErr);
           if (rolesData) setRoles(rolesData);
         }
 
         // Job type enum
-        const { data: jt } = await (supabase.rpc as any)("get_enum_values", {
+        const { data: jt, error: jtErr } = await (supabase.rpc as any)("get_enum_values", {
           enum_name: "job_type_enum",
         });
-        if (jt) setJobTypes(jt as string[]);
+        console.log("Job Types Response:", jt, jtErr);
+        if (jt) setJobTypes(jt[0]?.get_enum_values || jt);
 
         // Pay range enum
-        const { data: pr } = await (supabase.rpc as any)("get_enum_values", {
+        const { data: pr, error: prErr } = await (supabase.rpc as any)("get_enum_values", {
           enum_name: "pay_range",
         });
-        if (pr) setPayRanges(pr as string[]);
+        console.log("Pay Ranges Response:", pr, prErr);
+        if (pr) setPayRanges(pr[0]?.get_enum_values || pr);
 
         // Experience enum
-        const { data: er } = await (supabase.rpc as any)("get_enum_values", {
+        const { data: er, error: erErr } = await (supabase.rpc as any)("get_enum_values", {
           enum_name: "years_experience",
         });
-        if (er) setExperienceRanges(er as string[]);
+        console.log("Experience Ranges Response:", er, erErr);
+        if (er) setExperienceRanges(er[0]?.get_enum_values || er);
 
         // Licenses
-        const { data: lic } = await supabase.from("license").select("license_id, name");
+        const { data: lic, error: licErr } = await supabase.from("license").select("license_id, name");
+        console.log("Licenses Response:", lic, licErr);
         if (lic) setLicenses(lic);
       } catch (err) {
-        console.error(err);
+        console.error("Dropdown load error:", err);
       }
     };
-    loadData();
+
+    loadDropdowns();
   }, [employerIndustryId]);
 
   // Fetch areas by state
   useEffect(() => {
     const fetchAreas = async () => {
       if (!formData.state) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("mvw_emp_location_roles" as any)
         .select("suburb_city, postcode")
         .eq("state", formData.state);
+
+      console.log("Areas Response:", data, error);
 
       if (data) {
         const unique = [...new Set(data.map((d: any) => `${d.suburb_city} (${d.postcode})`))];
