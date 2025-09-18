@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Make sure EmployerProfile includes industry_id
+// ✅ Ensure EmployerProfile includes industry_id
 interface EmployerProfile {
   user_id: string;
   industry_id: number;
@@ -29,7 +29,7 @@ interface License {
   name: string;
 }
 
-// ✅ Zod schema for validation
+// ✅ Validation schema
 const jobSchema = z.object({
   industry_role_id: z.string(),
   description: z.string(),
@@ -39,6 +39,7 @@ const jobSchema = z.object({
   state: z.string(),
   suburb_city: z.string(),
   postcode: z.string(),
+  start_date: z.string(),
   license_id: z.string().optional(),
 });
 
@@ -118,12 +119,24 @@ const PostJobForm: React.FC<{ employerProfile: EmployerProfile }> = ({
   const onSubmit = async (formData: JobFormData) => {
     console.log("Submitting job:", formData);
 
-    const { error } = await supabase.from("job").insert({
-      ...formData,
-      industry_role_id: parseInt(formData.industry_role_id, 10),
-      user_id: employerProfile.user_id,
-      job_status: "active",
-    });
+    const { error } = await supabase.from("job").insert(
+      {
+        industry_role_id: parseInt(formData.industry_role_id, 10),
+        description: formData.description,
+        employment_type: formData.employment_type,
+        salary_range: formData.salary_range,
+        req_experience: formData.req_experience,
+        state: formData.state,
+        suburb_city: formData.suburb_city,
+        postcode: formData.postcode,
+        start_date: formData.start_date,
+        license_id: formData.license_id
+          ? parseInt(formData.license_id, 10)
+          : null,
+        user_id: employerProfile.user_id,
+        job_status: "active", // default status
+      } as any // 👈 bypass TypeScript type mismatch
+    );
 
     if (error) {
       console.error("Insert job error:", error);
@@ -243,6 +256,38 @@ const PostJobForm: React.FC<{ employerProfile: EmployerProfile }> = ({
         control={control}
         render={({ field }) => (
           <Input {...field} placeholder="Enter job description" />
+        )}
+      />
+
+      {/* Location */}
+      <Controller
+        name="state"
+        control={control}
+        render={({ field }) => (
+          <Input {...field} placeholder="Enter state" />
+        )}
+      />
+      <Controller
+        name="suburb_city"
+        control={control}
+        render={({ field }) => (
+          <Input {...field} placeholder="Enter suburb / city" />
+        )}
+      />
+      <Controller
+        name="postcode"
+        control={control}
+        render={({ field }) => (
+          <Input {...field} placeholder="Enter postcode" />
+        )}
+      />
+
+      {/* Start Date */}
+      <Controller
+        name="start_date"
+        control={control}
+        render={({ field }) => (
+          <Input {...field} type="date" placeholder="Select start date" />
         )}
       />
 
