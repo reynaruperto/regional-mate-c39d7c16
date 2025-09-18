@@ -74,7 +74,7 @@ const PostJobs: React.FC = () => {
   };
 
   const handleEditJob = (job: Job) => {
-    setEditingJob(job);
+    setEditingJob({ ...job, role: job.industry_role?.role || "Unknown Role" } as any);
     setShowForm(true);
   };
 

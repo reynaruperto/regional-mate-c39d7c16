@@ -69,6 +69,8 @@ import HelpSupport from "./pages/HelpSupport";
 import TermsPolicies from "./pages/TermsPolicies";
 import PostJobs from "./pages/PostJobs";
 import BrowseCandidates from "./pages/BrowseCandidates";
+import EmployerJobPreviewPage from "./pages/EmployerJobPreview";
+import EmployerJobMatchPreviewPage from "./pages/EmployerJobMatchPreview";
 import CandidateProfile from "./pages/CandidateProfile";
 import FullCandidateProfile from "./pages/FullCandidateProfile";
 import JobDetails from "./pages/JobDetails";
@@ -158,6 +160,8 @@ const App = () => (
           <Route path="/messages" element={<Messages />} />
           <Route path="/mutual-match/:id" element={<MutualMatchProfile />} />
           <Route path="/account-confirmation" element={<AccountConfirmation />} />
+          <Route path="/employer/job-preview/:jobId" element={<EmployerJobPreviewPage />} />
+          <Route path="/employer/job-match-preview/:jobId" element={<EmployerJobMatchPreviewPage />} />
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />

@@ -91,40 +91,37 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
       if (!emp?.industry_id) return;
 
-      const { data, error } = await supabase
-        .from("mvw_emp_location_roles")
-        .select("industry_role_id, industry_role, state, suburb_city, postcode")
+      // Load roles from industry_role table
+      const { data: roleData } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role")
         .eq("industry_id", emp.industry_id);
 
-      if (!error && data) {
-        // Deduplicate roles
-        const roleMap = new Map<number, string>();
-        data.forEach((r) =>
-          roleMap.set(r.industry_role_id, r.industry_role)
-        );
-        setRoles(
-          Array.from(roleMap, ([industry_role_id, industry_role]) => ({
-            industry_role_id,
-            industry_role,
-          }))
-        );
-
-        setLocations(data); // keep full list for suburb/state filtering
+      if (roleData) {
+        setRoles(roleData.map(r => ({
+          industry_role_id: r.industry_role_id,
+          industry_role: r.role
+        })));
       }
+
+      // Use hardcoded Queensland locations for now
+      const mockLocations = [
+        { suburb_city: "Brisbane", postcode: "4000", state: "Queensland" },
+        { suburb_city: "Gold Coast", postcode: "4217", state: "Queensland" },
+        { suburb_city: "Cairns", postcode: "4870", state: "Queensland" },
+        { suburb_city: "Townsville", postcode: "4810", state: "Queensland" },
+        { suburb_city: "Toowoomba", postcode: "4350", state: "Queensland" },
+      ];
+      setLocations(mockLocations);
     })();
   }, []);
 
-  // 🔹 Load enums via helper RPCs
+  // Load enum values
   useEffect(() => {
-    (async () => {
-      const { data: jt } = await supabase.rpc("get_job_type_enum");
-      const { data: pr } = await supabase.rpc("get_pay_range_enum");
-      const { data: ye } = await supabase.rpc("get_years_experience_enum");
-
-      if (jt) setJobTypeEnum(jt);
-      if (pr) setPayRangeEnum(pr);
-      if (ye) setYearsExpEnum(ye);
-    })();
+    // Use hardcoded values matching the database enums
+    setJobTypeEnum(["Full-time", "Part-time", "Casual / Seasonal", "Contract"]);
+    setPayRangeEnum(["$25", "$26-30", "$31-35", "$36-40", "$41-45", "$46-50", "$50+"]);
+    setYearsExpEnum(["<1", "1-2", "3-5", "6-10", "10+"]);
   }, []);
 
   // 🔹 Licenses
