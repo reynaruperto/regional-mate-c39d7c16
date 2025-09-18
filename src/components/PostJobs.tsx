@@ -11,6 +11,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 interface Job {
   job_id: number;
   job_status: "draft" | "active" | "inactive";
+  description: string;
   employment_type: string;
   salary_range: string;
   req_experience: string;
@@ -18,11 +19,10 @@ interface Job {
   suburb_city: string;
   postcode: string;
   start_date: string;
-  description: string;
   industry_role: {
     role: string;
   } | null;
-  job_license: { license_id: number }[];
+  job_license?: { license_id: number }[];
 }
 
 const PostJobs: React.FC = () => {
@@ -33,7 +33,7 @@ const PostJobs: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "draft">("all");
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // ✅ Fetch current user's jobs + licenses
+  // ✅ Fetch current user's jobs (with licenses)
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +44,7 @@ const PostJobs: React.FC = () => {
         .select(`
           job_id,
           job_status,
+          description,
           employment_type,
           salary_range,
           req_experience,
@@ -51,7 +52,6 @@ const PostJobs: React.FC = () => {
           suburb_city,
           postcode,
           start_date,
-          description,
           industry_role (
             role
           ),
@@ -78,7 +78,11 @@ const PostJobs: React.FC = () => {
   };
 
   const handleEditJob = (job: Job) => {
-    setEditingJob(job);
+    setEditingJob({
+      ...job,
+      role: job.industry_role?.role || "",
+      licenses: job.job_license?.map((jl) => jl.license_id) || []
+    } as any);
     setShowForm(true);
   };
 
@@ -139,9 +143,17 @@ const PostJobs: React.FC = () => {
           editingJob
             ? {
                 job_id: editingJob.job_id,
-                role: editingJob.industry_role?.role || "",
+                role: editingJob.role,
                 job_status: editingJob.job_status,
-                licenses: editingJob.job_license.map((jl) => jl.license_id), // ✅ pass preselected licenses
+                description: editingJob.description,
+                employment_type: editingJob.employment_type,
+                salary_range: editingJob.salary_range,
+                req_experience: editingJob.req_experience,
+                state: editingJob.state,
+                suburb_city: editingJob.suburb_city,
+                postcode: editingJob.postcode,
+                start_date: editingJob.start_date,
+                licenses: editingJob.licenses,
               }
             : null
         }
@@ -283,7 +295,7 @@ const PostJobs: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* New Action Buttons */}
+                      {/* Action Buttons */}
                       <div className="mt-4 flex gap-3">
                         <Button
                           variant="outline"
