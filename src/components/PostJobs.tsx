@@ -17,11 +17,12 @@ interface Job {
   state: string;
   suburb_city: string;
   postcode: string;
-  start_date: string | null;
+  start_date: string;
   description: string;
   industry_role: {
     role: string;
   } | null;
+  job_license: { license_id: number }[];
 }
 
 const PostJobs: React.FC = () => {
@@ -32,7 +33,7 @@ const PostJobs: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "draft">("all");
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // ✅ Fetch jobs belonging to logged-in employer
+  // ✅ Fetch current user's jobs + licenses
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -51,8 +52,11 @@ const PostJobs: React.FC = () => {
           postcode,
           start_date,
           description,
-          industry_role:industry_role_id (
+          industry_role (
             role
+          ),
+          job_license (
+            license_id
           )
         `)
         .eq("user_id", user.id)
@@ -61,7 +65,7 @@ const PostJobs: React.FC = () => {
       if (error) {
         toast({ title: "Error loading jobs", description: error.message });
       } else {
-        setJobs(data as Job[]);
+        setJobs(data as any);
       }
     };
 
@@ -137,6 +141,7 @@ const PostJobs: React.FC = () => {
                 job_id: editingJob.job_id,
                 role: editingJob.industry_role?.role || "",
                 job_status: editingJob.job_status,
+                licenses: editingJob.job_license.map((jl) => jl.license_id), // ✅ pass preselected licenses
               }
             : null
         }
@@ -278,7 +283,7 @@ const PostJobs: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
+                      {/* New Action Buttons */}
                       <div className="mt-4 flex gap-3">
                         <Button
                           variant="outline"
