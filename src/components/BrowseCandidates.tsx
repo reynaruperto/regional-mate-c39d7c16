@@ -14,6 +14,7 @@ interface Candidate {
   industries: string[];
   state: string;
   profileImage: string;
+  experienceSummary: string; // ✅ new condensed line
 }
 
 const BrowseCandidates: React.FC = () => {
@@ -39,10 +40,14 @@ const BrowseCandidates: React.FC = () => {
           profile_photo,
           maker_preference (
             industry_role (
-              industry (
-                name
-              )
+              industry ( name )
             )
+          ),
+          maker_work_experience (
+            position,
+            start_date,
+            end_date,
+            industry ( name )
           )
         `
         )
@@ -55,18 +60,46 @@ const BrowseCandidates: React.FC = () => {
 
       const mapped: Candidate[] =
         data?.map((c: any) => {
+          // Industries from preferences
           const industriesRaw =
             c.maker_preference?.map(
               (p: any) => p.industry_role?.industry?.name
             ) || [];
-
-          // Deduplicate industries
           const uniqueIndustries = [...new Set(industriesRaw)];
 
-          // Build public photo URL
+          // ✅ Condensed experience summary
+          const experiences =
+            c.maker_work_experience?.map((exp: any) => {
+              const start = new Date(exp.start_date);
+              const end = exp.end_date ? new Date(exp.end_date) : new Date();
+              const diffYears =
+                (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+
+              let duration = "";
+              if (diffYears < 1) {
+                duration = `${Math.round(diffYears * 12)} mos`;
+              } else {
+                duration = `${Math.round(diffYears)} yrs`;
+              }
+
+              return `${exp.industry?.name || "Unknown"} – ${
+                exp.position || "Role"
+              } (${duration})`;
+            }) || [];
+
+          let condensedExperience = "";
+          if (experiences.length > 2) {
+            condensedExperience = `${experiences
+              .slice(0, 2)
+              .join(", ")} +${experiences.length - 2} more`;
+          } else {
+            condensedExperience = experiences.join(", ");
+          }
+
+          // Profile image
           const photoUrl = c.profile_photo
             ? supabase.storage
-                .from("profile_photo") // 👈 change if your bucket has a different name
+                .from("profile_photo")
                 .getPublicUrl(c.profile_photo).data.publicUrl
             : "/default-avatar.png";
 
@@ -76,6 +109,8 @@ const BrowseCandidates: React.FC = () => {
             state: c.state,
             profileImage: photoUrl,
             industries: uniqueIndustries,
+            experienceSummary:
+              condensedExperience || "No work experience added",
           };
         }) || [];
 
@@ -216,6 +251,11 @@ const BrowseCandidates: React.FC = () => {
                             </p>
                             <p className="text-sm text-gray-600">
                               Preferred State: {candidate.state}
+                            </p>
+
+                            {/* ✅ Experience Summary */}
+                            <p className="text-sm text-gray-600 mt-1">
+                              {candidate.experienceSummary}
                             </p>
                           </div>
                         </div>
