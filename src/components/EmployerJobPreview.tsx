@@ -37,6 +37,7 @@ const EmployerJobPreview: React.FC = () => {
   const { toast } = useToast();
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [photoPath, setPhotoPath] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -75,13 +76,13 @@ const EmployerJobPreview: React.FC = () => {
         }
 
         if (data) {
-          // Handle signed URL for company photo
           let signedPhoto: string | null = null;
           if (data.employer?.profile_photo) {
             const photoValue = data.employer.profile_photo;
             if (photoValue.startsWith("http")) {
               signedPhoto = photoValue;
             } else {
+              setPhotoPath(photoValue);
               const { data: signed } = await supabase.storage
                 .from("profile_photo")
                 .createSignedUrl(photoValue, 3600);
@@ -119,6 +120,22 @@ const EmployerJobPreview: React.FC = () => {
 
     fetchJobDetails();
   }, [jobId, toast]);
+
+  // 🔄 Auto-refresh signed URL every 55 minutes
+  useEffect(() => {
+    if (!photoPath) return;
+    const interval = setInterval(async () => {
+      const { data: signed } = await supabase.storage
+        .from("profile_photo")
+        .createSignedUrl(photoPath, 3600);
+      if (signed?.signedUrl) {
+        setJobDetails((prev) =>
+          prev ? { ...prev, company_photo: signed.signedUrl } : prev
+        );
+      }
+    }, 55 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [photoPath]);
 
   const formatDate = (date: string | null) => {
     if (!date) return "TBA";
