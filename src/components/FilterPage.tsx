@@ -1,3 +1,4 @@
+// src/components/FilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,56 +18,78 @@ interface FilterPageProps {
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    candidateLocation: "",
+    preferredState: "",
+    preferredCity: "",
+    preferredPostcode: "",
     candidateIndustry: "",
     candidateExperience: "",
   });
 
-  const [locations, setLocations] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [postcodes, setPostcodes] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>(
+    []
+  );
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
-  // ✅ Fetch preferred locations
+  // ✅ Fetch Preferred Location (state, city, postcode)
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
         .from("maker_pref_location")
-        .select("state, suburb_city");
+        .select("state, suburb_city, postcode");
 
-      if (!error && data) {
-        const locs = data.map(
-          (l) => `${l.suburb_city || ""}, ${l.state || ""}`.trim()
-        );
-        setLocations([...new Set(locs.filter(Boolean))]); // unique & non-empty
+      if (error) {
+        console.error("Error fetching locations:", error);
+        return;
+      }
+
+      if (data) {
+        setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
+        setCities([...new Set(data.map((l) => l.suburb_city).filter(Boolean))]);
+        setPostcodes([...new Set(data.map((l) => l.postcode).filter(Boolean))]);
       }
     };
+
     fetchLocations();
   }, []);
 
-  // ✅ Fetch industries
+  // ✅ Fetch Industries
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase
         .from("industry")
         .select("industry_id, name");
 
-      if (!error && data) {
+      if (error) {
+        console.error("Error fetching industries:", error);
+        return;
+      }
+
+      if (data) {
         setIndustries(
           data.map((row) => ({ id: row.industry_id, name: row.name }))
         );
       }
     };
+
     fetchIndustries();
   }, []);
 
-  // ✅ Fetch & calculate work experience levels
+  // ✅ Fetch & Calculate Work Experience Levels
   useEffect(() => {
     const fetchExperience = async () => {
       const { data, error } = await supabase
         .from("maker_work_experience")
         .select("start_date, end_date");
 
-      if (!error && data) {
+      if (error) {
+        console.error("Error fetching experience:", error);
+        return;
+      }
+
+      if (data && data.length > 0) {
         const levels = data.map((exp) => {
           const start = new Date(exp.start_date);
           const end = exp.end_date ? new Date(exp.end_date) : new Date();
@@ -80,8 +103,11 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         });
 
         setExperienceLevels([...new Set(levels)]);
+      } else {
+        setExperienceLevels(["No experience data"]);
       }
     };
+
     fetchExperience();
   }, []);
 
@@ -118,11 +144,17 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
-          {items.map((item) => (
-            <SelectItem key={item} value={item} className="hover:bg-gray-100">
-              {item}
+          {items.length > 0 ? (
+            items.map((item) => (
+              <SelectItem key={item} value={item} className="hover:bg-gray-100">
+                {item}
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="none" disabled>
+              No options available
             </SelectItem>
-          ))}
+          )}
         </SelectContent>
       </Select>
     </div>
@@ -151,10 +183,24 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
           {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
             <DropdownSection
-              title="Preferred Location"
-              items={locations}
-              category="candidateLocation"
-              placeholder="Any location"
+              title="Preferred State"
+              items={states}
+              category="preferredState"
+              placeholder="Any state"
+            />
+
+            <DropdownSection
+              title="Preferred City/Suburb"
+              items={cities}
+              category="preferredCity"
+              placeholder="Any suburb"
+            />
+
+            <DropdownSection
+              title="Preferred Postcode"
+              items={postcodes}
+              category="preferredPostcode"
+              placeholder="Any postcode"
             />
 
             <DropdownSection
@@ -165,7 +211,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
             />
 
             <DropdownSection
-              title="Work Experience"
+              title="Years of Work Experience"
               items={experienceLevels}
               category="candidateExperience"
               placeholder="Any experience level"
