@@ -38,6 +38,15 @@ interface PostJobFormProps {
     job_id: number;
     role: string;
     job_status: JobStatus;
+    description?: string;
+    employment_type?: string;
+    salary_range?: string;
+    req_experience?: string;
+    state?: string;
+    suburb_city?: string;
+    postcode?: string;
+    start_date?: string;
+    licenses?: number[];
   } | null;
 }
 
@@ -52,22 +61,26 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [locations, setLocations] = useState<SuburbRow[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
-  // Selected values
+  // Selected values (prefill with editingJob if exists)
   const [form, setForm] = useState({
-    industryRoleId: "",
+    industryRoleId: editingJob?.role || "",
     industryRoleName: editingJob?.role || "",
-    description: "",
-    employmentType: "",
-    salaryRange: "",
-    experienceRange: "",
-    state: "",
-    suburbValue: "",
-    postcode: "",
+    description: editingJob?.description || "",
+    employmentType: editingJob?.employment_type || "",
+    salaryRange: editingJob?.salary_range || "",
+    experienceRange: editingJob?.req_experience || "",
+    state: editingJob?.state || "",
+    suburbValue: editingJob?.suburb_city
+      ? `${editingJob.suburb_city} (${editingJob.postcode})`
+      : "",
+    postcode: editingJob?.postcode || "",
     status: (editingJob?.job_status || "active") as JobStatus,
-    startDate: "",
+    startDate: editingJob?.start_date || "",
   });
 
-  const [selectedLicenses, setSelectedLicenses] = useState<number[]>([]);
+  const [selectedLicenses, setSelectedLicenses] = useState<number[]>(
+    editingJob?.licenses || []
+  );
   const [showPopup, setShowPopup] = useState(false);
 
   const pretty = (t: string) =>
@@ -76,7 +89,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const handle = (k: keyof typeof form, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // Load roles + locations from mvw_emp_location_roles
+  // Load roles + locations
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -107,13 +120,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             industry_role,
           }))
         );
-
-        setLocations(data); // keep for suburbs
+        setLocations(data);
       }
     })();
   }, []);
 
-  // Load enums via helper RPCs
+  // Load enums
   useEffect(() => {
     (async () => {
       const { data: jt } = await supabase.rpc("get_job_type_enum");
@@ -126,16 +138,28 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
-  // Licenses
+  // Licenses (with prefill for editingJob)
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
         .from("license")
         .select("license_id, name")
         .order("name");
-      if (!error && data) setLicenses(data);
+      if (!error && data) {
+        setLicenses(data);
+
+        if (editingJob?.job_id) {
+          const { data: jobLicenses } = await supabase
+            .from("job_license")
+            .select("license_id")
+            .eq("job_id", editingJob.job_id);
+          if (jobLicenses) {
+            setSelectedLicenses(jobLicenses.map((jl) => jl.license_id));
+          }
+        }
+      }
     })();
-  }, []);
+  }, [editingJob?.job_id]);
 
   const chosenSuburb = useMemo(
     () =>
@@ -158,9 +182,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       return;
     }
 
-    if (!form.industryRoleId || isNaN(Number(form.industryRoleId))) {
+    if (!form.industryRoleId)
       return toast({ title: "Role required", description: "Pick a job role." });
-    }
     if (!form.employmentType)
       return toast({ title: "Job type required", description: "Pick job type." });
     if (!form.salaryRange)
@@ -173,7 +196,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     const payload = {
       user_id: uid,
       job_status: form.status,
-      industry_role_id: Number(form.industryRoleId), // ✅ guaranteed number
+      industry_role_id: Number(form.industryRoleId),
       description: form.description,
       employment_type: form.employmentType,
       salary_range: form.salaryRange,
@@ -214,19 +237,15 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       return;
     }
 
-    // Sync licenses safely
     if (jobId) {
       await supabase.from("job_license").delete().eq("job_id", jobId);
       if (selectedLicenses.length) {
-        const licenseRows = selectedLicenses
-          .filter((lid) => typeof lid === "number" && !isNaN(lid))
-          .map((lid) => ({
+        await supabase.from("job_license").insert(
+          selectedLicenses.map((lid) => ({
             job_id: jobId!,
             license_id: lid,
-          }));
-        if (licenseRows.length) {
-          await supabase.from("job_license").insert(licenseRows);
-        }
+          }))
+        );
       }
     }
 
@@ -263,7 +282,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
           {/* Body */}
           <div className="flex-1 px-6 overflow-y-auto pb-24">
-            {/* Role */}
+            {/* Job Role */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Job Role</h2>
               <Select
@@ -323,7 +342,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </Select>
             </div>
 
-            {/* Salary */}
+            {/* Salary range */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Salary Range</h2>
               <Select
@@ -343,7 +362,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </Select>
             </div>
 
-            {/* Experience */}
+            {/* Experience required */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Experience Required</h2>
               <Select
@@ -442,7 +461,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </div>
             </div>
 
-            {/* Status */}
+            {/* Job Status */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Job Status</h2>
               <div className="flex items-center justify-between">
@@ -459,6 +478,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </div>
             </div>
 
+            {/* Save */}
             <div className="pb-6">
               <Button
                 onClick={onSave}
