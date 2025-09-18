@@ -76,7 +76,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const handle = (k: keyof typeof form, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // Load roles from industry_role and locations from postcode
+  // 🔹 Load roles + locations from mvw_emp_location_roles
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -91,67 +91,43 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
       if (!emp?.industry_id) return;
 
-      // Load roles from industry_role table
-      const { data: roleData } = await supabase
-        .from("industry_role")
-        .select("industry_role_id, role")
+      const { data, error } = await supabase
+        .from("mvw_emp_location_roles")
+        .select("industry_role_id, industry_role, state, suburb_city, postcode")
         .eq("industry_id", emp.industry_id);
 
-      if (roleData) {
-        setRoles(roleData.map(r => ({
-          industry_role_id: r.industry_role_id,
-          industry_role: r.role
-        })));
-      }
+      if (!error && data) {
+        // Deduplicate roles
+        const roleMap = new Map<number, string>();
+        data.forEach((r) =>
+          roleMap.set(r.industry_role_id, r.industry_role)
+        );
+        setRoles(
+          Array.from(roleMap, ([industry_role_id, industry_role]) => ({
+            industry_role_id,
+            industry_role,
+          }))
+        );
 
-      // Load Queensland locations using hardcoded values that match the schema
-      const mockLocations = [
-        { suburb_city: "Brisbane", postcode: "4000", state: "Queensland" },
-        { suburb_city: "Gold Coast", postcode: "4217", state: "Queensland" },
-        { suburb_city: "Cairns", postcode: "4870", state: "Queensland" },
-        { suburb_city: "Townsville", postcode: "4810", state: "Queensland" },
-        { suburb_city: "Toowoomba", postcode: "4350", state: "Queensland" },
-      ];
-      setLocations(mockLocations);
+        setLocations(data); // keep full list for suburb/state filtering
+      }
     })();
   }, []);
 
-  // Load enum values from database functions  
+  // 🔹 Load enums via helper RPCs
   useEffect(() => {
     (async () => {
-      try {
-        // Use RPC to get enum values, but fallback to hardcoded if needed
-        const { data: jobTypeData } = await (supabase as any).rpc("get_enum_values", { typname: "job_type_enum" });
-        if (jobTypeData && Array.isArray(jobTypeData)) {
-          setJobTypeEnum(jobTypeData);
-        } else {
-          setJobTypeEnum(["Full-time", "Part-time", "Casual / Seasonal", "Contract"]);
-        }
+      const { data: jt } = await supabase.rpc("get_job_type_enum");
+      const { data: pr } = await supabase.rpc("get_pay_range_enum");
+      const { data: ye } = await supabase.rpc("get_years_experience_enum");
 
-        const { data: payRangeData } = await (supabase as any).rpc("get_enum_values", { typname: "pay_range" });
-        if (payRangeData && Array.isArray(payRangeData)) {
-          setPayRangeEnum(payRangeData);
-        } else {
-          setPayRangeEnum(["$25", "$26-30", "$31-35", "$36-40", "$41-45", "$46-50", "$50+"]);
-        }
-
-        const { data: yearsExpData } = await (supabase as any).rpc("get_enum_values", { typname: "years_experience" });
-        if (yearsExpData && Array.isArray(yearsExpData)) {
-          setYearsExpEnum(yearsExpData);
-        } else {
-          setYearsExpEnum(["<1", "1-2", "3-5", "6-10", "10+"]);
-        }
-      } catch (error) {
-        console.error("Error fetching enum values:", error);
-        // Fallback to hardcoded values
-        setJobTypeEnum(["Full-time", "Part-time", "Casual / Seasonal", "Contract"]);
-        setPayRangeEnum(["$25", "$26-30", "$31-35", "$36-40", "$41-45", "$46-50", "$50+"]);
-        setYearsExpEnum(["<1", "1-2", "3-5", "6-10", "10+"]);
-      }
+      if (jt) setJobTypeEnum(jt);
+      if (pr) setPayRangeEnum(pr);
+      if (ye) setYearsExpEnum(ye);
     })();
   }, []);
 
-  // Licenses
+  // 🔹 Licenses
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -174,7 +150,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     handle("postcode", chosenSuburb?.postcode ?? "");
   }, [chosenSuburb?.postcode]);
 
-  // Save
+  // 🔹 Save
   const onSave = async () => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
@@ -202,7 +178,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       employment_type: form.employmentType,
       salary_range: form.salaryRange,
       req_experience: form.experienceRange,
-      state: form.state as any, // Type cast to bypass strict typing
+      state: form.state,
       suburb_city: chosenSuburb?.suburb_city ?? "",
       postcode: chosenSuburb?.postcode ?? form.postcode,
       start_date: form.startDate || null,
@@ -212,14 +188,14 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     let error: any = null;
 
     if (editingJob) {
-      const { error: upd } = await (supabase as any)
+      const { error: upd } = await supabase
         .from("job")
         .update(payload)
         .eq("job_id", editingJob.job_id);
       error = upd;
       jobId = editingJob.job_id;
     } else {
-      const { data: ins, error: insErr } = await (supabase as any)
+      const { data: ins, error: insErr } = await supabase
         .from("job")
         .insert(payload)
         .select("job_id")
@@ -502,7 +478,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <h2 className="text-lg font-semibold text-gray-900 text-center mb-2">
                   These functions are for future phases
                 </h2>
-                <p className="text-gray-600 text-center mb-6">We'll be back</p>
+                <p className="text-gray-600 text-center mb-6">We’ll be back</p>
                 <Button
                   onClick={() => setShowPopup(false)}
                   className="w-full bg-slate-800 hover:bg-slate-700 text-white"
