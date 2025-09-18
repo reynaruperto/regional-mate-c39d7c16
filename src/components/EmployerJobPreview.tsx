@@ -59,11 +59,13 @@ const EmployerJobPreview: React.FC = () => {
             start_date,
             job_status,
             industry_role ( role ),
-            employer (
-              company_name,
-              tagline,
-              profile_photo,
-              employer_facility ( facility ( name ) )
+            profile:user_id (
+              employer (
+                company_name,
+                tagline,
+                profile_photo,
+                employer_facility ( facility ( name ) )
+              )
             )
           `
           )
@@ -77,8 +79,10 @@ const EmployerJobPreview: React.FC = () => {
 
         if (data) {
           let signedPhoto: string | null = null;
-          if (data.employer?.profile_photo) {
-            const photoValue = data.employer.profile_photo;
+          const employer = data.profile?.employer?.[0] || null;
+
+          if (employer?.profile_photo) {
+            const photoValue = employer.profile_photo;
             if (photoValue.startsWith("http")) {
               signedPhoto = photoValue;
             } else {
@@ -102,13 +106,12 @@ const EmployerJobPreview: React.FC = () => {
             start_date: data.start_date,
             job_status: data.job_status,
             role: data.industry_role?.role || "Unknown Role",
-            company_name: data.employer?.company_name || "Unknown Company",
-            tagline: data.employer?.tagline || "No tagline provided",
+            company_name: employer?.company_name || "Unknown Company",
+            tagline: employer?.tagline || "No tagline provided",
             company_photo: signedPhoto,
             facilities:
-              data.employer?.employer_facility?.map(
-                (f: any) => f.facility?.name
-              ) || [],
+              employer?.employer_facility?.map((f: any) => f.facility?.name) ||
+              [],
           });
         }
       } catch (error) {
@@ -168,10 +171,8 @@ const EmployerJobPreview: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
