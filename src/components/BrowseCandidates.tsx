@@ -1,3 +1,4 @@
+// src/pages/BrowseCandidates.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
@@ -14,7 +15,7 @@ interface Candidate {
   industries: string[];
   state: string;
   profileImage: string;
-  experienceSummary: string; // ✅ new condensed line
+  experiences: string;
 }
 
 const BrowseCandidates: React.FC = () => {
@@ -38,12 +39,13 @@ const BrowseCandidates: React.FC = () => {
           family_name,
           state,
           profile_photo,
-          maker_preference (
+          maker_preference:maker_preference!left (
             industry_role (
-              industry ( name )
+              industry ( name ),
+              role
             )
           ),
-          maker_work_experience (
+          maker_work_experience:maker_work_experience!left (
             position,
             start_date,
             end_date,
@@ -65,27 +67,25 @@ const BrowseCandidates: React.FC = () => {
             c.maker_preference?.map(
               (p: any) => p.industry_role?.industry?.name
             ) || [];
-          const uniqueIndustries = [...new Set(industriesRaw)];
+          const uniqueIndustries = [...new Set(industriesRaw)].filter(Boolean);
 
-          // ✅ Condensed experience summary
+          // Condensed work experience
           const experiences =
             c.maker_work_experience?.map((exp: any) => {
+              if (!exp.start_date) return null;
               const start = new Date(exp.start_date);
               const end = exp.end_date ? new Date(exp.end_date) : new Date();
               const diffYears =
-                (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
-
-              let duration = "";
-              if (diffYears < 1) {
-                duration = `${Math.round(diffYears * 12)} mos`;
-              } else {
-                duration = `${Math.round(diffYears)} yrs`;
-              }
-
+                (end.getTime() - start.getTime()) /
+                (1000 * 60 * 60 * 24 * 365);
+              const duration =
+                diffYears < 1
+                  ? `${Math.round(diffYears * 12)} mos`
+                  : `${Math.round(diffYears)} yrs`;
               return `${exp.industry?.name || "Unknown"} – ${
                 exp.position || "Role"
               } (${duration})`;
-            }) || [];
+            }).filter(Boolean) || [];
 
           let condensedExperience = "";
           if (experiences.length > 2) {
@@ -96,7 +96,7 @@ const BrowseCandidates: React.FC = () => {
             condensedExperience = experiences.join(", ");
           }
 
-          // Profile image
+          // Profile photo (signed URL or default)
           const photoUrl = c.profile_photo
             ? supabase.storage
                 .from("profile_photo")
@@ -109,8 +109,7 @@ const BrowseCandidates: React.FC = () => {
             state: c.state,
             profileImage: photoUrl,
             industries: uniqueIndustries,
-            experienceSummary:
-              condensedExperience || "No work experience added",
+            experiences: condensedExperience,
           };
         }) || [];
 
@@ -143,6 +142,7 @@ const BrowseCandidates: React.FC = () => {
 
   const handleApplyFilters = (filters: any) => {
     console.log("Applied filters:", filters);
+    // TODO: Apply filtering logic here later
   };
 
   if (showFilters) {
@@ -181,7 +181,10 @@ const BrowseCandidates: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+            <div
+              className="flex-1 px-6 overflow-y-auto"
+              style={{ paddingBottom: "100px" }}
+            >
               {/* Search Bar */}
               <div className="relative mb-4">
                 <Search
@@ -209,7 +212,9 @@ const BrowseCandidates: React.FC = () => {
                     key={filter.value}
                     className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-2"
                   >
-                    <span className="text-sm text-gray-700">{filter.label}</span>
+                    <span className="text-sm text-gray-700">
+                      {filter.label}
+                    </span>
                     <button
                       onClick={() => removeFilter(filter.value)}
                       className="text-gray-500 hover:text-gray-700 text-lg"
@@ -249,26 +254,29 @@ const BrowseCandidates: React.FC = () => {
                                 : candidate.industries.join(", ") ||
                                   "No preferences"}
                             </p>
+                            <p className="text-sm text-gray-600 mb-1">
+                              {candidate.experiences ||
+                                "No work experience added"}
+                            </p>
                             <p className="text-sm text-gray-600">
                               Preferred State: {candidate.state}
-                            </p>
-
-                            {/* ✅ Experience Summary */}
-                            <p className="text-sm text-gray-600 mt-1">
-                              {candidate.experienceSummary}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-3 mt-4">
                           <Button
-                            onClick={() => handleViewProfile(candidate.user_id)}
+                            onClick={() =>
+                              handleViewProfile(candidate.user_id)
+                            }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
                           >
                             View Profile
                           </Button>
                           <button
-                            onClick={() => handleLikeCandidate(candidate.user_id)}
+                            onClick={() =>
+                              handleLikeCandidate(candidate.user_id)
+                            }
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart size={20} className="text-orange-500" />
