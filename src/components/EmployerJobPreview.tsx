@@ -1,6 +1,6 @@
 // src/pages/employer/EmployerJobPreview.tsx
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, MapPin, Calendar, Clock, DollarSign, User, Globe } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Clock, DollarSign, User, Globe, Award, Building2, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,8 @@ interface JobDetails {
   tagline: string;
   company_photo?: string;
   website?: string;
+  licenses: string[];
+  facilities: string[];
 }
 
 const EmployerJobPreview: React.FC = () => {
@@ -54,7 +56,13 @@ const EmployerJobPreview: React.FC = () => {
               company_name,
               tagline,
               profile_photo,
-              website
+              website,
+              employer_facility (
+                facility ( name )
+              )
+            ),
+            job_license (
+              license ( name )
             )
           `)
           .eq("job_id", parseInt(jobId))
@@ -83,6 +91,8 @@ const EmployerJobPreview: React.FC = () => {
             tagline: jobData.employer?.tagline || "Leading employer in the industry",
             company_photo: jobData.employer?.profile_photo || null,
             website: jobData.employer?.website || null,
+            licenses: jobData.job_license?.map((jl: any) => jl.license?.name) || [],
+            facilities: jobData.employer?.employer_facility?.map((ef: any) => ef.facility?.name) || [],
           });
         }
       } catch (error) {
@@ -98,14 +108,7 @@ const EmployerJobPreview: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-600">Loading job details...</p>
-            </div>
-          </div>
-        </div>
+        <p>Loading job details...</p>
       </div>
     );
   }
@@ -113,25 +116,20 @@ const EmployerJobPreview: React.FC = () => {
   if (!jobDetails) {
     return (
       <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-600">Job not found</p>
-              <Button onClick={() => navigate("/post-jobs")} className="mt-4">
-                Back to Jobs
-              </Button>
-            </div>
-          </div>
-        </div>
+        <p>Job not found</p>
+        <Button onClick={() => navigate("/post-jobs")} className="mt-4">
+          Back to Jobs
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
@@ -149,41 +147,33 @@ const EmployerJobPreview: React.FC = () => {
               <div className="w-12 h-12"></div>
             </div>
 
-            {/* Job Card */}
+            {/* Job Preview Card */}
             <div className="flex-1 px-6 overflow-y-auto">
               <div className="bg-white rounded-3xl p-6 shadow-lg mb-6">
                 {/* Company Info */}
                 <div className="text-center mb-6">
-                  <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 overflow-hidden flex items-center justify-center">
+                  <div className="w-20 h-20 bg-[#1E293B] rounded-2xl mx-auto mb-4 flex items-center justify-center overflow-hidden">
                     {jobDetails.company_photo ? (
-                      <img src={jobDetails.company_photo} className="w-full h-full object-cover" />
+                      <img
+                        src={jobDetails.company_photo}
+                        alt={jobDetails.company_name}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
-                      <span className="text-2xl font-bold text-gray-700">
+                      <span className="text-2xl font-bold text-white">
                         {jobDetails.company_name.charAt(0)}
                       </span>
                     )}
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">{jobDetails.company_name}</h2>
-                  <p className="text-gray-600 text-sm mb-2">{jobDetails.tagline}</p>
-
-                  {/* Website */}
-                  <p className="text-sm">
-                    <Globe size={14} className="inline mr-1 text-gray-600" />
+                  <p className="text-gray-600 text-sm">{jobDetails.tagline}</p>
+                  <p className="text-gray-500 text-sm">
                     {jobDetails.website ? (
-                      <a
-                        href={
-                          jobDetails.website.startsWith("http")
-                            ? jobDetails.website
-                            : `https://${jobDetails.website}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline text-blue-600"
-                      >
+                      <a href={jobDetails.website} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">
                         {jobDetails.website}
                       </a>
                     ) : (
-                      <span className="text-gray-500">Not applicable</span>
+                      "Website not available"
                     )}
                   </p>
                 </div>
@@ -239,6 +229,44 @@ const EmployerJobPreview: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Licenses Required */}
+                <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                  <div className="flex items-center mb-2">
+                    <Award className="w-5 h-5 text-indigo-500 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Licenses Required</span>
+                  </div>
+                  {jobDetails.licenses.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {jobDetails.licenses.map((license, i) => (
+                        <span key={i} className="px-3 py-1 border border-indigo-500 text-indigo-600 text-xs rounded-full">
+                          {license}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
+                </div>
+
+                {/* Facilities */}
+                <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                  <div className="flex items-center mb-2">
+                    <Building2 className="w-5 h-5 text-pink-500 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Facilities Provided</span>
+                  </div>
+                  {jobDetails.facilities.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {jobDetails.facilities.map((facility, i) => (
+                        <span key={i} className="px-3 py-1 border border-pink-500 text-pink-600 text-xs rounded-full">
+                          {facility}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities provided</p>
+                  )}
+                </div>
+
                 {/* Location */}
                 <div className="bg-gray-50 rounded-2xl p-4 mb-6">
                   <div className="flex items-center mb-2">
@@ -258,22 +286,10 @@ const EmployerJobPreview: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    className="flex-1 rounded-xl py-3"
-                    onClick={() => navigate("/post-jobs")}
-                  >
-                    Back to Jobs
-                  </Button>
-                  <Button
-                    className="flex-1 bg-[#1E293B] text-white rounded-xl py-3"
-                    onClick={() => navigate(`/employer/job-match-preview/${jobDetails.job_id}`)}
-                  >
-                    View Match Preview
-                  </Button>
-                </div>
+                {/* Heart to Match */}
+                <Button className="w-full bg-gradient-to-r from-[#1E293B] to-[#334155] hover:from-[#0f172a] hover:to-[#1e293b] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
+                  <Heart size={18} className="fill-white" /> Heart to Match
+                </Button>
               </div>
               <div className="h-20"></div>
             </div>
