@@ -11,7 +11,6 @@ import {
   Hash,
   Phone,
   Mail,
-  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -274,6 +273,23 @@ const EmployerJobMatchPreview: React.FC = () => {
                         {jobDetails.req_experience} years
                       </p>
                     </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-600">Licenses Required:</span>
+                      {licenses.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {licenses.map((l, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                            >
+                              {l}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="font-medium text-gray-900">None</p>
+                      )}
+                    </div>
                     <div>
                       <span className="text-gray-600">Start Date:</span>
                       <p className="font-medium text-gray-900">
@@ -316,29 +332,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                     ) : (
                       <p className="text-sm text-gray-500">
                         No facilities listed
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* License Required */}
-                <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">
-                    License Required
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {licenses.length > 0 ? (
-                      licenses.map((l, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
-                        >
-                          {l}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500">
-                        No licenses required
                       </p>
                     )}
                   </div>
