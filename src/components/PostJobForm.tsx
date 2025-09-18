@@ -46,29 +46,29 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [qldSuburbs, setQldSuburbs] = useState<SuburbRow[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
-  // Selected values (store enum **tokens**, not labels)
+  // Selected values
   const [form, setForm] = useState({
-    role: editingJob?.role || "",
+    industryRoleId: "",
     description: "",
-    employmentType: "", // job_type_enum  
-    salaryRange: "",    // pay_range
-    experienceRange: "", // years_experience
+    employmentType: "",
+    salaryRange: "",
+    experienceRange: "",
     state: "",
-    suburbValue: "",    // "Suburb (PC)" for UI
+    suburbValue: "",
     postcode: "",
+    startDate: "",
     status: (editingJob?.job_status || "active") as JobStatus,
   });
 
   const [selectedLicenses, setSelectedLicenses] = useState<number[]>([]);
   const [showPopup, setShowPopup] = useState(false);
 
-  // Friendly label for enums (Title Case, swap underscores with spaces)
   const pretty = (t: string) =>
     t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   const handle = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
-  // Load employer's roles (by industry_id)
+  // Load employer roles
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -80,28 +80,31 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .select("industry_id")
         .eq("user_id", uid)
         .single();
-      if (empErr) {
-        console.error(empErr);
-        toast({ title: "Error", description: "Cannot load employer industry." });
-        return;
-      }
-      if (!emp?.industry_id) return;
+      if (empErr || !emp?.industry_id) return;
 
-      const { data: rs, error } = await supabase
+      const { data: rs } = await supabase
         .from("industry_role")
         .select("industry_role_id, role")
         .eq("industry_id", emp.industry_id)
         .order("role");
-      if (!error && rs) setRoles(rs);
-    })();
-  }, [toast]);
 
-  // Load enum values directly from successful network calls
+      if (rs) setRoles(rs);
+    })();
+  }, []);
+
+  // Load enums via RPC
   useEffect(() => {
-    // Use fallback values since the enum calls are working but have type issues
-    setJobTypeEnum(['Full-time', 'Part-time', 'Casual', 'Contract', 'Seasonal']);
-    setPayRangeEnum(['$25-30/hour', '$30-35/hour', '$35-40/hour', '$40-45/hour', '$45+/hour', 'Undisclosed']);
-    setYearsExpEnum(['None', '<1', '1-2', '3-4', '5-7', '8-10', '10+']);
+    (async () => {
+      const [jt, pr, ye] = await Promise.all([
+        supabase.rpc("get_enum_values", { typname: "job_type_enum" }),
+        supabase.rpc("get_enum_values", { typname: "pay_range" }),
+        supabase.rpc("get_enum_values", { typname: "years_experience" }),
+      ]);
+
+      if (!jt.error && jt.data) setJobTypeEnum(jt.data as string[]);
+      if (!pr.error && pr.data) setPayRangeEnum(pr.data as string[]);
+      if (!ye.error && ye.data) setYearsExpEnum(ye.data as string[]);
+    })();
   }, []);
 
   // QLD suburbs
@@ -113,44 +116,28 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         handle("postcode", "");
         return;
       }
-      try {
-        // Use direct SQL call to bypass TypeScript type issues
-        const response = await fetch(
-          `https://xiymsnmlwffikkhwatcp.supabase.co/rest/v1/mvw_emp_location_roles?select=suburb_city,postcode&state=eq.Queensland`,
-          {
-            headers: {
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpeW1zbm1sd2ZmaWtraHdhdGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NTEzNTIsImV4cCI6MjA3MTQyNzM1Mn0.nKJHOzcMMOY7sSOjGVyLUGkOZW_hgaS8zvhTg4Z_7lc',
-              'accept-profile': 'public'
-            }
-          }
-        );
-        const data = await response.json();
-        
-        if (data && Array.isArray(data)) {
-          // de-duplicate combos
-          const seen = new Set<string>();
-          const uniq = data.filter((r: any) => {
-            const k = `${r.suburb_city}|${r.postcode}`;
-            if (seen.has(k)) return false;
-            seen.add(k);
-            return true;
-          });
-          setQldSuburbs(uniq);
-        }
-      } catch (error) {
-        console.error('Error loading suburbs:', error);
-        setQldSuburbs([]);
+      const { data } = await supabase
+        .from("mvw_emp_location_roles")
+        .select("suburb_city, postcode")
+        .eq("state", "Queensland");
+      if (data) {
+        const seen = new Set<string>();
+        const uniq = data.filter((r) => {
+          const k = `${r.suburb_city}|${r.postcode}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        setQldSuburbs(uniq);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.state]);
 
   // Licenses
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("license").select("license_id, name").order("name");
-      if (!error && data) setLicenses(data);
+      const { data } = await supabase.from("license").select("license_id, name").order("name");
+      if (data) setLicenses(data);
     })();
   }, []);
 
@@ -159,10 +146,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     [qldSuburbs, form.suburbValue]
   );
 
-  // When suburb changes, keep postcode in sync
   useEffect(() => {
     handle("postcode", chosenSuburb?.postcode ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenSuburb?.postcode]);
 
   // Save
@@ -174,84 +159,45 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       return;
     }
 
-    // quick client-side checks
-    if (!form.role) return toast({ title: "Role required", description: "Please enter a job role." });
+    if (!form.industryRoleId) return toast({ title: "Role required", description: "Please pick a job role." });
     if (!form.employmentType) return toast({ title: "Job type required", description: "Please pick a job type." });
     if (!form.salaryRange) return toast({ title: "Salary range required", description: "Please pick a salary range." });
     if (!form.experienceRange) return toast({ title: "Experience required", description: "Please pick experience level." });
     if (!form.state) return toast({ title: "State required", description: "Please select a state." });
-    if (form.state === "Queensland" && !form.suburbValue) {
-      return toast({ title: "Location required", description: "Please pick a suburb / postcode." });
-    }
+    if (!form.startDate) return toast({ title: "Start date required", description: "Please select a start date." });
 
-    // Create payload matching the actual database schema from network requests
     const payload: any = {
       user_id: uid,
       job_status: form.status,
-      description: form.description || "",
-      role: form.role,
+      description: form.description,
+      industry_role_id: Number(form.industryRoleId),
       employment_type: form.employmentType,
-      salary_range: form.salaryRange, 
+      salary_range: form.salaryRange,
       req_experience: form.experienceRange,
       state: form.state,
       suburb_city: chosenSuburb?.suburb_city ?? "",
       postcode: chosenSuburb?.postcode ?? form.postcode,
+      start_date: form.startDate,
     };
 
-    // Use direct SQL insert to bypass TypeScript type issues
     let jobId: number | null = null;
     let error: any = null;
 
     if (editingJob) {
-      // Update existing job using direct API call
-      const response = await fetch(
-        `https://xiymsnmlwffikkhwatcp.supabase.co/rest/v1/job?job_id=eq.${editingJob.job_id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpeW1zbm1sd2ZmaWtraHdhdGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NTEzNTIsImV4cCI6MjA3MTQyNzM1Mn0.nKJHOzcMMOY7sSOjGVyLUGkOZW_hgaS8zvhTg4Z_7lc',
-            'content-profile': 'public',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        }
-      );
-      if (!response.ok) {
-        error = { message: `HTTP error! status: ${response.status}` };
-      }
+      const { error: upd } = await supabase.from("job").update(payload).eq("job_id", editingJob.job_id);
+      error = upd;
       jobId = editingJob.job_id;
     } else {
-      // Insert new job using direct API call
-      const response = await fetch(
-        `https://xiymsnmlwffikkhwatcp.supabase.co/rest/v1/job`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpeW1zbm1sd2ZmaWtraHdhdGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NTEzNTIsImV4cCI6MjA3MTQyNzM1Mn0.nKJHOzcMMOY7sSOjGVyLUGkOZW_hgaS8zvhTg4Z_7lc',
-            'content-profile': 'public',
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify(payload)
-        }
-      );
-      if (response.ok) {
-        const result = await response.json();
-        jobId = result[0]?.job_id ?? null;
-      } else {
-        error = { message: `HTTP error! status: ${response.status}` };
-      }
+      const { data: ins, error: insErr } = await supabase.from("job").insert(payload).select("job_id").single();
+      error = insErr;
+      jobId = ins?.job_id ?? null;
     }
 
     if (error) {
-      console.error(error);
       toast({ title: "Save failed", description: error.message, variant: "destructive" });
       return;
     }
 
-    // Sync licenses
     if (jobId) {
       await supabase.from("job_license").delete().eq("job_id", jobId);
       if (selectedLicenses.length) {
@@ -289,11 +235,19 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             {/* Role */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Job Role</h2>
-              <Input
-                value={form.role}
-                onChange={(e) => handle("role", e.target.value)}
-                placeholder="Enter job role (e.g., Farm Worker, Construction Laborer)"
-              />
+              <Select
+                value={form.industryRoleId}
+                onValueChange={(v) => handle("industryRoleId", v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map((r) => (
+                    <SelectItem key={r.industry_role_id} value={String(r.industry_role_id)}>
+                      {r.role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Description */}
@@ -307,7 +261,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               />
             </div>
 
-            {/* Job type (enum) */}
+            {/* Job type */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Job Type</h2>
               <Select value={form.employmentType} onValueChange={(v) => handle("employmentType", v)}>
@@ -320,7 +274,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </Select>
             </div>
 
-            {/* Salary Range */}
+            {/* Salary */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Salary Range</h2>
               <Select value={form.salaryRange} onValueChange={(v) => handle("salaryRange", v)}>
@@ -333,7 +287,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </Select>
             </div>
 
-            {/* Experience Required */}
+            {/* Experience */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Experience Required</h2>
               <Select value={form.experienceRange} onValueChange={(v) => handle("experienceRange", v)}>
@@ -345,7 +299,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 </SelectContent>
               </Select>
             </div>
-
 
             {/* Location */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
@@ -381,6 +334,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               )}
             </div>
 
+            {/* Start date */}
+            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+              <h2 className="text-sm font-semibold mb-3">Start Date</h2>
+              <Input type="date" value={form.startDate} onChange={(e) => handle("startDate", e.target.value)} />
+            </div>
 
             {/* Licenses */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
@@ -418,6 +376,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </div>
             </div>
 
+            {/* Save */}
             <div className="pb-6">
               <Button onClick={onSave} className="w-full bg-[#1E293B] text-white rounded-xl h-12 text-base font-medium">
                 {editingJob ? "Update Job" : "Post Job"}
@@ -425,7 +384,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             </div>
           </div>
 
-          {/* Contained popup (inside the phone) */}
+          {/* Popup */}
           {showPopup && (
             <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
               <div className="bg-white rounded-2xl p-8 w-[85%] max-w-sm shadow-xl">
