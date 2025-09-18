@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -23,6 +22,7 @@ const EmployerEditProfile: React.FC = () => {
 
   const [uploading, setUploading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [photoPath, setPhotoPath] = useState<string | null>(null); // store DB path
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -37,7 +37,7 @@ const EmployerEditProfile: React.FC = () => {
 
       const { data: employer, error: empError } = await supabase
         .from('employer')
-        .select('given_name, middle_name, family_name, company_name, profile_photo')
+        .select('given_name, middle_name, family_name, company_name, profile_photo, is_profile_visible')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -51,25 +51,42 @@ const EmployerEditProfile: React.FC = () => {
         setMiddleName(employer.middle_name || '');
         setFamilyName(employer.family_name || '');
         setCompanyName(employer.company_name || '');
+        setProfileVisible(employer.is_profile_visible ?? true);
 
         if (employer.profile_photo) {
-          let photoPath = employer.profile_photo;
-          if (photoPath.includes('/profile_photo/')) {
-            photoPath = photoPath.split('/profile_photo/')[1];
-          }
+          setPhotoPath(employer.profile_photo);
 
-          const { data } = await supabase
+          // Get initial signed URL
+          const { data: signed } = await supabase
             .storage
             .from('profile_photo')
-            .createSignedUrl(photoPath, 3600);
+            .createSignedUrl(employer.profile_photo, 3600);
 
-          if (data?.signedUrl) setProfilePhoto(data.signedUrl);
+          if (signed?.signedUrl) setProfilePhoto(signed.signedUrl);
         }
       }
     };
 
     fetchProfile();
   }, [navigate]);
+
+  // 🔄 Auto-refresh signed URL every 55 minutes
+  useEffect(() => {
+    if (!photoPath) return;
+
+    const interval = setInterval(async () => {
+      const { data: signed } = await supabase
+        .storage
+        .from('profile_photo')
+        .createSignedUrl(photoPath, 3600);
+
+      if (signed?.signedUrl) {
+        setProfilePhoto(signed.signedUrl);
+      }
+    }, 55 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [photoPath]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -105,12 +122,14 @@ const EmployerEditProfile: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      const { data } = await supabase
+      setPhotoPath(filePath);
+
+      const { data: signed } = await supabase
         .storage
         .from('profile_photo')
         .createSignedUrl(filePath, 3600);
 
-      if (data?.signedUrl) setProfilePhoto(data.signedUrl);
+      if (signed?.signedUrl) setProfilePhoto(signed.signedUrl);
 
       toast({
         title: "Photo updated",
@@ -152,6 +171,7 @@ const EmployerEditProfile: React.FC = () => {
         middle_name: middleName || null,
         family_name: familyName,
         company_name: companyName,
+        is_profile_visible: profileVisible
       })
       .eq('user_id', userId);
 
@@ -189,7 +209,6 @@ const EmployerEditProfile: React.FC = () => {
                 <button onClick={handleCancel} className="text-[#1E293B] font-medium underline">
                   Cancel
                 </button>
-                {/* ⬇️ Renamed heading */}
                 <h1 className="text-lg font-semibold text-gray-900">Edit Account Profile</h1>
                 <button onClick={handleSave} className="flex items-center text-[#1E293B] font-medium underline">
                   <Check size={16} className="mr-1" />
@@ -249,7 +268,6 @@ const EmployerEditProfile: React.FC = () => {
 
               {/* Form Fields */}
               <div className="space-y-4">
-                {/* First Name */}
                 <div>
                   <Label htmlFor="givenName" className="text-gray-600 mb-2 block">First Name *</Label>
                   <Input
@@ -261,7 +279,6 @@ const EmployerEditProfile: React.FC = () => {
                   />
                 </div>
 
-                {/* Middle Name */}
                 <div>
                   <Label htmlFor="middleName" className="text-gray-600 mb-2 block">Middle Name</Label>
                   <Input
@@ -272,7 +289,6 @@ const EmployerEditProfile: React.FC = () => {
                   />
                 </div>
 
-                {/* Last Name */}
                 <div>
                   <Label htmlFor="familyName" className="text-gray-600 mb-2 block">Last Name *</Label>
                   <Input
@@ -284,7 +300,6 @@ const EmployerEditProfile: React.FC = () => {
                   />
                 </div>
 
-                {/* Company Name */}
                 <div>
                   <Label htmlFor="companyName" className="text-gray-600 mb-2 block">Company Name *</Label>
                   <Input
@@ -296,7 +311,6 @@ const EmployerEditProfile: React.FC = () => {
                   />
                 </div>
 
-                {/* Email (read-only) */}
                 <div>
                   <Label htmlFor="email" className="text-gray-600 mb-2 block">Email</Label>
                   <Input
