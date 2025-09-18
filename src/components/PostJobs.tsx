@@ -17,7 +17,7 @@ interface Job {
   state: string;
   suburb_city: string;
   postcode: string;
-  start_date: string;
+  start_date: string | null;
   description: string;
   industry_role: {
     role: string;
@@ -32,7 +32,7 @@ const PostJobs: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "draft">("all");
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // ✅ Fetch current user's jobs
+  // ✅ Fetch jobs belonging to logged-in employer
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -51,7 +51,7 @@ const PostJobs: React.FC = () => {
           postcode,
           start_date,
           description,
-          industry_role (
+          industry_role:industry_role_id (
             role
           )
         `)
@@ -61,7 +61,7 @@ const PostJobs: React.FC = () => {
       if (error) {
         toast({ title: "Error loading jobs", description: error.message });
       } else {
-        setJobs(data as any);
+        setJobs(data as Job[]);
       }
     };
 
@@ -74,7 +74,7 @@ const PostJobs: React.FC = () => {
   };
 
   const handleEditJob = (job: Job) => {
-    setEditingJob({ ...job, role: job.industry_role?.role || "Unknown Role" } as any);
+    setEditingJob(job);
     setShowForm(true);
   };
 
@@ -128,11 +128,20 @@ const PostJobs: React.FC = () => {
   });
 
   if (showForm) {
-    return <PostJobForm onBack={() => setShowForm(false)} editingJob={editingJob ? {
-      job_id: editingJob.job_id,
-      role: editingJob.industry_role?.role || "",
-      job_status: editingJob.job_status
-    } : null} />;
+    return (
+      <PostJobForm
+        onBack={() => setShowForm(false)}
+        editingJob={
+          editingJob
+            ? {
+                job_id: editingJob.job_id,
+                role: editingJob.industry_role?.role || "",
+                job_status: editingJob.job_status,
+              }
+            : null
+        }
+      />
+    );
   }
 
   return (
@@ -269,7 +278,7 @@ const PostJobs: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* New Action Buttons */}
+                      {/* Action Buttons */}
                       <div className="mt-4 flex gap-3">
                         <Button
                           variant="outline"
