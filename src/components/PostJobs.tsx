@@ -226,7 +226,7 @@ const PostJobs: React.FC = () => {
                           </p>
                         </div>
 
-                        {/* Actions */}
+                        {/* Status + Edit/Delete */}
                         <div className="flex flex-col items-end gap-3">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -263,6 +263,23 @@ const PostJobs: React.FC = () => {
                             </button>
                           </div>
                         </div>
+                      </div>
+
+                      {/* New Action Buttons */}
+                      <div className="mt-4 flex gap-3">
+                        <Button
+                          variant="outline"
+                          className="flex-1 rounded-xl"
+                          onClick={() => navigate(`/employer/job-preview/${job.job_id}`)}
+                        >
+                          View Job Preview
+                        </Button>
+                        <Button
+                          className="flex-1 bg-[#1E293B] text-white rounded-xl"
+                          onClick={() => navigate(`/employer/job-match-preview/${job.job_id}`)}
+                        >
+                          View Match Preview
+                        </Button>
                       </div>
                     </div>
                   ))}
