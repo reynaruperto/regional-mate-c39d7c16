@@ -1,3 +1,4 @@
+// src/pages/employer/EmployerJobPreview.tsx
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, MapPin, Calendar, Clock, DollarSign, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ interface JobDetails {
   job_status: string;
   company_name: string;
   tagline: string;
+  company_photo: string | null;
+  facilities: string[];
 }
 
 const EmployerJobPreview: React.FC = () => {
@@ -46,8 +49,14 @@ const EmployerJobPreview: React.FC = () => {
             postcode,
             start_date,
             job_status,
-            industry_role (
-              role
+            industry_role ( role ),
+            employer (
+              company_name,
+              tagline,
+              profile_photo,
+              employer_facility (
+                facility ( name )
+              )
             )
           `)
           .eq("job_id", parseInt(jobId))
@@ -58,23 +67,24 @@ const EmployerJobPreview: React.FC = () => {
           return;
         }
 
-        // Mock company data for now
         if (data) {
           const jobData = data as any;
           setJobDetails({
             job_id: jobData.job_id,
             description: jobData.description || "No description available",
             employment_type: jobData.employment_type || "Full-time",
-            salary_range: jobData.salary_range || "$25-30",
-            req_experience: jobData.req_experience || "1-2",
-            state: jobData.state || "Queensland",
-            suburb_city: jobData.suburb_city || "Brisbane",
-            postcode: jobData.postcode || "4000",
-            start_date: jobData.start_date || new Date().toISOString().split('T')[0],
-            job_status: jobData.job_status || "active",
+            salary_range: jobData.salary_range || "Not specified",
+            req_experience: jobData.req_experience || "Not specified",
+            state: jobData.state,
+            suburb_city: jobData.suburb_city,
+            postcode: jobData.postcode,
+            start_date: jobData.start_date,
+            job_status: jobData.job_status,
             role: jobData.industry_role?.role || "Unknown Role",
-            company_name: "Your Company",
-            tagline: "Leading employer in the industry"
+            company_name: jobData.employer?.company_name || "Unknown Company",
+            tagline: jobData.employer?.tagline || "No tagline provided",
+            company_photo: jobData.employer?.profile_photo || null,
+            facilities: jobData.employer?.employer_facility?.map((f: any) => f.facility?.name) || [],
           });
         }
       } catch (error) {
@@ -87,39 +97,25 @@ const EmployerJobPreview: React.FC = () => {
     fetchJobDetails();
   }, [jobId, toast]);
 
+  const formatDate = (date: string | null) => {
+    if (!date) return "TBA";
+    return new Date(date).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading job details...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div className="flex items-center justify-center min-h-screen">Loading job details...</div>
     );
   }
 
   if (!jobDetails) {
     return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-          <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <p className="text-gray-600">Job not found</p>
-                <Button onClick={() => navigate("/post-jobs")} className="mt-4">
-                  Back to Jobs
-                </Button>
-              </div>
-            </div>
-          </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-gray-600">Job not found</p>
+          <Button onClick={() => navigate("/post-jobs")} className="mt-4">
+            Back to Jobs
+          </Button>
         </div>
       </div>
     );
@@ -129,121 +125,144 @@ const EmployerJobPreview: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          <div className="w-full h-full flex flex-col relative bg-gradient-to-br from-blue-50 to-purple-50">
-            {/* Header */}
-            <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-12 h-12 bg-white rounded-xl shadow-sm"
-                onClick={() => navigate("/post-jobs")}
-              >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
-              <div className="w-12 h-12"></div>
-            </div>
+          {/* Header */}
+          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-10 h-10"
+              onClick={() => navigate("/post-jobs")}
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
+            <div className="w-10"></div>
+          </div>
 
-            {/* Job Preview Card */}
-            <div className="flex-1 px-6 overflow-y-auto">
-              <div className="bg-white rounded-3xl p-6 shadow-lg mb-6">
-                {/* Company Info */}
-                <div className="text-center mb-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-white">
-                      {jobDetails.company_name.charAt(0)}
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">{jobDetails.company_name}</h2>
-                  <p className="text-gray-600 text-sm">{jobDetails.tagline}</p>
+          {/* Content */}
+          <div className="flex-1 px-6 py-6 overflow-y-auto">
+            <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
+              {/* Employer Header */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
+                  {jobDetails.company_photo ? (
+                    <img
+                      src={jobDetails.company_photo}
+                      alt="Company Logo"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <User size={32} />
+                    </div>
+                  )}
                 </div>
+                <h2 className="text-xl font-bold text-gray-900">{jobDetails.company_name}</h2>
+                <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
+              </div>
 
-                {/* Job Title */}
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{jobDetails.role}</h3>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                    jobDetails.job_status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                  }`}>
-                    {jobDetails.job_status.charAt(0).toUpperCase() + jobDetails.job_status.slice(1)}
-                  </span>
-                </div>
+              {/* Job Title & Status */}
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">{jobDetails.role}</h3>
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                    jobDetails.job_status === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {jobDetails.job_status.charAt(0).toUpperCase() +
+                    jobDetails.job_status.slice(1)}
+                </span>
+              </div>
 
-                {/* Job Details Grid */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-2">
-                      <Clock className="w-5 h-5 text-blue-500 mr-2" />
-                      <span className="text-sm font-medium text-gray-600">Type</span>
-                    </div>
-                    <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-2">
-                      <DollarSign className="w-5 h-5 text-green-500 mr-2" />
-                      <span className="text-sm font-medium text-gray-600">Salary</span>
-                    </div>
-                    <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-2">
-                      <User className="w-5 h-5 text-purple-500 mr-2" />
-                      <span className="text-sm font-medium text-gray-600">Experience</span>
-                    </div>
-                    <p className="text-gray-900 font-semibold">{jobDetails.req_experience} years</p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-2">
-                      <Calendar className="w-5 h-5 text-orange-500 mr-2" />
-                      <span className="text-sm font-medium text-gray-600">Start Date</span>
-                    </div>
-                    <p className="text-gray-900 font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                {/* Location */}
-                <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+              {/* Short Info Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-2">
-                    <MapPin className="w-5 h-5 text-red-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Location</span>
+                    <Clock className="w-5 h-5 text-[#1E293B] mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Type</span>
                   </div>
-                  <p className="text-gray-900 font-semibold">
-                    {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
-                  </p>
+                  <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
                 </div>
 
-                {/* Job Description */}
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <DollarSign className="w-5 h-5 text-[#1E293B] mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Salary</span>
                   </div>
+                  <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    className="flex-1 rounded-xl py-3"
-                    onClick={() => navigate("/post-jobs")}
-                  >
-                    Back to Jobs
-                  </Button>
-                  <Button
-                    className="flex-1 bg-[#1E293B] text-white rounded-xl py-3"
-                    onClick={() => navigate(`/employer/job-match-preview/${jobDetails.job_id}`)}
-                  >
-                    View Match Preview
-                  </Button>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <User className="w-5 h-5 text-[#1E293B] mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Experience</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{jobDetails.req_experience} years</p>
+                </div>
+
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <Calendar className="w-5 h-5 text-[#1E293B] mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Start Date</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{formatDate(jobDetails.start_date)}</p>
                 </div>
               </div>
-              <div className="h-20"></div>
+
+              {/* Facilities */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                      >
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities listed</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl py-3"
+                  onClick={() => navigate("/post-jobs")}
+                >
+                  Back to Jobs
+                </Button>
+                <Button
+                  className="flex-1 bg-[#1E293B] text-white rounded-xl py-3"
+                  onClick={() =>
+                    navigate(`/employer/job-match-preview/${jobDetails.job_id}`)
+                  }
+                >
+                  View Match Preview
+                </Button>
+              </div>
             </div>
           </div>
         </div>
