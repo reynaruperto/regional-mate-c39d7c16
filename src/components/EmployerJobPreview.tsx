@@ -277,6 +277,30 @@ const EmployerJobPreview: React.FC = () => {
                 </div>
               </div>
 
+              {/* License Required */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Award className="w-5 h-5 text-[#1E293B] mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    License Required
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
+                </div>
+              </div>
+
               {/* Location */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
                 <div className="flex items-center mb-2">
@@ -310,27 +334,6 @@ const EmployerJobPreview: React.FC = () => {
                     <p className="text-sm text-gray-500">
                       No facilities listed
                     </p>
-                  )}
-                </div>
-              </div>
-
-              {/* License Required */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  License Required
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0 ? (
-                    jobDetails.licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
-                      >
-                        {l}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No licenses required</p>
                   )}
                 </div>
               </div>
