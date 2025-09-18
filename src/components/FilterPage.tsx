@@ -2,7 +2,13 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 
 interface FilterPageProps {
@@ -14,52 +20,66 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     candidateLocation: "",
     candidateIndustry: "",
-    candidateRole: "",
-    candidateLicense: "",
-    candidateAvailability: "",
-    candidateWorkDuration: "",
+    candidateWorkExpIndustry: "",
+    candidateWorkYears: "",
   });
 
   const [locations, setLocations] = useState<{ state: string; suburb_city: string; postcode: string }[]>([]);
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
-  const [roles, setRoles] = useState<{ id: number; role: string }[]>([]);
-  const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
+  const [workExpIndustries, setWorkExpIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [workYearsOptions, setWorkYearsOptions] = useState<string[]>([]);
 
-  // Static until we store in schema
-  const candidateAvailabilityOptions = [
-    "Available Now",
-    "Available in 1 Month",
-    "Available in 2-3 Months",
-    "Available in 4-6 Months",
-    "Available Next Year",
-    "Flexible Start Date",
-  ];
-
-  const candidateWorkDurationOptions = [
-    "1-2 weeks",
-    "1 month",
-    "2-3 months",
-    "3-6 months",
-    "6+ months",
-    "Long-term / Ongoing",
-  ];
-
-  // Fetch dropdown options from DB
   useEffect(() => {
     const fetchData = async () => {
+      // Preferred Locations
       const { data: locData } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode");
       setLocations(locData || []);
 
+      // Preferred Industries
       const { data: indData } = await supabase.from("industry").select("industry_id, name");
       setIndustries(indData?.map((i) => ({ id: i.industry_id, name: i.name })) || []);
 
-      const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role");
-      setRoles(roleData?.map((r) => ({ id: r.industry_role_id, role: r.role })) || []);
+      // Work Experience
+      const { data: workExpData } = await supabase
+        .from("maker_work_experience")
+        .select("industry_id, industry(name), start_date, end_date");
 
-      const { data: licenseData } = await supabase.from("license").select("license_id, name");
-      setLicenses(licenseData?.map((l) => ({ id: l.license_id, name: l.name })) || []);
+      if (workExpData) {
+        // Distinct industries
+        const distinctIndustries = Array.from(
+          new Map(
+            workExpData.map((w) => [w.industry_id, { id: w.industry_id, name: w.industry?.name }])
+          ).values()
+        );
+        setWorkExpIndustries(distinctIndustries || []);
+
+        // Calculate years of experience
+        const years: number[] = [];
+        workExpData.forEach((exp) => {
+          if (exp.start_date) {
+            const start = new Date(exp.start_date);
+            const end = exp.end_date ? new Date(exp.end_date) : new Date();
+            const diffYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+            years.push(diffYears);
+          }
+        });
+
+        // Bucketize into ranges
+        const buckets = new Set<string>();
+        if (years.length === 0) {
+          buckets.add("No Experience");
+        } else {
+          years.forEach((y) => {
+            if (y < 1) buckets.add("Less than 1 year");
+            else if (y < 3) buckets.add("1-2 years");
+            else if (y < 6) buckets.add("3-5 years");
+            else buckets.add("5+ years");
+          });
+        }
+        setWorkYearsOptions(Array.from(buckets));
+      }
     };
 
     fetchData();
@@ -82,15 +102,11 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     items,
     category,
     placeholder,
-    labelKey = "name",
-    valueKey = "id",
   }: {
     title: string;
-    items: any[];
+    items: string[];
     category: string;
     placeholder: string;
-    labelKey?: string;
-    valueKey?: string;
   }) => (
     <div className="mb-6">
       <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
@@ -103,8 +119,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         </SelectTrigger>
         <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
           {items.map((item) => (
-            <SelectItem key={item[valueKey]} value={item[labelKey]}>
-              {item[labelKey]}
+            <SelectItem key={item} value={item}>
+              {item}
             </SelectItem>
           ))}
         </SelectContent>
@@ -114,7 +130,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone 16 Pro Max Frame */}
+      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Dynamic Island */}
@@ -132,60 +148,36 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
           {/* Scrollable Content */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            {/* Location */}
+            {/* Preferred Location */}
             <DropdownSection
-              title="Candidate Location"
-              items={locations}
+              title="Preferred Location"
+              items={locations.map((l) => `${l.suburb_city}, ${l.state} ${l.postcode}`)}
               category="candidateLocation"
               placeholder="Any location"
-              labelKey="suburb_city"
-              valueKey="suburb_city"
             />
 
-            {/* Industry */}
+            {/* Preferred Industry */}
             <DropdownSection
               title="Preferred Industry"
-              items={industries}
+              items={industries.map((i) => i.name)}
               category="candidateIndustry"
               placeholder="Any industry"
-              labelKey="name"
-              valueKey="id"
             />
 
-            {/* Role */}
+            {/* Work Experience Industry */}
             <DropdownSection
-              title="Preferred Role"
-              items={roles}
-              category="candidateRole"
-              placeholder="Any role"
-              labelKey="role"
-              valueKey="id"
+              title="Work Experience Industry"
+              items={workExpIndustries.map((i) => i.name)}
+              category="candidateWorkExpIndustry"
+              placeholder="Any work experience industry"
             />
 
-            {/* License */}
+            {/* Years of Work Experience */}
             <DropdownSection
-              title="Required License"
-              items={licenses}
-              category="candidateLicense"
-              placeholder="Any license"
-              labelKey="name"
-              valueKey="id"
-            />
-
-            {/* Availability */}
-            <DropdownSection
-              title="Availability"
-              items={candidateAvailabilityOptions.map((a) => ({ id: a, name: a }))}
-              category="candidateAvailability"
-              placeholder="Any availability"
-            />
-
-            {/* Work Duration */}
-            <DropdownSection
-              title="Work Duration"
-              items={candidateWorkDurationOptions.map((d) => ({ id: d, name: d }))}
-              category="candidateWorkDuration"
-              placeholder="Any duration"
+              title="Years of Work Experience"
+              items={workYearsOptions}
+              category="candidateWorkYears"
+              placeholder="Any experience level"
             />
           </div>
 
