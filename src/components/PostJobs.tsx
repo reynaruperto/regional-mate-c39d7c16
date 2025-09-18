@@ -11,17 +11,16 @@ import BottomNavigation from "@/components/BottomNavigation";
 interface Job {
   job_id: number;
   job_status: "draft" | "active" | "inactive";
-  industry_role_id: number;
   employment_type: string;
   salary_range: string;
   req_experience: string;
   state: string;
   suburb_city: string;
   postcode: string;
-  start_date: string | null;
+  start_date: string;
   description: string;
-  mvw_emp_location_roles: {
-    industry_role: string;
+  industry_role: {
+    role: string;
   } | null;
 }
 
@@ -30,26 +29,20 @@ const PostJobs: React.FC = () => {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [filter, setFilter] = useState<
-    "all" | "active" | "inactive" | "draft"
-  >("all");
+  const [filter, setFilter] = useState<"all" | "active" | "inactive" | "draft">("all");
   const [jobs, setJobs] = useState<Job[]>([]);
 
   // ✅ Fetch current user's jobs
   useEffect(() => {
     const fetchJobs = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
         .from("job")
-        .select(
-          `
+        .select(`
           job_id,
           job_status,
-          industry_role_id,
           employment_type,
           salary_range,
           req_experience,
@@ -58,11 +51,10 @@ const PostJobs: React.FC = () => {
           postcode,
           start_date,
           description,
-          mvw_emp_location_roles!inner (
-            industry_role
+          industry_role (
+            role
           )
-        `
-        )
+        `)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -92,10 +84,7 @@ const PostJobs: React.FC = () => {
       toast({ title: "Error deleting job", description: error.message });
     } else {
       setJobs((prev) => prev.filter((job) => job.job_id !== jobId));
-      toast({
-        title: "Job Deleted",
-        description: "Job has been successfully deleted",
-      });
+      toast({ title: "Job Deleted", description: "Job has been successfully deleted" });
     }
   };
 
@@ -104,8 +93,7 @@ const PostJobs: React.FC = () => {
     if (job.job_status === "draft") {
       toast({
         title: "Draft Job",
-        description:
-          "Draft jobs must be updated before they can be activated.",
+        description: "Draft jobs must be updated before they can be activated.",
         variant: "destructive",
       });
       return;
@@ -201,11 +189,7 @@ const PostJobs: React.FC = () => {
                 <div className="flex flex-col items-center justify-center h-full">
                   <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No{" "}
-                      {filter === "all"
-                        ? "Jobs"
-                        : filter.charAt(0).toUpperCase() + filter.slice(1)}{" "}
-                      Found
+                      No {filter === "all" ? "Jobs" : filter.charAt(0).toUpperCase() + filter.slice(1)} Found
                     </h3>
                     <p className="text-gray-600 mb-4">
                       {filter === "all"
@@ -226,23 +210,19 @@ const PostJobs: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   {filteredJobs.map((job) => (
-                    <div
-                      key={job.job_id}
-                      className="bg-white rounded-2xl p-5 shadow-sm"
-                    >
+                    <div key={job.job_id} className="bg-white rounded-2xl p-5 shadow-sm">
                       <div className="flex items-start justify-between">
                         {/* Info */}
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                            {job.mvw_emp_location_roles?.industry_role ??
-                              "Unknown Role"}
+                            {job.industry_role?.role ?? "Unknown Role"}
                           </h3>
-                          <p className="text-gray-700 text-sm mb-1">
-                            {job.state} • {job.suburb_city} ({job.postcode})
+                          <p className="text-gray-600 text-sm mb-1">{job.description}</p>
+                          <p className="text-gray-700 text-sm">
+                            {job.employment_type} • {job.salary_range} • {job.req_experience}
                           </p>
                           <p className="text-gray-600 text-sm">
-                            {job.employment_type} • {job.salary_range} •{" "}
-                            {job.req_experience} yrs exp
+                            {job.suburb_city}, {job.state} {job.postcode}
                           </p>
                         </div>
 
@@ -257,8 +237,7 @@ const PostJobs: React.FC = () => {
                                 : "bg-yellow-100 text-yellow-700"
                             }`}
                           >
-                            {job.job_status.charAt(0).toUpperCase() +
-                              job.job_status.slice(1)}
+                            {job.job_status.charAt(0).toUpperCase() + job.job_status.slice(1)}
                           </span>
 
                           {job.job_status !== "draft" && (
@@ -280,10 +259,7 @@ const PostJobs: React.FC = () => {
                               onClick={() => handleDeleteJob(job.job_id)}
                               className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-red-50 transition-colors"
                             >
-                              <Trash2
-                                size={18}
-                                className="text-gray-600 hover:text-red-600"
-                              />
+                              <Trash2 size={18} className="text-gray-600 hover:text-red-600" />
                             </button>
                           </div>
                         </div>
