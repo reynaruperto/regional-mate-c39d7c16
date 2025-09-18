@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// src/components/FilterPage.tsx
+import React, { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FilterPageProps {
   onClose: () => void;
@@ -13,166 +12,63 @@ interface FilterPageProps {
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    candidateLocation: '',
-    candidateNationality: '',
-    candidateVisaType: '',
-    candidateIndustryExperience: '',
-    candidateAvailability: '',
-    candidateWorkDuration: '',
-    candidateWillingToRelocate: '',
+    candidateLocation: "",
+    candidateIndustry: "",
+    candidateRole: "",
+    candidateLicense: "",
+    candidateAvailability: "",
+    candidateWorkDuration: "",
   });
 
-  const states = [
-    'Queensland (QLD)',
-    'New South Wales (NSW)', 
-    'Victoria (VIC)',
-    'Western Australia (WA)',
-    'South Australia (SA)',
-    'Tasmania (TAS)',
-    'Northern Territory (NT)',
-    'Australian Capital Territory (ACT)'
-  ];
+  const [locations, setLocations] = useState<{ state: string; suburb_city: string; postcode: string }[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; role: string }[]>([]);
+  const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
 
-  const candidateIndustryExperience = [
-    'Agriculture & Farming',
-    'Horticulture & Fruit Picking', 
-    'Livestock & Dairy Farming',
-    'Viticulture & Wine Production',
-    'Aquaculture & Fishing',
-    'Forestry & Logging',
-    'Hospitality & Food Service',
-    'Accommodation & Tourism',
-    'Event Management',
-    'Entertainment & Recreation',
-    'Construction & Building',
-    'Road Construction & Maintenance',
-    'Plumbing & Electrical',
-    'Landscaping & Gardening',
-    'Mining Operations',
-    'Oil & Gas',
-    'Resource Processing',
-    'Healthcare & Medical',
-    'Aged Care & Disability Services',
-    'Childcare & Education',
-    'Food Processing & Manufacturing',
-    'Industrial Manufacturing',
-    'Packaging & Warehousing',
-    'Transport & Delivery',
-    'Warehousing & Distribution',
-    'Freight & Logistics',
-    'Retail & Customer Service',
-    'Sales & Marketing',
-    'Cleaning Services',
-    'Administration & Office',
-    'General Labour'
-  ];
-
+  // Static until we store in schema
   const candidateAvailabilityOptions = [
-    'Available Now',
-    'Available in 1 Month',
-    'Available in 2-3 Months',
-    'Available in 4-6 Months',
-    'Available Next Year',
-    'Flexible Start Date'
+    "Available Now",
+    "Available in 1 Month",
+    "Available in 2-3 Months",
+    "Available in 4-6 Months",
+    "Available Next Year",
+    "Flexible Start Date",
   ];
 
   const candidateWorkDurationOptions = [
-    '1-2 weeks',
-    '1 month',
-    '2-3 months', 
-    '3-6 months',
-    '6+ months',
-    'Long-term / Ongoing'
+    "1-2 weeks",
+    "1 month",
+    "2-3 months",
+    "3-6 months",
+    "6+ months",
+    "Long-term / Ongoing",
   ];
 
-  const candidateExperienceLevels = [
-    'No Experience',
-    'Some Experience',
-    '1-2 Years Experience',
-    '3-5 Years Experience',
-    '5+ Years Experience'
-  ];
+  // Fetch dropdown options from DB
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: locData } = await supabase
+        .from("maker_pref_location")
+        .select("state, suburb_city, postcode");
+      setLocations(locData || []);
 
-  const candidatePhysicalWorkLevels = [
-    'Light Physical Work Only',
-    'Moderate Physical Work',
-    'Heavy Physical Work',
-    'Any Physical Level'
-  ];
+      const { data: indData } = await supabase.from("industry").select("industry_id, name");
+      setIndustries(indData?.map((i) => ({ id: i.industry_id, name: i.name })) || []);
 
-  const candidateWorkEnvironmentPreferences = [
-    'Indoor Work Only',
-    'Outdoor Work Only', 
-    'Mixed Indoor/Outdoor',
-    'Any Environment'
-  ];
+      const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role");
+      setRoles(roleData?.map((r) => ({ id: r.industry_role_id, role: r.role })) || []);
 
-  const candidateVisaTypes = [
-    '417 (Working Holiday Visa)',
-    '462 (Work and Holiday Visa)',
-    '417 Second Year Extension',
-    '462 Second Year Extension',
-    '417 Third Year Extension',
-    '462 Third Year Extension'
-  ];
+      const { data: licenseData } = await supabase.from("license").select("license_id, name");
+      setLicenses(licenseData?.map((l) => ({ id: l.license_id, name: l.name })) || []);
+    };
 
-  const candidateNationalities = [
-    'United Kingdom',
-    'Germany',
-    'France',
-    'Ireland',
-    'Canada',
-    'South Korea',
-    'Japan',
-    'Taiwan',
-    'Hong Kong',
-    'Belgium',
-    'Denmark',
-    'Estonia',
-    'Finland',
-    'Italy',
-    'Netherlands',
-    'Norway',
-    'Sweden',
-    'Chile',
-    'Argentina',
-    'Uruguay',
-    'Other'
-  ];
-
-  const candidateAgeRanges = [
-    '18-20 years',
-    '21-25 years',
-    '26-30 years',
-    'Any age'
-  ];
-
-  const candidateGenderOptions = [
-    'Male',
-    'Female',
-    'Any'
-  ];
-
-  const candidateLanguageOptions = [
-    'English (Native)',
-    'English (Fluent)',
-    'English (Conversational)',
-    'English (Basic)',
-    'Multiple Languages',
-    'Any Level'
-  ];
+    fetchData();
+  }, []);
 
   const handleSelectChange = (category: string, value: string) => {
-    setSelectedFilters(prev => ({
+    setSelectedFilters((prev) => ({
       ...prev,
-      [category]: value
-    }));
-  };
-
-  const handleBooleanFilterChange = (category: string, checked: boolean) => {
-    setSelectedFilters(prev => ({
-      ...prev,
-      [category]: checked
+      [category]: value,
     }));
   };
 
@@ -181,16 +77,25 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     onClose();
   };
 
-  const DropdownSection = ({ title, items, category, placeholder }: { 
-    title: string; 
-    items: string[]; 
-    category: string; 
-    placeholder: string; 
+  const DropdownSection = ({
+    title,
+    items,
+    category,
+    placeholder,
+    labelKey = "name",
+    valueKey = "id",
+  }: {
+    title: string;
+    items: any[];
+    category: string;
+    placeholder: string;
+    labelKey?: string;
+    valueKey?: string;
   }) => (
     <div className="mb-6">
       <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
-      <Select 
-        value={selectedFilters[category] as string} 
+      <Select
+        value={selectedFilters[category] as string}
         onValueChange={(value) => handleSelectChange(category, value)}
       >
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
@@ -198,8 +103,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         </SelectTrigger>
         <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
           {items.map((item) => (
-            <SelectItem key={item} value={item} className="hover:bg-gray-100">
-              {item}
+            <SelectItem key={item[valueKey]} value={item[labelKey]}>
+              {item[labelKey]}
             </SelectItem>
           ))}
         </SelectContent>
@@ -209,13 +114,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone 16 Pro Max Frame - Fixed dimensions */}
+      {/* iPhone 16 Pro Max Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Dynamic Island */}
           <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
-          
-          {/* Header - Fixed */}
+
+          {/* Header */}
           <div className="px-4 py-3 border-b bg-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <button onClick={onClose}>
@@ -227,90 +132,64 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
           {/* Scrollable Content */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            {/* Candidate Location */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Candidate Location</h3>
-              <Select 
-                value={selectedFilters.candidateLocation} 
-                onValueChange={(value) => handleSelectChange('candidateLocation', value)}
-              >
-                <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-                  <SelectValue placeholder="Any location" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-300 shadow-lg z-50">
-                  <SelectItem value="in-australia" className="hover:bg-gray-100">
-                    Currently in Australia
-                  </SelectItem>
-                  <SelectItem value="outside-australia" className="hover:bg-gray-100">
-                    Outside Australia
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Candidate Nationality */}
-            <DropdownSection 
-              title="Candidate Nationality" 
-              items={candidateNationalities} 
-              category="candidateNationality" 
-              placeholder="Any nationality"
+            {/* Location */}
+            <DropdownSection
+              title="Candidate Location"
+              items={locations}
+              category="candidateLocation"
+              placeholder="Any location"
+              labelKey="suburb_city"
+              valueKey="suburb_city"
             />
 
-            {/* Candidate Visa Type */}
-            <DropdownSection 
-              title="Candidate Visa Type" 
-              items={candidateVisaTypes} 
-              category="candidateVisaType" 
-              placeholder="Any working holiday visa"
+            {/* Industry */}
+            <DropdownSection
+              title="Preferred Industry"
+              items={industries}
+              category="candidateIndustry"
+              placeholder="Any industry"
+              labelKey="name"
+              valueKey="id"
             />
 
-            {/* Candidate Industry Experience */}
-            <DropdownSection 
-              title="Candidate Industry Experience" 
-              items={candidateIndustryExperience} 
-              category="candidateIndustryExperience" 
-              placeholder="Any industry experience"
+            {/* Role */}
+            <DropdownSection
+              title="Preferred Role"
+              items={roles}
+              category="candidateRole"
+              placeholder="Any role"
+              labelKey="role"
+              valueKey="id"
             />
 
-            {/* Candidate Availability */}
-            <DropdownSection 
-              title="Candidate Availability" 
-              items={candidateAvailabilityOptions} 
-              category="candidateAvailability" 
+            {/* License */}
+            <DropdownSection
+              title="Required License"
+              items={licenses}
+              category="candidateLicense"
+              placeholder="Any license"
+              labelKey="name"
+              valueKey="id"
+            />
+
+            {/* Availability */}
+            <DropdownSection
+              title="Availability"
+              items={candidateAvailabilityOptions.map((a) => ({ id: a, name: a }))}
+              category="candidateAvailability"
               placeholder="Any availability"
             />
 
-            {/* Candidate Work Duration */}
-            <DropdownSection 
-              title="Candidate Work Duration" 
-              items={candidateWorkDurationOptions} 
-              category="candidateWorkDuration" 
+            {/* Work Duration */}
+            <DropdownSection
+              title="Work Duration"
+              items={candidateWorkDurationOptions.map((d) => ({ id: d, name: d }))}
+              category="candidateWorkDuration"
               placeholder="Any duration"
             />
-
-            {/* Candidate Willing to Relocate */}
-            <div className="mb-20">
-              <h3 className="font-semibold text-gray-900 mb-3">Candidate Willing to Relocate</h3>
-              <Select 
-                value={selectedFilters.candidateWillingToRelocate} 
-                onValueChange={(value) => handleSelectChange('candidateWillingToRelocate', value)}
-              >
-                <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-                  <SelectValue placeholder="Any preference" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-300 shadow-lg z-50">
-                  <SelectItem value="yes" className="hover:bg-gray-100">
-                    Yes, willing to relocate
-                  </SelectItem>
-                  <SelectItem value="no" className="hover:bg-gray-100">
-                    No, prefers to stay local
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          {/* Fixed Bottom Button */}
+          {/* Bottom Button */}
           <div className="bg-white border-t p-4 flex-shrink-0 rounded-b-[48px]">
             <Button
               onClick={applyFilters}
