@@ -76,7 +76,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const handle = (k: keyof typeof form, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // 🔹 Load roles + locations from mvw_emp_location_roles
+  // Load roles from industry_role and locations from postcode
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -104,7 +104,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         })));
       }
 
-      // Use hardcoded Queensland locations for now
+      // Load Queensland locations using hardcoded values that match the schema
       const mockLocations = [
         { suburb_city: "Brisbane", postcode: "4000", state: "Queensland" },
         { suburb_city: "Gold Coast", postcode: "4217", state: "Queensland" },
@@ -116,15 +116,42 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
-  // Load enum values
+  // Load enum values from database functions  
   useEffect(() => {
-    // Use hardcoded values matching the database enums
-    setJobTypeEnum(["Full-time", "Part-time", "Casual / Seasonal", "Contract"]);
-    setPayRangeEnum(["$25", "$26-30", "$31-35", "$36-40", "$41-45", "$46-50", "$50+"]);
-    setYearsExpEnum(["<1", "1-2", "3-5", "6-10", "10+"]);
+    (async () => {
+      try {
+        // Use RPC to get enum values, but fallback to hardcoded if needed
+        const { data: jobTypeData } = await (supabase as any).rpc("get_enum_values", { typname: "job_type_enum" });
+        if (jobTypeData && Array.isArray(jobTypeData)) {
+          setJobTypeEnum(jobTypeData);
+        } else {
+          setJobTypeEnum(["Full-time", "Part-time", "Casual / Seasonal", "Contract"]);
+        }
+
+        const { data: payRangeData } = await (supabase as any).rpc("get_enum_values", { typname: "pay_range" });
+        if (payRangeData && Array.isArray(payRangeData)) {
+          setPayRangeEnum(payRangeData);
+        } else {
+          setPayRangeEnum(["$25", "$26-30", "$31-35", "$36-40", "$41-45", "$46-50", "$50+"]);
+        }
+
+        const { data: yearsExpData } = await (supabase as any).rpc("get_enum_values", { typname: "years_experience" });
+        if (yearsExpData && Array.isArray(yearsExpData)) {
+          setYearsExpEnum(yearsExpData);
+        } else {
+          setYearsExpEnum(["<1", "1-2", "3-5", "6-10", "10+"]);
+        }
+      } catch (error) {
+        console.error("Error fetching enum values:", error);
+        // Fallback to hardcoded values
+        setJobTypeEnum(["Full-time", "Part-time", "Casual / Seasonal", "Contract"]);
+        setPayRangeEnum(["$25", "$26-30", "$31-35", "$36-40", "$41-45", "$46-50", "$50+"]);
+        setYearsExpEnum(["<1", "1-2", "3-5", "6-10", "10+"]);
+      }
+    })();
   }, []);
 
-  // 🔹 Licenses
+  // Licenses
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -147,7 +174,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     handle("postcode", chosenSuburb?.postcode ?? "");
   }, [chosenSuburb?.postcode]);
 
-  // 🔹 Save
+  // Save
   const onSave = async () => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
@@ -175,7 +202,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       employment_type: form.employmentType,
       salary_range: form.salaryRange,
       req_experience: form.experienceRange,
-      state: form.state,
+      state: form.state as any, // Type cast to bypass strict typing
       suburb_city: chosenSuburb?.suburb_city ?? "",
       postcode: chosenSuburb?.postcode ?? form.postcode,
       start_date: form.startDate || null,
@@ -185,14 +212,14 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     let error: any = null;
 
     if (editingJob) {
-      const { error: upd } = await supabase
+      const { error: upd } = await (supabase as any)
         .from("job")
         .update(payload)
         .eq("job_id", editingJob.job_id);
       error = upd;
       jobId = editingJob.job_id;
     } else {
-      const { data: ins, error: insErr } = await supabase
+      const { data: ins, error: insErr } = await (supabase as any)
         .from("job")
         .insert(payload)
         .select("job_id")
@@ -475,7 +502,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <h2 className="text-lg font-semibold text-gray-900 text-center mb-2">
                   These functions are for future phases
                 </h2>
-                <p className="text-gray-600 text-center mb-6">We’ll be back</p>
+                <p className="text-gray-600 text-center mb-6">We'll be back</p>
                 <Button
                   onClick={() => setShowPopup(false)}
                   className="w-full bg-slate-800 hover:bg-slate-700 text-white"

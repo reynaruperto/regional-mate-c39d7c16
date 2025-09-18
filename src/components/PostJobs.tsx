@@ -128,7 +128,11 @@ const PostJobs: React.FC = () => {
   });
 
   if (showForm) {
-    return <PostJobForm onBack={() => setShowForm(false)} editingJob={editingJob} />;
+    return <PostJobForm onBack={() => setShowForm(false)} editingJob={editingJob ? {
+      job_id: editingJob.job_id,
+      role: editingJob.industry_role?.role || "",
+      job_status: editingJob.job_status
+    } : null} />;
   }
 
   return (
