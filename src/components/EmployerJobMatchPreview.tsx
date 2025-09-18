@@ -1,232 +1,170 @@
 // src/pages/employer/EmployerJobMatchPreview.tsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
   MapPin,
-  Award,
+  Calendar,
+  Clock,
+  DollarSign,
   User,
+  Award,
   FileText,
   Phone,
   Mail,
+  Globe,
+  Hash,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
-interface CandidateProfile {
-  name: string;
-  tagline: string;
-  profilePhoto: string | null;
-  currentLocation: string;
-  nationality: string;
-  visaType: string;
-  visaExpiry: string;
-  phone?: string;
-  email?: string;
-}
-
-interface WorkExperience {
-  position: string;
-  company: string;
-  industry: string;
-  location: string;
-  start_date: string;
-  end_date: string | null;
-  description?: string;
-}
-
-interface Preference {
-  industry: string;
+interface JobDetails {
+  job_id: number;
   role: string;
+  description: string;
+  employment_type: string;
+  salary_range: string;
+  req_experience: string;
   state: string;
-  area: string;
+  suburb_city: string;
+  postcode: string;
+  start_date: string;
+  job_status: string;
 }
 
-interface Reference {
-  name: string;
-  business_name: string;
-  email: string;
+interface EmployerDetails {
+  company_name: string;
+  tagline: string;
+  profile_photo: string | null;
+  abn: string;
+  website?: string;
   mobile_num?: string;
-  role?: string;
+  email?: string;
 }
 
 const EmployerJobMatchPreview: React.FC = () => {
   const navigate = useNavigate();
-  const { jobId } = useParams(); // can be used to filter candidate matches later
-  const [profileData, setProfileData] = useState<CandidateProfile | null>(null);
-  const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
-  const [licenses, setLicenses] = useState<string[]>([]);
-  const [preferences, setPreferences] = useState<Preference[]>([]);
-  const [references, setReferences] = useState<Reference[]>([]);
+  const { jobId } = useParams();
+  const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
+  const [employer, setEmployer] = useState<EmployerDetails | null>(null);
+  const [facilities, setFacilities] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCandidate = async () => {
+    const fetchJobAndEmployer = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          navigate("/employer/dashboard");
-          return;
-        }
+        if (!jobId) return;
 
-        // 1. WHV maker
-        const { data: whvMaker } = await supabase
-          .from("whv_maker")
-          .select(
-            "given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num"
-          )
-          .eq("user_id", user.id) // ⚠️ replace with candidate_id in real match context
-          .maybeSingle();
-
-        // 2. Profile email
-        const { data: profile } = await supabase
-          .from("profile")
-          .select("email")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        // 3. Visa
-        const { data: visa } = await supabase
-          .from("maker_visa")
+        // 1️⃣ Get job info
+        const { data: job, error: jobError } = await supabase
+          .from("job")
           .select(
             `
-            expiry_date,
-            visa_stage:stage_id (
-              sub_class,
-              label
-            )
+            job_id,
+            description,
+            employment_type,
+            salary_range,
+            req_experience,
+            state,
+            suburb_city,
+            postcode,
+            start_date,
+            job_status,
+            industry_role(role),
+            user_id
           `
           )
-          .eq("user_id", user.id)
+          .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
-        // 4. Preferences
-        const { data: preferencesData } = await supabase
-          .from("maker_preference")
-          .select(
-            `
-            industry_role(role, industry(name)),
-            region_rules(state, area)
-          `
-          )
-          .eq("user_id", user.id);
+        if (jobError || !job) return;
 
-        const formattedPreferences: Preference[] = (preferencesData || []).map(
-          (pref: any) => ({
-            industry: pref.industry_role?.industry?.name || "",
-            role: pref.industry_role?.role || "",
-            state: pref.region_rules?.state || "",
-            area: pref.region_rules?.area || "",
-          })
-        );
-        setPreferences(formattedPreferences);
-
-        // 5. Work experience
-        const { data: experiences } = await supabase
-          .from("maker_work_experience")
-          .select(
-            "position, company, industry(name), location, start_date, end_date, job_description"
-          )
-          .eq("user_id", user.id)
-          .order("start_date", { ascending: false });
-
-        const formattedExperiences: WorkExperience[] = (experiences || []).map(
-          (exp: any) => ({
-            position: exp.position,
-            company: exp.company,
-            industry: exp.industry?.name || "Not specified",
-            location: exp.location || "Not specified",
-            start_date: exp.start_date,
-            end_date: exp.end_date,
-            description: exp.job_description || "",
-          })
-        );
-        setWorkExperiences(formattedExperiences);
-
-        // 6. Licenses
-        const { data: licenseRows } = await supabase
-          .from("maker_license")
-          .select("license(name)")
-          .eq("user_id", user.id);
-
-        const formattedLicenses: string[] = (licenseRows || []).map(
-          (l: any) => l.license?.name || "Unknown License"
-        );
-        setLicenses(formattedLicenses);
-
-        // 7. References
-        const { data: referenceRows } = await supabase
-          .from("maker_reference")
-          .select("name, business_name, email, mobile_num, role")
-          .eq("user_id", user.id);
-        setReferences(referenceRows || []);
-
-        // 8. Profile photo
-        let signedPhoto: string | null = null;
-        if (whvMaker?.profile_photo) {
-          let photoPath = whvMaker.profile_photo;
-          if (photoPath.includes("/profile_photo/")) {
-            photoPath = photoPath.split("/profile_photo/")[1];
-          }
-          const { data } = await supabase.storage
-            .from("profile_photo")
-            .createSignedUrl(photoPath, 3600);
-          signedPhoto = data?.signedUrl ?? null;
-        }
-
-        setProfileData({
-          name: [whvMaker?.given_name, whvMaker?.middle_name, whvMaker?.family_name]
-            .filter(Boolean)
-            .join(" "),
-          tagline:
-            whvMaker?.tagline || "Working Holiday Maker seeking opportunities",
-          profilePhoto: signedPhoto,
-          currentLocation: whvMaker
-            ? `${whvMaker.suburb}, ${whvMaker.state}`
-            : "Not specified",
-          nationality: whvMaker?.nationality || "Not specified",
-          visaType: visa?.visa_stage
-            ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})`
-            : "Not specified",
-          visaExpiry: visa?.expiry_date || "Not specified",
-          phone: whvMaker?.mobile_num || "",
-          email: profile?.email || "",
+        setJobDetails({
+          job_id: job.job_id,
+          description: job.description,
+          employment_type: job.employment_type,
+          salary_range: job.salary_range,
+          req_experience: job.req_experience,
+          state: job.state,
+          suburb_city: job.suburb_city,
+          postcode: job.postcode,
+          start_date: job.start_date,
+          job_status: job.job_status,
+          role: job.industry_role?.role || "Unknown Role",
         });
 
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching candidate profile:", error);
+        // 2️⃣ Employer details
+        const { data: emp } = await supabase
+          .from("employer")
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num")
+          .eq("user_id", job.user_id)
+          .maybeSingle();
+
+        let signedPhoto: string | null = null;
+        if (emp?.profile_photo) {
+          let path = emp.profile_photo;
+          if (path.includes("/profile_photo/")) {
+            path = path.split("/profile_photo/")[1];
+          }
+          const { data: signed } = await supabase.storage
+            .from("profile_photo")
+            .createSignedUrl(path, 3600);
+          signedPhoto = signed?.signedUrl ?? null;
+        }
+
+        setEmployer({
+          company_name: emp?.company_name || "Unknown Company",
+          tagline: emp?.tagline || "",
+          profile_photo: signedPhoto,
+          abn: emp?.abn || "N/A",
+          website: emp?.website || "",
+          mobile_num: emp?.mobile_num || "",
+          email: "", // optional: fetch from profile if needed
+        });
+
+        // 3️⃣ Facilities
+        const { data: facs } = await supabase
+          .from("employer_facility")
+          .select("facility(name)")
+          .eq("user_id", job.user_id);
+
+        setFacilities(
+          facs?.map((f: any) => f.facility?.name).filter(Boolean) || []
+        );
+      } catch (err) {
+        console.error("Error fetching job preview:", err);
+      } finally {
         setLoading(false);
       }
     };
 
-    fetchCandidate();
-  }, [navigate]);
+    fetchJobAndEmployer();
+  }, [jobId]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
-  // Group preferences
-  const groupedWorkPrefs = preferences.reduce((acc: any, pref) => {
-    if (!pref.industry || !pref.role) return acc;
-    if (!acc[pref.industry]) acc[pref.industry] = new Set();
-    acc[pref.industry].add(pref.role);
-    return acc;
-  }, {});
-
-  const groupedLocationPrefs = preferences.reduce((acc: any, pref) => {
-    if (!pref.state || !pref.area) return acc;
-    if (!acc[pref.state]) acc[pref.state] = new Set();
-    acc[pref.state].add(pref.area);
-    return acc;
-  }, {});
+  if (!jobDetails || !employer) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Job not found</p>
+        <Button onClick={() => navigate("/post-jobs")} className="mt-4">
+          Back to Jobs
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
@@ -239,22 +177,20 @@ const EmployerJobMatchPreview: React.FC = () => {
               >
                 <ArrowLeft className="w-5 h-5 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">
-                Matched Candidate
-              </h1>
+              <h1 className="text-lg font-semibold text-gray-900">Job Match</h1>
               <div className="w-10"></div>
             </div>
 
             {/* Content */}
             <div className="flex-1 px-6 py-4 overflow-y-auto">
               <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-                {/* Profile Header */}
+                {/* Employer Header */}
                 <div className="flex flex-col items-center">
                   <div className="w-24 h-24 rounded-full border-2 border-[#1E293B] overflow-hidden mb-3">
-                    {profileData?.profilePhoto ? (
+                    {employer.profile_photo ? (
                       <img
-                        src={profileData.profilePhoto}
-                        alt="Profile"
+                        src={employer.profile_photo}
+                        alt="Company"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -264,180 +200,125 @@ const EmployerJobMatchPreview: React.FC = () => {
                     )}
                   </div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    {profileData?.name}
+                    {employer.company_name}
                   </h2>
-                  <p className="text-sm text-gray-600">{profileData?.tagline}</p>
-                  <p className="text-xs text-gray-500">
-                    {profileData?.nationality} — {profileData?.visaType}, Expires{" "}
-                    {profileData?.visaExpiry}
+                  <p className="text-sm text-gray-600">{employer.tagline}</p>
+                  <p className="text-xs text-gray-500 flex items-center mt-1">
+                    <Hash size={14} className="mr-1 text-[#1E293B]" />
+                    ABN: {employer.abn}
                   </p>
-                  {profileData?.phone && (
+                  {employer.mobile_num && (
                     <p className="text-sm text-gray-700 flex items-center mt-1">
                       <Phone size={14} className="mr-1 text-[#1E293B]" />{" "}
-                      {profileData.phone}
+                      {employer.mobile_num}
                     </p>
                   )}
-                  {profileData?.email && (
+                  {employer.website && (
                     <p className="text-sm text-gray-700 flex items-center mt-1">
-                      <Mail size={14} className="mr-1 text-[#1E293B]" />{" "}
-                      {profileData.email}
+                      <Globe size={14} className="mr-1 text-[#1E293B]" />{" "}
+                      {employer.website}
                     </p>
                   )}
                 </div>
 
-                {/* Work Preferences */}
+                {/* Job Info */}
                 <div>
                   <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Work Preferences
+                    Job Details
                   </h3>
-                  {Object.keys(groupedWorkPrefs).length > 0 ? (
-                    Object.entries(groupedWorkPrefs).map(([industry, roles]) => (
-                      <div key={industry} className="mb-2">
-                        <p className="font-medium">{industry}</p>
-                        <ul className="list-disc list-inside text-sm text-gray-700">
-                          {Array.from(roles as Set<string>).map((role, idx) => (
-                            <li key={idx}>{role}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No work preferences set
-                    </p>
-                  )}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-600">Role:</span>
+                      <p className="font-medium text-gray-900">
+                        {jobDetails.role}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Type:</span>
+                      <p className="font-medium text-gray-900">
+                        {jobDetails.employment_type}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Salary:</span>
+                      <p className="font-medium text-gray-900">
+                        {jobDetails.salary_range}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Experience:</span>
+                      <p className="font-medium text-gray-900">
+                        {jobDetails.req_experience} years
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Start Date:</span>
+                      <p className="font-medium text-gray-900">
+                        {new Date(jobDetails.start_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Status:</span>
+                      <p className="font-medium text-gray-900">
+                        {jobDetails.job_status}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Location Preferences */}
+                {/* Location */}
                 <div>
                   <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Location Preferences
+                    Location
                   </h3>
-                  {Object.keys(groupedLocationPrefs).length > 0 ? (
-                    Object.entries(groupedLocationPrefs).map(([state, areas]) => (
-                      <div key={state} className="mb-2">
-                        <p className="font-medium">{state}</p>
-                        <ul className="list-disc list-inside text-sm text-gray-700">
-                          {Array.from(areas as Set<string>).map((area, idx) => (
-                            <li key={idx}>{area}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No location preferences set
-                    </p>
-                  )}
+                  <p className="text-gray-900 font-medium">
+                    {jobDetails.suburb_city}, {jobDetails.state}{" "}
+                    {jobDetails.postcode}
+                  </p>
                 </div>
 
-                {/* Work Experience */}
+                {/* Facilities */}
                 <div>
                   <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Work Experience
+                    Facilities
                   </h3>
-                  {workExperiences.length > 0 ? (
-                    workExperiences.map((exp, idx) => (
-                      <div
-                        key={idx}
-                        className="border p-3 rounded-lg mb-2 text-sm text-gray-700"
-                      >
-                        <p>
-                          <span className="font-medium">Company:</span>{" "}
-                          {exp.company}
-                        </p>
-                        <p>
-                          <span className="font-medium">Industry:</span>{" "}
-                          {exp.industry}
-                        </p>
-                        <p>
-                          <span className="font-medium">Position:</span>{" "}
-                          {exp.position}
-                        </p>
-                        <p>
-                          <span className="font-medium">Location:</span>{" "}
-                          {exp.location}
-                        </p>
-                        <p>
-                          <span className="font-medium">Dates:</span>{" "}
-                          {exp.start_date} – {exp.end_date || "Present"}
-                        </p>
-                        {exp.description && (
-                          <p>
-                            <span className="font-medium">Description:</span>{" "}
-                            {exp.description}
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No work experience added yet
-                    </p>
-                  )}
-                </div>
-
-                {/* Licenses */}
-                <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Licenses & Certifications
-                  </h3>
-                  {licenses.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {licenses.map((license, idx) => (
+                  <div className="flex flex-wrap gap-2">
+                    {facilities.length > 0 ? (
+                      facilities.map((f, i) => (
                         <span
-                          key={idx}
+                          key={i}
                           className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
                         >
-                          {license}
+                          {f}
                         </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No licenses added yet
-                    </p>
-                  )}
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        No facilities listed
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                {/* References */}
+                {/* Description */}
                 <div>
+                  <h3 className="font-semibold text-[#1E293B] mb-2">
+                    Job Description
+                  </h3>
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <p className="text-gray-700 leading-relaxed">
+                      {jobDetails.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* References placeholder (if needed) */}
+                {/* <div>
                   <h3 className="font-semibold text-[#1E293B] mb-2 flex items-center">
                     <FileText size={16} className="mr-2" /> References
                   </h3>
-                  {references.length > 0 ? (
-                    references.map((ref, idx) => (
-                      <div
-                        key={idx}
-                        className="border p-3 rounded-lg mb-2 text-sm text-gray-700"
-                      >
-                        <p>
-                          <span className="font-medium">Name:</span> {ref.name}
-                        </p>
-                        <p>
-                          <span className="font-medium">Business:</span>{" "}
-                          {ref.business_name}
-                        </p>
-                        <p>
-                          <span className="font-medium">Email:</span> {ref.email}
-                        </p>
-                        {ref.mobile_num && (
-                          <p>
-                            <span className="font-medium">Phone:</span>{" "}
-                            {ref.mobile_num}
-                          </p>
-                        )}
-                        {ref.role && (
-                          <p>
-                            <span className="font-medium">Role:</span> {ref.role}
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No references added</p>
-                  )}
-                </div>
+                  <p className="text-sm text-gray-500">Employer references (optional)</p>
+                </div> */}
               </div>
             </div>
           </div>
