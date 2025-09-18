@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -21,7 +20,7 @@ interface PostJobFormProps {
   editingJob?: {
     job_id: number;
     role: string;
-    job_status: "active" | "inactive" | "draft" | "closed";
+    job_status: "active" | "inactive" | "draft";
   } | null;
 }
 
@@ -34,8 +33,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [payRanges, setPayRanges] = useState<string[]>([]);
   const [experienceRanges, setExperienceRanges] = useState<string[]>([]);
-  const [states, setStates] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
+  const [showFuturePopup, setShowFuturePopup] = useState(false);
 
   const [formData, setFormData] = useState({
     jobRole: editingJob?.role || "",
@@ -48,7 +47,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     status: editingJob?.job_status || "active",
   });
 
-  // ✅ Fetch dropdown options from Supabase
+  // 🔹 Fetch dropdowns
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
@@ -60,33 +59,17 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           if (rolesData) setRoles(rolesData);
         }
 
-        // ✅ Enums
-        const { data: jobTypeData } = await supabase.rpc("get_enum_values", {
-          enum_name: "job_type_enum",
-        });
-        if (jobTypeData) setJobTypes(jobTypeData);
+        // Job type enum
+        const { data: jobTypeEnum } = await supabase.rpc("get_enum_values", { enum_name: "job_type_enum" });
+        if (jobTypeEnum) setJobTypes(jobTypeEnum);
 
-        const { data: payRangeData } = await supabase.rpc("get_enum_values", {
-          enum_name: "pay_range",
-        });
-        if (payRangeData) setPayRanges(payRangeData);
+        // Pay range enum
+        const { data: payRangeEnum } = await supabase.rpc("get_enum_values", { enum_name: "pay_range" });
+        if (payRangeEnum) setPayRanges(payRangeEnum);
 
-        const { data: expRangeData } = await supabase.rpc("get_enum_values", {
-          enum_name: "years_experience",
-        });
-        if (expRangeData) setExperienceRanges(expRangeData);
-
-        // Hardcode states, only QLD is actionable
-        setStates([
-          "Queensland",
-          "New South Wales",
-          "Victoria",
-          "South Australia",
-          "Western Australia",
-          "Tasmania",
-          "Northern Territory",
-          "Australian Capital Territory",
-        ]);
+        // Experience enum
+        const { data: expEnum } = await supabase.rpc("get_enum_values", { enum_name: "years_experience" });
+        if (expEnum) setExperienceRanges(expEnum);
       } catch (err) {
         console.error("Error loading dropdowns:", err);
       }
@@ -94,22 +77,17 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     fetchDropdowns();
   }, [employerIndustryId]);
 
-  // ✅ Fetch areas when state = Queensland
+  // 🔹 Fetch areas only for QLD
   useEffect(() => {
     const fetchAreas = async () => {
-      if (formData.state !== "Queensland") {
-        setAreas([]);
-        return;
-      }
-      const { data, error } = await supabase
+      if (formData.state !== "Queensland") return;
+      const { data } = await supabase
         .from("mvw_emp_location_roles")
         .select("suburb_city, postcode")
         .eq("state", "Queensland");
 
-      if (!error && data) {
-        const uniqueAreas = [
-          ...new Set(data.map((d) => `${d.suburb_city} (${d.postcode})`)),
-        ];
+      if (data) {
+        const uniqueAreas = [...new Set(data.map((d) => `${d.suburb_city} (${d.postcode})`))];
         setAreas(uniqueAreas);
       }
     };
@@ -120,7 +98,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // ✅ Save job
   const handleSaveAndPost = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -167,7 +144,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
@@ -196,7 +173,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   value={formData.jobRole}
                   onValueChange={(value) => handleInputChange("jobRole", value)}
                 >
-                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -227,7 +204,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   value={formData.jobType}
                   onValueChange={(value) => handleInputChange("jobType", value)}
                 >
-                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select job type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -247,7 +224,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   value={formData.payRange}
                   onValueChange={(value) => handleInputChange("payRange", value)}
                 >
-                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select salary range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -260,15 +237,15 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 </Select>
               </div>
 
-              {/* Experience Required */}
+              {/* Experience */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Experience Required</h2>
                 <Select
                   value={formData.experienceRange}
                   onValueChange={(value) => handleInputChange("experienceRange", value)}
                 >
-                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
-                    <SelectValue placeholder="Select experience range" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select experience" />
                   </SelectTrigger>
                   <SelectContent>
                     {experienceRanges.map((er) => (
@@ -285,13 +262,19 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Location</h2>
                 <Select
                   value={formData.state}
-                  onValueChange={(value) => handleInputChange("state", value)}
+                  onValueChange={(value) => {
+                    if (value !== "Queensland") {
+                      setShowFuturePopup(true);
+                    } else {
+                      handleInputChange("state", value);
+                    }
+                  }}
                 >
-                  <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>
-                    {states.map((s) => (
+                    {["Queensland", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"].map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
                       </SelectItem>
@@ -304,7 +287,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                     value={formData.area}
                     onValueChange={(value) => handleInputChange("area", value)}
                   >
-                    <SelectTrigger className="bg-gray-50 border-gray-200 rounded-xl text-sm h-9 mt-2">
+                    <SelectTrigger className="mt-2">
                       <SelectValue placeholder="Select area" />
                     </SelectTrigger>
                     <SelectContent>
@@ -318,7 +301,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 )}
               </div>
 
-              {/* Job Status */}
+              {/* Status */}
               <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
                 <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Job Status</h2>
                 <div className="flex items-center justify-between">
@@ -328,12 +311,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                     onCheckedChange={(checked) =>
                       handleInputChange("status", checked ? "active" : "inactive")
                     }
-                    className="data-[state=checked]:bg-[#1E293B]"
                   />
                 </div>
               </div>
 
-              {/* Save Button */}
+              {/* Save */}
               <div className="pb-6">
                 <Button
                   onClick={handleSaveAndPost}
@@ -350,6 +332,24 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             </div>
           </div>
         </div>
+
+        {/* Future States Popup */}
+        {showFuturePopup && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50">
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-[90%] text-center shadow-xl">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                These functions are for future phases
+              </h2>
+              <p className="text-gray-600 mb-6">We’ll be back with more locations soon!</p>
+              <Button
+                onClick={() => setShowFuturePopup(false)}
+                className="w-full bg-slate-800 text-white rounded-lg py-2"
+              >
+                Got It
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
