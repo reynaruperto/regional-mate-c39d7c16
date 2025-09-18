@@ -34,6 +34,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [payRanges, setPayRanges] = useState<string[]>([]);
   const [experienceRanges, setExperienceRanges] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
+  const [licenses, setLicenses] = useState<{ license_id: number; name: string }[]>([]);
+  const [selectedLicenses, setSelectedLicenses] = useState<number[]>([]);
   const [showFuturePopup, setShowFuturePopup] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -70,6 +72,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         // Experience enum
         const { data: expEnum } = await supabase.rpc("get_enum_values", { enum_name: "years_experience" });
         if (expEnum) setExperienceRanges(expEnum);
+
+        // Licenses
+        const { data: licensesData } = await supabase.from("license").select("license_id, name");
+        if (licensesData) setLicenses(licensesData);
       } catch (err) {
         console.error("Error loading dropdowns:", err);
       }
@@ -105,28 +111,63 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       return;
     }
 
+    // Extract suburb + postcode if "Brisbane (4000)" format
+    let suburb_city = "";
+    let postcode = "";
+    if (formData.area.includes("(")) {
+      suburb_city = formData.area.split("(")[0].trim();
+      postcode = formData.area.match(/\(([^)]+)\)/)?.[1] || "";
+    } else {
+      suburb_city = formData.area;
+    }
+
+    // Find industry_role_id from roles list
+    const selectedRole = roles.find((r) => r.role === formData.jobRole);
+
     const jobPayload = {
-      role: formData.jobRole,
+      industry_role_id: selectedRole?.industry_role_id || null,
       description: formData.jobDescription,
       employment_type: formData.jobType as any,
       salary_range: formData.payRange as any,
       req_experience: formData.experienceRange as any,
       job_status: formData.status as any,
-      state: formData.state,
-      suburb_city: formData.area,
+      state: formData.state as any,
+      suburb_city,
+      postcode,
       user_id: user.id,
+      start_date: new Date().toISOString().split("T")[0],
     };
 
     let error;
+    let jobId;
+
     if (editingJob) {
-      const { error: updateError } = await supabase
+      const { data: updatedJob, error: updateError } = await supabase
         .from("job")
         .update(jobPayload)
-        .eq("job_id", editingJob.job_id);
+        .eq("job_id", editingJob.job_id)
+        .select("job_id")
+        .single();
       error = updateError;
+      jobId = updatedJob?.job_id;
     } else {
-      const { error: insertError } = await supabase.from("job").insert(jobPayload);
+      const { data: insertedJob, error: insertError } = await supabase
+        .from("job")
+        .insert(jobPayload)
+        .select("job_id")
+        .single();
       error = insertError;
+      jobId = insertedJob?.job_id;
+    }
+
+    // ✅ Insert job licenses
+    if (!error && jobId && selectedLicenses.length > 0) {
+      await supabase.from("job_license").delete().eq("job_id", jobId);
+      const licenseRows = selectedLicenses.map((lid) => ({
+        job_id: jobId,
+        license_id: lid,
+      }));
+      await supabase.from("job_license").insert(licenseRows);
     }
 
     if (error) {
@@ -299,6 +340,53 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                     </SelectContent>
                   </Select>
                 )}
+              </div>
+
+              {/* Licenses */}
+              <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+                <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Required Licenses</h2>
+                <Select
+                  onValueChange={(value) => {
+                    const id = parseInt(value);
+                    if (!selectedLicenses.includes(id)) {
+                      setSelectedLicenses((prev) => [...prev, id]);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a license" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {licenses.map((l) => (
+                      <SelectItem key={l.license_id} value={l.license_id.toString()}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Show selected */}
+                <div className="flex flex-wrap mt-2 gap-2">
+                  {selectedLicenses.map((id) => {
+                    const license = licenses.find((l) => l.license_id === id);
+                    return (
+                      <span
+                        key={id}
+                        className="bg-slate-100 px-3 py-1 rounded-xl text-xs font-medium flex items-center gap-1"
+                      >
+                        {license?.name}
+                        <button
+                          onClick={() =>
+                            setSelectedLicenses((prev) => prev.filter((lid) => lid !== id))
+                          }
+                          className="text-red-500"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Status */}
