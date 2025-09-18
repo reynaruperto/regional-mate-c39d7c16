@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
-  Briefcase,
   MapPin,
   Calendar,
   Clock,
@@ -46,7 +45,6 @@ const EmployerJobPreview: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1️⃣ Job + Employer
         const { data, error } = await supabase
           .from("job")
           .select(
@@ -73,7 +71,10 @@ const EmployerJobPreview: React.FC = () => {
           `
           )
           .eq("job_id", parseInt(jobId))
-          .single();
+          .maybeSingle();
+
+        // 🔎 Debug log
+        console.log("Job fetch result:", data);
 
         if (error) {
           toast({ title: "Error loading job", description: error.message });
@@ -88,7 +89,7 @@ const EmployerJobPreview: React.FC = () => {
         const employer = data.profile?.employer?.[0] || null;
         const employerUserId = data.profile?.user_id;
 
-        // 2️⃣ Facilities separately
+        // Fetch facilities separately
         let facilities: string[] = [];
         if (employerUserId) {
           const { data: facilityRows } = await supabase
@@ -101,7 +102,7 @@ const EmployerJobPreview: React.FC = () => {
             [];
         }
 
-        // 3️⃣ Company photo (signed URL)
+        // Handle company photo
         let signedPhoto: string | null = null;
         if (employer?.profile_photo) {
           const photoValue = employer.profile_photo;
@@ -143,179 +144,9 @@ const EmployerJobPreview: React.FC = () => {
     fetchJobDetails();
   }, [jobId, toast]);
 
-  // 🔄 Auto-refresh signed URL
-  useEffect(() => {
-    if (!photoPath) return;
-    const interval = setInterval(async () => {
-      const { data: signed } = await supabase.storage
-        .from("profile_photo")
-        .createSignedUrl(photoPath, 3600);
-      if (signed?.signedUrl) {
-        setJobDetails((prev) =>
-          prev ? { ...prev, company_photo: signed.signedUrl } : prev
-        );
-      }
-    }, 55 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [photoPath]);
-
-  const formatDate = (date: string | null) => {
-    if (!date) return "TBA";
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600">Loading job details...</p>
-      </div>
-    );
-  }
-
-  if (!jobDetails) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-gray-600">Job not found</p>
-          <Button onClick={() => navigate("/post-jobs")} className="mt-4">
-            Back to Jobs
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone frame */}
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
-          {/* Header */}
-          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={() => navigate("/post-jobs")}
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
-            </Button>
-            <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
-            <div className="w-10"></div>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 px-6 py-6 overflow-y-auto">
-            <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-              {/* Employer Header */}
-              <div className="flex flex-col items-center text-center">
-                <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
-                  {jobDetails.company_photo ? (
-                    <img
-                      src={jobDetails.company_photo}
-                      alt="Company Logo"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 text-lg font-bold">
-                      {jobDetails.company_name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {jobDetails.company_name}
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                  {jobDetails.postcode}
-                </p>
-              </div>
-
-              {/* Job Title & Status */}
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  {jobDetails.role}
-                </h3>
-                <span
-                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                    jobDetails.job_status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {jobDetails.job_status.charAt(0).toUpperCase() +
-                    jobDetails.job_status.slice(1)}
-                </span>
-              </div>
-
-              {/* Job Details */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center">
-                  <Clock className="w-4 h-4 text-[#1E293B] mr-2" />
-                  <span>{jobDetails.employment_type}</span>
-                </div>
-                <div className="flex items-center">
-                  <DollarSign className="w-4 h-4 text-[#1E293B] mr-2" />
-                  <span>{jobDetails.salary_range}</span>
-                </div>
-                <div className="flex items-center">
-                  <User className="w-4 h-4 text-[#1E293B] mr-2" />
-                  <span>{jobDetails.req_experience} years</span>
-                </div>
-                <div className="flex items-center">
-                  <Calendar className="w-4 h-4 text-[#1E293B] mr-2" />
-                  <span>{formatDate(jobDetails.start_date)}</span>
-                </div>
-              </div>
-
-              {/* Facilities */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Facilities
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0 ? (
-                    jobDetails.facilities.map((f, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
-                      >
-                        {f}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Job Description */}
-              <div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                  Job Description
-                </h4>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <p className="text-gray-700 leading-relaxed">
-                    {jobDetails.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Heart to Match */}
-              <Button className="w-full bg-gradient-to-r from-[#1E293B] to-slate-700 hover:from-[#0f172a] hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
-                <Heart size={18} className="fill-white" /> Heart to Match
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center">
+      {loading ? <p>Loading…</p> : <pre>{JSON.stringify(jobDetails, null, 2)}</pre>}
     </div>
   );
 };
