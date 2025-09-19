@@ -10,11 +10,13 @@ interface Industry {
   id: number;
   name: string;
 }
+
 interface Role {
   id: number;
   name: string;
   industryId: number;
 }
+
 interface Region {
   id: number;
   industry_id: number;
@@ -57,7 +59,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [showPopup, setShowPopup] = useState(false);
 
   // ==========================
-  // Load data
+  // Load data + existing prefs
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -66,21 +68,25 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get nationality from whv_maker
+      // Profile nationality
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("nationality")
+        .select("nationality, tagline")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // 2. Get visa info
+      if (profile?.tagline) setTagline(profile.tagline);
+
+      // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(`
+        .select(
+          `
           stage_id,
           visa_stage:visa_stage(stage, sub_class, label),
           country:country(name)
-        `)
+        `
+        )
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -90,7 +96,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // 3. Eligible industries
+      // Eligible industries
       const { data: eligibleIndustries } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
@@ -108,7 +114,7 @@ const WHVWorkPreferences: React.FC = () => {
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // 4. Roles
+        // Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -124,7 +130,7 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // 5. Regions
+        // Regions
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
@@ -133,6 +139,37 @@ const WHVWorkPreferences: React.FC = () => {
         if (regionData) {
           setRegions(regionData);
         }
+      }
+
+      // ===== Load saved prefs =====
+      const { data: savedIndustries } = await supabase
+        .from("maker_pref_industry")
+        .select("industry_id")
+        .eq("user_id", user.id);
+
+      if (savedIndustries) {
+        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
+      }
+
+      const { data: savedRoles } = await supabase
+        .from("maker_pref_industry_role")
+        .select("industry_role_id")
+        .eq("user_id", user.id);
+
+      if (savedRoles) {
+        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
+      }
+
+      const { data: savedLocations } = await supabase
+        .from("maker_pref_location")
+        .select("state, suburb_city, postcode")
+        .eq("user_id", user.id);
+
+      if (savedLocations) {
+        setPreferredStates([...new Set(savedLocations.map((l) => l.state))]);
+        setPreferredAreas(
+          savedLocations.map((l) => `${l.suburb_city}::${l.postcode}`)
+        );
       }
     };
 
@@ -148,7 +185,7 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Save tagline
+    // Update tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -157,40 +194,47 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // 2. Save preferences
-    const preferenceRows: Array<{
-      user_id: string;
-      industry_role_id: number;
-      region_rules_id: number;
-    }> = [];
+    // Clear old prefs
+    await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
+    await supabase
+      .from("maker_pref_industry_role")
+      .delete()
+      .eq("user_id", user.id);
+    await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
-    selectedRoles.forEach((roleId) => {
-      preferredStates.forEach((state) => {
-        preferredAreas.forEach((area) => {
-          const [suburb_city, postcode] = area.split("::");
-          const region = regions.find(
-            (r) =>
-              r.state === state &&
-              r.suburb_city === suburb_city &&
-              r.postcode === postcode
-          );
-          if (region) {
-            preferenceRows.push({
-              user_id: user.id,
-              industry_role_id: roleId,
-              region_rules_id: region.id,
-            });
-          }
-        });
-      });
-    });
+    // Insert industries
+    if (selectedIndustries.length) {
+      await supabase.from("maker_pref_industry").insert(
+        selectedIndustries.map((indId) => ({
+          user_id: user.id,
+          industry_id: indId,
+        }))
+      );
+    }
 
-    if (preferenceRows.length > 0) {
-      try {
-        await supabase.from("maker_pref_location").insert(preferenceRows);
-      } catch (error) {
-        console.log("Some preferences may already exist, continuing...");
-      }
+    // Insert roles
+    if (selectedRoles.length) {
+      await supabase.from("maker_pref_industry_role").insert(
+        selectedRoles.map((roleId) => ({
+          user_id: user.id,
+          industry_role_id: roleId,
+        }))
+      );
+    }
+
+    // Insert locations
+    if (preferredAreas.length) {
+      await supabase.from("maker_pref_location").insert(
+        preferredAreas.map((locKey) => {
+          const [suburb_city, postcode] = locKey.split("::");
+          return {
+            user_id: user.id,
+            state: "Queensland",
+            suburb_city,
+            postcode,
+          };
+        })
+      );
     }
 
     navigate("/whv/work-experience");
@@ -263,9 +307,7 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     return regions
-      .filter(
-        (r) => r.state === state && selectedIndustries.includes(r.industry_id)
-      )
+      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
       .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
@@ -486,14 +528,12 @@ const WHVWorkPreferences: React.FC = () => {
                     <strong>Industries:</strong>{" "}
                     {selectedIndustries
                       .map((id) => industries.find((i) => i.id === id)?.name)
-                      .filter(Boolean)
                       .join(", ")}
                   </p>
                   <p>
                     <strong>Roles:</strong>{" "}
                     {selectedRoles
                       .map((id) => roles.find((r) => r.id === id)?.name)
-                      .filter(Boolean)
                       .join(", ")}
                   </p>
                   <p>
@@ -520,7 +560,8 @@ const WHVWorkPreferences: React.FC = () => {
                 disabled={
                   !tagline.trim() ||
                   selectedIndustries.length === 0 ||
-                  preferredStates.length === 0
+                  preferredStates.length === 0 ||
+                  preferredAreas.length === 0
                 }
                 className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
               >
