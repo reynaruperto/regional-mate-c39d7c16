@@ -15,18 +15,9 @@ export interface Database {
       // COUNTRY
       // ==========================
       country: {
-        Row: {
-          country_id: number;
-          name: string;
-        };
-        Insert: {
-          country_id?: number;
-          name: string;
-        };
-        Update: {
-          country_id?: number;
-          name?: string;
-        };
+        Row: { country_id: number; name: string };
+        Insert: { country_id?: number; name: string };
+        Update: { country_id?: number; name?: string };
       };
 
       country_eligibility: {
@@ -126,91 +117,37 @@ export interface Database {
       };
 
       employer_facility: {
-        Row: {
-          user_id: string;
-          facility_id: number;
-          other: string | null;
-        };
-        Insert: {
-          user_id: string;
-          facility_id: number;
-          other?: string | null;
-        };
-        Update: {
-          user_id?: string;
-          facility_id?: number;
-          other?: string | null;
-        };
+        Row: { user_id: string; facility_id: number; other: string | null };
+        Insert: { user_id: string; facility_id: number; other?: string | null };
+        Update: { user_id?: string; facility_id?: number; other?: string | null };
       };
 
       employer_role: {
-        Row: {
-          user_id: string;
-          industry_role_id: number;
-          created_at: string | null;
-        };
-        Insert: {
-          user_id: string;
-          industry_role_id: number;
-          created_at?: string | null;
-        };
-        Update: {
-          user_id?: string;
-          industry_role_id?: number;
-          created_at?: string | null;
-        };
+        Row: { user_id: string; industry_role_id: number; created_at: string | null };
+        Insert: { user_id: string; industry_role_id: number; created_at?: string | null };
+        Update: { user_id?: string; industry_role_id?: number; created_at?: string | null };
       };
-
       // ==========================
       // INDUSTRY
       // ==========================
       facility: {
-        Row: {
-          facility_id: number;
-          name: string;
-        };
-        Insert: {
-          facility_id?: number;
-          name: string;
-        };
-        Update: {
-          facility_id?: number;
-          name?: string;
-        };
+        Row: { facility_id: number; name: string };
+        Insert: { facility_id?: number; name: string };
+        Update: { facility_id?: number; name?: string };
       };
 
       industry: {
-        Row: {
-          industry_id: number;
-          name: string;
-        };
-        Insert: {
-          industry_id?: number;
-          name: string;
-        };
-        Update: {
-          industry_id?: number;
-          name?: string;
-        };
+        Row: { industry_id: number; name: string };
+        Insert: { industry_id?: number; name: string };
+        Update: { industry_id?: number; name?: string };
       };
 
       industry_role: {
-        Row: {
-          industry_role_id: number;
-          industry_id: number | null;
-          role: string;
-        };
-        Insert: {
-          industry_role_id?: number;
-          industry_id?: number | null;
-          role: string;
-        };
-        Update: {
-          industry_role_id?: number;
-          industry_id?: number | null;
-          role?: string;
-        };
+        Row: { industry_role_id: number; industry_id: number | null; role: string };
+        Insert: { industry_role_id?: number; industry_id?: number | null; role: string };
+        Update: { industry_role_id?: number; industry_id?: number | null; role?: string };
       };
+
       // ==========================
       // JOB
       // ==========================
@@ -266,21 +203,9 @@ export interface Database {
       };
 
       job_license: {
-        Row: {
-          job_id: number;
-          license_id: number;
-          other: string | null;
-        };
-        Insert: {
-          job_id: number;
-          license_id: number;
-          other?: string | null;
-        };
-        Update: {
-          job_id?: number;
-          license_id?: number;
-          other?: string | null;
-        };
+        Row: { job_id: number; license_id: number; other: string | null };
+        Insert: { job_id: number; license_id: number; other?: string | null };
+        Update: { job_id?: number; license_id?: number; other?: string | null };
       };
 
       // ==========================
@@ -317,87 +242,27 @@ export interface Database {
       // MAKER TABLES
       // ==========================
       maker_license: {
-        Row: {
-          user_id: string;
-          license_id: number;
-          other: string | null;
-        };
-        Insert: {
-          user_id: string;
-          license_id: number;
-          other?: string | null;
-        };
-        Update: {
-          user_id?: string;
-          license_id?: number;
-          other?: string | null;
-        };
+        Row: { user_id: string; license_id: number; other: string | null };
+        Insert: { user_id: string; license_id: number; other?: string | null };
+        Update: { user_id?: string; license_id?: number; other?: string | null };
       };
 
       maker_pref_availability: {
-        Row: {
-          user_id: string;
-          availability: string;
-          created_at: string | null;
-        };
-        Insert: {
-          user_id: string;
-          availability: string;
-          created_at?: string | null;
-        };
-        Update: {
-          user_id?: string;
-          availability?: string;
-          created_at?: string | null;
-        };
+        Row: { user_id: string; availability: string; created_at: string | null };
+        Insert: { user_id: string; availability: string; created_at?: string | null };
+        Update: { user_id?: string; availability?: string; created_at?: string | null };
       };
 
       maker_pref_industry: {
-        Row: {
-          id: string;
-          user_id: string;
-          industry_id: number;
-          created_at: string | null;
-          updated_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          industry_id: number;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          industry_id?: number;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
+        Row: { id: string; user_id: string; industry_id: number; created_at: string | null; updated_at: string | null };
+        Insert: { id?: string; user_id: string; industry_id: number; created_at?: string | null; updated_at?: string | null };
+        Update: { id?: string; user_id?: string; industry_id?: number; created_at?: string | null; updated_at?: string | null };
       };
 
       maker_pref_industry_role: {
-        Row: {
-          id: string;
-          user_id: string | null;
-          industry_role_id: number | null;
-          created_at: string | null;
-          updated_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          user_id?: string | null;
-          industry_role_id?: number | null;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          user_id?: string | null;
-          industry_role_id?: number | null;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
+        Row: { id: string; user_id: string | null; industry_role_id: number | null; created_at: string | null; updated_at: string | null };
+        Insert: { id?: string; user_id?: string | null; industry_role_id?: number | null; created_at?: string | null; updated_at?: string | null };
+        Update: { id?: string; user_id?: string | null; industry_role_id?: number | null; created_at?: string | null; updated_at?: string | null };
       };
 
       maker_pref_location: {
@@ -424,66 +289,6 @@ export interface Database {
           state?: Database["public"]["Enums"]["state"];
           postcode?: string | null;
           created_at?: string | null;
-        };
-      };
-
-      maker_preference: {
-        Row: {
-          preference_id: number;
-          user_id: string;
-          industry_role_id: number;
-          region_rules_id: number;
-          created_at: string | null;
-        };
-        Insert: {
-          preference_id?: number;
-          user_id: string;
-          industry_role_id: number;
-          region_rules_id: number;
-          created_at?: string | null;
-        };
-        Update: {
-          preference_id?: number;
-          user_id?: string;
-          industry_role_id?: number;
-          region_rules_id?: number;
-          created_at?: string | null;
-        };
-      };
-
-      maker_reference: {
-        Row: {
-          reference_id: number;
-          user_id: string;
-          name: string | null;
-          business_name: string | null;
-          email: string | null;
-          mobile_num: string | null;
-          role: string | null;
-          created_at: string | null;
-          updated_at: string | null;
-        };
-        Insert: {
-          reference_id?: number;
-          user_id: string;
-          name?: string | null;
-          business_name?: string | null;
-          email?: string | null;
-          mobile_num?: string | null;
-          role?: string | null;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
-        Update: {
-          reference_id?: number;
-          user_id?: string;
-          name?: string | null;
-          business_name?: string | null;
-          email?: string | null;
-          mobile_num?: string | null;
-          role?: string | null;
-          created_at?: string | null;
-          updated_at?: string | null;
         };
       };
       // ==========================
@@ -520,24 +325,9 @@ export interface Database {
       };
 
       maker_visa_eligibility: {
-        Row: {
-          id: string;
-          stage_id: number | null;
-          country_id: number | null;
-          industry_id: number | null;
-        };
-        Insert: {
-          id?: string;
-          stage_id?: number | null;
-          country_id?: number | null;
-          industry_id?: number | null;
-        };
-        Update: {
-          id?: string;
-          stage_id?: number | null;
-          country_id?: number | null;
-          industry_id?: number | null;
-        };
+        Row: { id: string; stage_id: number | null; country_id: number | null; industry_id: number | null };
+        Insert: { id?: string; stage_id?: number | null; country_id?: number | null; industry_id?: number | null };
+        Update: { id?: string; stage_id?: number | null; country_id?: number | null; industry_id?: number | null };
       };
 
       maker_work_experience: {
@@ -652,45 +442,15 @@ export interface Database {
       // REGION TABLES
       // ==========================
       postcode: {
-        Row: {
-          id: number;
-          state: string | null;
-          suburb_city: string | null;
-          postcode: string | null;
-        };
-        Insert: {
-          id?: number;
-          state?: string | null;
-          suburb_city?: string | null;
-          postcode?: string | null;
-        };
-        Update: {
-          id?: number;
-          state?: string | null;
-          suburb_city?: string | null;
-          postcode?: string | null;
-        };
+        Row: { id: number; state: string | null; suburb_city: string | null; postcode: string | null };
+        Insert: { id?: number; state?: string | null; suburb_city?: string | null; postcode?: string | null };
+        Update: { id?: number; state?: string | null; suburb_city?: string | null; postcode?: string | null };
       };
 
       region_postcode: {
-        Row: {
-          id: number;
-          state: string;
-          area: "Regional" | "Northern" | "Remote" | "Very Remote";
-          postcode_range: string;
-        };
-        Insert: {
-          id?: number;
-          state: string;
-          area: "Regional" | "Northern" | "Remote" | "Very Remote";
-          postcode_range: string;
-        };
-        Update: {
-          id?: number;
-          state?: string;
-          area?: "Regional" | "Northern" | "Remote" | "Very Remote";
-          postcode_range?: string;
-        };
+        Row: { id: number; state: string; area: "Regional" | "Northern" | "Remote" | "Very Remote"; postcode_range: string };
+        Insert: { id?: number; state: string; area: "Regional" | "Northern" | "Remote" | "Very Remote"; postcode_range: string };
+        Update: { id?: number; state?: string; area?: "Regional" | "Northern" | "Remote" | "Very Remote"; postcode_range?: string };
       };
 
       region_rules: {
@@ -760,27 +520,9 @@ export interface Database {
       };
 
       temp_eligibility: {
-        Row: {
-          sub_class: string;
-          stage: number;
-          country_name: string;
-          industry_name: string;
-          industry_id: number | null;
-        };
-        Insert: {
-          sub_class: string;
-          stage: number;
-          country_name: string;
-          industry_name: string;
-          industry_id?: number | null;
-        };
-        Update: {
-          sub_class?: string;
-          stage?: number;
-          country_name?: string;
-          industry_name?: string;
-          industry_id?: number | null;
-        };
+        Row: { sub_class: string; stage: number; country_name: string; industry_name: string; industry_id: number | null };
+        Insert: { sub_class: string; stage: number; country_name: string; industry_name: string; industry_id?: number | null };
+        Update: { sub_class?: string; stage?: number; country_name?: string; industry_name?: string; industry_id?: number | null };
       };
 
       // ==========================
@@ -813,29 +555,6 @@ export interface Database {
           updated_at?: string | null;
           user_type?: "employer" | "whv";
           encrypt_email?: string | null;
-        };
-      };
-      // ==========================
-      // VISA STAGE
-      // ==========================
-      visa_stage: {
-        Row: {
-          stage_id: number;
-          sub_class: "417" | "462";
-          stage: number;
-          label: string;
-        };
-        Insert: {
-          stage_id?: number;
-          sub_class: "417" | "462";
-          stage: number;
-          label: string;
-        };
-        Update: {
-          stage_id?: number;
-          sub_class?: "417" | "462";
-          stage?: number;
-          label?: string;
         };
       };
 
@@ -901,7 +620,6 @@ export interface Database {
           updated_at?: string | null;
         };
       };
-
       // ==========================
       // ENUMERATED TYPES
       // ==========================
