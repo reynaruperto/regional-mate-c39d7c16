@@ -17,7 +17,8 @@ interface Role {
 }
 interface Region {
   state: string;
-  area: string;
+  suburb_city: string;
+  postcode: string;
   region_rules_id: number;
 }
 
@@ -43,7 +44,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
-  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]); // suburb+postcode
   const [visaLabel, setVisaLabel] = useState<string>("");
 
   const [expandedSections, setExpandedSections] = useState({
@@ -57,7 +58,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [popupMessage, setPopupMessage] = useState("");
 
   // ==========================
-  // Load visa + industries/roles
+  // Load visa + industries + roles
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -142,49 +143,46 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    // Fetch QLD areas from regional_rules
+    // Fetch QLD locations (suburb + postcode) from regional_rules
     if (newStates.includes("Queensland")) {
       const { data, error } = await supabase
         .from("regional_rules")
-        .select("region_rules_id, state, area")
+        .select("region_rules_id, state, suburb_city, postcode")
         .eq("state", "Queensland");
 
       if (!error && data) {
         const uniqueRegions = data.filter(
           (r, idx, arr) =>
             arr.findIndex(
-              (x) => x.state === r.state && x.area === r.area
+              (x) =>
+                x.state === r.state &&
+                x.suburb_city === r.suburb_city &&
+                x.postcode === r.postcode
             ) === idx
         );
         setRegions(
           uniqueRegions.map((r) => ({
             state: r.state,
-            area: r.area,
+            suburb_city: r.suburb_city,
+            postcode: r.postcode,
             region_rules_id: r.region_rules_id,
           }))
         );
       }
     } else {
       setRegions([]);
-      setPreferredAreas([]);
+      setPreferredLocations([]);
     }
   };
 
-  const togglePreferredArea = (area: string) => {
-    setPreferredAreas(
-      preferredAreas.includes(area)
-        ? preferredAreas.filter((a) => a !== area)
-        : preferredAreas.length < 3
-        ? [...preferredAreas, area]
-        : preferredAreas
+  const togglePreferredLocation = (loc: string) => {
+    setPreferredLocations(
+      preferredLocations.includes(loc)
+        ? preferredLocations.filter((a) => a !== loc)
+        : preferredLocations.length < 3
+        ? [...preferredLocations, loc]
+        : preferredLocations
     );
-  };
-
-  const getAreasForState = (state: string) => {
-    return regions
-      .filter((r) => r.state === state)
-      .map((r) => r.area)
-      .filter((a, i, arr) => a && arr.indexOf(a) === i);
   };
 
   // ==========================
@@ -208,17 +206,18 @@ const WHVWorkPreferences: React.FC = () => {
     // Save preferences
     const preferenceRows: Array<{ user_id: string; industry_role_id: number; region_rules_id: number }> = [];
     selectedRoles.forEach((roleId) => {
-      preferredStates.forEach((state) => {
-        preferredAreas.forEach((area) => {
-          const region = regions.find((r) => r.state === state && r.area === area);
-          if (region) {
-            preferenceRows.push({
-              user_id: user.id,
-              industry_role_id: roleId,
-              region_rules_id: region.region_rules_id,
-            });
-          }
-        });
+      preferredLocations.forEach((loc) => {
+        const [suburb_city, postcode] = loc.split("::");
+        const region = regions.find(
+          (r) => r.suburb_city === suburb_city && r.postcode === postcode
+        );
+        if (region) {
+          preferenceRows.push({
+            user_id: user.id,
+            industry_role_id: roleId,
+            region_rules_id: region.region_rules_id,
+          });
+        }
       });
     });
 
@@ -294,6 +293,101 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
+            {/* Industries & Roles */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedSections((prev) => ({
+                    ...prev,
+                    industries: !prev.industries,
+                  }))
+                }
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">2. Industries & Roles</span>
+                {expandedSections.industries ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
+              </button>
+              {expandedSections.industries && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  <Label>Select up to 3 industries *</Label>
+                  {industries.map((industry) => (
+                    <label
+                      key={industry.id}
+                      className="flex items-center space-x-2 py-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIndustries.includes(industry.id)}
+                        disabled={
+                          selectedIndustries.length >= 3 &&
+                          !selectedIndustries.includes(industry.id)
+                        }
+                        onChange={() => {
+                          if (!selectedIndustries.includes(industry.id)) {
+                            setSelectedIndustries([...selectedIndustries, industry.id]);
+                          } else {
+                            setSelectedIndustries(
+                              selectedIndustries.filter((id) => id !== industry.id)
+                            );
+                            setSelectedRoles(
+                              selectedRoles.filter(
+                                (roleId) =>
+                                  !roles
+                                    .filter((r) => r.industryId === industry.id)
+                                    .map((r) => r.id)
+                                    .includes(roleId)
+                              )
+                            );
+                          }
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <span>{industry.name}</span>
+                    </label>
+                  ))}
+
+                  {selectedIndustries.map((industryId) => {
+                    const industry = industries.find((i) => i.id === industryId);
+                    const industryRoles = roles.filter(
+                      (r) => r.industryId === industryId
+                    );
+                    return (
+                      <div key={industryId}>
+                        <Label>Roles for {industry?.name}</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {industryRoles.map((role) => (
+                            <button
+                              type="button"
+                              key={role.id}
+                              onClick={() =>
+                                setSelectedRoles(
+                                  selectedRoles.includes(role.id)
+                                    ? selectedRoles.filter((r) => r !== role.id)
+                                    : [...selectedRoles, role.id]
+                                )
+                              }
+                              className={`px-3 py-1.5 rounded-full text-xs border ${
+                                selectedRoles.includes(role.id)
+                                  ? "bg-orange-500 text-white border-orange-500"
+                                  : "bg-white text-gray-700 border-gray-300"
+                              }`}
+                            >
+                              {role.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Preferred Locations */}
             <div className="border rounded-lg">
               <button
@@ -306,7 +400,7 @@ const WHVWorkPreferences: React.FC = () => {
                 }
                 className="w-full flex items-center justify-between p-4 text-left"
               >
-                <span className="text-lg font-medium">2. Preferred Locations</span>
+                <span className="text-lg font-medium">3. Preferred Locations</span>
                 {expandedSections.states ? (
                   <ChevronDown size={20} />
                 ) : (
@@ -334,23 +428,36 @@ const WHVWorkPreferences: React.FC = () => {
                       {preferredStates.includes(state) &&
                         state === "Queensland" && (
                           <div className="ml-6 space-y-1">
-                            {getAreasForState(state).map((area) => (
-                              <label
-                                key={`${state}-${area}`}
-                                className="flex items-center space-x-2 py-1"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={preferredAreas.includes(area)}
-                                  onChange={() => togglePreferredArea(area)}
-                                  disabled={
-                                    preferredAreas.length >= 3 &&
-                                    !preferredAreas.includes(area)
-                                  }
-                                />
-                                <span>{area}</span>
-                              </label>
-                            ))}
+                            {regions.map((r) => {
+                              const loc = `${r.suburb_city} (${r.postcode})::${r.suburb_city}::${r.postcode}`;
+                              return (
+                                <label
+                                  key={r.region_rules_id}
+                                  className="flex items-center space-x-2 py-1"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={preferredLocations.includes(
+                                      `${r.suburb_city}::${r.postcode}`
+                                    )}
+                                    onChange={() =>
+                                      togglePreferredLocation(
+                                        `${r.suburb_city}::${r.postcode}`
+                                      )
+                                    }
+                                    disabled={
+                                      preferredLocations.length >= 3 &&
+                                      !preferredLocations.includes(
+                                        `${r.suburb_city}::${r.postcode}`
+                                      )
+                                    }
+                                  />
+                                  <span>
+                                    {r.suburb_city} ({r.postcode})
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
                         )}
                     </div>
@@ -364,10 +471,7 @@ const WHVWorkPreferences: React.FC = () => {
               <Button
                 type="button"
                 onClick={handleContinue}
-                disabled={
-                  !tagline.trim() ||
-                  preferredStates.length === 0
-                }
+                disabled={!tagline.trim() || selectedIndustries.length === 0}
                 className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
               >
                 Continue →
