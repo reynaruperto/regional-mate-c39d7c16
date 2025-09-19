@@ -3,13 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -62,7 +55,7 @@ const WHVWorkExperience: React.FC = () => {
   const [otherLicense, setOtherLicense] = useState("");
 
   // ==========================
-  // Load industries + roles + licenses
+  // Load industries, roles, licenses
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -204,7 +197,7 @@ const WHVWorkExperience: React.FC = () => {
       user_id: userId,
       company: exp.company.trim(),
       industry_id: exp.industryId!,
-      industry_role_id: exp.roleId!, // ✅ save role_id, not just text
+      industry_role_id: exp.roleId!,
       start_date: exp.startDate,
       end_date: exp.endDate,
       location: exp.location || null,
@@ -347,50 +340,51 @@ const WHVWorkExperience: React.FC = () => {
                       <Label className="text-sm font-medium text-gray-700">
                         Industry <span className="text-red-500">*</span>
                       </Label>
-                      <Select
-                        value={exp.industryId ? String(exp.industryId) : ""}
-                        onValueChange={(value) =>
-                          updateWorkExperience(exp.id, "industryId", Number(value))
+                      <select
+                        value={exp.industryId || ""}
+                        onChange={(e) =>
+                          updateWorkExperience(
+                            exp.id,
+                            "industryId",
+                            Number(e.target.value)
+                          )
                         }
+                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
                       >
-                        <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {industries.map((ind) => (
-                            <SelectItem key={ind.id} value={String(ind.id)}>
-                              {ind.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select industry</option>
+                        {industries.map((ind) => (
+                          <option key={ind.id} value={ind.id}>
+                            {ind.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Position (Role) */}
+                    {/* Role / Position */}
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-gray-700">
                         Position <span className="text-red-500">*</span>
                       </Label>
-                      <Select
-                        value={exp.roleId ? String(exp.roleId) : ""}
-                        onValueChange={(value) =>
-                          updateWorkExperience(exp.id, "roleId", Number(value))
+                      <select
+                        value={exp.roleId || ""}
+                        onChange={(e) =>
+                          updateWorkExperience(
+                            exp.id,
+                            "roleId",
+                            Number(e.target.value)
+                          )
                         }
-                        disabled={!exp.industryId}
+                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
                       >
-                        <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
-                          <SelectValue placeholder="Select position" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roles
-                            .filter((r) => r.industryId === exp.industryId)
-                            .map((role) => (
-                              <SelectItem key={role.id} value={String(role.id)}>
-                                {role.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select position</option>
+                        {roles
+                          .filter((r) => r.industryId === exp.industryId)
+                          .map((role) => (
+                            <option key={role.id} value={role.id}>
+                              {role.name}
+                            </option>
+                          ))}
+                      </select>
                     </div>
 
                     {/* Company */}
@@ -433,7 +427,11 @@ const WHVWorkExperience: React.FC = () => {
                         type="date"
                         value={exp.startDate}
                         onChange={(e) =>
-                          updateWorkExperience(exp.id, "startDate", e.target.value)
+                          updateWorkExperience(
+                            exp.id,
+                            "startDate",
+                            e.target.value
+                          )
                         }
                         className="h-10 bg-gray-100 border-0 text-sm"
                         required
@@ -558,13 +556,6 @@ const WHVWorkExperience: React.FC = () => {
                       className="h-10 bg-gray-100 border-0 text-sm"
                       placeholder="Phone Number"
                     />
-                    <Input
-                      type="text"
-                      value={ref.role}
-                      onChange={(e) =>
-                        updateJobReference(ref.id, "role", e.target.value)
-                      }
-                      className="h-10 bg-gray-
                     <Input
                       type="text"
                       value={ref.role}
