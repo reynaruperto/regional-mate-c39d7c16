@@ -66,31 +66,33 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get nationality from whv_maker
+      // 1. Profile + Visa
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("nationality")
+        .select("nationality, tagline")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // 2. Get visa info
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(`
+        .select(
+          `
           stage_id,
           visa_stage:visa_stage(stage, sub_class, label),
           country:country(name)
-        `)
+        `
+        )
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (!profile || !visa) return;
 
+      setTagline(profile.tagline || "");
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // 3. Eligible industries
+      // 2. Industries by eligibility
       const { data: eligibleIndustries } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
@@ -108,7 +110,7 @@ const WHVWorkPreferences: React.FC = () => {
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // 4. Roles
+        // 3. Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -124,7 +126,7 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // 5. Regions
+        // 4. Regions (suburb/postcode tied to industry)
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
@@ -133,6 +135,42 @@ const WHVWorkPreferences: React.FC = () => {
         if (regionData) {
           setRegions(regionData);
         }
+      }
+
+      // 5. Load saved preferences
+      const { data: savedIndustries } = await supabase
+        .from("maker_pref_industry")
+        .select("industry_id")
+        .eq("user_id", user.id);
+
+      if (savedIndustries) {
+        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
+      }
+
+      const { data: savedRoles } = await supabase
+        .from("maker_pref_industry_role")
+        .select("industry_role_id")
+        .eq("user_id", user.id);
+
+      if (savedRoles) {
+        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
+      }
+
+      const { data: savedLocations } = await supabase
+        .from("maker_pref_location")
+        .select("region_rules_id")
+        .eq("user_id", user.id);
+
+      if (savedLocations && savedLocations.length > 0) {
+        const savedRegions = regions.filter((r) =>
+          savedLocations.some((sl) => sl.region_rules_id === r.id)
+        );
+        setPreferredStates([
+          ...new Set(savedRegions.map((r) => r.state)),
+        ]);
+        setPreferredAreas(
+          savedRegions.map((r) => `${r.suburb_city}::${r.postcode}`)
+        );
       }
     };
 
@@ -157,39 +195,48 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // 2. Save preferences
-    const preferenceRows: Array<{
-      user_id: string;
-      industry_role_id: number;
-      region_rules_id: number;
-    }> = [];
-
-    selectedRoles.forEach((roleId) => {
-      preferredStates.forEach((state) => {
-        preferredAreas.forEach((area) => {
-          const [suburb_city, postcode] = area.split("::");
-          const region = regions.find(
-            (r) =>
-              r.state === state &&
-              r.suburb_city === suburb_city &&
-              r.postcode === postcode
-          );
-          if (region) {
-            preferenceRows.push({
-              user_id: user.id,
-              industry_role_id: roleId,
-              region_rules_id: region.id,
-            });
-          }
-        });
+    // A) Industries
+    if (selectedIndustries.length > 0) {
+      const industryRows = selectedIndustries.map((indId) => ({
+        user_id: user.id,
+        industry_id: indId,
+      }));
+      await supabase.from("maker_pref_industry").upsert(industryRows, {
+        onConflict: "user_id,industry_id",
       });
-    });
+    }
 
-    if (preferenceRows.length > 0) {
-      try {
-        await supabase.from("maker_preference").insert(preferenceRows);
-      } catch (error) {
-        console.log("Some preferences may already exist, continuing...");
+    // B) Roles
+    if (selectedRoles.length > 0) {
+      const roleRows = selectedRoles.map((roleId) => ({
+        user_id: user.id,
+        industry_role_id: roleId,
+      }));
+      await supabase.from("maker_pref_industry_role").upsert(roleRows, {
+        onConflict: "user_id,industry_role_id",
+      });
+    }
+
+    // C) Locations
+    if (preferredAreas.length > 0) {
+      const locationRows = preferredAreas
+        .map((locKey) => {
+          const [suburb_city, postcode] = locKey.split("::");
+          const region = regions.find(
+            (r) => r.suburb_city === suburb_city && r.postcode === postcode
+          );
+          if (!region) return null;
+          return {
+            user_id: user.id,
+            region_rules_id: region.id,
+          };
+        })
+        .filter(Boolean);
+
+      if (locationRows.length > 0) {
+        await supabase.from("maker_pref_location").upsert(locationRows as any, {
+          onConflict: "user_id,region_rules_id",
+        });
       }
     }
 
@@ -300,7 +347,7 @@ const WHVWorkPreferences: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-            {/* 1. Tagline */}
+            {/* Tagline */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -326,7 +373,7 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Industries & Roles */}
+            {/* Industries & Roles */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -393,7 +440,7 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* 3. Preferred Locations */}
+            {/* Preferred Locations */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -458,7 +505,7 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* 4. Review */}
+            {/* Review */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -489,6 +536,7 @@ const WHVWorkPreferences: React.FC = () => {
                   <p>
                     <strong>Roles:</strong>{" "}
                     {selectedRoles
+                      .map((id) => roles.find
                       .map((id) => roles.find((r) => r.id === id)?.name)
                       .join(", ")}
                   </p>
@@ -496,7 +544,7 @@ const WHVWorkPreferences: React.FC = () => {
                     <strong>States:</strong> {preferredStates.join(", ")}
                   </p>
                   <p>
-                    <strong>Areas:</strong>{" "}
+                    <strong>Suburbs:</strong>{" "}
                     {preferredAreas
                       .map((locKey) => {
                         const [suburb_city, postcode] = locKey.split("::");
@@ -516,7 +564,8 @@ const WHVWorkPreferences: React.FC = () => {
                 disabled={
                   !tagline.trim() ||
                   selectedIndustries.length === 0 ||
-                  preferredStates.length === 0
+                  preferredStates.length === 0 ||
+                  preferredAreas.length === 0
                 }
                 className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
               >
