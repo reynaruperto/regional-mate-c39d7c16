@@ -19,10 +19,8 @@ interface Region {
   region_rules_id: number;
   industry_id: number;
   state: string;
-  suburb_city?: string;
-  suburb?: string;
-  city?: string;
-  postcode?: string;
+  suburb_city: string;
+  postcode: string;
 }
 
 const ALL_STATES = [
@@ -61,7 +59,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [popupMessage, setPopupMessage] = useState("");
 
   // ==========================
-  // Load visa + industries + roles + regional rules
+  // Load data (visa → industries → roles → regional_rules)
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -70,8 +68,8 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Visa info
-      const { data: visa } = await supabase
+      // 1. Visa info from maker_visa
+      const { data: visa, error: visaError } = await supabase
         .from("maker_visa")
         .select(`
           stage_id,
@@ -81,6 +79,10 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
+      if (visaError) {
+        console.error("Visa error:", visaError);
+        return;
+      }
       if (!visa) return;
 
       setVisaLabel(
@@ -90,53 +92,53 @@ const WHVWorkPreferences: React.FC = () => {
       // 2. Eligible industries
       const { data: eligibleIndustries, error: industriesError } = await supabase
         .from("temp_eligibility")
-        .select("*")
+        .select("industry_id, industry_name")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
         .eq("country_name", visa.country.name);
 
       console.log("Eligible industries:", eligibleIndustries, industriesError);
 
-      if (eligibleIndustries && eligibleIndustries.length > 0) {
-        setIndustries(
-          eligibleIndustries.map((i) => ({
-            id: i.industry_id,
-            name: i.industry_name || i.industry || "Unnamed industry",
+      if (!eligibleIndustries || eligibleIndustries.length === 0) return;
+
+      setIndustries(
+        eligibleIndustries.map((i) => ({
+          id: i.industry_id,
+          name: i.industry_name,
+        }))
+      );
+
+      const industryIds = eligibleIndustries.map((i) => i.industry_id);
+
+      // 3. Roles for eligible industries
+      const { data: roleData, error: rolesError } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role, industry_id")
+        .in("industry_id", industryIds);
+
+      console.log("Roles:", roleData, rolesError);
+
+      if (roleData) {
+        setRoles(
+          roleData.map((r) => ({
+            id: r.industry_role_id,
+            name: r.role,
+            industryId: r.industry_id,
           }))
         );
+      }
 
-        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+      // 4. Regional rules (QLD only, for eligible industries)
+      const { data: regionData, error: regionError } = await supabase
+        .from("regional_rules")
+        .select("region_rules_id, industry_id, state, suburb_city, postcode")
+        .in("industry_id", industryIds)
+        .eq("state", "Queensland");
 
-        // 3. Roles
-        const { data: roleData, error: rolesError } = await supabase
-          .from("industry_role")
-          .select("industry_role_id, role, industry_id")
-          .in("industry_id", industryIds);
+      console.log("Regional rules:", regionData, regionError);
 
-        console.log("Roles:", roleData, rolesError);
-
-        if (roleData) {
-          setRoles(
-            roleData.map((r) => ({
-              id: r.industry_role_id,
-              name: r.role,
-              industryId: r.industry_id,
-            }))
-          );
-        }
-
-        // 4. Regional rules (locations, only QLD for now)
-        const { data: regionData, error: regionError } = await supabase
-          .from("regional_rules")
-          .select("*")
-          .in("industry_id", industryIds)
-          .eq("state", "Queensland");
-
-        console.log("Regional rules:", regionData, regionError);
-
-        if (regionData) {
-          setRegions(regionData);
-        }
+      if (regionData) {
+        setRegions(regionData);
       }
     };
 
@@ -179,7 +181,6 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Save tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -188,7 +189,6 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // Save preferences
     const preferenceRows: Array<{
       user_id: string;
       industry_role_id: number;
@@ -199,11 +199,7 @@ const WHVWorkPreferences: React.FC = () => {
       preferredLocations.forEach((loc) => {
         const [suburb_city, postcode] = loc.split("::");
         const region = regions.find(
-          (r) =>
-            (r.suburb_city === suburb_city ||
-              r.suburb === suburb_city ||
-              r.city === suburb_city) &&
-            r.postcode === postcode
+          (r) => r.suburb_city === suburb_city && r.postcode === postcode
         );
         if (region) {
           preferenceRows.push({
@@ -389,10 +385,7 @@ const WHVWorkPreferences: React.FC = () => {
                                 selectedIndustries.includes(r.industry_id)
                               )
                               .map((r) => {
-                                const suburb =
-                                  r.suburb_city || r.suburb || r.city || "Unknown suburb";
-                                const code = r.postcode || "N/A";
-                                const locKey = `${suburb}::${code}`;
+                                const locKey = `${r.suburb_city}::${r.postcode}`;
                                 return (
                                   <label
                                     key={r.region_rules_id}
@@ -404,7 +397,7 @@ const WHVWorkPreferences: React.FC = () => {
                                       onChange={() => togglePreferredLocation(locKey)}
                                     />
                                     <span>
-                                      {suburb} ({code})
+                                      {r.suburb_city} ({r.postcode})
                                     </span>
                                   </label>
                                 );
