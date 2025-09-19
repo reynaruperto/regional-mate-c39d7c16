@@ -1,7 +1,4 @@
-// Auto-generated Supabase types for RegionalMate
-// Includes Tables, Views, Enums, Functions
-// 🔒 Comments indicate RLS enabled
-// 🗂️ Comments indicate materialized views
+// src/types/supabase.ts
 
 export type Json =
   | string
@@ -15,7 +12,7 @@ export interface Database {
   public: {
     Tables: {
       // ==========================
-      // COUNTRY & VISA
+      // COUNTRY
       // ==========================
       country: {
         Row: {
@@ -53,27 +50,6 @@ export interface Database {
           stage_id?: number;
           created_at?: string | null;
           id?: number;
-        };
-      };
-
-      visa_stage: {
-        Row: {
-          stage_id: number;
-          sub_class: "417" | "462";
-          stage: number; // 1–3
-          label: string;
-        };
-        Insert: {
-          stage_id?: number;
-          sub_class: "417" | "462";
-          stage: number;
-          label: string;
-        };
-        Update: {
-          stage_id?: number;
-          sub_class?: "417" | "462";
-          stage?: number;
-          label?: string;
         };
       };
 
@@ -171,20 +147,23 @@ export interface Database {
         Row: {
           user_id: string;
           industry_role_id: number;
-          created_at: string;
+          created_at: string | null;
         };
         Insert: {
           user_id: string;
           industry_role_id: number;
-          created_at?: string;
+          created_at?: string | null;
         };
         Update: {
           user_id?: string;
           industry_role_id?: number;
-          created_at?: string;
+          created_at?: string | null;
         };
       };
 
+      // ==========================
+      // INDUSTRY
+      // ==========================
       facility: {
         Row: {
           facility_id: number;
@@ -199,9 +178,7 @@ export interface Database {
           name?: string;
         };
       };
-      // ==========================
-      // INDUSTRY & ROLES
-      // ==========================
+
       industry: {
         Row: {
           industry_id: number;
@@ -234,9 +211,8 @@ export interface Database {
           role?: string;
         };
       };
-
       // ==========================
-      // JOBS
+      // JOB
       // ==========================
       job: {
         Row: {
@@ -247,7 +223,7 @@ export interface Database {
           created_at: string | null;
           updated_at: string | null;
           industry_role_id: number | null;
-          salary_range: string | null; // if enum not mapped, fallback to string
+          salary_range: string | null;
           req_experience: string;
           postcode: string | null;
           start_date: string;
@@ -307,23 +283,8 @@ export interface Database {
         };
       };
 
-      license: {
-        Row: {
-          license_id: number;
-          name: string;
-        };
-        Insert: {
-          license_id?: number;
-          name: string;
-        };
-        Update: {
-          license_id?: number;
-          name?: string;
-        };
-      };
-
       // ==========================
-      // LIKES & MATCHING
+      // LIKES
       // ==========================
       likes: {
         Row: {
@@ -353,69 +314,7 @@ export interface Database {
       };
 
       // ==========================
-      // WHV MAKER
-      // ==========================
-      whv_maker: {
-        Row: {
-          user_id: string;
-          given_name: string;
-          middle_name: string | null;
-          family_name: string;
-          birth_date: string;
-          nationality: Database["public"]["Enums"]["nationality"];
-          tagline: string | null;
-          mobile_num: string;
-          address_line1: string;
-          address_line2: string | null;
-          suburb: string;
-          state: Database["public"]["Enums"]["state"];
-          postcode: string;
-          is_profile_visible: boolean | null;
-          profile_photo: string | null;
-          created_at: string | null;
-          updated_at: string | null;
-        };
-        Insert: {
-          user_id: string;
-          given_name: string;
-          middle_name?: string | null;
-          family_name: string;
-          birth_date: string;
-          nationality: Database["public"]["Enums"]["nationality"];
-          tagline?: string | null;
-          mobile_num: string;
-          address_line1: string;
-          address_line2?: string | null;
-          suburb: string;
-          state: Database["public"]["Enums"]["state"];
-          postcode: string;
-          is_profile_visible?: boolean | null;
-          profile_photo?: string | null;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
-        Update: {
-          user_id?: string;
-          given_name?: string;
-          middle_name?: string | null;
-          family_name?: string;
-          birth_date?: string;
-          nationality?: Database["public"]["Enums"]["nationality"];
-          tagline?: string | null;
-          mobile_num?: string;
-          address_line1?: string;
-          address_line2?: string | null;
-          suburb?: string;
-          state?: Database["public"]["Enums"]["state"];
-          postcode?: string;
-          is_profile_visible?: boolean | null;
-          profile_photo?: string | null;
-          created_at?: string | null;
-          updated_at?: string | null;
-        };
-      };
-      // ==========================
-      // MAKER LICENSES & PREFS
+      // MAKER TABLES
       // ==========================
       maker_license: {
         Row: {
@@ -534,27 +433,24 @@ export interface Database {
           user_id: string;
           industry_role_id: number;
           region_rules_id: number;
-          created_at: string;
+          created_at: string | null;
         };
         Insert: {
           preference_id?: number;
           user_id: string;
           industry_role_id: number;
           region_rules_id: number;
-          created_at?: string;
+          created_at?: string | null;
         };
         Update: {
           preference_id?: number;
           user_id?: string;
           industry_role_id?: number;
           region_rules_id?: number;
-          created_at?: string;
+          created_at?: string | null;
         };
       };
 
-      // ==========================
-      // REFERENCES
-      // ==========================
       maker_reference: {
         Row: {
           reference_id: number;
@@ -590,9 +486,8 @@ export interface Database {
           updated_at?: string | null;
         };
       };
-
       // ==========================
-      // VISA
+      // MAKER VISA
       // ==========================
       maker_visa: {
         Row: {
@@ -645,9 +540,6 @@ export interface Database {
         };
       };
 
-      // ==========================
-      // WORK EXPERIENCE
-      // ==========================
       maker_work_experience: {
         Row: {
           work_experience_id: number;
@@ -685,7 +577,7 @@ export interface Database {
       };
 
       // ==========================
-      // MATCHES & SCORES
+      // MATCHES
       // ==========================
       matches: {
         Row: {
@@ -757,7 +649,7 @@ export interface Database {
       };
 
       // ==========================
-      // POSTCODE & PROFILE
+      // REGION TABLES
       // ==========================
       postcode: {
         Row: {
@@ -780,38 +672,6 @@ export interface Database {
         };
       };
 
-      profile: {
-        Row: {
-          id: string;
-          user_id: string;
-          email: string;
-          created_at: string | null;
-          updated_at: string | null;
-          user_type: "employer" | "whv" | null;
-          encrypt_email: string | null;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          email: string;
-          created_at?: string | null;
-          updated_at?: string | null;
-          user_type?: "employer" | "whv" | null;
-          encrypt_email?: string | null;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          email?: string;
-          created_at?: string | null;
-          updated_at?: string | null;
-          user_type?: "employer" | "whv" | null;
-          encrypt_email?: string | null;
-        };
-      };
-      // ==========================
-      // REGION RULES
-      // ==========================
       region_postcode: {
         Row: {
           id: number;
@@ -924,7 +784,39 @@ export interface Database {
       };
 
       // ==========================
-      // VISA STAGES
+      // PROFILE
+      // ==========================
+      profile: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string;
+          created_at: string | null;
+          updated_at: string | null;
+          user_type: "employer" | "whv";
+          encrypt_email: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email: string;
+          created_at?: string | null;
+          updated_at?: string | null;
+          user_type: "employer" | "whv";
+          encrypt_email?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string;
+          created_at?: string | null;
+          updated_at?: string | null;
+          user_type?: "employer" | "whv";
+          encrypt_email?: string | null;
+        };
+      };
+      // ==========================
+      // VISA STAGE
       // ==========================
       visa_stage: {
         Row: {
@@ -1052,7 +944,7 @@ export interface Database {
       };
 
       // ==========================
-      // VIEWS (including Materialized)
+      // VIEWS (Normal + Materialized)
       // ==========================
       Views: {
         v_visa_stage_industries_roles: {
@@ -1073,7 +965,7 @@ export interface Database {
         vw_maker_work_history: { Row: any };
         vw_maker_work_preference: { Row: any };
 
-        // Materialized View
+        // 🗂️ Materialized View
         mvw_emp_location_roles: {
           Row: {
             industry: string;
@@ -1081,9 +973,11 @@ export interface Database {
             state: Database["public"]["Enums"]["state"];
             suburb_city: string;
             postcode: string;
+            industry_id: number;
+            industry_role_id: number;
           };
         };
       };
-    }
-  }
+    };
+  };
 }
