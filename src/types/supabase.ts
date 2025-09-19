@@ -1,30 +1,34 @@
-// Auto-generated from Supabase export (tables, views, enums)
+// Auto-generated Supabase types for RegionalMate
+// Includes Tables, Views, Enums, Functions
+// 🔒 Comments indicate RLS enabled
+// 🗂️ Comments indicate materialized views
+
 export type Json =
   | string
   | number
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[]
+  | Json[];
 
 export interface Database {
   public: {
     Tables: {
+      // ==========================
+      // COUNTRY & VISA
+      // ==========================
       country: {
         Row: {
           country_id: number;
           name: string;
-          scheme: string;
         };
         Insert: {
           country_id?: number;
           name: string;
-          scheme: string;
         };
         Update: {
           country_id?: number;
           name?: string;
-          scheme?: string;
         };
       };
 
@@ -52,31 +56,94 @@ export interface Database {
         };
       };
 
+      visa_stage: {
+        Row: {
+          stage_id: number;
+          sub_class: "417" | "462";
+          stage: number; // 1–3
+          label: string;
+        };
+        Insert: {
+          stage_id?: number;
+          sub_class: "417" | "462";
+          stage: number;
+          label: string;
+        };
+        Update: {
+          stage_id?: number;
+          sub_class?: "417" | "462";
+          stage?: number;
+          label?: string;
+        };
+      };
+
+      // ==========================
+      // EMPLOYER
+      // ==========================
       employer: {
         Row: {
           user_id: string;
+          given_name: string;
+          middle_name: string | null;
+          family_name: string;
+          abn: string;
           company_name: string;
-          abn: string | null;
-          contact_name: string;
-          email: string;
+          tagline: string | null;
+          business_tenure: Database["public"]["Enums"]["business_tenure"];
+          employee_count: Database["public"]["Enums"]["employee_count"];
+          mobile_num: string;
+          website: string | null;
+          profile_photo: string | null;
+          address_line1: string;
+          address_line2: string | null;
+          suburb_city: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode: string | null;
+          industry_id: number;
           created_at: string | null;
           updated_at: string | null;
         };
         Insert: {
           user_id: string;
+          given_name: string;
+          middle_name?: string | null;
+          family_name: string;
+          abn: string;
           company_name: string;
-          abn?: string | null;
-          contact_name: string;
-          email: string;
+          tagline?: string | null;
+          business_tenure: Database["public"]["Enums"]["business_tenure"];
+          employee_count: Database["public"]["Enums"]["employee_count"];
+          mobile_num: string;
+          website?: string | null;
+          profile_photo?: string | null;
+          address_line1: string;
+          address_line2?: string | null;
+          suburb_city: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode?: string | null;
+          industry_id: number;
           created_at?: string | null;
           updated_at?: string | null;
         };
         Update: {
           user_id?: string;
+          given_name?: string;
+          middle_name?: string | null;
+          family_name?: string;
+          abn?: string;
           company_name?: string;
-          abn?: string | null;
-          contact_name?: string;
-          email?: string;
+          tagline?: string | null;
+          business_tenure?: Database["public"]["Enums"]["business_tenure"];
+          employee_count?: Database["public"]["Enums"]["employee_count"];
+          mobile_num?: string;
+          website?: string | null;
+          profile_photo?: string | null;
+          address_line1?: string;
+          address_line2?: string | null;
+          suburb_city?: string;
+          state?: Database["public"]["Enums"]["state"];
+          postcode?: string | null;
+          industry_id?: number;
           created_at?: string | null;
           updated_at?: string | null;
         };
@@ -84,43 +151,37 @@ export interface Database {
 
       employer_facility: {
         Row: {
+          user_id: string;
           facility_id: number;
-          employer_id: string;
-          name: string;
-          address: string | null;
-          created_at: string | null;
+          other: string | null;
         };
         Insert: {
-          facility_id?: number;
-          employer_id: string;
-          name: string;
-          address?: string | null;
-          created_at?: string | null;
+          user_id: string;
+          facility_id: number;
+          other?: string | null;
         };
         Update: {
+          user_id?: string;
           facility_id?: number;
-          employer_id?: string;
-          name?: string;
-          address?: string | null;
-          created_at?: string | null;
+          other?: string | null;
         };
       };
 
       employer_role: {
         Row: {
-          employer_role_id: number;
-          employer_id: string;
-          role: string;
+          user_id: string;
+          industry_role_id: number;
+          created_at: string;
         };
         Insert: {
-          employer_role_id?: number;
-          employer_id: string;
-          role: string;
+          user_id: string;
+          industry_role_id: number;
+          created_at?: string;
         };
         Update: {
-          employer_role_id?: number;
-          employer_id?: string;
-          role?: string;
+          user_id?: string;
+          industry_role_id?: number;
+          created_at?: string;
         };
       };
 
@@ -138,7 +199,9 @@ export interface Database {
           name?: string;
         };
       };
-
+      // ==========================
+      // INDUSTRY & ROLES
+      // ==========================
       industry: {
         Row: {
           industry_id: number;
@@ -157,65 +220,90 @@ export interface Database {
       industry_role: {
         Row: {
           industry_role_id: number;
-          industry_id: number;
+          industry_id: number | null;
           role: string;
         };
         Insert: {
           industry_role_id?: number;
-          industry_id: number;
+          industry_id?: number | null;
           role: string;
         };
         Update: {
           industry_role_id?: number;
-          industry_id?: number;
+          industry_id?: number | null;
           role?: string;
         };
       };
+
+      // ==========================
+      // JOBS
+      // ==========================
       job: {
         Row: {
           job_id: number;
-          employer_id: string;
-          title: string;
-          description: string | null;
-          location: string | null;
+          description: string;
+          job_status: Database["public"]["Enums"]["job_status"];
+          user_id: string;
           created_at: string | null;
           updated_at: string | null;
+          industry_role_id: number | null;
+          salary_range: string | null; // if enum not mapped, fallback to string
+          req_experience: string;
+          postcode: string | null;
+          start_date: string;
+          employment_type: Database["public"]["Enums"]["employment_type"];
+          state: Database["public"]["Enums"]["state"];
+          suburb_city: string;
         };
         Insert: {
           job_id?: number;
-          employer_id: string;
-          title: string;
-          description?: string | null;
-          location?: string | null;
+          description: string;
+          job_status?: Database["public"]["Enums"]["job_status"];
+          user_id: string;
           created_at?: string | null;
           updated_at?: string | null;
+          industry_role_id?: number | null;
+          salary_range?: string | null;
+          req_experience: string;
+          postcode?: string | null;
+          start_date: string;
+          employment_type: Database["public"]["Enums"]["employment_type"];
+          state: Database["public"]["Enums"]["state"];
+          suburb_city: string;
         };
         Update: {
           job_id?: number;
-          employer_id?: string;
-          title?: string;
-          description?: string | null;
-          location?: string | null;
+          description?: string;
+          job_status?: Database["public"]["Enums"]["job_status"];
+          user_id?: string;
           created_at?: string | null;
           updated_at?: string | null;
+          industry_role_id?: number | null;
+          salary_range?: string | null;
+          req_experience?: string;
+          postcode?: string | null;
+          start_date?: string;
+          employment_type?: Database["public"]["Enums"]["employment_type"];
+          state?: Database["public"]["Enums"]["state"];
+          suburb_city?: string;
         };
       };
 
       job_license: {
         Row: {
-          job_license_id: number;
           job_id: number;
           license_id: number;
+          other: string | null;
         };
         Insert: {
-          job_license_id?: number;
           job_id: number;
           license_id: number;
+          other?: string | null;
         };
         Update: {
-          job_license_id?: number;
           job_id?: number;
           license_id?: number;
+          other?: string | null;
         };
       };
 
@@ -234,84 +322,209 @@ export interface Database {
         };
       };
 
+      // ==========================
+      // LIKES & MATCHING
+      // ==========================
       likes: {
         Row: {
-          like_id: number;
-          user_id: string;
-          job_id: number;
+          id: string;
+          liker_id: string;
+          liker_type: "whv" | "employer";
+          liked_job_post_id: number | null;
+          liked_whv_id: string | null;
           created_at: string | null;
         };
         Insert: {
-          like_id?: number;
-          user_id: string;
-          job_id: number;
+          id?: string;
+          liker_id: string;
+          liker_type: "whv" | "employer";
+          liked_job_post_id?: number | null;
+          liked_whv_id?: string | null;
           created_at?: string | null;
         };
         Update: {
-          like_id?: number;
-          user_id?: string;
-          job_id?: number;
+          id?: string;
+          liker_id?: string;
+          liker_type?: "whv" | "employer";
+          liked_job_post_id?: number | null;
+          liked_whv_id?: string | null;
           created_at?: string | null;
         };
       };
 
+      // ==========================
+      // WHV MAKER
+      // ==========================
+      whv_maker: {
+        Row: {
+          user_id: string;
+          given_name: string;
+          middle_name: string | null;
+          family_name: string;
+          birth_date: string;
+          nationality: Database["public"]["Enums"]["nationality"];
+          tagline: string | null;
+          mobile_num: string;
+          address_line1: string;
+          address_line2: string | null;
+          suburb: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode: string;
+          is_profile_visible: boolean | null;
+          profile_photo: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          given_name: string;
+          middle_name?: string | null;
+          family_name: string;
+          birth_date: string;
+          nationality: Database["public"]["Enums"]["nationality"];
+          tagline?: string | null;
+          mobile_num: string;
+          address_line1: string;
+          address_line2?: string | null;
+          suburb: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode: string;
+          is_profile_visible?: boolean | null;
+          profile_photo?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          given_name?: string;
+          middle_name?: string | null;
+          family_name?: string;
+          birth_date?: string;
+          nationality?: Database["public"]["Enums"]["nationality"];
+          tagline?: string | null;
+          mobile_num?: string;
+          address_line1?: string;
+          address_line2?: string | null;
+          suburb?: string;
+          state?: Database["public"]["Enums"]["state"];
+          postcode?: string;
+          is_profile_visible?: boolean | null;
+          profile_photo?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
+      // ==========================
+      // MAKER LICENSES & PREFS
+      // ==========================
       maker_license: {
         Row: {
-          maker_license_id: number;
           user_id: string;
           license_id: number;
+          other: string | null;
         };
         Insert: {
-          maker_license_id?: number;
           user_id: string;
           license_id: number;
+          other?: string | null;
         };
         Update: {
-          maker_license_id?: number;
           user_id?: string;
           license_id?: number;
+          other?: string | null;
         };
       };
 
-      maker_reference: {
+      maker_pref_availability: {
         Row: {
-          reference_id: number;
           user_id: string;
-          name: string;
-          business_name: string | null;
-          email: string | null;
+          availability: string;
+          created_at: string | null;
         };
         Insert: {
-          reference_id?: number;
           user_id: string;
-          name: string;
-          business_name?: string | null;
-          email?: string | null;
+          availability: string;
+          created_at?: string | null;
         };
         Update: {
-          reference_id?: number;
           user_id?: string;
-          name?: string;
-          business_name?: string | null;
-          email?: string | null;
+          availability?: string;
+          created_at?: string | null;
         };
       };
 
-      maker_visa: {
+      maker_pref_industry: {
         Row: {
+          id: string;
           user_id: string;
-          visa_type: string;
-          expiry_date: string;
+          industry_id: number;
+          created_at: string | null;
+          updated_at: string | null;
         };
         Insert: {
+          id?: string;
           user_id: string;
-          visa_type: string;
-          expiry_date: string;
+          industry_id: number;
+          created_at?: string | null;
+          updated_at?: string | null;
         };
         Update: {
+          id?: string;
           user_id?: string;
-          visa_type?: string;
-          expiry_date?: string;
+          industry_id?: number;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
+
+      maker_pref_industry_role: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          industry_role_id: number | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          industry_role_id?: number | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          industry_role_id?: number | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
+
+      maker_pref_location: {
+        Row: {
+          id: string;
+          user_id: string;
+          suburb_city: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          suburb_city: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          suburb_city?: string;
+          state?: Database["public"]["Enums"]["state"];
+          postcode?: string | null;
+          created_at?: string | null;
         };
       };
 
@@ -319,106 +532,251 @@ export interface Database {
         Row: {
           preference_id: number;
           user_id: string;
-          industry_id: number | null;
-          industry_role_id: number | null;
-          state: string | null;
-          suburb_city: string | null;
+          industry_role_id: number;
+          region_rules_id: number;
+          created_at: string;
         };
         Insert: {
           preference_id?: number;
           user_id: string;
-          industry_id?: number | null;
-          industry_role_id?: number | null;
-          state?: string | null;
-          suburb_city?: string | null;
+          industry_role_id: number;
+          region_rules_id: number;
+          created_at?: string;
         };
         Update: {
           preference_id?: number;
           user_id?: string;
-          industry_id?: number | null;
-          industry_role_id?: number | null;
-          state?: string | null;
-          suburb_city?: string | null;
+          industry_role_id?: number;
+          region_rules_id?: number;
+          created_at?: string;
         };
       };
 
+      // ==========================
+      // REFERENCES
+      // ==========================
+      maker_reference: {
+        Row: {
+          reference_id: number;
+          user_id: string;
+          name: string | null;
+          business_name: string | null;
+          email: string | null;
+          mobile_num: string | null;
+          role: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          reference_id?: number;
+          user_id: string;
+          name?: string | null;
+          business_name?: string | null;
+          email?: string | null;
+          mobile_num?: string | null;
+          role?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          reference_id?: number;
+          user_id?: string;
+          name?: string | null;
+          business_name?: string | null;
+          email?: string | null;
+          mobile_num?: string | null;
+          role?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
+
+      // ==========================
+      // VISA
+      // ==========================
+      maker_visa: {
+        Row: {
+          user_id: string;
+          country_id: number;
+          stage_id: number;
+          dob: string;
+          expiry_date: string;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          country_id: number;
+          stage_id: number;
+          dob: string;
+          expiry_date: string;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          country_id?: number;
+          stage_id?: number;
+          dob?: string;
+          expiry_date?: string;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
+
+      maker_visa_eligibility: {
+        Row: {
+          id: string;
+          stage_id: number | null;
+          country_id: number | null;
+          industry_id: number | null;
+        };
+        Insert: {
+          id?: string;
+          stage_id?: number | null;
+          country_id?: number | null;
+          industry_id?: number | null;
+        };
+        Update: {
+          id?: string;
+          stage_id?: number | null;
+          country_id?: number | null;
+          industry_id?: number | null;
+        };
+      };
+
+      // ==========================
+      // WORK EXPERIENCE
+      // ==========================
       maker_work_experience: {
         Row: {
           work_experience_id: number;
           user_id: string;
-          position: string;
           company: string;
-          industry: string | null;
-          location: string | null;
-          description: string | null;
+          position: string;
           start_date: string;
-          end_date: string | null;
+          end_date: string;
+          location: string | null;
+          industry_id: number;
+          job_description: string | null;
         };
         Insert: {
           work_experience_id?: number;
           user_id: string;
-          position: string;
           company: string;
-          industry?: string | null;
-          location?: string | null;
-          description?: string | null;
+          position: string;
           start_date: string;
-          end_date?: string | null;
+          end_date: string;
+          location?: string | null;
+          industry_id: number;
+          job_description?: string | null;
         };
         Update: {
           work_experience_id?: number;
           user_id?: string;
-          position?: string;
           company?: string;
-          industry?: string | null;
-          location?: string | null;
-          description?: string | null;
+          position?: string;
           start_date?: string;
-          end_date?: string | null;
+          end_date?: string;
+          location?: string | null;
+          industry_id?: number;
+          job_description?: string | null;
         };
       };
+
+      // ==========================
+      // MATCHES & SCORES
+      // ==========================
       matches: {
         Row: {
-          match_id: number;
-          user_id: string;
-          job_id: number;
-          score: number;
-          created_at: string | null;
+          id: string;
+          whv_id: string;
+          employer_id: string;
+          job_post_id: number;
+          match_score: number | null;
+          matched_at: string | null;
+          is_active: boolean | null;
+          whm_viewed_at: string | null;
+          employer_viewed_at: string | null;
         };
         Insert: {
-          match_id?: number;
-          user_id: string;
-          job_id: number;
-          score: number;
-          created_at?: string | null;
+          id?: string;
+          whv_id: string;
+          employer_id: string;
+          job_post_id: number;
+          match_score?: number | null;
+          matched_at?: string | null;
+          is_active?: boolean | null;
+          whm_viewed_at?: string | null;
+          employer_viewed_at?: string | null;
         };
         Update: {
-          match_id?: number;
-          user_id?: string;
-          job_id?: number;
-          score?: number;
-          created_at?: string | null;
+          id?: string;
+          whv_id?: string;
+          employer_id?: string;
+          job_post_id?: number;
+          match_score?: number | null;
+          matched_at?: string | null;
+          is_active?: boolean | null;
+          whm_viewed_at?: string | null;
+          employer_viewed_at?: string | null;
         };
       };
 
       matching_score: {
         Row: {
-          score_id: number;
+          whv_id: string;
           job_id: number;
-          user_id: string;
-          score: number;
+          match_score: number;
+          work_experience_score: number | null;
+          license_score: number | null;
+          location_score: number | null;
+          industry_score: number | null;
+          calculated_at: string | null;
         };
         Insert: {
-          score_id?: number;
+          whv_id: string;
           job_id: number;
-          user_id: string;
-          score: number;
+          match_score: number;
+          work_experience_score?: number | null;
+          license_score?: number | null;
+          location_score?: number | null;
+          industry_score?: number | null;
+          calculated_at?: string | null;
         };
         Update: {
-          score_id?: number;
+          whv_id?: string;
           job_id?: number;
-          user_id?: string;
-          score?: number;
+          match_score?: number;
+          work_experience_score?: number | null;
+          license_score?: number | null;
+          location_score?: number | null;
+          industry_score?: number | null;
+          calculated_at?: string | null;
+        };
+      };
+
+      // ==========================
+      // POSTCODE & PROFILE
+      // ==========================
+      postcode: {
+        Row: {
+          id: number;
+          state: string | null;
+          suburb_city: string | null;
+          postcode: string | null;
+        };
+        Insert: {
+          id?: number;
+          state?: string | null;
+          suburb_city?: string | null;
+          postcode?: string | null;
+        };
+        Update: {
+          id?: number;
+          state?: string | null;
+          suburb_city?: string | null;
+          postcode?: string | null;
         };
       };
 
@@ -427,148 +785,305 @@ export interface Database {
           id: string;
           user_id: string;
           email: string;
-          user_type: string;
           created_at: string | null;
           updated_at: string | null;
+          user_type: "employer" | "whv" | null;
+          encrypt_email: string | null;
         };
         Insert: {
           id?: string;
           user_id: string;
           email: string;
-          user_type: string;
           created_at?: string | null;
           updated_at?: string | null;
+          user_type?: "employer" | "whv" | null;
+          encrypt_email?: string | null;
         };
         Update: {
           id?: string;
           user_id?: string;
           email?: string;
-          user_type?: string;
           created_at?: string | null;
           updated_at?: string | null;
+          user_type?: "employer" | "whv" | null;
+          encrypt_email?: string | null;
         };
       };
-
+      // ==========================
+      // REGION RULES
+      // ==========================
       region_postcode: {
         Row: {
           id: number;
           state: string;
-          region: string | null;
-          postcode: string;
+          area: "Regional" | "Northern" | "Remote" | "Very Remote";
+          postcode_range: string;
         };
         Insert: {
           id?: number;
           state: string;
-          region?: string | null;
-          postcode: string;
+          area: "Regional" | "Northern" | "Remote" | "Very Remote";
+          postcode_range: string;
         };
         Update: {
           id?: number;
           state?: string;
-          region?: string | null;
-          postcode?: string;
+          area?: "Regional" | "Northern" | "Remote" | "Very Remote";
+          postcode_range?: string;
         };
       };
 
+      region_rules: {
+        Row: {
+          id: number;
+          sub_class: string;
+          stage: number;
+          state: Database["public"]["Enums"]["state"];
+          area: string;
+          postcode_range: string | null;
+          created_at: string | null;
+          industry_id: number | null;
+        };
+        Insert: {
+          id?: number;
+          sub_class: string;
+          stage: number;
+          state: Database["public"]["Enums"]["state"];
+          area: string;
+          postcode_range?: string | null;
+          created_at?: string | null;
+          industry_id?: number | null;
+        };
+        Update: {
+          id?: number;
+          sub_class?: string;
+          stage?: number;
+          state?: Database["public"]["Enums"]["state"];
+          area?: string;
+          postcode_range?: string | null;
+          created_at?: string | null;
+          industry_id?: number | null;
+        };
+      };
+
+      regional_rules: {
+        Row: {
+          id: number;
+          stage_id: number | null;
+          industry_id: number | null;
+          state: Database["public"]["Enums"]["state"];
+          suburb_city: string;
+          area: string;
+          postcode: string;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: number;
+          stage_id?: number | null;
+          industry_id?: number | null;
+          state: Database["public"]["Enums"]["state"];
+          suburb_city: string;
+          area: string;
+          postcode: string;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: number;
+          stage_id?: number | null;
+          industry_id?: number | null;
+          state?: Database["public"]["Enums"]["state"];
+          suburb_city?: string;
+          area?: string;
+          postcode?: string;
+          created_at?: string | null;
+        };
+      };
+
+      temp_eligibility: {
+        Row: {
+          sub_class: string;
+          stage: number;
+          country_name: string;
+          industry_name: string;
+          industry_id: number | null;
+        };
+        Insert: {
+          sub_class: string;
+          stage: number;
+          country_name: string;
+          industry_name: string;
+          industry_id?: number | null;
+        };
+        Update: {
+          sub_class?: string;
+          stage?: number;
+          country_name?: string;
+          industry_name?: string;
+          industry_id?: number | null;
+        };
+      };
+
+      // ==========================
+      // VISA STAGES
+      // ==========================
       visa_stage: {
         Row: {
           stage_id: number;
-          scheme: string;
+          sub_class: "417" | "462";
           stage: number;
           label: string;
         };
         Insert: {
           stage_id?: number;
-          scheme: string;
+          sub_class: "417" | "462";
           stage: number;
           label: string;
         };
         Update: {
           stage_id?: number;
-          scheme?: string;
+          sub_class?: "417" | "462";
           stage?: number;
           label?: string;
         };
       };
 
+      // ==========================
+      // WHV MAKER
+      // ==========================
       whv_maker: {
         Row: {
           user_id: string;
           given_name: string;
-          family_name: string;
           middle_name: string | null;
+          family_name: string;
           birth_date: string;
-          nationality: string;
+          nationality: Database["public"]["Enums"]["nationality"];
           tagline: string | null;
-          mobile_num: string | null;
-          address_line1: string | null;
+          mobile_num: string;
+          address_line1: string;
           address_line2: string | null;
-          city: string | null;
-          state: string | null;
-          postcode: string | null;
-          suburb: string | null;
-          profile_photo: string | null;
+          suburb: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode: string;
           is_profile_visible: boolean | null;
+          profile_photo: string | null;
           created_at: string | null;
           updated_at: string | null;
         };
         Insert: {
           user_id: string;
           given_name: string;
-          family_name: string;
           middle_name?: string | null;
+          family_name: string;
           birth_date: string;
-          nationality: string;
+          nationality: Database["public"]["Enums"]["nationality"];
           tagline?: string | null;
-          mobile_num?: string | null;
-          address_line1?: string | null;
+          mobile_num: string;
+          address_line1: string;
           address_line2?: string | null;
-          city?: string | null;
-          state?: string | null;
-          postcode?: string | null;
-          suburb?: string | null;
-          profile_photo?: string | null;
+          suburb: string;
+          state: Database["public"]["Enums"]["state"];
+          postcode: string;
           is_profile_visible?: boolean | null;
+          profile_photo?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
         };
         Update: {
           user_id?: string;
           given_name?: string;
-          family_name?: string;
           middle_name?: string | null;
+          family_name?: string;
           birth_date?: string;
-          nationality?: string;
+          nationality?: Database["public"]["Enums"]["nationality"];
           tagline?: string | null;
-          mobile_num?: string | null;
-          address_line1?: string | null;
+          mobile_num?: string;
+          address_line1?: string;
           address_line2?: string | null;
-          city?: string | null;
-          state?: string | null;
-          postcode?: string | null;
-          suburb?: string | null;
-          profile_photo?: string | null;
+          suburb?: string;
+          state?: Database["public"]["Enums"]["state"];
+          postcode?: string;
           is_profile_visible?: boolean | null;
+          profile_photo?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
         };
       };
-    };
 
-    Views: {
-      vw_maker_preview_licenses: { Row: { [key: string]: any } };
-      vw_maker_preview_reference_location: { Row: { [key: string]: any } };
-      vw_maker_preview_work_history: { Row: { [key: string]: any } };
-      vw_maker_work_preference_industry_role: { Row: { [key: string]: any } };
-      vw_stage_eligible_countries: { Row: { [key: string]: any } };
-    };
+      // ==========================
+      // ENUMERATED TYPES
+      // ==========================
+      Enums: {
+        job_status: "draft" | "active" | "closed";
+        employment_type: "full_time" | "part_time" | "casual" | "contract";
+        state:
+          | "Queensland"
+          | "New South Wales"
+          | "Victoria"
+          | "South Australia"
+          | "Western Australia"
+          | "Tasmania"
+          | "Northern Territory"
+          | "Australian Capital Territory";
+        nationality:
+          | "Philippines"
+          | "Singapore"
+          | "United Kingdom"
+          | "Germany"
+          | "France"
+          | "United States"
+          | "Canada"
+          | "Japan"
+          | "South Korea"
+          | "India";
+        business_tenure:
+          | "Less than 1 year"
+          | "1-2 years"
+          | "3-5 years"
+          | "5-10 years"
+          | "10+ years";
+        employee_count:
+          | "1-10"
+          | "11-50"
+          | "51-200"
+          | "201-500"
+          | "501-1000"
+          | "1000+";
+      };
 
-    Functions: {
-      [_ in never]: never;
-    };
+      // ==========================
+      // VIEWS (including Materialized)
+      // ==========================
+      Views: {
+        v_visa_stage_industries_roles: {
+          Row: {
+            stage_id: number | null;
+            industry_id: number | null;
+            industry_role_id: number | null;
+            industry: string | null;
+            role: string | null;
+          };
+        };
 
-    Enums: {
-      nationality: 'Australia' | 'Canada' | 'Norway' | 'Philippines'; // etc. from your export
-    };
-  };
+        vw_emp_full_profile: { Row: any };
+        vw_emp_private_active_jobs: { Row: any };
+        vw_emp_private_all_jobs: { Row: any };
+        vw_emp_public_profile: { Row: any };
+        vw_maker_private_profile: { Row: any };
+        vw_maker_work_history: { Row: any };
+        vw_maker_work_preference: { Row: any };
+
+        // Materialized View
+        mvw_emp_location_roles: {
+          Row: {
+            industry: string;
+            industry_role: string;
+            state: Database["public"]["Enums"]["state"];
+            suburb_city: string;
+            postcode: string;
+          };
+        };
+      };
+    }
+  }
 }
