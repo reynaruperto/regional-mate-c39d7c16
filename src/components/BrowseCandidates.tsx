@@ -12,10 +12,10 @@ import { supabase } from "@/integrations/supabase/client";
 interface Candidate {
   user_id: string;
   name: string;
-  industries: string[];
-  roles: string[];
   state: string;
   profileImage: string;
+  industries: string[];
+  roles: string[];
   experiences: string;
   licenses: string[];
   preferredLocations: string[];
@@ -31,116 +31,109 @@ const BrowseCandidates: React.FC = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
 
-  // ✅ Fetch all WHV profiles initially
   useEffect(() => {
     const fetchCandidates = async () => {
-      const { data, error } = await supabase
+      // 1️⃣ Fetch all WHV makers
+      const { data: makers, error: makersError } = await supabase
         .from("whv_maker")
-        .select(
-          `
-          user_id,
-          given_name,
-          family_name,
-          state,
-          profile_photo,
-          maker_preference:maker_preference!left (
-            industry_role (
-              industry ( name ),
-              role
-            )
-          ),
-          maker_work_experience:maker_work_experience!left (
-            position,
-            start_date,
-            end_date,
-            industry ( name )
-          ),
-          maker_pref_location:maker_pref_location!left (
-            state,
-            suburb_city,
-            postcode
-          ),
-          maker_license:maker_license!left (
-            license ( name )
-          )
-        `
-        )
-        .eq("is_profile_visible", true);
+        .select("user_id, given_name, family_name, state, profile_photo, is_profile_visible");
 
-      if (error) {
-        console.error("Error fetching candidates:", error);
+      if (makersError) {
+        console.error("Error fetching whv_maker:", makersError);
         return;
       }
 
-      const mapped: Candidate[] =
-        data?.map((c: any) => {
-          // Industries + Roles
-          const industriesRaw =
-            c.maker_preference?.map(
-              (p: any) => p.industry_role?.industry?.name
+      // Only visible profiles
+      const visibleMakers = makers?.filter((m) => m.is_profile_visible) || [];
+
+      // 2️⃣ Fetch related tables
+      const { data: preferences } = await supabase
+        .from("maker_preference")
+        .select("user_id, industry_role ( role, industry ( name ) )");
+
+      const { data: experiences } = await supabase
+        .from("maker_work_experience")
+        .select("user_id, position, start_date, end_date, industry ( name )");
+
+      const { data: locations } = await supabase
+        .from("maker_pref_location")
+        .select("user_id, state, suburb_city, postcode");
+
+      const { data: licenses } = await supabase
+        .from("maker_license")
+        .select("user_id, license ( name )");
+
+      // 3️⃣ Merge into candidates
+      const mapped: Candidate[] = visibleMakers.map((m) => {
+        const userId = m.user_id;
+
+        // Industries & Roles
+        const userPrefs =
+          preferences?.filter((p) => p.user_id === userId) || [];
+        const industries = [
+          ...new Set(
+            userPrefs.map((p) => p.industry_role?.industry?.name).filter(Boolean)
+          ),
+        ];
+        const roles = [
+          ...new Set(userPrefs.map((p) => p.industry_role?.role).filter(Boolean)),
+        ];
+
+        // Work Experiences
+        const userExps = experiences?.filter((e) => e.user_id === userId) || [];
+        const expSummaries = userExps.map((exp) => {
+          if (!exp.start_date) return null;
+          const start = new Date(exp.start_date);
+          const end = exp.end_date ? new Date(exp.end_date) : new Date();
+          const diffYears =
+            (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+          const duration =
+            diffYears < 1
+              ? `${Math.round(diffYears * 12)} mos`
+              : `${Math.round(diffYears)} yrs`;
+          return `${exp.industry?.name || "Unknown"} – ${
+            exp.position || "Role"
+          } (${duration})`;
+        }).filter(Boolean);
+
+        let condensedExperience = "";
+        if (expSummaries.length > 2) {
+          condensedExperience = `${expSummaries
+            .slice(0, 2)
+            .join(", ")} +${expSummaries.length - 2} more`;
+        } else {
+          condensedExperience = expSummaries.join(", ");
+        }
+
+        // Licenses
+        const userLicenses =
+          licenses?.filter((l) => l.user_id === userId).map((l) => l.license?.name) || [];
+
+        // Locations
+        const userLocations =
+          locations
+            ?.filter((loc) => loc.user_id === userId)
+            .map(
+              (loc) => `${loc.suburb_city}, ${loc.state} ${loc.postcode || ""}`
             ) || [];
-          const rolesRaw =
-            c.maker_preference?.map((p: any) => p.industry_role?.role) || [];
-          const uniqueIndustries = [...new Set(industriesRaw)].filter(Boolean);
-          const uniqueRoles = [...new Set(rolesRaw)].filter(Boolean);
 
-          // Condensed work experience
-          const experiences =
-            c.maker_work_experience?.map((exp: any) => {
-              if (!exp.start_date) return null;
-              const start = new Date(exp.start_date);
-              const end = exp.end_date ? new Date(exp.end_date) : new Date();
-              const diffYears =
-                (end.getTime() - start.getTime()) /
-                (1000 * 60 * 60 * 24 * 365);
-              const duration =
-                diffYears < 1
-                  ? `${Math.round(diffYears * 12)} mos`
-                  : `${Math.round(diffYears)} yrs`;
-              return `${exp.industry?.name || "Unknown"} – ${
-                exp.position || "Role"
-              } (${duration})`;
-            }).filter(Boolean) || [];
+        // Profile photo
+        const photoUrl = m.profile_photo
+          ? supabase.storage.from("profile_photo").getPublicUrl(m.profile_photo).data.publicUrl
+          : "/default-avatar.png";
 
-          let condensedExperience = "";
-          if (experiences.length > 2) {
-            condensedExperience = `${experiences
-              .slice(0, 2)
-              .join(", ")} +${experiences.length - 2} more`;
-          } else {
-            condensedExperience = experiences.join(", ");
-          }
-
-          // Licenses
-          const licenses =
-            c.maker_license?.map((l: any) => l.license?.name) || [];
-
-          // Preferred Locations
-          const preferredLocations =
-            c.maker_pref_location?.map(
-              (loc: any) =>
-                `${loc.suburb_city}, ${loc.state} ${loc.postcode || ""}`
-            ) || [];
-
-          // Profile photo (public URL or default)
-          const photoUrl = c.profile_photo
-            ? supabase.storage
-                .from("profile_photo")
-                .getPublicUrl(c.profile_photo).data.publicUrl
-            : "/default-avatar.png";
-
-          return {
-            user_id: c.user_id,
-            name: `${c.given_name} ${c.family_name}`,
-            state: c.state,
-            profileImage: photoUrl,
-            industries: uniqueIndustries,
-            roles: uniqueRoles,
-            experiences: condensedExperience,
-            licenses,
-            preferredLocations,
-          };
-        }) || [];
+        return {
+          user_id: userId,
+          name: `${m.given_name} ${m.family_name}`,
+          state: m.state,
+          profileImage: photoUrl,
+          industries,
+          roles,
+          experiences: condensedExperience || "No work experience added",
+          licenses: userLicenses,
+          preferredLocations: userLocations,
+        };
+      });
 
       setAllCandidates(mapped);
       setCandidates(mapped);
@@ -262,10 +255,7 @@ const BrowseCandidates: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div
-              className="flex-1 px-6 overflow-y-auto"
-              style={{ paddingBottom: "100px" }}
-            >
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {/* Search Bar */}
               <div className="relative mb-4">
                 <Search
@@ -324,18 +314,10 @@ const BrowseCandidates: React.FC = () => {
                               {candidate.name}
                             </h3>
                             <p className="text-sm text-gray-600 mb-1">
-                              {candidate.industries.length > 3
-                                ? `${candidate.industries
-                                    .slice(0, 3)
-                                    .join(", ")} +${
-                                    candidate.industries.length - 3
-                                  } more`
-                                : candidate.industries.join(", ") ||
-                                  "No preferences"}
+                              {candidate.industries.join(", ") || "No preferences"}
                             </p>
                             <p className="text-sm text-gray-600 mb-1">
-                              {candidate.experiences ||
-                                "No work experience added"}
+                              {candidate.experiences}
                             </p>
                             <p className="text-sm text-gray-600">
                               Preferred State: {candidate.state}
@@ -345,17 +327,13 @@ const BrowseCandidates: React.FC = () => {
 
                         <div className="flex items-center gap-3 mt-4">
                           <Button
-                            onClick={() =>
-                              handleViewProfile(candidate.user_id)
-                            }
+                            onClick={() => handleViewProfile(candidate.user_id)}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
                           >
                             View Profile
                           </Button>
                           <button
-                            onClick={() =>
-                              handleLikeCandidate(candidate.user_id)
-                            }
+                            onClick={() => handleLikeCandidate(candidate.user_id)}
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart size={20} className="text-orange-500" />
