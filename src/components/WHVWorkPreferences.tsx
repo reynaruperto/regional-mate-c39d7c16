@@ -16,10 +16,11 @@ interface Role {
   industryId: number;
 }
 interface Region {
+  region_rules_id: number;
+  industry_id: number;
   state: string;
   suburb_city: string;
   postcode: string;
-  region_rules_id: number;
 }
 
 const ALL_STATES = [
@@ -44,7 +45,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
-  const [preferredLocations, setPreferredLocations] = useState<string[]>([]); // suburb+postcode
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
 
   const [expandedSections, setExpandedSections] = useState({
@@ -58,7 +59,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [popupMessage, setPopupMessage] = useState("");
 
   // ==========================
-  // Load visa + industries + roles
+  // Load visa + industries + roles + regional rules
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -90,8 +91,7 @@ const WHVWorkPreferences: React.FC = () => {
         .select("industry_id, industry_name")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", visa.country.name)
-        .returns<{ industry_id: number; industry_name: string }[]>();
+        .eq("country_name", visa.country.name);
 
       if (eligibleIndustries) {
         setIndustries(
@@ -101,8 +101,9 @@ const WHVWorkPreferences: React.FC = () => {
           }))
         );
 
-        // 3. Roles
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
+
+        // 3. Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -117,6 +118,17 @@ const WHVWorkPreferences: React.FC = () => {
             }))
           );
         }
+
+        // 4. Regional rules (locations, only QLD for now)
+        const { data: regionData } = await supabase
+          .from("regional_rules")
+          .select("region_rules_id, industry_id, state, suburb_city, postcode")
+          .in("industry_id", industryIds)
+          .eq("state", "Queensland");
+
+        if (regionData) {
+          setRegions(regionData);
+        }
       }
     };
 
@@ -124,9 +136,9 @@ const WHVWorkPreferences: React.FC = () => {
   }, []);
 
   // ==========================
-  // Handle State Selection
+  // Handlers
   // ==========================
-  const togglePreferredState = async (state: string) => {
+  const togglePreferredState = (state: string) => {
     if (state !== "Queensland") {
       setPopupMessage(
         `${state} is not currently eligible. Only Queensland is available at this stage.`
@@ -135,53 +147,18 @@ const WHVWorkPreferences: React.FC = () => {
       return;
     }
 
-    // Toggle QLD selection
-    const newStates = preferredStates.includes(state)
-      ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 3
-      ? [...preferredStates, state]
-      : preferredStates;
-    setPreferredStates(newStates);
-
-    // Fetch QLD locations (suburb + postcode) from regional_rules
-    if (newStates.includes("Queensland")) {
-      const { data, error } = await supabase
-        .from("regional_rules")
-        .select("region_rules_id, state, suburb_city, postcode")
-        .eq("state", "Queensland");
-
-      if (!error && data) {
-        const uniqueRegions = data.filter(
-          (r, idx, arr) =>
-            arr.findIndex(
-              (x) =>
-                x.state === r.state &&
-                x.suburb_city === r.suburb_city &&
-                x.postcode === r.postcode
-            ) === idx
-        );
-        setRegions(
-          uniqueRegions.map((r) => ({
-            state: r.state,
-            suburb_city: r.suburb_city,
-            postcode: r.postcode,
-            region_rules_id: r.region_rules_id,
-          }))
-        );
-      }
-    } else {
-      setRegions([]);
-      setPreferredLocations([]);
-    }
+    setPreferredStates(
+      preferredStates.includes(state)
+        ? preferredStates.filter((s) => s !== state)
+        : [...preferredStates, state]
+    );
   };
 
   const togglePreferredLocation = (loc: string) => {
     setPreferredLocations(
       preferredLocations.includes(loc)
         ? preferredLocations.filter((a) => a !== loc)
-        : preferredLocations.length < 3
-        ? [...preferredLocations, loc]
-        : preferredLocations
+        : [...preferredLocations, loc]
     );
   };
 
@@ -204,7 +181,12 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
 
     // Save preferences
-    const preferenceRows: Array<{ user_id: string; industry_role_id: number; region_rules_id: number }> = [];
+    const preferenceRows: Array<{
+      user_id: string;
+      industry_role_id: number;
+      region_rules_id: number;
+    }> = [];
+
     selectedRoles.forEach((roleId) => {
       preferredLocations.forEach((loc) => {
         const [suburb_city, postcode] = loc.split("::");
@@ -239,8 +221,11 @@ const WHVWorkPreferences: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
-          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
+          <div className="px-4 pt-10 pb-4 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
               <button
                 onClick={() => navigate("/whv/profile-setup")}
@@ -329,7 +314,10 @@ const WHVWorkPreferences: React.FC = () => {
                         }
                         onChange={() => {
                           if (!selectedIndustries.includes(industry.id)) {
-                            setSelectedIndustries([...selectedIndustries, industry.id]);
+                            setSelectedIndustries([
+                              ...selectedIndustries,
+                              industry.id,
+                            ]);
                           } else {
                             setSelectedIndustries(
                               selectedIndustries.filter((id) => id !== industry.id)
@@ -409,7 +397,7 @@ const WHVWorkPreferences: React.FC = () => {
               </button>
               {expandedSections.states && (
                 <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Preferred States (up to 3)</Label>
+                  <Label>Preferred States</Label>
                   {ALL_STATES.map((state) => (
                     <div key={state} className="mb-4">
                       <label className="flex items-center space-x-2 py-1 font-medium">
@@ -417,19 +405,18 @@ const WHVWorkPreferences: React.FC = () => {
                           type="checkbox"
                           checked={preferredStates.includes(state)}
                           onChange={() => togglePreferredState(state)}
-                          disabled={
-                            preferredStates.length >= 3 &&
-                            !preferredStates.includes(state)
-                          }
                         />
                         <span>{state}</span>
                       </label>
 
-                      {preferredStates.includes(state) &&
-                        state === "Queensland" && (
-                          <div className="ml-6 space-y-1">
-                            {regions.map((r) => {
-                              const loc = `${r.suburb_city} (${r.postcode})::${r.suburb_city}::${r.postcode}`;
+                      {preferredStates.includes(state) && state === "Queensland" && (
+                        <div className="ml-6 space-y-1">
+                          {regions
+                            .filter((r) =>
+                              selectedIndustries.includes(r.industry_id)
+                            )
+                            .map((r) => {
+                              const locKey = `${r.suburb_city}::${r.postcode}`;
                               return (
                                 <label
                                   key={r.region_rules_id}
@@ -437,20 +424,8 @@ const WHVWorkPreferences: React.FC = () => {
                                 >
                                   <input
                                     type="checkbox"
-                                    checked={preferredLocations.includes(
-                                      `${r.suburb_city}::${r.postcode}`
-                                    )}
-                                    onChange={() =>
-                                      togglePreferredLocation(
-                                        `${r.suburb_city}::${r.postcode}`
-                                      )
-                                    }
-                                    disabled={
-                                      preferredLocations.length >= 3 &&
-                                      !preferredLocations.includes(
-                                        `${r.suburb_city}::${r.postcode}`
-                                      )
-                                    }
+                                    checked={preferredLocations.includes(locKey)}
+                                    onChange={() => togglePreferredLocation(locKey)}
                                   />
                                   <span>
                                     {r.suburb_city} ({r.postcode})
@@ -458,8 +433,8 @@ const WHVWorkPreferences: React.FC = () => {
                                 </label>
                               );
                             })}
-                          </div>
-                        )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -471,7 +446,11 @@ const WHVWorkPreferences: React.FC = () => {
               <Button
                 type="button"
                 onClick={handleContinue}
-                disabled={!tagline.trim() || selectedIndustries.length === 0}
+                disabled={
+                  !tagline.trim() ||
+                  selectedIndustries.length === 0 ||
+                  preferredLocations.length === 0
+                }
                 className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
               >
                 Continue →
@@ -480,16 +459,16 @@ const WHVWorkPreferences: React.FC = () => {
           </div>
         </div>
 
-        {/* ⚡ Popup */}
+        {/* ⚡ Popup (PostJobForm style) */}
         {showPopup && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 w-80 shadow-xl text-center">
-              <Zap className="mx-auto mb-3 text-orange-500" size={32} />
-              <h3 className="text-lg font-semibold mb-2">Not Available</h3>
-              <p className="text-gray-600 mb-4">{popupMessage}</p>
+            <div className="bg-white rounded-2xl p-5 w-72 shadow-xl text-center">
+              <Zap className="mx-auto mb-3 text-orange-500" size={28} />
+              <h3 className="text-base font-semibold mb-2">Not Available</h3>
+              <p className="text-sm text-gray-600 mb-4">{popupMessage}</p>
               <Button
                 onClick={() => setShowPopup(false)}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-white"
+                className="w-full bg-[#1E293B] text-white rounded-xl h-10"
               >
                 OK
               </Button>
