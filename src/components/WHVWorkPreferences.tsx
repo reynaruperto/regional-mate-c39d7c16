@@ -121,14 +121,14 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // 4. Regions (from regional_rules)
+        // 4. Regions (from regional_rules, only QLD for now)
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select(
             "region_rules_id, industry_id, state, suburb_city, postcode"
           )
           .in("industry_id", industryIds)
-          .eq("state", "Queensland"); // ✅ only QLD for now
+          .eq("state", "Queensland");
 
         if (regionData) {
           setRegions(regionData);
@@ -397,32 +397,86 @@ const WHVWorkPreferences: React.FC = () => {
                       {preferredStates.includes(state) &&
                         state === "Queensland" && (
                           <div className="ml-6 space-y-1">
-                            {regions
-                              .filter((r) =>
-                                selectedIndustries.includes(r.industry_id)
-                              )
-                              .map((r) => {
-                                const locKey = `${r.suburb_city}::${r.postcode}`;
-                                return (
-                                  <label
-                                    key={r.region_rules_id}
-                                    className="flex items-center space-x-2 py-1"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={preferredAreas.includes(locKey)}
-                                      onChange={() => togglePreferredArea(locKey)}
-                                    />
-                                    <span>
-                                      {r.suburb_city} ({r.postcode})
-                                    </span>
-                                  </label>
-                                );
-                              })}
+                            <Label>Select Preferred Suburbs (multiple allowed)</Label>
+                            <div className="max-h-60 overflow-y-auto border rounded-lg p-2 bg-white">
+                              {regions
+                                .filter((r) =>
+                                  selectedIndustries.includes(r.industry_id)
+                                )
+                                .map((r) => {
+                                  const locKey = `${r.suburb_city}::${r.postcode}`;
+                                  return (
+                                    <label
+                                      key={r.region_rules_id}
+                                      className="flex items-center space-x-2 py-1"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={preferredAreas.includes(locKey)}
+                                        onChange={() => togglePreferredArea(locKey)}
+                                        className="h-4 w-4"
+                                      />
+                                      <span>
+                                        {r.suburb_city} ({r.postcode})
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                            </div>
                           </div>
                         )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Review */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() => toggleSection("summary")}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">4. Review</span>
+                {expandedSections.summary ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
+              </button>
+              {expandedSections.summary && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  <p>
+                    <strong>Visa:</strong> {visaLabel}
+                  </p>
+                  <p>
+                    <strong>Tagline:</strong> {tagline}
+                  </p>
+                  <p>
+                    <strong>Industries:</strong>{" "}
+                    {selectedIndustries
+                      .map((id) => industries.find((i) => i.id === id)?.name)
+                      .join(", ")}
+                  </p>
+                  <p>
+                    <strong>Roles:</strong>{" "}
+                    {selectedRoles
+                      .map((id) => roles.find((r) => r.id === id)?.name)
+                      .join(", ")}
+                  </p>
+                  <p>
+                    <strong>States:</strong> {preferredStates.join(", ")}
+                  </p>
+                  <p>
+                    <strong>Areas:</strong>{" "}
+                    {preferredAreas
+                      .map((locKey) => {
+                        const [suburb_city, postcode] = locKey.split("::");
+                        return `${suburb_city} (${postcode})`;
+                      })
+                      .join(", ")}
+                  </p>
                 </div>
               )}
             </div>
