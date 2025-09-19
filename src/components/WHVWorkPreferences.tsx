@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Industry {
@@ -20,6 +20,17 @@ interface Region {
   area: string;
   region_rules_id: number;
 }
+
+const ALL_STATES = [
+  "Queensland",
+  "New South Wales",
+  "Victoria",
+  "Tasmania",
+  "Western Australia",
+  "South Australia",
+  "Northern Territory",
+  "Australian Capital Territory",
+];
 
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
@@ -42,8 +53,11 @@ const WHVWorkPreferences: React.FC = () => {
     summary: false,
   });
 
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState("");
+
   // ==========================
-  // Load data
+  // Load visa + industries/roles
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -52,7 +66,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get visa info
+      // 1. Visa info
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(`
@@ -69,7 +83,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // 2. Get eligible industries from temp_eligibility
+      // 2. Eligible industries
       const { data: eligibleIndustries } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
@@ -86,7 +100,7 @@ const WHVWorkPreferences: React.FC = () => {
           }))
         );
 
-        // 3. Get roles for those industries
+        // 3. Roles
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
         const { data: roleData } = await supabase
           .from("industry_role")
@@ -103,116 +117,24 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
       }
-
-  // 4. Regions
-  const { data: regionData } = await supabase
-    .from("region_rules")
-    .select("region_rules_id, state, area");
-
-  if (regionData) {
-    const uniqueRegions = regionData.filter(
-      (r, idx, arr) =>
-        arr.findIndex(
-          (x) => x.state === r.state && x.area === r.area
-        ) === idx
-    );
-    setRegions(uniqueRegions.map(r => ({ 
-      state: r.state, 
-      area: r.area, 
-      region_rules_id: r.region_rules_id
-    })));
-  }
     };
 
     loadData();
   }, []);
 
   // ==========================
-  // Save before continue
+  // Handle State Selection
   // ==========================
-  const handleContinue = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // 1. Save tagline into whv_maker (update instead of upsert)
-    await supabase
-      .from("whv_maker")
-      .update({
-        tagline: tagline.trim(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
-
-    // 2. Save preferences into maker_preference
-    const preferenceRows: Array<{user_id: string, industry_role_id: number, region_rules_id: number}> = [];
-    
-    // Create combinations of selected roles and selected locations
-    selectedRoles.forEach((roleId) => {
-      preferredStates.forEach((state) => {
-        preferredAreas.forEach((area) => {
-          // Find the region_rules_id for this state/area combination
-          const region = regions.find(r => r.state === state && r.area === area);
-          if (region) {
-            preferenceRows.push({
-              user_id: user.id,
-              industry_role_id: roleId,
-              region_rules_id: region.region_rules_id
-            });
-          }
-        });
-      });
-    });
-
-    // Insert preferences, ignoring duplicates
-    if (preferenceRows.length > 0) {
-      try {
-        await supabase.from("maker_preference").insert(preferenceRows);
-      } catch (error) {
-        // Silently handle duplicate constraint violations
-        console.log("Some preferences may already exist, continuing...");
-      }
+  const togglePreferredState = async (state: string) => {
+    if (state !== "Queensland") {
+      setPopupMessage(
+        `${state} is not currently eligible. Only Queensland is available at this stage.`
+      );
+      setShowPopup(true);
+      return;
     }
 
-    navigate("/whv/work-experience");
-  };
-
-  // ==========================
-  // Handlers
-  // ==========================
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const handleIndustrySelect = (industryId: number) => {
-    if (
-      !selectedIndustries.includes(industryId) &&
-      selectedIndustries.length < 3
-    ) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
-    } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(
-        selectedIndustries.filter((id) => id !== industryId)
-      );
-      const industryRoles = roles
-        .filter((r) => r.industryId === industryId)
-        .map((r) => r.id);
-      setSelectedRoles(
-        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
-      );
-    }
-  };
-
-  const toggleRole = (roleId: number) => {
-    setSelectedRoles(
-      selectedRoles.includes(roleId)
-        ? selectedRoles.filter((r) => r !== roleId)
-        : [...selectedRoles, roleId]
-    );
-  };
-
-  const togglePreferredState = (state: string) => {
+    // Toggle QLD selection
     const newStates = preferredStates.includes(state)
       ? preferredStates.filter((s) => s !== state)
       : preferredStates.length < 3
@@ -220,10 +142,32 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    const validAreas = regions
-      .filter((r) => newStates.includes(r.state))
-      .map((r) => r.area);
-    setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
+    // Fetch QLD areas from regional_rules
+    if (newStates.includes("Queensland")) {
+      const { data, error } = await supabase
+        .from("regional_rules")
+        .select("region_rules_id, state, area")
+        .eq("state", "Queensland");
+
+      if (!error && data) {
+        const uniqueRegions = data.filter(
+          (r, idx, arr) =>
+            arr.findIndex(
+              (x) => x.state === r.state && x.area === r.area
+            ) === idx
+        );
+        setRegions(
+          uniqueRegions.map((r) => ({
+            state: r.state,
+            area: r.area,
+            region_rules_id: r.region_rules_id,
+          }))
+        );
+      }
+    } else {
+      setRegions([]);
+      setPreferredAreas([]);
+    }
   };
 
   const togglePreferredArea = (area: string) => {
@@ -244,12 +188,58 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   // ==========================
+  // Save before continue
+  // ==========================
+  const handleContinue = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Save tagline
+    await supabase
+      .from("whv_maker")
+      .update({
+        tagline: tagline.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id);
+
+    // Save preferences
+    const preferenceRows: Array<{ user_id: string; industry_role_id: number; region_rules_id: number }> = [];
+    selectedRoles.forEach((roleId) => {
+      preferredStates.forEach((state) => {
+        preferredAreas.forEach((area) => {
+          const region = regions.find((r) => r.state === state && r.area === area);
+          if (region) {
+            preferenceRows.push({
+              user_id: user.id,
+              industry_role_id: roleId,
+              region_rules_id: region.region_rules_id,
+            });
+          }
+        });
+      });
+    });
+
+    if (preferenceRows.length > 0) {
+      try {
+        await supabase.from("maker_preference").insert(preferenceRows);
+      } catch (error) {
+        console.log("Some preferences may already exist, continuing...");
+      }
+    }
+
+    navigate("/whv/work-experience");
+  };
+
+  // ==========================
   // Render
   // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
           {/* Header */}
           <div className="px-4 py-4 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -273,11 +263,16 @@ const WHVWorkPreferences: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-            {/* 1. Tagline */}
+            {/* Tagline */}
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => toggleSection("tagline")}
+                onClick={() =>
+                  setExpandedSections((prev) => ({
+                    ...prev,
+                    tagline: !prev.tagline,
+                  }))
+                }
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">1. Profile Tagline</span>
@@ -299,81 +294,19 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Industries & Roles */}
+            {/* Preferred Locations */}
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => toggleSection("industries")}
+                onClick={() =>
+                  setExpandedSections((prev) => ({
+                    ...prev,
+                    states: !prev.states,
+                  }))
+                }
                 className="w-full flex items-center justify-between p-4 text-left"
               >
-                <span className="text-lg font-medium">2. Industries & Roles</span>
-                {expandedSections.industries ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
-              </button>
-              {expandedSections.industries && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Select up to 3 industries *</Label>
-                  {industries.map((industry) => (
-                    <label
-                      key={industry.id}
-                      className="flex items-center space-x-2 py-1"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedIndustries.includes(industry.id)}
-                        disabled={
-                          selectedIndustries.length >= 3 &&
-                          !selectedIndustries.includes(industry.id)
-                        }
-                        onChange={() => handleIndustrySelect(industry.id)}
-                        className="h-4 w-4"
-                      />
-                      <span>{industry.name}</span>
-                    </label>
-                  ))}
-
-                  {selectedIndustries.map((industryId) => {
-                    const industry = industries.find((i) => i.id === industryId);
-                    const industryRoles = roles.filter(
-                      (r) => r.industryId === industryId
-                    );
-                    return (
-                      <div key={industryId}>
-                        <Label>Roles for {industry?.name}</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {industryRoles.map((role) => (
-                            <button
-                              type="button"
-                              key={role.id}
-                              onClick={() => toggleRole(role.id)}
-                              className={`px-3 py-1.5 rounded-full text-xs border ${
-                                selectedRoles.includes(role.id)
-                                  ? "bg-orange-500 text-white border-orange-500"
-                                  : "bg-white text-gray-700 border-gray-300"
-                              }`}
-                            >
-                              {role.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* 3. Preferred Locations */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("states")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">3. Preferred Locations</span>
+                <span className="text-lg font-medium">2. Preferred Locations</span>
                 {expandedSections.states ? (
                   <ChevronDown size={20} />
                 ) : (
@@ -383,7 +316,7 @@ const WHVWorkPreferences: React.FC = () => {
               {expandedSections.states && (
                 <div className="px-4 pb-4 border-t space-y-4">
                   <Label>Preferred States (up to 3)</Label>
-                  {[...new Set(regions.map((r) => r.state))].map((state) => (
+                  {ALL_STATES.map((state) => (
                     <div key={state} className="mb-4">
                       <label className="flex items-center space-x-2 py-1 font-medium">
                         <input
@@ -398,73 +331,30 @@ const WHVWorkPreferences: React.FC = () => {
                         <span>{state}</span>
                       </label>
 
-                      {preferredStates.includes(state) && (
-                        <div className="ml-6 space-y-1">
-                          {getAreasForState(state).map((area) => (
-                            <label
-                              key={`${state}-${area}`}
-                              className="flex items-center space-x-2 py-1"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={preferredAreas.includes(area)}
-                                onChange={() => togglePreferredArea(area)}
-                                disabled={
-                                  preferredAreas.length >= 3 &&
-                                  !preferredAreas.includes(area)
-                                }
-                              />
-                              <span>{area}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                      {preferredStates.includes(state) &&
+                        state === "Queensland" && (
+                          <div className="ml-6 space-y-1">
+                            {getAreasForState(state).map((area) => (
+                              <label
+                                key={`${state}-${area}`}
+                                className="flex items-center space-x-2 py-1"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={preferredAreas.includes(area)}
+                                  onChange={() => togglePreferredArea(area)}
+                                  disabled={
+                                    preferredAreas.length >= 3 &&
+                                    !preferredAreas.includes(area)
+                                  }
+                                />
+                                <span>{area}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* 4. Review */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("summary")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">4. Review</span>
-                {expandedSections.summary ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
-              </button>
-              {expandedSections.summary && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <p>
-                    <strong>Visa:</strong> {visaLabel}
-                  </p>
-                  <p>
-                    <strong>Tagline:</strong> {tagline}
-                  </p>
-                  <p>
-                    <strong>Industries:</strong>{" "}
-                    {selectedIndustries
-                      .map((id) => industries.find((i) => i.id === id)?.name)
-                      .join(", ")}
-                  </p>
-                  <p>
-                    <strong>Roles:</strong>{" "}
-                    {selectedRoles
-                      .map((id) => roles.find((r) => r.id === id)?.name)
-                      .join(", ")}
-                  </p>
-                  <p>
-                    <strong>States:</strong> {preferredStates.join(", ")}
-                  </p>
-                  <p>
-                    <strong>Areas:</strong> {preferredAreas.join(", ")}
-                  </p>
                 </div>
               )}
             </div>
@@ -476,7 +366,6 @@ const WHVWorkPreferences: React.FC = () => {
                 onClick={handleContinue}
                 disabled={
                   !tagline.trim() ||
-                  selectedIndustries.length === 0 ||
                   preferredStates.length === 0
                 }
                 className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
@@ -486,15 +375,26 @@ const WHVWorkPreferences: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* ⚡ Popup */}
+        {showPopup && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-6 w-80 shadow-xl text-center">
+              <Zap className="mx-auto mb-3 text-orange-500" size={32} />
+              <h3 className="text-lg font-semibold mb-2">Not Available</h3>
+              <p className="text-gray-600 mb-4">{popupMessage}</p>
+              <Button
+                onClick={() => setShowPopup(false)}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 export default WHVWorkPreferences;
-
-
-
-
-
-
