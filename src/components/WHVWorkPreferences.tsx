@@ -68,7 +68,14 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get visa & nationality from maker_visa
+      // 1. Get nationality from whv_maker
+      const { data: profile } = await supabase
+        .from("whv_maker")
+        .select("nationality")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      // 2. Get visa info from maker_visa
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
@@ -81,21 +88,26 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!visa) return;
+      console.log("Profile:", profile);
+      console.log("Visa:", visa);
+
+      if (!profile || !visa) return;
 
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // 2. Eligible industries from temp_eligibility
-      const { data: eligibleIndustries } = await supabase
+      // 3. Industries from temp_eligibility
+      const { data: eligibleIndustries, error: indError } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", visa.country.name);
+        .eq("country_name", profile.nationality);
 
-      if (eligibleIndustries) {
+      console.log("Eligible industries:", eligibleIndustries, indError);
+
+      if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
@@ -105,11 +117,13 @@ const WHVWorkPreferences: React.FC = () => {
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // 3. Roles
+        // 4. Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
+
+        console.log("Roles:", roleData);
 
         if (roleData) {
           setRoles(
@@ -121,13 +135,13 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // 4. Regions (filtered by industry_id)
+        // 5. Regions
         const { data: regionData } = await supabase
           .from("regional_rules")
-          .select(
-            "region_rules_id, industry_id, state, suburb_city, postcode"
-          )
+          .select("region_rules_id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
+
+        console.log("Regions:", regionData);
 
         if (regionData) {
           setRegions(regionData);
@@ -239,10 +253,10 @@ const WHVWorkPreferences: React.FC = () => {
   const togglePreferredArea = (locKey: string) => {
     setPreferredAreas((prev) => {
       if (prev.includes(locKey)) {
-        return prev.filter((a) => a !== locKey); // uncheck
+        return prev.filter((a) => a !== locKey);
       }
       if (prev.length >= 3) {
-        return prev; // block if already 3 suburbs
+        return prev; // max 3 suburbs
       }
       return [...prev, locKey];
     });
@@ -430,6 +444,11 @@ const WHVWorkPreferences: React.FC = () => {
                                   );
                                 })}
                             </div>
+                            {preferredAreas.length >= 3 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                You can only select up to 3 suburbs
+                              </p>
+                            )}
                           </div>
                         )}
                     </div>
