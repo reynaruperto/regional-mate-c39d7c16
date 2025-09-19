@@ -19,6 +19,7 @@ interface Candidate {
   experiences: string;
   licenses: string[];
   preferredLocations: string[];
+  isLiked?: boolean; // 🔑 Added flag for heart toggle
 }
 
 const BrowseCandidates: React.FC = () => {
@@ -30,6 +31,16 @@ const BrowseCandidates: React.FC = () => {
   const [selectedFilters, setSelectedFilters] = useState<any>({});
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
+  const [employerId, setEmployerId] = useState<string | null>(null);
+
+  // ✅ Get logged-in employer ID once
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setEmployerId(user.id);
+    };
+    getUser();
+  }, []);
 
   useEffect(() => {
     const fetchCandidates = async () => {
@@ -43,7 +54,6 @@ const BrowseCandidates: React.FC = () => {
         return;
       }
 
-      // Only visible profiles
       const visibleMakers = makers?.filter((m) => m.is_profile_visible) || [];
 
       // 2️⃣ Fetch related tables
@@ -63,7 +73,18 @@ const BrowseCandidates: React.FC = () => {
         .from("maker_license")
         .select("user_id, license ( name )");
 
-      // 3️⃣ Merge into candidates
+      // 3️⃣ Fetch existing likes by employer
+      let likedIds: string[] = [];
+      if (employerId) {
+        const { data: likes } = await supabase
+          .from("likes")
+          .select("liked_whv_id")
+          .eq("liker_id", employerId)
+          .eq("liker_type", "employer");
+        likedIds = likes?.map((l) => l.liked_whv_id) || [];
+      }
+
+      // 4️⃣ Merge into candidates
       const mapped: Candidate[] = visibleMakers.map((m) => {
         const userId = m.user_id;
 
@@ -81,20 +102,22 @@ const BrowseCandidates: React.FC = () => {
 
         // Work Experiences
         const userExps = experiences?.filter((e) => e.user_id === userId) || [];
-        const expSummaries = userExps.map((exp) => {
-          if (!exp.start_date) return null;
-          const start = new Date(exp.start_date);
-          const end = exp.end_date ? new Date(exp.end_date) : new Date();
-          const diffYears =
-            (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
-          const duration =
-            diffYears < 1
-              ? `${Math.round(diffYears * 12)} mos`
-              : `${Math.round(diffYears)} yrs`;
-          return `${exp.industry?.name || "Unknown"} – ${
-            exp.position || "Role"
-          } (${duration})`;
-        }).filter(Boolean);
+        const expSummaries = userExps
+          .map((exp) => {
+            if (!exp.start_date) return null;
+            const start = new Date(exp.start_date);
+            const end = exp.end_date ? new Date(exp.end_date) : new Date();
+            const diffYears =
+              (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+            const duration =
+              diffYears < 1
+                ? `${Math.round(diffYears * 12)} mos`
+                : `${Math.round(diffYears)} yrs`;
+            return `${exp.industry?.name || "Unknown"} – ${
+              exp.position || "Role"
+            } (${duration})`;
+          })
+          .filter(Boolean);
 
         let condensedExperience = "";
         if (expSummaries.length > 2) {
@@ -107,7 +130,9 @@ const BrowseCandidates: React.FC = () => {
 
         // Licenses
         const userLicenses =
-          licenses?.filter((l) => l.user_id === userId).map((l) => l.license?.name) || [];
+          licenses
+            ?.filter((l) => l.user_id === userId)
+            .map((l) => l.license?.name) || [];
 
         // Locations
         const userLocations =
@@ -132,6 +157,7 @@ const BrowseCandidates: React.FC = () => {
           experiences: condensedExperience || "No work experience added",
           licenses: userLicenses,
           preferredLocations: userLocations,
+          isLiked: likedIds.includes(userId), // ✅ Persist like state
         };
       });
 
@@ -139,8 +165,53 @@ const BrowseCandidates: React.FC = () => {
       setCandidates(mapped);
     };
 
-    fetchCandidates();
-  }, []);
+    if (employerId) fetchCandidates();
+  }, [employerId]);
+
+  // ✅ Toggle like persistence
+  const handleLikeCandidate = async (candidateId: string) => {
+    const candidate = candidates.find((c) => c.user_id === candidateId);
+    if (!candidate || !employerId) return;
+
+    try {
+      if (candidate.isLiked) {
+        // 🔄 Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", employerId)
+          .eq("liked_whv_id", candidateId)
+          .eq("liker_type", "employer");
+
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.user_id === candidateId ? { ...c, isLiked: false } : c
+          )
+        );
+      } else {
+        // ❤️ Like
+        await supabase.from("likes").upsert(
+          {
+            liker_id: employerId,
+            liker_type: "employer",
+            liked_whv_id: candidateId,
+          },
+          { onConflict: "liker_id,liked_whv_id,liker_type" }
+        );
+
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.user_id === candidateId ? { ...c, isLiked: true } : c
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
+  };
 
   const removeFilter = (filterValue: string) => {
     const newFilters = { ...selectedFilters };
@@ -151,14 +222,6 @@ const BrowseCandidates: React.FC = () => {
     });
     setSelectedFilters(newFilters);
     applyFilters(newFilters);
-  };
-
-  const handleLikeCandidate = (candidateId: string) => {
-    const candidate = candidates.find((c) => c.user_id === candidateId);
-    if (candidate) {
-      setLikedCandidateName(candidate.name);
-      setShowLikeModal(true);
-    }
   };
 
   const handleViewProfile = (candidateId: string) => {
@@ -173,7 +236,6 @@ const BrowseCandidates: React.FC = () => {
   const applyFilters = (filters: any) => {
     let filtered = [...allCandidates];
 
-    // 📍 Location filter
     if (filters.preferredLocation) {
       filtered = filtered.filter((c) =>
         c.preferredLocations.some((loc) =>
@@ -182,28 +244,24 @@ const BrowseCandidates: React.FC = () => {
       );
     }
 
-    // 🏭 Industry filter
     if (filters.preferredIndustry) {
       filtered = filtered.filter((c) =>
         c.industries.includes(filters.preferredIndustry)
       );
     }
 
-    // 🎭 Role filter
     if (filters.preferredRole) {
       filtered = filtered.filter((c) =>
         c.roles.includes(filters.preferredRole)
       );
     }
 
-    // 🧑‍💼 Experience filter
     if (filters.experienceIndustry) {
       filtered = filtered.filter((c) =>
         c.experiences.toLowerCase().includes(filters.experienceIndustry.toLowerCase())
       );
     }
 
-    // 🎫 License filter
     if (filters.licenseRequired) {
       filtered = filtered.filter((c) =>
         c.licenses.includes(filters.licenseRequired)
@@ -230,10 +288,8 @@ const BrowseCandidates: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
@@ -336,7 +392,10 @@ const BrowseCandidates: React.FC = () => {
                             onClick={() => handleLikeCandidate(candidate.user_id)}
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
-                            <Heart size={20} className="text-orange-500" />
+                            <Heart
+                              size={20}
+                              className={candidate.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                            />
                           </button>
                         </div>
                       </div>
@@ -347,7 +406,6 @@ const BrowseCandidates: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Nav */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
