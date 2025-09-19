@@ -32,7 +32,7 @@ interface License {
 interface WorkExperience {
   id: string;
   industryId: number | null;
-  position: string;
+  roleId: number | null;
   company: string;
   location: string;
   startDate: string;
@@ -75,16 +75,6 @@ const WHVWorkExperience: React.FC = () => {
         );
       }
 
-      const { data: licenseData } = await supabase
-        .from("license")
-        .select("license_id, name");
-      if (licenseData) {
-        setAllLicenses(
-          licenseData.map((l) => ({ id: l.license_id, name: l.name }))
-        );
-      }
-
-      // ✅ Load roles
       const { data: roleData } = await supabase
         .from("industry_role")
         .select("industry_role_id, role, industry_id");
@@ -95,6 +85,15 @@ const WHVWorkExperience: React.FC = () => {
             name: r.role,
             industryId: r.industry_id,
           }))
+        );
+      }
+
+      const { data: licenseData } = await supabase
+        .from("license")
+        .select("license_id, name");
+      if (licenseData) {
+        setAllLicenses(
+          licenseData.map((l) => ({ id: l.license_id, name: l.name }))
         );
       }
     };
@@ -111,7 +110,7 @@ const WHVWorkExperience: React.FC = () => {
         {
           id: Date.now().toString(),
           industryId: null,
-          position: "",
+          roleId: null,
           company: "",
           location: "",
           startDate: "",
@@ -193,25 +192,22 @@ const WHVWorkExperience: React.FC = () => {
     const validRows = workExperiences.filter(
       (exp) =>
         exp.company.trim() &&
-        exp.position.trim() &&
+        exp.roleId !== null &&
         exp.industryId !== null &&
         exp.startDate &&
         exp.endDate
     );
 
-    if (validRows.length === 0) {
-      console.warn("⚠️ No valid work experiences to save.");
-      return;
-    }
+    if (validRows.length === 0) return;
 
     const workRows = validRows.map((exp) => ({
       user_id: userId,
       company: exp.company.trim(),
-      position: exp.position.trim(),
+      industry_id: exp.industryId!,
+      industry_role_id: exp.roleId!, // ✅ save role_id, not just text
       start_date: exp.startDate,
       end_date: exp.endDate,
       location: exp.location || null,
-      industry_id: exp.industryId!,
       job_description: exp.description || null,
     }));
 
@@ -219,9 +215,7 @@ const WHVWorkExperience: React.FC = () => {
       .from("maker_work_experience")
       .insert(workRows);
 
-    if (expError) {
-      console.error("❌ Work experience insert failed:", expError);
-    }
+    if (expError) console.error("❌ Work experience insert failed:", expError);
   };
 
   const saveJobReferences = async (userId: string) => {
@@ -229,14 +223,18 @@ const WHVWorkExperience: React.FC = () => {
 
     const refRows = jobReferences.map((ref) => ({
       user_id: userId,
-      name: ref.name || null,
-      business_name: ref.businessName || null,
-      email: ref.email || null,
-      mobile_num: ref.phone || null,
-      role: ref.role || null,
+      name: ref.name?.trim() || null,
+      business_name: ref.businessName?.trim() || null,
+      email: ref.email?.trim() || null,
+      mobile_num: ref.phone?.trim() || null,
+      role: ref.role?.trim() || null,
     }));
 
-    await supabase.from("maker_reference").insert(refRows);
+    const { error: refError } = await supabase
+      .from("maker_reference")
+      .insert(refRows);
+
+    if (refError) console.error("❌ Job reference insert failed:", refError);
   };
 
   const saveLicenses = async (userId: string) => {
@@ -251,9 +249,11 @@ const WHVWorkExperience: React.FC = () => {
           : null,
     }));
 
-    await supabase
+    const { error: licError } = await supabase
       .from("maker_license")
       .upsert(licRows as any, { onConflict: "user_id,license_id" });
+
+    if (licError) console.error("❌ License insert failed:", licError);
   };
 
   // ==========================
@@ -265,7 +265,10 @@ const WHVWorkExperience: React.FC = () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.error("Not logged in");
+      return;
+    }
 
     const userId = user.id;
 
@@ -347,11 +350,7 @@ const WHVWorkExperience: React.FC = () => {
                       <Select
                         value={exp.industryId ? String(exp.industryId) : ""}
                         onValueChange={(value) =>
-                          updateWorkExperience(
-                            exp.id,
-                            "industryId",
-                            Number(value)
-                          )
+                          updateWorkExperience(exp.id, "industryId", Number(value))
                         }
                       >
                         <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
@@ -367,15 +366,15 @@ const WHVWorkExperience: React.FC = () => {
                       </Select>
                     </div>
 
-                    {/* Position */}
+                    {/* Position (Role) */}
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-gray-700">
                         Position <span className="text-red-500">*</span>
                       </Label>
                       <Select
-                        value={exp.position}
+                        value={exp.roleId ? String(exp.roleId) : ""}
                         onValueChange={(value) =>
-                          updateWorkExperience(exp.id, "position", value)
+                          updateWorkExperience(exp.id, "roleId", Number(value))
                         }
                         disabled={!exp.industryId}
                       >
@@ -386,7 +385,7 @@ const WHVWorkExperience: React.FC = () => {
                           {roles
                             .filter((r) => r.industryId === exp.industryId)
                             .map((role) => (
-                              <SelectItem key={role.id} value={role.name}>
+                              <SelectItem key={role.id} value={String(role.id)}>
                                 {role.name}
                               </SelectItem>
                             ))}
@@ -434,11 +433,7 @@ const WHVWorkExperience: React.FC = () => {
                         type="date"
                         value={exp.startDate}
                         onChange={(e) =>
-                          updateWorkExperience(
-                            exp.id,
-                            "startDate",
-                            e.target.value
-                          )
+                          updateWorkExperience(exp.id, "startDate", e.target.value)
                         }
                         className="h-10 bg-gray-100 border-0 text-sm"
                         required
@@ -563,6 +558,13 @@ const WHVWorkExperience: React.FC = () => {
                       className="h-10 bg-gray-100 border-0 text-sm"
                       placeholder="Phone Number"
                     />
+                    <Input
+                      type="text"
+                      value={ref.role}
+                      onChange={(e) =>
+                        updateJobReference(ref.id, "role", e.target.value)
+                      }
+                      className="h-10 bg-gray-
                     <Input
                       type="text"
                       value={ref.role}
