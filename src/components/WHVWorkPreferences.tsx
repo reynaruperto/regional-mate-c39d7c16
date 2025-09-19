@@ -68,7 +68,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Visa info
+      // 1. Get visa & nationality from maker_visa
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
@@ -87,14 +87,13 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // 2. Eligible industries
+      // 2. Eligible industries from temp_eligibility
       const { data: eligibleIndustries } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", visa.country.name)
-        .returns<{ industry_id: number; industry_name: string }[]>();
+        .eq("country_name", visa.country.name);
 
       if (eligibleIndustries) {
         setIndustries(
@@ -104,8 +103,9 @@ const WHVWorkPreferences: React.FC = () => {
           }))
         );
 
-        // 3. Roles for eligible industries
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
+
+        // 3. Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -121,14 +121,13 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // 4. Regions (from regional_rules, only QLD for now)
+        // 4. Regions (filtered by industry_id)
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select(
             "region_rules_id, industry_id, state, suburb_city, postcode"
           )
-          .in("industry_id", industryIds)
-          .eq("state", "Queensland");
+          .in("industry_id", industryIds);
 
         if (regionData) {
           setRegions(regionData);
@@ -238,11 +237,15 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   const togglePreferredArea = (locKey: string) => {
-    setPreferredAreas(
-      preferredAreas.includes(locKey)
-        ? preferredAreas.filter((a) => a !== locKey)
-        : [...preferredAreas, locKey]
-    );
+    setPreferredAreas((prev) => {
+      if (prev.includes(locKey)) {
+        return prev.filter((a) => a !== locKey); // uncheck
+      }
+      if (prev.length >= 3) {
+        return prev; // block if already 3 suburbs
+      }
+      return [...prev, locKey];
+    });
   };
 
   // ==========================
@@ -397,7 +400,7 @@ const WHVWorkPreferences: React.FC = () => {
                       {preferredStates.includes(state) &&
                         state === "Queensland" && (
                           <div className="ml-6 space-y-1">
-                            <Label>Select Preferred Suburbs (multiple allowed)</Label>
+                            <Label>Select Preferred Suburbs (up to 3)</Label>
                             <div className="max-h-60 overflow-y-auto border rounded-lg p-2 bg-white">
                               {regions
                                 .filter((r) =>
@@ -414,6 +417,10 @@ const WHVWorkPreferences: React.FC = () => {
                                         type="checkbox"
                                         checked={preferredAreas.includes(locKey)}
                                         onChange={() => togglePreferredArea(locKey)}
+                                        disabled={
+                                          preferredAreas.length >= 3 &&
+                                          !preferredAreas.includes(locKey)
+                                        }
                                         className="h-4 w-4"
                                       />
                                       <span>
