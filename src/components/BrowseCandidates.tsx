@@ -27,97 +27,156 @@ const BrowseCandidates: React.FC = () => {
   const [selectedFilters, setSelectedFilters] = useState<any[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
 
-  // ✅ Fetch WHV profiles
+  // ✅ Fetch all WHV profiles initially
   useEffect(() => {
-    const fetchCandidates = async () => {
-      const { data, error } = await supabase
-        .from("whv_maker")
-        .select(
-          `
-          user_id,
-          given_name,
-          family_name,
-          state,
-          profile_photo,
-          maker_preference:maker_preference!left (
-            industry_role (
-              industry ( name ),
-              role
-            )
-          ),
-          maker_work_experience:maker_work_experience!left (
-            position,
-            start_date,
-            end_date,
-            industry ( name )
-          )
-        `
-        )
-        .eq("is_profile_visible", true);
-
-      if (error) {
-        console.error("Error fetching candidates:", error);
-        return;
-      }
-
-      const mapped: Candidate[] =
-        data?.map((c: any) => {
-          // Industries from preferences
-          const industriesRaw =
-            c.maker_preference?.map(
-              (p: any) => p.industry_role?.industry?.name
-            ) || [];
-          const uniqueIndustries = [...new Set(industriesRaw)].filter(Boolean);
-
-          // Condensed work experience
-          const experiences =
-            c.maker_work_experience?.map((exp: any) => {
-              if (!exp.start_date) return null;
-              const start = new Date(exp.start_date);
-              const end = exp.end_date ? new Date(exp.end_date) : new Date();
-              const diffYears =
-                (end.getTime() - start.getTime()) /
-                (1000 * 60 * 60 * 24 * 365);
-              const duration =
-                diffYears < 1
-                  ? `${Math.round(diffYears * 12)} mos`
-                  : `${Math.round(diffYears)} yrs`;
-              return `${exp.industry?.name || "Unknown"} – ${
-                exp.position || "Role"
-              } (${duration})`;
-            }).filter(Boolean) || [];
-
-          let condensedExperience = "";
-          if (experiences.length > 2) {
-            condensedExperience = `${experiences
-              .slice(0, 2)
-              .join(", ")} +${experiences.length - 2} more`;
-          } else {
-            condensedExperience = experiences.join(", ");
-          }
-
-          // Profile photo (signed URL or default)
-          const photoUrl = c.profile_photo
-            ? supabase.storage
-                .from("profile_photo")
-                .getPublicUrl(c.profile_photo).data.publicUrl
-            : "/default-avatar.png";
-
-          return {
-            user_id: c.user_id,
-            name: `${c.given_name} ${c.family_name}`,
-            state: c.state,
-            profileImage: photoUrl,
-            industries: uniqueIndustries,
-            experiences: condensedExperience,
-          };
-        }) || [];
-
-      setCandidates(mapped);
-    };
-
     fetchCandidates();
   }, []);
+
+  const fetchCandidates = async (filters: any = null) => {
+    let query = supabase
+      .from("whv_maker")
+      .select(
+        `
+        user_id,
+        given_name,
+        family_name,
+        state,
+        profile_photo,
+        maker_preference:maker_preference!left (
+          industry_role (
+            industry ( name ),
+            role
+          )
+        ),
+        maker_work_experience:maker_work_experience!left (
+          position,
+          start_date,
+          end_date,
+          industry ( name )
+        ),
+        maker_pref_location:maker_pref_location!left (
+          state,
+          suburb_city,
+          postcode
+        ),
+        maker_license:maker_license!left (
+          license ( name )
+        )
+      `
+      )
+      .eq("is_profile_visible", true);
+
+    // Apply filters if provided
+    if (filters) {
+      // 📍 Location filter
+      if (filters.preferredLocation) {
+        query = query.contains("maker_pref_location", {
+          state: filters.preferredLocation,
+        });
+      }
+
+      // 🏭 Industry filter
+      if (filters.preferredIndustry) {
+        query = query.contains("maker_preference", {
+          industry_role: { industry: { name: filters.preferredIndustry } },
+        });
+      }
+
+      // 🎭 Role filter
+      if (filters.preferredRole) {
+        query = query.contains("maker_preference", {
+          industry_role: { role: filters.preferredRole },
+        });
+      }
+
+      // 🧑‍💼 Work experience filter
+      if (filters.experienceIndustry) {
+        query = query.contains("maker_work_experience", {
+          industry: { name: filters.experienceIndustry },
+        });
+      }
+
+      // 🎫 License filter
+      if (filters.licenseRequired) {
+        query = query.contains("maker_license", {
+          license: { name: filters.licenseRequired },
+        });
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching candidates:", error);
+      return;
+    }
+
+    const mapped: Candidate[] =
+      data?.map((c: any) => {
+        // Industries from preferences
+        const industriesRaw =
+          c.maker_preference?.map(
+            (p: any) => p.industry_role?.industry?.name
+          ) || [];
+        const uniqueIndustries = [...new Set(industriesRaw)].filter(Boolean);
+
+        // Condensed work experience
+        const experiences =
+          c.maker_work_experience?.map((exp: any) => {
+            if (!exp.start_date) return null;
+            const start = new Date(exp.start_date);
+            const end = exp.end_date ? new Date(exp.end_date) : new Date();
+            const diffYears =
+              (end.getTime() - start.getTime()) /
+              (1000 * 60 * 60 * 24 * 365);
+            const duration =
+              diffYears < 1
+                ? `${Math.round(diffYears * 12)} mos`
+                : `${Math.round(diffYears)} yrs`;
+            return `${exp.industry?.name || "Unknown"} – ${
+              exp.position || "Role"
+            } (${duration})`;
+          }).filter(Boolean) || [];
+
+        let condensedExperience = "";
+        if (experiences.length > 2) {
+          condensedExperience = `${experiences
+            .slice(0, 2)
+            .join(", ")} +${experiences.length - 2} more`;
+        } else {
+          condensedExperience = experiences.join(", ");
+        }
+
+        // Profile photo (public URL or default)
+        const photoUrl = c.profile_photo
+          ? supabase.storage
+              .from("profile_photo")
+              .getPublicUrl(c.profile_photo).data.publicUrl
+          : "/default-avatar.png";
+
+        return {
+          user_id: c.user_id,
+          name: `${c.given_name} ${c.family_name}`,
+          state: c.state,
+          profileImage: photoUrl,
+          industries: uniqueIndustries,
+          experiences: condensedExperience,
+        };
+      }) || [];
+
+    setCandidates(mapped);
+
+    // Save applied filters for UI badges
+    if (filters) {
+      setSelectedFilters(
+        Object.keys(filters)
+          .filter((key) => filters[key])
+          .map((key) => ({ label: filters[key], value: filters[key] }))
+      );
+    } else {
+      setSelectedFilters([]);
+    }
+  };
 
   const removeFilter = (filterValue: string) => {
     setSelectedFilters(selectedFilters.filter((f) => f.value !== filterValue));
@@ -141,8 +200,8 @@ const BrowseCandidates: React.FC = () => {
   };
 
   const handleApplyFilters = (filters: any) => {
-    console.log("Applied filters:", filters);
-    // TODO: Apply filtering logic here later
+    fetchCandidates(filters);
+    setShowFilters(false);
   };
 
   if (showFilters) {
