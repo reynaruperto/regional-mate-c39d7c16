@@ -1,6 +1,6 @@
 // src/pages/whv/WHVProfilePreview.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Briefcase, MapPin, Award, User, Heart } from "lucide-react";
+import { ArrowLeft, Briefcase, MapPin, Award, User, Heart, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ const WHVProfilePreview: React.FC = () => {
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
+  const [jobReferences, setJobReferences] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,39 +30,23 @@ const WHVProfilePreview: React.FC = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // Preferences
-      const { data: preferences } = await supabase
-        .from("maker_preference")
-        .select(`
-          industry_role(role, industry(name)),
-          region_rules(state, area)
-        `)
+      // Industries
+      const { data: industries } = await supabase
+        .from("maker_pref_industry")
+        .select("industry(name)")
         .eq("user_id", user.id);
 
-      if (preferences) {
-        const groupedWorkPrefs: Record<string, string[]> = {};
-        const groupedLocationPrefs: Record<string, string[]> = {};
+      // Roles
+      const { data: roles } = await supabase
+        .from("maker_pref_industry_role")
+        .select("industry_role(role, industry(name))")
+        .eq("user_id", user.id);
 
-        preferences.forEach((p: any) => {
-          if (p.industry_role?.industry?.name && p.industry_role?.role) {
-            const industry = p.industry_role.industry.name;
-            if (!groupedWorkPrefs[industry]) groupedWorkPrefs[industry] = [];
-            if (!groupedWorkPrefs[industry].includes(p.industry_role.role)) {
-              groupedWorkPrefs[industry].push(p.industry_role.role);
-            }
-          }
-          if (p.region_rules?.state && p.region_rules?.area) {
-            const state = p.region_rules.state;
-            if (!groupedLocationPrefs[state]) groupedLocationPrefs[state] = [];
-            if (!groupedLocationPrefs[state].includes(p.region_rules.area)) {
-              groupedLocationPrefs[state].push(p.region_rules.area);
-            }
-          }
-        });
-
-        setWorkPreferences(Object.entries(groupedWorkPrefs));
-        setLocationPreferences(Object.entries(groupedLocationPrefs));
-      }
+      // Locations
+      const { data: locations } = await supabase
+        .from("maker_pref_location")
+        .select("regional_rules(state, suburb_city, postcode)")
+        .eq("user_id", user.id);
 
       // Work Experience
       const { data: experiences } = await supabase
@@ -69,14 +54,18 @@ const WHVProfilePreview: React.FC = () => {
         .select("company, position, industry(name), location, start_date, end_date, job_description")
         .eq("user_id", user.id)
         .order("start_date", { ascending: false });
-      setWorkExperiences(experiences || []);
 
       // Licenses
       const { data: licenseRows } = await supabase
         .from("maker_license")
         .select("license(name)")
         .eq("user_id", user.id);
-      setLicenses(licenseRows?.map((l) => l.license?.name) || []);
+
+      // Job References
+      const { data: referenceRows } = await supabase
+        .from("maker_reference")
+        .select("name, business_name, email, mobile_num, role")
+        .eq("user_id", user.id);
 
       // Signed profile photo
       let signedPhoto: string | null = null;
@@ -99,6 +88,11 @@ const WHVProfilePreview: React.FC = () => {
         profilePhoto: signedPhoto,
       });
 
+      setWorkPreferences(roles || []);
+      setLocationPreferences(locations || []);
+      setWorkExperiences(experiences || []);
+      setLicenses(licenseRows?.map((l) => l.license?.name) || []);
+      setJobReferences(referenceRows || []);
       setLoading(false);
     };
 
@@ -166,13 +160,11 @@ const WHVProfilePreview: React.FC = () => {
                 </h3>
                 {workPreferences.length > 0 ? (
                   <div className="space-y-3">
-                    {workPreferences.map(([industry, roles]) => (
-                      <div key={industry}>
-                        <p className="font-medium text-gray-800">{industry}</p>
+                    {workPreferences.map((p, i) => (
+                      <div key={i}>
+                        <p className="font-medium text-gray-800">{p.industry_role?.industry?.name}</p>
                         <ul className="list-disc list-inside text-sm text-gray-600">
-                          {(roles as string[]).map((role, i) => (
-                            <li key={i}>{role}</li>
-                          ))}
+                          <li>{p.industry_role?.role}</li>
                         </ul>
                       </div>
                     ))}
@@ -190,13 +182,13 @@ const WHVProfilePreview: React.FC = () => {
                 </h3>
                 {locationPreferences.length > 0 ? (
                   <div className="space-y-3">
-                    {locationPreferences.map(([state, areas]) => (
-                      <div key={state}>
-                        <p className="font-medium text-gray-800">{state}</p>
+                    {locationPreferences.map((loc, i) => (
+                      <div key={i}>
+                        <p className="font-medium text-gray-800">{loc.regional_rules?.state}</p>
                         <ul className="list-disc list-inside text-sm text-gray-600">
-                          {(areas as string[]).map((area, i) => (
-                            <li key={i}>{area}</li>
-                          ))}
+                          <li>
+                            {loc.regional_rules?.suburb_city} ({loc.regional_rules?.postcode})
+                          </li>
                         </ul>
                       </div>
                     ))}
@@ -246,6 +238,29 @@ const WHVProfilePreview: React.FC = () => {
                     <p className="text-sm text-gray-500">No licenses added</p>
                   )}
                 </div>
+              </div>
+
+              {/* Job References */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Users size={16} className="text-orange-500 mr-2" />
+                  Job References
+                </h3>
+                {jobReferences.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {jobReferences.map((ref, i) => (
+                      <div key={i} className="border rounded-xl p-3 text-sm shadow-sm bg-white">
+                        <p className="font-medium text-gray-800">{ref.name}</p>
+                        <p className="text-xs text-gray-500">{ref.role}</p>
+                        <p className="text-xs text-gray-600">{ref.business_name}</p>
+                        {ref.email && <p className="text-xs text-gray-500 truncate">{ref.email}</p>}
+                        {ref.mobile_num && <p className="text-xs text-gray-500">{ref.mobile_num}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No job references added</p>
+                )}
               </div>
 
               {/* Heart to Match */}
