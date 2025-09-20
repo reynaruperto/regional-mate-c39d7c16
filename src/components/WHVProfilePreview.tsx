@@ -1,14 +1,6 @@
 // src/pages/whv/WHVProfilePreview.tsx
 import React, { useState, useEffect } from "react";
-import {
-  ArrowLeft,
-  Briefcase,
-  MapPin,
-  Award,
-  User,
-  Heart,
-  Clock,
-} from "lucide-react";
+import { ArrowLeft, Briefcase, MapPin, Award, User, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,12 +9,10 @@ const WHVProfilePreview: React.FC = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState<any>(null);
   const [industries, setIndustries] = useState<string[]>([]);
-  const [locationPreferences, setLocationPreferences] = useState<
-    Record<string, { suburb_city: string; postcode: string }[]>
-  >({});
+  const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
-  const [licenses, setLicenses] = useState<string[]>([]);
   const [experienceYears, setExperienceYears] = useState<number>(0);
+  const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,78 +25,72 @@ const WHVProfilePreview: React.FC = () => {
         return;
       }
 
-      // 1️⃣ Profile
+      // Profile
       const { data: whv } = await supabase
         .from("whv_maker")
         .select("given_name, middle_name, family_name, tagline, profile_photo")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // 2️⃣ Industries
-      const { data: industryPrefs } = await supabase
+      // Industries
+      const { data: industryRows } = await supabase
         .from("maker_pref_industry")
-        .select("industry(name)")
+        .select("industry ( name )")
         .eq("user_id", user.id);
 
       setIndustries(
-        industryPrefs?.map((i: any) => i.industry?.name).filter(Boolean) || []
+        industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
       );
 
-      // 3️⃣ Locations (grouped by state)
-      const { data: locationPrefs } = await supabase
+      // Locations
+      const { data: locationRows } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
         .eq("user_id", user.id);
 
-      if (locationPrefs) {
-        const grouped: Record<
-          string,
-          { suburb_city: string; postcode: string }[]
-        > = {};
-        locationPrefs.forEach((loc: any) => {
-          if (!grouped[loc.state]) grouped[loc.state] = [];
-          grouped[loc.state].push({
-            suburb_city: loc.suburb_city,
-            postcode: loc.postcode,
-          });
+      if (locationRows) {
+        const grouped: Record<string, string[]> = {};
+        locationRows.forEach((loc) => {
+          const state = loc.state;
+          const suburb = `${loc.suburb_city} (${loc.postcode})`;
+          if (!grouped[state]) grouped[state] = [];
+          if (!grouped[state].includes(suburb)) grouped[state].push(suburb);
         });
-        setLocationPreferences(grouped);
+        setLocationPreferences(Object.entries(grouped));
       }
 
-      // 4️⃣ Work Experience
-      const { data: experiences } = await supabase
+      // Work Experiences
+      const { data: expRows } = await supabase
         .from("maker_work_experience")
-        .select(
-          "company, position, industry(name), location, start_date, end_date, job_description"
-        )
+        .select("company, position, industry(name), start_date, end_date")
         .eq("user_id", user.id)
         .order("start_date", { ascending: false });
 
-      if (experiences) {
-        setWorkExperiences(experiences);
+      if (expRows) {
+        setWorkExperiences(expRows);
 
-        // Auto calculate years of experience
-        let totalMonths = 0;
-        experiences.forEach((exp: any) => {
+        // Calculate total years
+        const totalYears = expRows.reduce((sum, exp) => {
           const start = new Date(exp.start_date);
           const end = exp.end_date ? new Date(exp.end_date) : new Date();
-          const months =
-            (end.getFullYear() - start.getFullYear()) * 12 +
-            (end.getMonth() - start.getMonth());
-          totalMonths += Math.max(0, months);
-        });
-        setExperienceYears(Math.floor(totalMonths / 12));
+          const years =
+            (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+          return sum + years;
+        }, 0);
+        setExperienceYears(Math.round(totalYears));
       }
 
-      // 5️⃣ Licenses
+      // Licenses
       const { data: licenseRows } = await supabase
         .from("maker_license")
         .select("license(name)")
         .eq("user_id", user.id);
 
-      setLicenses(licenseRows?.map((l) => l.license?.name) || []);
+      setLicenses(
+        licenseRows?.map((l) => l.license?.name).filter(Boolean) || []
+      );
 
-      // 6️⃣ Signed profile photo
+      // Signed photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
         let photoPath = whv.profile_photo;
@@ -133,14 +117,6 @@ const WHVProfilePreview: React.FC = () => {
     fetchProfile();
   }, [navigate]);
 
-  const formatDate = (date: string | null) => {
-    if (!date) return "Present";
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-    });
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -151,7 +127,7 @@ const WHVProfilePreview: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
+      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Dynamic Island */}
@@ -208,65 +184,52 @@ const WHVProfilePreview: React.FC = () => {
                       Industries
                     </span>
                   </div>
-                  {industries.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {industries.map((ind, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                        >
-                          {ind}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-900 font-semibold">Not set</p>
-                  )}
+                  <ul className="text-gray-900 font-semibold list-disc list-inside text-sm">
+                    {industries.length > 0 ? (
+                      industries.map((ind, i) => <li key={i}>{ind}</li>)
+                    ) : (
+                      <li>No industries set</li>
+                    )}
+                  </ul>
                 </div>
-
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-2">
-                    <Clock className="w-5 h-5 text-orange-500 mr-2" />
+                    <User className="w-5 h-5 text-orange-500 mr-2" />
                     <span className="text-sm font-medium text-gray-600">
                       Experience
                     </span>
                   </div>
-                  <p className="text-gray-900 font-semibold">
+                  <p className="text-gray-900 font-semibold text-sm">
                     {experienceYears} years
                   </p>
                 </div>
               </div>
 
               {/* Location Preferences */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                  <MapPin size={16} className="text-orange-500 mr-2" />
-                  Location Preferences
-                </h3>
-                {Object.keys(locationPreferences).length > 0 ? (
-                  <div className="space-y-4">
-                    {Object.entries(locationPreferences).map(
-                      ([state, areas], i) => (
-                        <div
-                          key={i}
-                          className="bg-gray-50 rounded-2xl p-4 shadow-sm"
-                        >
-                          <p className="font-medium text-gray-800 mb-2">
-                            {state}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {areas.map((a, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                              >
-                                {a.suburb_city} ({a.postcode})
-                              </span>
-                            ))}
-                          </div>
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <MapPin className="w-5 h-5 text-orange-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Location Preferences
+                  </span>
+                </div>
+                {locationPreferences.length > 0 ? (
+                  <div className="space-y-3">
+                    {locationPreferences.map(([state, suburbs]) => (
+                      <div key={state}>
+                        <p className="font-medium text-gray-800">{state}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(suburbs as string[]).map((s, i) => (
+                            <span
+                              key={i}
+                              className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                            >
+                              {s}
+                            </span>
+                          ))}
                         </div>
-                      )
-                    )}
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">
@@ -275,47 +238,27 @@ const WHVProfilePreview: React.FC = () => {
                 )}
               </div>
 
-              {/* Work Experience */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Work Experience
-                </h3>
+              {/* Work Experience Summary */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Work Experience
+                  </span>
+                </div>
                 {workExperiences.length > 0 ? (
-                  <div className="space-y-4">
-                    {workExperiences.map((exp, i) => (
-                      <div
-                        key={i}
-                        className="border rounded-lg p-3 text-sm bg-gray-50"
-                      >
-                        <p>
-                          <span className="font-medium">Company:</span>{" "}
-                          {exp.company}
-                        </p>
-                        <p>
-                          <span className="font-medium">Industry:</span>{" "}
+                  <div>
+                    <p className="text-gray-900 font-semibold mb-3">
+                      {experienceYears} years total
+                    </p>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      {workExperiences.map((exp, i) => (
+                        <li key={i} className="border-b last:border-0 pb-2">
+                          <span className="font-medium">{exp.position}</span> in{" "}
                           {exp.industry?.name || "N/A"}
-                        </p>
-                        <p>
-                          <span className="font-medium">Position:</span>{" "}
-                          {exp.position}
-                        </p>
-                        <p>
-                          <span className="font-medium">Location:</span>{" "}
-                          {exp.location}
-                        </p>
-                        <p>
-                          <span className="font-medium">Dates:</span>{" "}
-                          {formatDate(exp.start_date)} –{" "}
-                          {formatDate(exp.end_date)}
-                        </p>
-                        {exp.job_description && (
-                          <p>
-                            <span className="font-medium">Description:</span>{" "}
-                            {exp.job_description}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">
