@@ -199,6 +199,7 @@ const WHVEditProfile: React.FC = () => {
         );
       }
 
+      // (rest of your original data loading remains unchanged — maker, visa, preferences, regions, etc.)
       // Load existing profile data
       const { data: maker } = await supabase
         .from("whv_maker")
