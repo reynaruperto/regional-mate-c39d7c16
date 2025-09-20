@@ -8,7 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 const WHVProfilePreview: React.FC = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState<any>(null);
-  const [industries, setIndustries] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>(
+    []
+  );
+  const [industryPrefs, setIndustryPrefs] = useState<string[]>([]);
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
   const [experienceYears, setExperienceYears] = useState<number>(0);
@@ -32,22 +35,31 @@ const WHVProfilePreview: React.FC = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // Industries
+      // All industries (for joining with work_experience)
+      const { data: industryData } = await supabase
+        .from("industry")
+        .select("industry_id, name");
+      setIndustries(
+        industryData?.map((i: any) => ({
+          id: i.industry_id,
+          name: i.name,
+        })) || []
+      );
+
+      // Industry Preferences
       const { data: industryRows } = await supabase
         .from("maker_pref_industry")
         .select("industry ( name )")
         .eq("user_id", user.id);
-
-      setIndustries(
+      setIndustryPrefs(
         industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
       );
 
-      // Locations
+      // Location Preferences
       const { data: locationRows } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
         .eq("user_id", user.id);
-
       if (locationRows) {
         const grouped: Record<string, string[]> = {};
         locationRows.forEach((loc) => {
@@ -62,7 +74,7 @@ const WHVProfilePreview: React.FC = () => {
       // Work Experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience")
-        .select("company, position, industry(name), start_date, end_date")
+        .select("company, position, industry_id, start_date, end_date")
         .eq("user_id", user.id)
         .order("start_date", { ascending: false });
 
@@ -85,7 +97,6 @@ const WHVProfilePreview: React.FC = () => {
         .from("maker_license")
         .select("license(name)")
         .eq("user_id", user.id);
-
       setLicenses(
         licenseRows?.map((l) => l.license?.name).filter(Boolean) || []
       );
@@ -175,34 +186,23 @@ const WHVProfilePreview: React.FC = () => {
                 </p>
               </div>
 
-              {/* Summary Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">
-                      Industries
-                    </span>
-                  </div>
-                  <ul className="text-gray-900 font-semibold list-disc list-inside text-sm">
-                    {industries.length > 0 ? (
-                      industries.map((ind, i) => <li key={i}>{ind}</li>)
-                    ) : (
-                      <li>No industries set</li>
-                    )}
+              {/* Industry Preferences */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Industry Preferences
+                  </span>
+                </div>
+                {industryPrefs.length > 0 ? (
+                  <ul className="list-disc list-inside text-sm text-gray-700">
+                    {industryPrefs.map((ind, i) => (
+                      <li key={i}>{ind}</li>
+                    ))}
                   </ul>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <User className="w-5 h-5 text-orange-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">
-                      Experience
-                    </span>
-                  </div>
-                  <p className="text-gray-900 font-semibold text-sm">
-                    {experienceYears} years
-                  </p>
-                </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No industries set</p>
+                )}
               </div>
 
               {/* Location Preferences */}
@@ -252,12 +252,21 @@ const WHVProfilePreview: React.FC = () => {
                       {experienceYears} years total
                     </p>
                     <ul className="space-y-2 text-sm text-gray-700">
-                      {workExperiences.map((exp, i) => (
-                        <li key={i} className="border-b last:border-0 pb-2">
-                          <span className="font-medium">{exp.position}</span> in{" "}
-                          {exp.industry?.name || "N/A"}
-                        </li>
-                      ))}
+                      {workExperiences.map((exp, i) => {
+                        const industryName =
+                          industries.find(
+                            (ind) => ind.id === exp.industry_id
+                          )?.name || "N/A";
+                        return (
+                          <li
+                            key={i}
+                            className="border-b last:border-0 pb-2"
+                          >
+                            <span className="font-medium">{exp.position}</span>{" "}
+                            in {industryName} at {exp.company}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 ) : (
