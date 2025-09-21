@@ -262,7 +262,7 @@ const WHVEditProfile: React.FC = () => {
         );
       }
 
-      // Saved Preferences...
+      // Preferences, Work Exp, References, Licenses loading (same as before)...
       const { data: savedInd } = await supabase
         .from("maker_pref_industry")
         .select("industry_id")
@@ -700,14 +700,218 @@ const WHVEditProfile: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
-            {/* step 1, step 2, step 3 unchanged from before except Preferred States */}
-            {/* In Preferred Locations section */}
+            {/* Step 1 */}
+            {step === 1 && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Personal Information
+                </h2>
+                <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">
+                      Nationality
+                    </Label>
+                    <p className="mt-1 text-gray-900">{nationality}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">
+                      Date of Birth
+                    </Label>
+                    <p className="mt-1 text-gray-900">{dob}</p>
+                  </div>
+                </div>
+                {filteredStages.length > 0 && (
+                  <div>
+                    <Label>Visa Type *</Label>
+                    <Select value={visaType} onValueChange={setVisaType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select visa type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredStages.map((v) => (
+                          <SelectItem key={v.stage_id} value={v.label}>
+                            {v.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div>
+                  <Label>Visa Expiry *</Label>
+                  <Input
+                    type="date"
+                    value={visaExpiry}
+                    onChange={(e) => setVisaExpiry(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Phone *</Label>
+                  <Input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="04xxxxxxxx or +614xxxxxxxx"
+                  />
+                </div>
+                <div>
+                  <Label>Address Line 1 *</Label>
+                  <Input
+                    value={address.address1}
+                    onChange={(e) =>
+                      setAddress({ ...address, address1: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Address Line 2</Label>
+                  <Input
+                    value={address.address2}
+                    onChange={(e) =>
+                      setAddress({ ...address, address2: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Suburb *</Label>
+                  <Input
+                    value={address.suburb}
+                    onChange={(e) =>
+                      setAddress({ ...address, suburb: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>State *</Label>
+                  <Select
+                    value={address.state}
+                    onValueChange={(v) => setAddress({ ...address, state: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {australianStates.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Postcode *</Label>
+                  <Input
+                    value={address.postcode}
+                    onChange={(e) =>
+                      setAddress({ ...address, postcode: e.target.value })
+                    }
+                    maxLength={4}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 2 */}
             {step === 2 && (
               <div className="space-y-6">
                 {visaLabel && (
                   <p className="text-sm text-gray-500">Visa: {visaLabel}</p>
                 )}
-                {/* Tagline + Industries omitted here for brevity, unchanged */}
+                {/* Tagline */}
+                <div className="border rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("tagline")}
+                    className="w-full flex items-center justify-between p-4 text-left"
+                  >
+                    <span className="text-lg font-medium">1. Profile Tagline</span>
+                    {expandedSections.tagline ? (
+                      <ChevronDown size={20} />
+                    ) : (
+                      <ChevronRight size={20} />
+                    )}
+                  </button>
+                  {expandedSections.tagline && (
+                    <div className="px-4 pb-4 border-t space-y-3">
+                      <Input
+                        type="text"
+                        value={tagline}
+                        onChange={(e) => setTagline(e.target.value)}
+                        placeholder="e.g. Backpacker ready for farm work"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Industries & Roles */}
+                <div className="border rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("industries")}
+                    className="w-full flex items-center justify-between p-4 text-left"
+                  >
+                    <span className="text-lg font-medium">
+                      2. Industries & Roles
+                    </span>
+                    {expandedSections.industries ? (
+                      <ChevronDown size={20} />
+                    ) : (
+                      <ChevronRight size={20} />
+                    )}
+                  </button>
+                  {expandedSections.industries && (
+                    <div className="px-4 pb-4 border-t space-y-4">
+                      <Label>Select up to 3 industries *</Label>
+                      {industries.map((industry) => (
+                        <label
+                          key={industry.id}
+                          className="flex items-center space-x-2 py-1"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedIndustries.includes(industry.id)}
+                            disabled={
+                              selectedIndustries.length >= 3 &&
+                              !selectedIndustries.includes(industry.id)
+                            }
+                            onChange={() => handleIndustrySelect(industry.id)}
+                            className="h-4 w-4"
+                          />
+                          <span>{industry.name}</span>
+                        </label>
+                      ))}
+                      {selectedIndustries.map((industryId) => {
+                        const industry = industries.find(
+                          (i) => i.id === industryId
+                        );
+                        const industryRoles = roles.filter(
+                          (r) => r.industryId === industryId
+                        );
+                        return (
+                          <div key={industryId}>
+                            <Label>Roles for {industry?.name}</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {industryRoles.map((role) => (
+                                <button
+                                  type="button"
+                                  key={role.id}
+                                  onClick={() => toggleRole(role.id)}
+                                  className={`px-3 py-1.5 rounded-full text-xs border ${
+                                    selectedRoles.includes(role.id)
+                                      ? "bg-orange-500 text-white border-orange-500"
+                                      : "bg-white text-gray-700 border-gray-300"
+                                  }`}
+                                >
+                                  {role.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 {/* Preferred Locations */}
                 <div className="border rounded-lg">
@@ -742,7 +946,6 @@ const WHVEditProfile: React.FC = () => {
                             />
                             <span>{state}</span>
                           </label>
-
                           {preferredStates.includes(state) &&
                             state === "Queensland" && (
                               <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
@@ -780,7 +983,290 @@ const WHVEditProfile: React.FC = () => {
                 </div>
               </div>
             )}
-            {/* step 3 (Work Experience, Licenses, References) unchanged except industries load all */}
+
+            {/* Step 3 */}
+            {step === 3 && (
+              <div className="space-y-10 pb-20">
+                {/* Work Experience */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Work Experience
+                    </h2>
+                    <Button
+                      type="button"
+                      onClick={addWorkExperience}
+                      disabled={workExperiences.length >= 8}
+                      className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 py-2 text-sm"
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Add
+                    </Button>
+                  </div>
+                  {workExperiences.map((exp, index) => (
+                    <div
+                      key={exp.id}
+                      className="border border-gray-200 rounded-lg p-4 space-y-4"
+                    >
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-medium text-gray-800">
+                          Experience {index + 1}
+                        </h3>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => removeWorkExperience(exp.id)}
+                          className="text-red-500"
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">
+                          Industry *
+                        </Label>
+                        <Select
+                          value={exp.industryId ? String(exp.industryId) : ""}
+                          onValueChange={(value) =>
+                            updateWorkExperience(
+                              exp.id,
+                              "industryId",
+                              Number(value)
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
+                            <SelectValue placeholder="Select industry" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {industries.map((ind) => (
+                              <SelectItem key={ind.id} value={String(ind.id)}>
+                                {ind.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">
+                          Role *
+                        </Label>
+                        <Select
+                          value={exp.roleId ? String(exp.roleId) : ""}
+                          onValueChange={(value) =>
+                            updateWorkExperience(exp.id, "roleId", Number(value))
+                          }
+                        >
+                          <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles
+                              .filter((r) => r.industryId === exp.industryId)
+                              .map((r) => (
+                                <SelectItem key={r.id} value={String(r.id)}>
+                                  {r.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Input
+                        type="text"
+                        value={exp.position}
+                        onChange={(e) =>
+                          updateWorkExperience(exp.id, "position", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Position (optional free text)"
+                      />
+                      <Input
+                        type="text"
+                        value={exp.company}
+                        onChange={(e) =>
+                          updateWorkExperience(exp.id, "company", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Company"
+                        required
+                      />
+                      <Input
+                        type="text"
+                        value={exp.location}
+                        onChange={(e) =>
+                          updateWorkExperience(exp.id, "location", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Location"
+                      />
+                      <textarea
+                        value={exp.description}
+                        onChange={(e) =>
+                          updateWorkExperience(
+                            exp.id,
+                            "description",
+                            e.target.value
+                          )
+                        }
+                        className="w-full bg-gray-100 border-0 text-sm p-2 rounded"
+                        placeholder="Describe your responsibilities (max 100 chars)"
+                        maxLength={100}
+                      />
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          type="date"
+                          value={exp.startDate}
+                          onChange={(e) =>
+                            updateWorkExperience(
+                              exp.id,
+                              "startDate",
+                              e.target.value
+                            )
+                          }
+                          className="h-10 bg-gray-100 border-0 text-sm"
+                          required
+                        />
+                        <Input
+                          type="date"
+                          value={exp.endDate}
+                          onChange={(e) =>
+                            updateWorkExperience(
+                              exp.id,
+                              "endDate",
+                              e.target.value
+                            )
+                          }
+                          className="h-10 bg-gray-100 border-0 text-sm"
+                          required
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Licenses */}
+                <div className="space-y-4">
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Licenses & Tickets
+                  </h2>
+                  <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-100 rounded-lg p-3">
+                    {allLicenses.map((license) => (
+                      <div key={license.id} className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`license-${license.id}`}
+                          checked={licenses.includes(license.id)}
+                          onChange={() => toggleLicense(license.id)}
+                          className="w-4 h-4 text-orange-500 border-gray-300 rounded"
+                        />
+                        <Label
+                          htmlFor={`license-${license.id}`}
+                          className="text-sm text-gray-700 cursor-pointer"
+                        >
+                          {license.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  {licenses.some(
+                    (id) => allLicenses.find((l) => l.id === id)?.name === "Other"
+                  ) && (
+                    <Input
+                      type="text"
+                      value={otherLicense}
+                      onChange={(e) => setOtherLicense(e.target.value)}
+                      className="h-10 bg-gray-100 border-0 text-sm mt-2"
+                      placeholder="Specify other license"
+                    />
+                  )}
+                </div>
+
+                {/* Job References */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Job References
+                    </h2>
+                    <Button
+                      type="button"
+                      onClick={addJobReference}
+                      disabled={jobReferences.length >= 5}
+                      className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 py-2 text-sm"
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Add
+                    </Button>
+                  </div>
+                  {jobReferences.map((ref, index) => (
+                    <div
+                      key={ref.id}
+                      className="border border-gray-200 rounded-lg p-4 space-y-4"
+                    >
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-medium text-gray-800">
+                          Reference {index + 1}
+                        </h3>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => removeJobReference(ref.id)}
+                          className="text-red-500"
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                      <Input
+                        type="text"
+                        value={ref.name}
+                        onChange={(e) =>
+                          updateJobReference(ref.id, "name", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Name"
+                      />
+                      <Input
+                        type="text"
+                        value={ref.businessName}
+                        onChange={(e) =>
+                          updateJobReference(
+                            ref.id,
+                            "businessName",
+                            e.target.value
+                          )
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Business Name"
+                      />
+                      <Input
+                        type="email"
+                        value={ref.email}
+                        onChange={(e) =>
+                          updateJobReference(ref.id, "email", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Email"
+                      />
+                      <Input
+                        type="text"
+                        value={ref.phone}
+                        onChange={(e) =>
+                          updateJobReference(ref.id, "phone", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Phone"
+                      />
+                      <Input
+                        type="text"
+                        value={ref.role}
+                        onChange={(e) =>
+                          updateJobReference(ref.id, "role", e.target.value)
+                        }
+                        className="h-10 bg-gray-100 border-0 text-sm"
+                        placeholder="Role"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stepper Navigation */}
