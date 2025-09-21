@@ -1,4 +1,3 @@
-// src/pages/whv/WHVJobPreview.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -49,7 +48,9 @@ const WHVJobPreview: React.FC = () => {
   // ✅ Logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setWhvId(user.id);
     };
     getUser();
@@ -104,7 +105,7 @@ const WHVJobPreview: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // 3️⃣ Facilities (join employer_facility → facility)
+        // 3️⃣ Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility ( name )")
@@ -198,7 +199,11 @@ const WHVJobPreview: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
   }
 
   if (!jobDetails) {
@@ -238,25 +243,37 @@ const WHVJobPreview: React.FC = () => {
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-slate-800 overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
-                    <img src={jobDetails.company_photo} alt="Company" className="w-full h-full object-cover" />
+                    <img
+                      src={jobDetails.company_photo}
+                      alt="Company"
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
                       <Image size={32} />
                     </div>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">{jobDetails.company_name}</h2>
-                <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {jobDetails.company_name}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {jobDetails.tagline}
+                </p>
               </div>
 
               {/* Job Info */}
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">{jobDetails.role}</h3>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  jobDetails.job_status === "active"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-600"
-                }`}>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  {jobDetails.role}
+                </h3>
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                    jobDetails.job_status === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
                   {jobDetails.job_status}
                 </span>
               </div>
@@ -264,29 +281,47 @@ const WHVJobPreview: React.FC = () => {
               {/* Job Details */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-slate-800 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Type</span>
+                  <div className="flex items-center mb-2">
+                    <Clock className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Type
+                    </span>
                   </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
+                  <p className="text-gray-900 font-semibold">
+                    {jobDetails.employment_type}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-slate-800 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Salary</span>
+                  <div className="flex items-center mb-2">
+                    <DollarSign className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Salary
+                    </span>
                   </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
+                  <p className="text-gray-900 font-semibold">
+                    {jobDetails.salary_range}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><User className="w-5 h-5 text-slate-800 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Experience Required</span>
+                  <div className="flex items-center mb-2">
+                    <User className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Experience Required
+                    </span>
                   </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
+                  <p className="text-gray-900 font-semibold">
+                    {jobDetails.req_experience}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-slate-800 mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Start Date</span>
+                  <div className="flex items-center mb-2">
+                    <Calendar className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Start Date
+                    </span>
                   </div>
                   <p className="text-gray-900 font-semibold">
                     {new Date(jobDetails.start_date).toLocaleDateString()}
@@ -296,57 +331,87 @@ const WHVJobPreview: React.FC = () => {
 
               {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><Award className="w-5 h-5 text-slate-800 mr-2" />
-                  <span className="text-sm font-medium text-gray-600">License Required</span>
+                <div className="flex items-center mb-2">
+                  <Award className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    License Required
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0
-                    ? jobDetails.licenses.map((l, i) => (
-                        <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
-                          {l}
-                        </span>
-                      ))
-                    : <p className="text-sm text-gray-500">No licenses required</p>}
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
                 </div>
               </div>
 
               {/* Location */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><MapPin className="w-5 h-5 text-slate-800 mr-2" />
-                  <span className="text-sm font-medium text-gray-600">Location</span>
+                <div className="flex items-center mb-2">
+                  <MapPin className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Location
+                  </span>
                 </div>
                 <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
+                  {jobDetails.postcode}
                 </p>
               </div>
 
               {/* Facilities */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Facilities
+                </h3>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0
-                    ? jobDetails.facilities.map((f, i) => (
-                        <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
-                          {f}
-                        </span>
-                      ))
-                    : <p className="text-sm text-gray-500">No facilities listed</p>}
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full"
+                      >
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No facilities listed
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Website */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><Globe className="w-5 h-5 text-slate-800 mr-2" />
-                  <span className="text-sm font-medium text-gray-600">Website</span>
+                <div className="flex items-center mb-2">
+                  <Globe className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Website
+                  </span>
                 </div>
-                <p className="text-gray-900 font-semibold">{jobDetails.website}</p>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.website}
+                </p>
               </div>
 
               {/* Description */}
               <div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">
+                  Job Description
+                </h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    {jobDetails.description}
+                  </p>
                 </div>
               </div>
 
@@ -357,7 +422,11 @@ const WHVJobPreview: React.FC = () => {
               >
                 <Heart
                   size={18}
-                  className={jobDetails.isLiked ? "fill-red-500 text-red-500" : "text-white"}
+                  className={
+                    jobDetails.isLiked
+                      ? "fill-red-500 text-red-500"
+                      : "text-white"
+                  }
                 />
                 {jobDetails.isLiked ? "Unlike Job" : "Heart to Match"}
               </Button>
@@ -365,14 +434,19 @@ const WHVJobPreview: React.FC = () => {
           </div>
         </div>
 
-        {/* ✅ Modal INSIDE phone only */}
-        <div className="absolute inset-0 z-50">
-          <LikeConfirmationModal
-            candidateName={`${jobDetails.role} at ${jobDetails.company_name}`}
-            onClose={() => setShowLikeModal(false)}
-            isVisible={showLikeModal}
-          />
-        </div>
+        {/* ✅ Modal INSIDE phone only (doesn't block scroll when hidden) */}
+        {showLikeModal && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto w-full h-full flex items-center justify-center">
+              <LikeConfirmationModal
+                jobTitle={jobDetails.role}
+                companyName={jobDetails.company_name}
+                onClose={() => setShowLikeModal(false)}
+                isVisible={showLikeModal}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
