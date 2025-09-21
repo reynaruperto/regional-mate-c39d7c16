@@ -10,11 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface JobCard {
   job_id: number;
-  start_date: string | null;
   company_name: string;
   profile_photo: string;
   role: string;
   industry: string;
+  location: string;
   isLiked?: boolean;
 }
 
@@ -31,7 +31,7 @@ const WHVBrowseJobs: React.FC = () => {
       // 1️⃣ Jobs
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select("job_id, user_id, industry_role_id, start_date, job_status")
+        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode")
         .eq("job_status", "active");
 
       if (jobsError) {
@@ -62,23 +62,25 @@ const WHVBrowseJobs: React.FC = () => {
           (r) => r.industry_role_id === job.industry_role_id
         );
 
-        // Employer name
         const employerName = employer?.company_name || "Unknown Employer";
 
-        // Employer photo
         const photoUrl = employer?.profile_photo
           ? supabase.storage
               .from("profile_photo")
               .getPublicUrl(employer.profile_photo).data.publicUrl
           : "/placeholder.png";
 
+        const location = `${job.suburb_city || ""}, ${job.state || ""} ${
+          job.postcode || ""
+        }`.trim();
+
         return {
           job_id: job.job_id,
-          start_date: job.start_date,
           company_name: employerName,
           profile_photo: photoUrl,
           role: roleData?.role || "Role",
           industry: roleData?.industry?.name || "Industry",
+          location,
           isLiked: false,
         };
       });
@@ -177,7 +179,7 @@ const WHVBrowseJobs: React.FC = () => {
                         {job.role} • {job.industry}
                       </p>
                       <p className="text-xs text-gray-500 mb-1">
-                        Start Date: {job.start_date || "TBD"}
+                        {job.location}
                       </p>
 
                       <div className="flex items-center gap-3 mt-4">
