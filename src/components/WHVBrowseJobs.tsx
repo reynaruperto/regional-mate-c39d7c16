@@ -8,7 +8,7 @@ import WHVFilterPage from '@/components/WHVFilterPage';
 import LikeConfirmationModal from '@/components/LikeConfirmationModal';
 import { supabase } from '@/integrations/supabase/client';
 
-// Utility for generating public URLs
+// Utility for generating public URLs from the profile_photo bucket
 const getPublicUrl = (path: string | null) => {
   if (!path) return null;
   const { data } = supabase.storage.from('profile_photo').getPublicUrl(path);
@@ -48,7 +48,7 @@ const WHVBrowseJobs: React.FC = () => {
             role,
             industry (name)
           ),
-          profile:profile!job_user_id_fkey (
+          profile!job_user_id_fkey (
             company_name,
             profile_photo
           )
@@ -59,6 +59,7 @@ const WHVBrowseJobs: React.FC = () => {
       if (error) {
         console.error('Error fetching jobs:', error);
       } else {
+        console.log('Jobs fetched:', data); // 🔍 Debugging
         setJobs(data || []);
       }
     };
