@@ -1,11 +1,15 @@
-// src/pages/whv/WHVJobPreview.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  MapPin,
+  Calendar,
   Clock,
   DollarSign,
+  User,
   Heart,
   Image,
+  Award,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -27,6 +31,7 @@ interface JobDetails {
   company_name: string;
   tagline: string;
   company_photo: string | null;
+  facilities: string[];
   licenses: string[];
   website: string;
   isLiked?: boolean;
@@ -55,6 +60,7 @@ const WHVJobPreview: React.FC = () => {
       if (!jobId) return;
 
       try {
+        // Job + role
         const { data: job } = await supabase
           .from("job")
           .select(
@@ -78,6 +84,7 @@ const WHVJobPreview: React.FC = () => {
 
         if (!job) return;
 
+        // Employer details
         const { data: employer } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo, website")
@@ -96,6 +103,16 @@ const WHVJobPreview: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
+        // Facilities
+        const { data: facilityRows } = await supabase
+          .from("employer_facility")
+          .select("facility ( name )")
+          .eq("user_id", job.user_id);
+
+        const facilities =
+          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
+
+        // Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license ( name )")
@@ -104,6 +121,7 @@ const WHVJobPreview: React.FC = () => {
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
+        // Like state
         let isLiked = false;
         if (whvId) {
           const { data: like } = await supabase
@@ -131,6 +149,7 @@ const WHVJobPreview: React.FC = () => {
           company_name: employer?.company_name || "Unknown Company",
           tagline: employer?.tagline || "No tagline provided",
           company_photo: companyPhoto,
+          facilities,
           licenses,
           website: employer?.website || "Not applicable",
           isLiked,
@@ -171,7 +190,7 @@ const WHVJobPreview: React.FC = () => {
       }
     } catch (err) {
       console.error("Error toggling like:", err);
-      setJobDetails({ ...jobDetails, isLiked: !newState }); // rollback if error
+      setJobDetails({ ...jobDetails, isLiked: !newState }); // rollback
     }
   };
 
@@ -179,9 +198,10 @@ const WHVJobPreview: React.FC = () => {
   if (!jobDetails) return <div className="flex items-center justify-center min-h-screen">Job not found</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4 relative">
+      {/* iPhone Frame */}
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative z-10">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
             <Button
@@ -222,16 +242,96 @@ const WHVJobPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Salary & Type */}
+              {/* Job Details Grid */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <Clock className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2">
+                    <Clock className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Type</span>
+                  </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
                 </div>
+
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <DollarSign className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2">
+                    <DollarSign className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Salary</span>
+                  </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
                 </div>
+
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <User className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Experience Required</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
+                </div>
+
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <Calendar className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">Start Date</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">
+                    {new Date(jobDetails.start_date).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Licenses */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Award className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">License Required</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <MapPin className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">Location</span>
+                </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Facilities */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities listed</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Website */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Globe className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">Website</span>
+                </div>
+                <p className="text-gray-900 font-semibold">{jobDetails.website}</p>
               </div>
 
               {/* Description */}
@@ -255,15 +355,15 @@ const WHVJobPreview: React.FC = () => {
               </Button>
             </div>
           </div>
-
-          {/* Like Modal */}
-          <LikeConfirmationModal
-            candidateName={jobDetails.role}
-            onClose={() => setShowLikeModal(false)}
-            isVisible={showLikeModal}
-          />
         </div>
       </div>
+
+      {/* ✅ Modal outside phone frame */}
+      <LikeConfirmationModal
+        candidateName={jobDetails.role}
+        onClose={() => setShowLikeModal(false)}
+        isVisible={showLikeModal}
+      />
     </div>
   );
 };
