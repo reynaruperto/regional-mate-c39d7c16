@@ -40,6 +40,8 @@ const ALL_STATES = [
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
+  const [nationality, setNationality] = useState<string>("");
+  const [visaExpiry, setVisaExpiry] = useState<string>("");
   const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -69,30 +71,31 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile tagline
+      // Profile nationality + tagline
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("tagline")
+        .select("nationality, tagline")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (profile?.tagline) setTagline(profile.tagline);
+      if (profile?.nationality) setNationality(profile.nationality);
 
       // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(
-          `
+        .select(`
+          expiry_date,
           stage_id,
           visa_stage:visa_stage(stage, sub_class, label),
           country:country(name)
-        `
-        )
+        `)
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (!visa) return;
 
+      setVisaExpiry(visa.expiry_date || "");
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
@@ -333,7 +336,11 @@ const WHVWorkPreferences: React.FC = () => {
               </div>
             </div>
             {visaLabel && (
-              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
+              <p className="mt-2 text-sm text-gray-500">
+                Nationality: {nationality} <br />
+                Visa: {visaLabel} <br />
+                Expiry: {visaExpiry}
+              </p>
             )}
           </div>
 
@@ -468,6 +475,33 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
+            {/* Review */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() => toggleSection("summary")}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">4. Review</span>
+                {expandedSections.summary ? <ChevronDown /> : <ChevronRight />}
+              </button>
+              {expandedSections.summary && (
+                <div className="px-4 pb-4 border-t space-y-4 text-sm">
+                  <p><strong>Nationality:</strong> {nationality}</p>
+                  <p><strong>Visa:</strong> {visaLabel}</p>
+                  <p><strong>Visa Expiry:</strong> {visaExpiry}</p>
+                  <p><strong>Tagline:</strong> {tagline}</p>
+                  <p><strong>Industries:</strong> {selectedIndustries.map((id) => industries.find((i) => i.id === id)?.name).join(", ")}</p>
+                  <p><strong>Roles:</strong> {selectedRoles.map((id) => roles.find((r) => r.id === id)?.name).join(", ")}</p>
+                  <p><strong>States:</strong> {preferredStates.join(", ")}</p>
+                  <p><strong>Suburbs:</strong> {preferredAreas.map((locKey) => {
+                    const [suburb_city, postcode] = locKey.split("::");
+                    return `${suburb_city} (${postcode})`;
+                  }).join(", ")}</p>
+                </div>
+              )}
+            </div>
+
             {/* Continue */}
             <div className="pt-4">
               <Button
@@ -486,7 +520,7 @@ const WHVWorkPreferences: React.FC = () => {
             </div>
           </div>
 
-          {/* Popup for invalid states */}
+          {/* Popup */}
           {showPopup && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
