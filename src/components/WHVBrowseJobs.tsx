@@ -1,67 +1,78 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Filter, Heart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import BottomNavigation from '@/components/BottomNavigation';
-import WHVFilterPage from '@/components/WHVFilterPage';
-import LikeConfirmationModal from '@/components/LikeConfirmationModal';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import BottomNavigation from "@/components/BottomNavigation";
+import WHVFilterPage from "@/components/WHVFilterPage";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
+import { supabase } from "@/integrations/supabase/client";
 
-// Utility for generating public URLs from the profile_photo bucket
-const getPublicUrl = (path: string | null) => {
-  if (!path) return null;
-  const { data } = supabase.storage.from('profile_photo').getPublicUrl(path);
-  return data?.publicUrl || null;
-};
-
-interface Job {
+interface JobCard {
   job_id: number;
-  start_date: string;
-  industry_role?: {
-    role: string;
-    industry?: { name: string };
-  };
-  profile?: {
-    company_name: string;
-    profile_photo?: string;
-  };
+  start_date: string | null;
+  company_name: string;
+  profile_photo: string;
+  role: string;
+  industry: string;
 }
 
 const WHVBrowseJobs: React.FC = () => {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
-  const [likedJobTitle, setLikedJobTitle] = useState('');
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [likedJobTitle, setLikedJobTitle] = useState("");
+  const [jobs, setJobs] = useState<JobCard[]>([]);
 
-  // Fetch jobs with profile & role info
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data, error } = await supabase
-        .from('job')
-        .select(`
-          job_id,
-          start_date,
-          industry_role (
-            role,
-            industry (name)
-          ),
-          profile!job_user_id_fkey (
-            company_name,
-            profile_photo
-          )
-        `)
-        .eq('job_status', 'active')
-        .order('start_date', { ascending: true });
+      // 1️⃣ Fetch jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from("job")
+        .select("job_id, user_id, industry_role_id, start_date, job_status")
+        .eq("job_status", "active");
 
-      if (error) {
-        console.error('Error fetching jobs:', error);
-      } else {
-        console.log('Jobs fetched:', data); // 🔍 Debugging
-        setJobs(data || []);
+      if (jobsError) {
+        console.error("Error fetching jobs:", jobsError);
+        return;
       }
+
+      if (!jobsData) return;
+
+      // 2️⃣ Fetch employer profiles
+      const { data: profiles } = await supabase
+        .from("profile")
+        .select("user_id, company_name, profile_photo");
+
+      // 3️⃣ Fetch industry roles
+      const { data: industryRoles } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role, industry ( name )");
+
+      // 4️⃣ Merge into JobCard[]
+      const mapped: JobCard[] = jobsData.map((job) => {
+        const profile = profiles?.find((p) => p.user_id === job.user_id);
+        const roleData = industryRoles?.find(
+          (r) => r.industry_role_id === job.industry_role_id
+        );
+
+        // Photo URL
+        const photoUrl = profile?.profile_photo
+          ? supabase.storage.from("profile_photo").getPublicUrl(profile.profile_photo).data.publicUrl
+          : "/placeholder.png";
+
+        return {
+          job_id: job.job_id,
+          start_date: job.start_date,
+          company_name: profile?.company_name || "Unknown Employer",
+          profile_photo: photoUrl,
+          role: roleData?.role || "Role",
+          industry: roleData?.industry?.name || "Industry",
+        };
+      });
+
+      setJobs(mapped);
     };
 
     fetchJobs();
@@ -70,7 +81,7 @@ const WHVBrowseJobs: React.FC = () => {
   const handleLikeJob = (jobId: number) => {
     const job = jobs.find((j) => j.job_id === jobId);
     if (job) {
-      setLikedJobTitle(job.industry_role?.role || 'Job');
+      setLikedJobTitle(job.role);
       setShowLikeModal(true);
     }
   };
@@ -81,7 +92,7 @@ const WHVBrowseJobs: React.FC = () => {
 
   const handleCloseLikeModal = () => {
     setShowLikeModal(false);
-    setLikedJobTitle('');
+    setLikedJobTitle("");
   };
 
   if (showFilters) {
@@ -94,14 +105,13 @@ const WHVBrowseJobs: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
           <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {/* Header */}
             <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => navigate('/whv/dashboard')}>
+              <button onClick={() => navigate("/whv/dashboard")}>
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
               <h1 className="text-xl font-semibold text-gray-900">Browse Jobs</h1>
@@ -129,27 +139,20 @@ const WHVBrowseJobs: React.FC = () => {
               {jobs.map((job) => (
                 <div key={job.job_id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                   <div className="flex items-start gap-4">
-                    {/* Employer photo */}
                     <img
-                      src={
-                        job.profile?.profile_photo
-                          ? getPublicUrl(job.profile.profile_photo)
-                          : '/placeholder.png'
-                      }
-                      alt={job.profile?.company_name || 'Employer'}
+                      src={job.profile_photo}
+                      alt={job.company_name}
                       className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      {/* Employer name */}
                       <h3 className="font-semibold text-gray-900 text-base mb-1">
-                        {job.profile?.company_name || 'Employer'}
+                        {job.company_name}
                       </h3>
-                      {/* Job role + industry */}
                       <p className="text-sm text-gray-600 mb-1">
-                        {job.industry_role?.role || 'Role'} • {job.industry_role?.industry?.name || 'Industry'}
+                        {job.role} • {job.industry}
                       </p>
                       <p className="text-xs text-gray-500 mb-1">
-                        Start Date: {job.start_date || 'TBD'}
+                        Start Date: {job.start_date || "TBD"}
                       </p>
 
                       <div className="flex items-center gap-3 mt-4">
@@ -173,12 +176,10 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Navigation */}
           <div className="bg-white border-t flex-shrink-0 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like Confirmation Modal */}
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={handleCloseLikeModal}
