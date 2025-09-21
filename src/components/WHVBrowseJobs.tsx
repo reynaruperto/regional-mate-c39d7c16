@@ -1,139 +1,291 @@
-// src/pages/WHV/BrowseJobs.tsx
-import React, { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import BottomNavigation from "@/components/BottomNavigation";
+import WHVFilterPage from "@/components/WHVFilterPage";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 
-interface Job {
+interface JobCard {
   job_id: number;
-  description: string;
-  state: string;
-  suburb_city: string;
-  postcode: string | null;
-  employment_type: string;
-  salary_range: string | null;
   company_name: string;
-  profile_photo: string | null;
+  profile_photo: string;
+  role: string;
   industry: string;
+  location: string;
+  isLiked?: boolean;
 }
 
-const BrowseJobs: React.FC = () => {
+const WHVBrowseJobs: React.FC = () => {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [showLikeModal, setShowLikeModal] = useState(false);
+  const [likedJobTitle, setLikedJobTitle] = useState("");
+  const [jobs, setJobs] = useState<JobCard[]>([]);
+  const [whvId, setWhvId] = useState<string | null>(null);
 
+  // ✅ Get logged-in WHV ID
   useEffect(() => {
-    const fetchJobs = async () => {
-      setLoading(true);
-
-      const { data, error } = await supabase
-        .from("job")
-        .select(
-          `
-          job_id,
-          description,
-          state,
-          suburb_city,
-          postcode,
-          employment_type,
-          salary_range,
-          profile:profile (
-            user_id,
-            employer:employer (
-              company_name,
-              profile_photo,
-              industry:industry (
-                name
-              )
-            )
-          )
-        `
-        )
-        .eq("job_status", "active");
-
-      if (error) {
-        console.error("Error fetching jobs:", error);
-        setJobs([]);
-      } else {
-        console.log("DEBUG jobs:", data); // 🔍 check raw response
-        const mapped = (data || []).map((j: any) => ({
-          job_id: j.job_id,
-          description: j.description,
-          state: j.state,
-          suburb_city: j.suburb_city,
-          postcode: j.postcode,
-          employment_type: j.employment_type,
-          salary_range: j.salary_range,
-          company_name: j.profile?.employer?.company_name || "Unknown company",
-          profile_photo: j.profile?.employer?.profile_photo || null,
-          industry: j.profile?.employer?.industry?.name || "General",
-        }));
-        setJobs(mapped);
-      }
-
-      setLoading(false);
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setWhvId(user.id);
     };
-
-    fetchJobs();
+    getUser();
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col">
-          {/* Header */}
-          <div className="px-4 py-3 border-b flex items-center gap-3">
-            <button onClick={() => navigate(-1)}>
-              <ArrowLeft size={22} className="text-gray-600" />
-            </button>
-            <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
-          </div>
+  // ✅ Fetch jobs + likes
+  useEffect(() => {
+    const fetchJobs = async () => {
+      const { data: jobsData, error: jobsError } = await supabase
+        .from("job")
+        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode")
+        .eq("job_status", "active");
 
-          {/* Job list */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-            {loading ? (
-              <p className="text-center text-gray-500">Loading jobs...</p>
-            ) : jobs.length === 0 ? (
-              <p className="text-center text-gray-500">No jobs found</p>
-            ) : (
-              jobs.map((job) => (
-                <div
-                  key={job.job_id}
-                  className="p-4 border rounded-xl shadow-sm bg-white hover:shadow-md transition"
+      if (jobsError) {
+        console.error("Error fetching jobs:", jobsError);
+        return;
+      }
+      if (!jobsData) return;
+
+      const { data: employers } = await supabase
+        .from("employer")
+        .select("user_id, company_name, profile_photo");
+
+      const { data: industryRoles } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role, industry ( name )");
+
+      // ✅ Fetch likes for this WHV
+      let likedIds: number[] = [];
+      if (whvId) {
+        const { data: likes } = await supabase
+          .from("likes")
+          .select("liked_job_post_id")
+          .eq("liker_id", whvId)
+          .eq("liker_type", "whv");
+
+        likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+      }
+
+      const mapped: JobCard[] = jobsData.map((job) => {
+        const employer = employers?.find((e) => e.user_id === job.user_id);
+        const roleData = industryRoles?.find(
+          (r) => r.industry_role_id === job.industry_role_id
+        );
+
+        const employerName = employer?.company_name || "Unknown Employer";
+
+        const photoUrl = employer?.profile_photo
+          ? supabase.storage
+              .from("profile_photo")
+              .getPublicUrl(employer.profile_photo).data.publicUrl
+          : "/placeholder.png";
+
+        const location = `${job.suburb_city || ""}, ${job.state || ""} ${
+          job.postcode || ""
+        }`.trim();
+
+        return {
+          job_id: job.job_id,
+          company_name: employerName,
+          profile_photo: photoUrl,
+          role: roleData?.role || "Role",
+          industry: roleData?.industry?.name || "Industry",
+          location,
+          isLiked: likedIds.includes(job.job_id),
+        };
+      });
+
+      setJobs(mapped);
+    };
+
+    if (whvId) fetchJobs();
+  }, [whvId]);
+
+  // ✅ Toggle Like (persistent)
+  const handleLikeJob = async (jobId: number) => {
+    if (!whvId) return;
+
+    const job = jobs.find((j) => j.job_id === jobId);
+    if (!job) return;
+
+    try {
+      if (job.isLiked) {
+        // 🔄 Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", whvId)
+          .eq("liked_job_post_id", jobId)
+          .eq("liker_type", "whv");
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: false } : j
+          )
+        );
+      } else {
+        // ❤️ Like
+        await supabase.from("likes").upsert(
+          {
+            liker_id: whvId,
+            liker_type: "whv",
+            liked_job_post_id: jobId,
+          },
+          { onConflict: "liker_id,liked_job_post_id,liker_type" }
+        );
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: true } : j
+          )
+        );
+
+        setLikedJobTitle(job.role);
+        setShowLikeModal(true);
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
+  };
+
+  const handleViewJob = (jobId: number) => {
+    navigate(`/whv/job/${jobId}`);
+  };
+
+  const handleCloseLikeModal = () => {
+    setShowLikeModal(false);
+    setLikedJobTitle("");
+  };
+
+  if (showFilters) {
+    return (
+      <WHVFilterPage
+        onClose={() => setShowFilters(false)}
+        onApplyFilters={() => {}}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4">
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                  onClick={() => navigate("/whv/dashboard")}
                 >
-                  <div className="flex items-start gap-3">
-                    {job.profile_photo ? (
+                  <ArrowLeft className="w-6 h-6 text-gray-700" />
+                </Button>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  Browse Jobs
+                </h1>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+              {/* Search Bar */}
+              <div className="relative mb-4">
+                <Search
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  size={20}
+                />
+                <Input
+                  placeholder="Search for jobs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white"
+                />
+                <button
+                  onClick={() => setShowFilters(true)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                >
+                  <Filter className="text-gray-400" size={20} />
+                </button>
+              </div>
+
+              {/* Jobs List */}
+              <div className="space-y-4">
+                {jobs.map((job) => (
+                  <div
+                    key={job.job_id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                  >
+                    <div className="flex items-start gap-4">
                       <img
                         src={job.profile_photo}
                         alt={job.company_name}
-                        className="w-12 h-12 rounded-full object-cover"
+                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                       />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-sm text-gray-500">
-                        {job.company_name[0]}
-                      </div>
-                    )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1">
+                              {job.company_name}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-1">
+                              {job.role} • {job.industry}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {job.location}
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="flex-1">
-                      <h2 className="font-semibold text-gray-900">{job.company_name}</h2>
-                      <p className="text-sm text-gray-700">{job.industry}</p>
-                      <p className="text-sm text-gray-600">
-                        {job.suburb_city}, {job.state}{" "}
-                        {job.postcode ? `(${job.postcode})` : ""}
-                      </p>
-                      <p className="text-sm text-gray-800 mt-1">
-                        {job.employment_type} • {job.salary_range || "Rate not specified"}
-                      </p>
+                        <div className="flex items-center gap-3 mt-4">
+                          <Button
+                            onClick={() => handleViewJob(job.job_id)}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                          >
+                            View Job
+                          </Button>
+                          <button
+                            onClick={() => handleLikeJob(job.job_id)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-slate-300 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={20}
+                              className={
+                                job.isLiked
+                                  ? "text-slate-800 fill-slate-800"
+                                  : "text-slate-800"
+                              }
+                            />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))}
+              </div>
+            </div>
           </div>
+
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
+            <BottomNavigation />
+          </div>
+
+          <LikeConfirmationModal
+            candidateName={likedJobTitle}
+            onClose={handleCloseLikeModal}
+            isVisible={showLikeModal}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-export default BrowseJobs;
+export default WHVBrowseJobs;
