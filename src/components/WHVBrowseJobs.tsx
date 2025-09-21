@@ -1,3 +1,4 @@
+// src/pages/WHV/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
@@ -15,6 +16,8 @@ interface JobCard {
   role: string;
   industry: string;
   location: string;
+  salary: string;
+  employment_type: string;
   isLiked?: boolean;
 }
 
@@ -41,7 +44,7 @@ const WHVBrowseJobs: React.FC = () => {
     const fetchJobs = async () => {
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode")
+        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode, salary_range, employment_type")
         .eq("job_status", "active");
 
       if (jobsError) {
@@ -95,6 +98,8 @@ const WHVBrowseJobs: React.FC = () => {
           role: roleData?.role || "Role",
           industry: roleData?.industry?.name || "Industry",
           location,
+          salary: job.salary_range || "Rate not specified",
+          employment_type: job.employment_type || "N/A",
           isLiked: likedIds.includes(job.job_id),
         };
       });
@@ -159,6 +164,21 @@ const WHVBrowseJobs: React.FC = () => {
   const handleCloseLikeModal = () => {
     setShowLikeModal(false);
     setLikedJobTitle("");
+  };
+
+  const getJobTypeColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "full-time":
+        return "bg-blue-100 text-blue-700";
+      case "part-time":
+        return "bg-purple-100 text-purple-700";
+      case "casual":
+        return "bg-orange-100 text-orange-700";
+      case "seasonal":
+        return "bg-green-100 text-green-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
   };
 
   if (showFilters) {
@@ -232,15 +252,29 @@ const WHVBrowseJobs: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 text-lg mb-1">
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1 truncate">
                               {job.company_name}
                             </h3>
-                            <p className="text-sm text-gray-600 mb-1">
+                            <p className="text-sm text-gray-600 mb-1 truncate">
                               {job.role} • {job.industry}
                             </p>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-gray-600 truncate">
                               {job.location}
                             </p>
+
+                            {/* Badges */}
+                            <div className="flex items-center gap-2 mt-2">
+                              <span
+                                className={`px-2 py-1 text-xs font-medium rounded-full ${getJobTypeColor(
+                                  job.employment_type
+                                )}`}
+                              >
+                                {job.employment_type}
+                              </span>
+                              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                                💰 {job.salary}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
