@@ -17,7 +17,7 @@ interface Employer {
   profileImage: string;
 }
 
-const WHVBrowseEmployers: React.FC = () => {
+const WHVBrowseJobs: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -196,4 +196,4 @@ const WHVBrowseEmployers: React.FC = () => {
   );
 };
 
-export default WHVBrowseEmployers;
+export default WHVBrowseJobs;

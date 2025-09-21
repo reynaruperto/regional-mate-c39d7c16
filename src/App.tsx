@@ -51,7 +51,7 @@ import WHVEmployerFullProfile from "./pages/WHVEmployerFullProfile";
 import WHVEmployerJobs from "./pages/WHVEmployerJobs";
 import WHVEmployerJobDetails from "./pages/WHVEmployerJobDetails";
 import WHVJobDetails from "./pages/WHVJobDetails";
-import WHVBrowseEmployers from "./pages/WHVBrowseEmployers";
+import WHVBrowseJobs from "./pages/WHVBrowseJobs";
 import WHVPreviewMatchCard from "./pages/WHVPreviewMatchCard";
 import SignInAsModal from "./components/SignInAsModal";
 
