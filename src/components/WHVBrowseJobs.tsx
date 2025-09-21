@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Job {
   job_id: number;
+  description: string;
   state: string;
   suburb_city: string;
   postcode: string | null;
@@ -30,16 +31,20 @@ const BrowseJobs: React.FC = () => {
         .select(
           `
           job_id,
+          description,
           state,
           suburb_city,
           postcode,
           employment_type,
           salary_range,
-          employer:employer!job_user_id_fkey (
-            company_name,
-            profile_photo,
-            industry:industry (
-              name
+          profile:profile (
+            user_id,
+            employer:employer (
+              company_name,
+              profile_photo,
+              industry:industry (
+                name
+              )
             )
           )
         `
@@ -50,16 +55,18 @@ const BrowseJobs: React.FC = () => {
         console.error("Error fetching jobs:", error);
         setJobs([]);
       } else {
+        console.log("DEBUG jobs:", data); // 🔍 check raw response
         const mapped = (data || []).map((j: any) => ({
           job_id: j.job_id,
+          description: j.description,
           state: j.state,
           suburb_city: j.suburb_city,
           postcode: j.postcode,
           employment_type: j.employment_type,
           salary_range: j.salary_range,
-          company_name: j.employer?.company_name || "Unknown company",
-          profile_photo: j.employer?.profile_photo || null,
-          industry: j.employer?.industry?.name || "General",
+          company_name: j.profile?.employer?.company_name || "Unknown company",
+          profile_photo: j.profile?.employer?.profile_photo || null,
+          industry: j.profile?.employer?.industry?.name || "General",
         }));
         setJobs(mapped);
       }
