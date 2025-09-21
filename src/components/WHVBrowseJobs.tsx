@@ -38,11 +38,14 @@ const BrowseJobs: React.FC = () => {
           postcode,
           employment_type,
           salary_range,
-          employer:employer!job_user_id_fkey (
-            company_name,
-            profile_photo,
-            industry:industry (
-              name
+          profile:profile (
+            user_id,
+            employer:employer (
+              company_name,
+              profile_photo,
+              industry:industry (
+                name
+              )
             )
           )
         `
@@ -61,9 +64,9 @@ const BrowseJobs: React.FC = () => {
           postcode: j.postcode,
           employment_type: j.employment_type,
           salary_range: j.salary_range,
-          company_name: j.employer?.company_name || "Unknown company",
-          profile_photo: j.employer?.profile_photo || null,
-          industry: j.employer?.industry?.name || "General",
+          company_name: j.profile?.employer?.company_name || "Unknown company",
+          profile_photo: j.profile?.employer?.profile_photo || null,
+          industry: j.profile?.employer?.industry?.name || "General",
         }));
         setJobs(mapped);
       }
