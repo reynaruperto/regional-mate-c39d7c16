@@ -15,6 +15,7 @@ interface JobCard {
   profile_photo: string;
   role: string;
   industry: string;
+  isLiked?: boolean;
 }
 
 const WHVBrowseJobs: React.FC = () => {
@@ -27,7 +28,7 @@ const WHVBrowseJobs: React.FC = () => {
 
   useEffect(() => {
     const fetchJobs = async () => {
-      // 1️⃣ Fetch jobs
+      // 1️⃣ Jobs
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
         .select("job_id, user_id, industry_role_id, start_date, job_status")
@@ -40,35 +41,45 @@ const WHVBrowseJobs: React.FC = () => {
 
       if (!jobsData) return;
 
-      // 2️⃣ Fetch employer profiles
-      const { data: profiles } = await supabase
-        .from("profile")
+      // 2️⃣ Employers
+      const { data: employers, error: empError } = await supabase
+        .from("employer")
         .select("user_id, company_name, profile_photo");
 
-      // 3️⃣ Fetch industry roles
+      if (empError) {
+        console.error("Error fetching employers:", empError);
+      }
+
+      // 3️⃣ Industry Roles
       const { data: industryRoles } = await supabase
         .from("industry_role")
         .select("industry_role_id, role, industry ( name )");
 
-      // 4️⃣ Merge into JobCard[]
+      // 4️⃣ Merge
       const mapped: JobCard[] = jobsData.map((job) => {
-        const profile = profiles?.find((p) => p.user_id === job.user_id);
+        const employer = employers?.find((e) => e.user_id === job.user_id);
         const roleData = industryRoles?.find(
           (r) => r.industry_role_id === job.industry_role_id
         );
 
-        // Photo URL
-        const photoUrl = profile?.profile_photo
-          ? supabase.storage.from("profile_photo").getPublicUrl(profile.profile_photo).data.publicUrl
+        // Employer name
+        const employerName = employer?.company_name || "Unknown Employer";
+
+        // Employer photo
+        const photoUrl = employer?.profile_photo
+          ? supabase.storage
+              .from("profile_photo")
+              .getPublicUrl(employer.profile_photo).data.publicUrl
           : "/placeholder.png";
 
         return {
           job_id: job.job_id,
           start_date: job.start_date,
-          company_name: profile?.company_name || "Unknown Employer",
+          company_name: employerName,
           profile_photo: photoUrl,
           role: roleData?.role || "Role",
           industry: roleData?.industry?.name || "Industry",
+          isLiked: false,
         };
       });
 
@@ -79,9 +90,15 @@ const WHVBrowseJobs: React.FC = () => {
   }, []);
 
   const handleLikeJob = (jobId: number) => {
-    const job = jobs.find((j) => j.job_id === jobId);
-    if (job) {
-      setLikedJobTitle(job.role);
+    setJobs((prev) =>
+      prev.map((job) =>
+        job.job_id === jobId ? { ...job, isLiked: !job.isLiked } : job
+      )
+    );
+
+    const likedJob = jobs.find((j) => j.job_id === jobId);
+    if (likedJob && !likedJob.isLiked) {
+      setLikedJobTitle(likedJob.role);
       setShowLikeModal(true);
     }
   };
@@ -97,7 +114,10 @@ const WHVBrowseJobs: React.FC = () => {
 
   if (showFilters) {
     return (
-      <WHVFilterPage onClose={() => setShowFilters(false)} onApplyFilters={() => {}} />
+      <WHVFilterPage
+        onClose={() => setShowFilters(false)}
+        onApplyFilters={() => {}}
+      />
     );
   }
 
@@ -114,7 +134,9 @@ const WHVBrowseJobs: React.FC = () => {
               <button onClick={() => navigate("/whv/dashboard")}>
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
-              <h1 className="text-xl font-semibold text-gray-900">Browse Jobs</h1>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Browse Jobs
+              </h1>
             </div>
 
             {/* Search Bar */}
@@ -137,7 +159,10 @@ const WHVBrowseJobs: React.FC = () => {
             {/* Jobs List */}
             <div className="space-y-4 pb-20">
               {jobs.map((job) => (
-                <div key={job.job_id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <div
+                  key={job.job_id}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                >
                   <div className="flex items-start gap-4">
                     <img
                       src={job.profile_photo}
@@ -164,9 +189,20 @@ const WHVBrowseJobs: React.FC = () => {
                         </Button>
                         <button
                           onClick={() => handleLikeJob(job.job_id)}
-                          className="h-11 w-11 flex-shrink-0 bg-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all duration-200 shadow-sm"
+                          className={`h-11 w-11 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 shadow-sm ${
+                            job.isLiked
+                              ? "bg-orange-100"
+                              : "bg-slate-800"
+                          }`}
                         >
-                          <Heart size={18} className="text-white" />
+                          <Heart
+                            size={18}
+                            className={
+                              job.isLiked
+                                ? "text-orange-500 fill-orange-500"
+                                : "text-white"
+                            }
+                          />
                         </button>
                       </div>
                     </div>
