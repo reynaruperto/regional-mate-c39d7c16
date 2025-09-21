@@ -25,39 +25,51 @@ const WHVBrowseJobs: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobTitle, setLikedJobTitle] = useState("");
   const [jobs, setJobs] = useState<JobCard[]>([]);
+  const [whvId, setWhvId] = useState<string | null>(null);
 
+  // ✅ Get logged-in WHV ID
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setWhvId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // ✅ Fetch jobs + likes
   useEffect(() => {
     const fetchJobs = async () => {
-      // 1️⃣ Jobs
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select(
-          "job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode"
-        )
+        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode")
         .eq("job_status", "active");
 
       if (jobsError) {
         console.error("Error fetching jobs:", jobsError);
         return;
       }
-
       if (!jobsData) return;
 
-      // 2️⃣ Employers
-      const { data: employers, error: empError } = await supabase
+      const { data: employers } = await supabase
         .from("employer")
         .select("user_id, company_name, profile_photo");
 
-      if (empError) {
-        console.error("Error fetching employers:", empError);
-      }
-
-      // 3️⃣ Industry Roles
       const { data: industryRoles } = await supabase
         .from("industry_role")
         .select("industry_role_id, role, industry ( name )");
 
-      // 4️⃣ Merge
+      // ✅ Fetch likes for this WHV
+      let likedIds: number[] = [];
+      if (whvId) {
+        const { data: likes } = await supabase
+          .from("likes")
+          .select("liked_job_post_id")
+          .eq("liker_id", whvId)
+          .eq("liker_type", "whv");
+
+        likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+      }
+
       const mapped: JobCard[] = jobsData.map((job) => {
         const employer = employers?.find((e) => e.user_id === job.user_id);
         const roleData = industryRoles?.find(
@@ -83,27 +95,60 @@ const WHVBrowseJobs: React.FC = () => {
           role: roleData?.role || "Role",
           industry: roleData?.industry?.name || "Industry",
           location,
-          isLiked: false,
+          isLiked: likedIds.includes(job.job_id),
         };
       });
 
       setJobs(mapped);
     };
 
-    fetchJobs();
-  }, []);
+    if (whvId) fetchJobs();
+  }, [whvId]);
 
-  const handleLikeJob = (jobId: number) => {
-    setJobs((prev) =>
-      prev.map((job) =>
-        job.job_id === jobId ? { ...job, isLiked: !job.isLiked } : job
-      )
-    );
+  // ✅ Toggle Like (persistent)
+  const handleLikeJob = async (jobId: number) => {
+    if (!whvId) return;
 
-    const likedJob = jobs.find((j) => j.job_id === jobId);
-    if (likedJob && !likedJob.isLiked) {
-      setLikedJobTitle(likedJob.role);
-      setShowLikeModal(true);
+    const job = jobs.find((j) => j.job_id === jobId);
+    if (!job) return;
+
+    try {
+      if (job.isLiked) {
+        // 🔄 Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", whvId)
+          .eq("liked_job_post_id", jobId)
+          .eq("liker_type", "whv");
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: false } : j
+          )
+        );
+      } else {
+        // ❤️ Like
+        await supabase.from("likes").upsert(
+          {
+            liker_id: whvId,
+            liker_type: "whv",
+            liked_job_post_id: jobId,
+          },
+          { onConflict: "liker_id,liked_job_post_id,liker_type" }
+        );
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: true } : j
+          )
+        );
+
+        setLikedJobTitle(job.role);
+        setShowLikeModal(true);
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
     }
   };
 
@@ -150,10 +195,7 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div
-              className="flex-1 px-6 overflow-y-auto"
-              style={{ paddingBottom: "100px" }}
-            >
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {/* Search Bar */}
               <div className="relative mb-4">
                 <Search
