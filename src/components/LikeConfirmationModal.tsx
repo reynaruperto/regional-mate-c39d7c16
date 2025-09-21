@@ -3,13 +3,15 @@ import { Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface LikeConfirmationModalProps {
-  candidateName: string;
+  jobTitle: string;        // e.g. "Barista"
+  companyName: string;     // e.g. "Starbucks"
   onClose: () => void;
   isVisible: boolean;
 }
 
 const LikeConfirmationModal: React.FC<LikeConfirmationModalProps> = ({ 
-  candidateName, 
+  jobTitle, 
+  companyName, 
   onClose, 
   isVisible 
 }) => {
@@ -28,8 +30,12 @@ const LikeConfirmationModal: React.FC<LikeConfirmationModalProps> = ({
         {/* Message */}
         <div className="text-center mb-6">
           <p className="text-gray-900 font-medium leading-relaxed">
-            You hearted {candidateName}
-            {"'"}s profile! They{"'"}ll be notified, and if they heart you back, you{"'"}ll unlock full profile access.
+            You hearted <span className="font-semibold">{jobTitle}</span> at{" "}
+            <span className="font-semibold">{companyName}</span>!
+          </p>
+          <p className="text-gray-600 text-sm mt-2">
+            The employer will be notified. If they heart you back, you’ll unlock
+            full connection.
           </p>
         </div>
 
