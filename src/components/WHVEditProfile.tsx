@@ -630,25 +630,37 @@ const WHVEditProfile: React.FC = () => {
         await supabase.from("maker_work_experience").insert(workRows);
       }
 
-      // References (use correct column names + error check)
+      // References (use correct column names + validate profile FK)
       await supabase.from("maker_reference").delete().eq("user_id", user.id);
 
       if (jobReferences.length > 0) {
+        const { data: profileRow, error: profileError } = await supabase
+          .from("profile")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error("Profile lookup failed:", profileError);
+          return;
+        }
+        if (!profileRow) {
+          console.error("No profile found for user:", user.id);
+          return;
+        }
+
         const refRows = jobReferences.map((ref) => ({
-          user_id: user.id,
+          user_id: profileRow.user_id, // ✅ satisfies FK
           name: ref.name?.trim() || null,
           business_name: ref.businessName?.trim() || null,
           email: ref.email?.trim() || null,
-          mobile_num: ref.phone?.trim() || null, // ✅ correct column
+          mobile_num: ref.phone?.trim() || null,
           role: ref.role?.trim() || null,
         }));
 
-        const { error: refError } = await supabase
-          .from("maker_reference")
-          .insert(refRows);
-
-        if (refError) {
-          console.error("Error saving references:", refError);
+        const { error } = await supabase.from("maker_reference").insert(refRows);
+        if (error) {
+          console.error("Error saving references:", error);
         }
       }
 
