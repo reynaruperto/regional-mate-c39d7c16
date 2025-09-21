@@ -16,21 +16,33 @@ interface Job {
   company_name: string;
   profile_photo: string | null;
   industry: string;
+  isLiked?: boolean;
 }
 
 const BrowseJobs: React.FC = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [whvId, setWhvId] = useState<string | null>(null);
 
+  // ✅ Get logged-in WHV ID
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setWhvId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // ✅ Fetch jobs and likes
   useEffect(() => {
     const fetchJobs = async () => {
+      if (!whvId) return;
       setLoading(true);
 
       const { data, error } = await supabase
         .from("job")
-        .select(
-          `
+        .select(`
           job_id,
           description,
           state,
@@ -48,34 +60,90 @@ const BrowseJobs: React.FC = () => {
               )
             )
           )
-        `
-        )
+        `)
         .eq("job_status", "active");
 
       if (error) {
         console.error("Error fetching jobs:", error);
         setJobs([]);
-      } else {
-        const mapped = (data || []).map((j: any) => ({
-          job_id: j.job_id,
-          description: j.description,
-          state: j.state,
-          suburb_city: j.suburb_city,
-          postcode: j.postcode,
-          employment_type: j.employment_type,
-          salary_range: j.salary_range,
-          company_name: j.profile?.employer?.company_name || "Unknown company",
-          profile_photo: j.profile?.employer?.profile_photo || null,
-          industry: j.profile?.employer?.industry?.name || "General",
-        }));
-        setJobs(mapped);
+        setLoading(false);
+        return;
       }
 
+      // Fetch likes for this WHV
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_job_post_id")
+        .eq("liker_id", whvId)
+        .eq("liker_type", "whv");
+
+      const likedJobIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+      // Map jobs
+      const mapped = (data || []).map((j: any) => ({
+        job_id: j.job_id,
+        description: j.description,
+        state: j.state,
+        suburb_city: j.suburb_city,
+        postcode: j.postcode,
+        employment_type: j.employment_type,
+        salary_range: j.salary_range,
+        company_name: j.profile?.employer?.company_name || "Unknown company",
+        profile_photo: j.profile?.employer?.profile_photo || null,
+        industry: j.profile?.employer?.industry?.name || "General",
+        isLiked: likedJobIds.includes(j.job_id),
+      }));
+
+      setJobs(mapped);
       setLoading(false);
     };
 
     fetchJobs();
-  }, []);
+  }, [whvId]);
+
+  // ✅ Toggle like persistence
+  const handleLikeJob = async (jobId: number) => {
+    if (!whvId) return;
+
+    const job = jobs.find((j) => j.job_id === jobId);
+    if (!job) return;
+
+    try {
+      if (job.isLiked) {
+        // 🔄 Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", whvId)
+          .eq("liked_job_post_id", jobId)
+          .eq("liker_type", "whv");
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: false } : j
+          )
+        );
+      } else {
+        // ❤️ Like
+        await supabase.from("likes").upsert(
+          {
+            liker_id: whvId,
+            liker_type: "whv",
+            liked_job_post_id: jobId,
+          },
+          { onConflict: "liker_id,liked_job_post_id,liker_type" }
+        );
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: true } : j
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
@@ -132,9 +200,19 @@ const BrowseJobs: React.FC = () => {
                         <Button size="sm" variant="outline">
                           View Profile
                         </Button>
-                        <Button size="sm" variant="ghost" className="text-red-500">
-                          <Heart size={18} />
-                        </Button>
+                        <button
+                          onClick={() => handleLikeJob(job.job_id)}
+                          className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                        >
+                          <Heart
+                            size={20}
+                            className={
+                              job.isLiked
+                                ? "text-orange-500 fill-orange-500"
+                                : "text-orange-500"
+                            }
+                          />
+                        </button>
                       </div>
                     </div>
                   </div>
