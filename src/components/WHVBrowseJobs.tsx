@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Job {
   job_id: number;
-  user_id: string;
   start_date: string;
   industry_role?: {
     role: string;
@@ -18,7 +17,7 @@ interface Job {
   };
   employer?: {
     company_name: string;
-    profile_photo_url?: string;
+    profile_photo?: string;
   };
 }
 
@@ -30,14 +29,13 @@ const WHVBrowseJobs: React.FC = () => {
   const [likedJobTitle, setLikedJobTitle] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // Fetch jobs + employer + industry/role
+  // Fetch jobs with employer & role info
   useEffect(() => {
     const fetchJobs = async () => {
       const { data, error } = await supabase
         .from('job')
         .select(`
           job_id,
-          user_id,
           start_date,
           industry_role (
             role,
@@ -45,7 +43,7 @@ const WHVBrowseJobs: React.FC = () => {
           ),
           employer (
             company_name,
-            profile_photo_url
+            profile_photo
           )
         `)
         .eq('job_status', 'active')
@@ -125,7 +123,7 @@ const WHVBrowseJobs: React.FC = () => {
                   <div className="flex items-start gap-4">
                     {/* Employer photo */}
                     <img
-                      src={job.employer?.profile_photo_url || '/placeholder.png'}
+                      src={job.employer?.profile_photo || '/placeholder.png'}
                       alt={job.employer?.company_name || 'Employer'}
                       className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                     />
