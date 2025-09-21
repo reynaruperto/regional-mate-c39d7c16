@@ -1,267 +1,472 @@
-import React from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  MapPin,
+  Calendar,
+  Clock,
+  DollarSign,
+  User,
+  Heart,
+  Image,
+  Award,
+  Globe,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 
-interface JobDetail {
-  id: string;
-  employerId: string;
-  employerName: string;
-  location: string;
-  title: string;
+interface JobDetails {
+  job_id: number;
   description: string;
-  industryType: string;
-  requirements: string;
-  jobDetails: {
-    type: string;
-    startDate: string;
-    endDate: string;
-    payRate: string;
-    hours: string;
-  };
+  employment_type: string;
+  salary_range: string;
+  req_experience: string;
+  state: string;
+  suburb_city: string;
+  postcode: string;
+  start_date: string;
+  job_status: string;
+  role: string;
+  company_name: string;
+  tagline: string;
+  company_photo: string | null;
+  facilities: string[];
+  licenses: string[];
+  website: string;
+  isLiked?: boolean;
 }
 
-const JobDetails: React.FC = () => {
+const WHVJobPreview: React.FC = () => {
   const navigate = useNavigate();
-  const { employerId, jobId } = useParams();
-  const [searchParams] = useSearchParams();
+  const { jobId } = useParams();
+  const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [whvId, setWhvId] = useState<string | null>(null);
+  const [showLikeModal, setShowLikeModal] = useState(false);
 
-  // Mock job details data
-  const jobDetails: { [key: string]: { [key: string]: JobDetail } } = {
-    '1': { // Kangafarm jobs
-      '1': {
-        id: '1',
-        employerId: '1',
-        employerName: 'KANGAFARM',
-        location: 'Clontarf, Queensland 4017',
-        title: 'Fruit Picker',
-        description: 'We are looking for hardworking and reliable WHV holders to join our team for seasonal fruit picking. Duties include harvesting, sorting, and packing fruit. This role is outdoors and requires good physical fitness. Previous experience is welcome but not required. Accommodation is available on site at discounted rates.',
-        industryType: 'Agriculture and Farming',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-White Card preferred but not essential\n-Prior fruit-picking experience is an advantage\n-Ability to work outdoors in all weather conditions\n-Physically fit and able to lift up to 20kg',
-        jobDetails: {
-          type: 'Casual / Seasonal / Full-time',
-          startDate: '10 September 2025',
-          endDate: '30 November 2025',
-          payRate: '$28/hour + super',
-          hours: '30-38 hours per week'
+  // ✅ Logged-in WHV ID
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) setWhvId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // ✅ Fetch job details
+  useEffect(() => {
+    const fetchJobDetails = async () => {
+      if (!jobId) return;
+
+      try {
+        // 1️⃣ Job + role
+        const { data: job, error: jobError } = await supabase
+          .from("job")
+          .select(
+            `
+            job_id,
+            description,
+            employment_type,
+            salary_range,
+            req_experience,
+            state,
+            suburb_city,
+            postcode,
+            start_date,
+            job_status,
+            industry_role ( role, industry(name) ),
+            user_id
+          `
+          )
+          .eq("job_id", parseInt(jobId))
+          .maybeSingle();
+
+        if (jobError || !job) {
+          console.error("Job fetch error:", jobError);
+          return;
         }
-      },
-      '2': {
-        id: '2',
-        employerId: '1',
-        employerName: 'KANGAFARM',
-        location: 'Clontarf, Queensland 4017',
-        title: 'Farm Hand',
-        description: 'Join our farming team as a general farm hand. Responsibilities include general farm maintenance, animal care, equipment operation, and assisting with various farming activities. This is an ongoing position suitable for those looking for stable farm work.',
-        industryType: 'Agriculture and Farming',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-Previous farm experience preferred\n-Ability to operate basic farm equipment\n-Physical fitness and stamina required\n-Reliable and punctual',
-        jobDetails: {
-          type: 'Full-time / Ongoing',
-          startDate: 'Immediate start available',
-          endDate: 'Ongoing',
-          payRate: '$26/hour + super',
-          hours: '38-40 hours per week'
+
+        // 2️⃣ Employer details
+        const { data: employer } = await supabase
+          .from("employer")
+          .select("company_name, tagline, profile_photo, website")
+          .eq("user_id", job.user_id)
+          .maybeSingle();
+
+        let companyPhoto: string | null = null;
+        if (employer?.profile_photo) {
+          let photoPath = employer.profile_photo;
+          if (photoPath.includes("/profile_photo/")) {
+            photoPath = photoPath.split("/profile_photo/")[1];
+          }
+          const { data: signed } = await supabase.storage
+            .from("profile_photo")
+            .createSignedUrl(photoPath, 3600);
+          companyPhoto = signed?.signedUrl || null;
         }
-      },
-      '3': {
-        id: '3',
-        employerId: '1',
-        employerName: 'KANGAFARM',
-        location: 'Clontarf, Queensland 4017',
-        title: 'Tractor Driver',
-        description: 'Experienced tractor driver needed for our farming operations. Must have experience operating various farm machinery and tractors. Responsible for field preparation, planting, and harvest operations.',
-        industryType: 'Agriculture and Farming',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-Minimum 2 years tractor/machinery experience\n-Valid drivers license required\n-Mechanical knowledge preferred\n-Safety conscious and reliable',
-        jobDetails: {
-          type: 'Seasonal / Full-time',
-          startDate: '15 May 2025',
-          endDate: '30 September 2025',
-          payRate: '$32/hour + super',
-          hours: '40+ hours per week'
+
+        // 3️⃣ Facilities (join employer_facility → facility)
+        const { data: facilityRows, error: facilityError } = await supabase
+          .from("employer_facility")
+          .select(
+            `
+            facility_id,
+            facility ( name )
+          `
+          )
+          .eq("user_id", job.user_id);
+
+        if (facilityError) {
+          console.error("Facility fetch error:", facilityError);
         }
+        console.log("Facilities for employer:", facilityRows);
+
+        const facilities =
+          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
+
+        // 4️⃣ Licenses
+        const { data: licenseRows, error: licenseError } = await supabase
+          .from("job_license")
+          .select("license ( name )")
+          .eq("job_id", job.job_id);
+
+        if (licenseError) {
+          console.error("License fetch error:", licenseError);
+        }
+
+        const licenses =
+          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
+
+        // 5️⃣ Check if liked
+        let isLiked = false;
+        if (whvId) {
+          const { data: like } = await supabase
+            .from("likes")
+            .select("id")
+            .eq("liker_id", whvId)
+            .eq("liked_job_post_id", job.job_id)
+            .eq("liker_type", "whv")
+            .maybeSingle();
+          isLiked = !!like;
+        }
+
+        setJobDetails({
+          job_id: job.job_id,
+          description: job.description || "No description available",
+          employment_type: job.employment_type || "N/A",
+          salary_range: job.salary_range || "N/A",
+          req_experience: job.req_experience || "N/A",
+          state: job.state || "N/A",
+          suburb_city: job.suburb_city || "N/A",
+          postcode: job.postcode || "",
+          start_date: job.start_date || new Date().toISOString(),
+          job_status: job.job_status || "draft",
+          role: job.industry_role?.role || "Unknown Role",
+          company_name: employer?.company_name || "Unknown Company",
+          tagline: employer?.tagline || "No tagline provided",
+          company_photo: companyPhoto,
+          facilities,
+          licenses,
+          website: employer?.website || "Not applicable",
+          isLiked,
+        });
+      } catch (err) {
+        console.error("Error fetching job preview:", err);
+      } finally {
+        setLoading(false);
       }
-    },
-    '2': { // Sunny Wines jobs
-      '1': {
-        id: '1',
-        employerId: '2',
-        employerName: 'SUNNY WINES',
-        location: 'Sunshine Coast, 4551',
-        title: 'Farm Supervisor',
-        description: 'Join our boutique winery team as a Farm Supervisor. Oversee daily vineyard operations including grape cultivation, harvesting, and quality control. You will manage a small team of workers during peak seasons and ensure compliance with organic farming standards. This role combines hands-on farm work with leadership responsibilities.',
-        industryType: 'Wine Production',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-Previous supervisory or team leadership experience required\n-Knowledge of viticulture or agriculture preferred\n-Ability to work outdoors in various weather conditions\n-Strong communication and organizational skills\n-Physical fitness for farm work',
-        jobDetails: {
-          type: 'Seasonal / Full-time',
-          startDate: '5 October 2025',
-          endDate: '30 March 2026',
-          payRate: '$30/hour + super',
-          hours: '35-42 hours per week'
-        }
-      },
-      '2': {
-        id: '2',
-        employerId: '2',
-        employerName: 'SUNNY WINES',
-        location: 'Sunshine Coast, 4551',
-        title: 'Wine Production Assistant',
-        description: 'Support our wine production team in creating premium wines. Duties include grape processing, fermentation monitoring, bottling operations, and cellar maintenance. Training will be provided on wine-making techniques and quality control processes. Perfect opportunity to learn about the wine industry while working in a beautiful location.',
-        industryType: 'Wine Production',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-Interest in wine production and agriculture\n-Attention to detail and quality focused\n-Ability to follow precise instructions and procedures\n-Physical ability to lift up to 25kg\n-Reliable and punctual attendance',
-        jobDetails: {
-          type: 'Casual / Seasonal',
-          startDate: '15 October 2025',
-          endDate: '15 April 2026',
-          payRate: '$26/hour + super',
-          hours: '30-35 hours per week'
-        }
+    };
+
+    if (whvId) fetchJobDetails();
+  }, [jobId, whvId]);
+
+  // ✅ Toggle Like
+  const handleLikeJob = async () => {
+    if (!whvId || !jobDetails) return;
+
+    try {
+      if (jobDetails.isLiked) {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", whvId)
+          .eq("liked_job_post_id", jobDetails.job_id)
+          .eq("liker_type", "whv");
+
+        setJobDetails({ ...jobDetails, isLiked: false });
+      } else {
+        await supabase.from("likes").upsert(
+          {
+            liker_id: whvId,
+            liker_type: "whv",
+            liked_job_post_id: jobDetails.job_id,
+          },
+          { onConflict: "liker_id,liked_job_post_id,liker_type" }
+        );
+
+        setJobDetails({ ...jobDetails, isLiked: true });
+        setShowLikeModal(true);
       }
-    },
-    '3': { // Oakridge Farm jobs
-      '1': {
-        id: '1',
-        employerId: '3',
-        employerName: 'OAKRIDGE FARM',
-        location: 'Toowoomba, 4350',
-        title: 'Dairy Farm Assistant',
-        description: 'Join our modern dairy operation and learn sustainable farming practices. Responsibilities include milking cows, feeding livestock, maintaining clean facilities, and monitoring animal health. We use state-of-the-art equipment and focus on animal welfare. Great opportunity for those interested in agriculture and working with animals.',
-        industryType: 'Agriculture and Farming',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-Interest in working with animals\n-Early morning availability (4:30 AM starts)\n-Physical fitness for farm work\n-Reliable transportation preferred\n-Willingness to learn new skills',
-        jobDetails: {
-          type: 'Full-time / Ongoing',
-          startDate: '1 October 2025',
-          endDate: 'Ongoing',
-          payRate: '$30/hour + super',
-          hours: '40 hours per week'
-        }
-      },
-      '2': {
-        id: '2',
-        employerId: '3',
-        employerName: 'OAKRIDGE FARM',
-        location: 'Toowoomba, 4350',
-        title: 'Farm Maintenance',
-        description: 'Maintain and repair farm infrastructure, equipment, and facilities. Duties include fence repairs, equipment maintenance, building upkeep, and general farm improvements. Some mechanical knowledge is beneficial but training will be provided. Work alongside experienced team members in a supportive environment.',
-        industryType: 'Agriculture and Farming',
-        requirements: '-Must hold a valid Working Holiday Visa (417/462)\n-Basic mechanical or handyman skills preferred\n-Own basic tools is an advantage\n-Problem-solving abilities\n-Physical fitness for manual work\n-Valid driver\'s license preferred',
-        jobDetails: {
-          type: 'Full-time / Contract',
-          startDate: '20 September 2025',
-          endDate: '20 December 2025',
-          payRate: '$28/hour + super',
-          hours: '38 hours per week'
-        }
-      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
     }
   };
 
-  const job = jobDetails[employerId || '1']?.[jobId || '1'];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
 
-  const handleViewEmployerProfile = () => {
-    const fromPage = searchParams.get('from');
-    const employerIdParam = searchParams.get('employerId');
-    const originalFrom = searchParams.get('originalFrom');
-    const tab = searchParams.get('tab');
-    navigate(`/employer/profile/${employerId}?from=${fromPage || 'job-details'}&employerId=${employerIdParam || employerId}&originalFrom=${originalFrom || 'whv-browse-employers'}&tab=${tab || ''}`);
-  };
-
-  if (!job) {
-    return <div>Job not found</div>;
+  if (!jobDetails) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Job not found</p>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone 16 Pro Max Frame */}
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* Phone frame */}
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
-          
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
-          <div className="px-4 py-3 flex-shrink-0">
-            <button onClick={() => navigate(-1)}>
-              <ArrowLeft size={24} className="text-gray-600" />
-            </button>
+          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-10 h-10"
+              onClick={() => navigate("/whv/browse-jobs")}
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
+            <div className="w-10"></div>
           </div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-4 pb-6">
-            {/* Job Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-              {/* Header */}
-              <div className="bg-orange-500 text-white p-4 text-center">
-                <h1 className="text-xl font-bold">{job.employerName}</h1>
-                <p className="text-sm opacity-90">{job.location}</p>
-                <p className="text-lg font-semibold mt-1">{job.title}</p>
+          {/* Content */}
+          <div className="flex-1 px-6 py-6 overflow-y-auto">
+            <div className="border-2 border-slate-800 rounded-2xl p-6 space-y-6">
+              {/* Company Header */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-28 h-28 rounded-full border-4 border-slate-800 overflow-hidden mb-3">
+                  {jobDetails.company_photo ? (
+                    <img
+                      src={jobDetails.company_photo}
+                      alt="Company"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <Image size={32} />
+                    </div>
+                  )}
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {jobDetails.company_name}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {jobDetails.tagline}
+                </p>
               </div>
 
-              {/* Content */}
-              <div className="p-4 space-y-4">
-                {/* Description */}
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Description:</h3>
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {job.description}
+              {/* Job Info */}
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  {jobDetails.role}
+                </h3>
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                    jobDetails.job_status === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {jobDetails.job_status}
+                </span>
+              </div>
+
+              {/* Job Details */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Employment type, salary, etc. */}
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <Clock className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Type
+                    </span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">
+                    {jobDetails.employment_type}
                   </p>
                 </div>
-
-                {/* Industry Type */}
-                <div>
-                  <span className="font-semibold text-gray-900">Industry Type: </span>
-                  <span className="text-gray-700">{job.industryType}</span>
-                </div>
-
-                {/* Requirements */}
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Requirements:</h3>
-                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                    {job.requirements}
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <DollarSign className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Salary
+                    </span>
                   </div>
+                  <p className="text-gray-900 font-semibold">
+                    {jobDetails.salary_range}
+                  </p>
                 </div>
-
-                {/* Job Details */}
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Job Details:</h3>
-                  <div className="space-y-1 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-900">Job Type: </span>
-                      <span className="text-gray-700">{job.jobDetails.type}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-900">Start Date: </span>
-                      <span className="text-gray-700">{job.jobDetails.startDate}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-900">End Date: </span>
-                      <span className="text-gray-700">{job.jobDetails.endDate}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-900">Pay Rate: </span>
-                      <span className="text-gray-700">{job.jobDetails.payRate}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-900">Hours: </span>
-                      <span className="text-gray-700">{job.jobDetails.hours}</span>
-                    </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <User className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Experience Required
+                    </span>
                   </div>
+                  <p className="text-gray-900 font-semibold">
+                    {jobDetails.req_experience}
+                  </p>
                 </div>
-
-                {/* Action Button */}
-                <div className="pt-4">
-                  <Button
-                    onClick={handleViewEmployerProfile}
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-full h-12"
-                  >
-                    View Employer Profile
-                  </Button>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-2">
+                    <Calendar className="w-5 h-5 text-slate-800 mr-2" />
+                    <span className="text-sm font-medium text-gray-600">
+                      Start Date
+                    </span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">
+                    {new Date(jobDetails.start_date).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
+
+              {/* Licenses */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Award className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    License Required
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No licenses required
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <MapPin className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Location
+                  </span>
+                </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
+                  {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Facilities */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Facilities
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full"
+                      >
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No facilities listed
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Website */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Globe className="w-5 h-5 text-slate-800 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Website
+                  </span>
+                </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.website}
+                </p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">
+                  Job Description
+                </h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-gray-700 leading-relaxed">
+                    {jobDetails.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Heart Button */}
+              <Button
+                onClick={handleLikeJob}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
+              >
+                <Heart
+                  size={18}
+                  className={
+                    jobDetails.isLiked
+                      ? "fill-red-500 text-red-500"
+                      : "text-white"
+                  }
+                />
+                {jobDetails.isLiked ? "Unlike Job" : "Heart to Match"}
+              </Button>
             </div>
           </div>
         </div>
+
+        {/* ✅ Modal INSIDE phone only (doesn't block scroll when hidden) */}
+        {showLikeModal && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto w-full h-full flex items-center justify-center">
+              <LikeConfirmationModal
+                jobTitle={jobDetails.role}
+                companyName={jobDetails.company_name}
+                onClose={() => setShowLikeModal(false)}
+                isVisible={showLikeModal}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default JobDetails;
+export default WHVJobPreview;
