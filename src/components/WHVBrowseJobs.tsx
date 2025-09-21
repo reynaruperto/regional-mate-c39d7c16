@@ -8,6 +8,13 @@ import WHVFilterPage from '@/components/WHVFilterPage';
 import LikeConfirmationModal from '@/components/LikeConfirmationModal';
 import { supabase } from '@/integrations/supabase/client';
 
+// Utility for generating public URLs
+const getPublicUrl = (path: string | null) => {
+  if (!path) return null;
+  const { data } = supabase.storage.from('profile_photo').getPublicUrl(path);
+  return data?.publicUrl || null;
+};
+
 interface Job {
   job_id: number;
   start_date: string;
@@ -123,7 +130,11 @@ const WHVBrowseJobs: React.FC = () => {
                   <div className="flex items-start gap-4">
                     {/* Employer photo */}
                     <img
-                      src={job.employer?.profile_photo || '/placeholder.png'}
+                      src={
+                        job.employer?.profile_photo
+                          ? getPublicUrl(job.employer.profile_photo)
+                          : '/placeholder.png'
+                      }
                       alt={job.employer?.company_name || 'Employer'}
                       className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                     />
