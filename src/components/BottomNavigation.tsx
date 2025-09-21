@@ -7,11 +7,12 @@ const BottomNavigation: React.FC = () => {
   const location = useLocation();
 
   // Check if we're on an employer or WHV page to show appropriate navigation
-  const isEmployerPage = location.pathname.includes('/employer') || 
-                         location.pathname === '/post-jobs' || 
-                         location.pathname === '/browse-candidates' ||
-                         location.pathname.startsWith('/employer');
-  
+  const isEmployerPage =
+    location.pathname.includes('/employer') ||
+    location.pathname === '/post-jobs' ||
+    location.pathname === '/browse-candidates' ||
+    location.pathname.startsWith('/employer');
+
   const employerNavItems = [
     { id: 'profile', label: 'Profile', icon: User, path: '/employer/dashboard' },
     { id: 'post-jobs', label: 'Post Jobs', icon: Briefcase, path: '/post-jobs' },
@@ -22,14 +23,16 @@ const BottomNavigation: React.FC = () => {
 
   const whvNavItems = [
     { id: 'profile', label: 'Profile', icon: User, path: '/whv/dashboard' },
-    { id: 'browse', label: 'Browse Employers', icon: Briefcase, path: '/whv/browse-employers' },
+    { id: 'browse', label: 'Browse Jobs', icon: Briefcase, path: '/whv/browse-jobs' }, // ✅ fixed
     { id: 'matches', label: 'Matches', icon: Heart, path: '/whv/matches' },
     { id: 'messages', label: 'Messages', icon: MessageCircle, path: '/whv/messages' },
   ];
 
   const navItems = isEmployerPage ? employerNavItems : whvNavItems;
 
-  const isActive = (path: string) => location.pathname === path;
+  // Active if current path starts with the nav item path (handles subroutes too)
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(path);
 
   return (
     <div className="py-2 border-t border-gray-200 bg-white rounded-b-[48px]">
@@ -37,7 +40,7 @@ const BottomNavigation: React.FC = () => {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
-          
+
           return (
             <button
               key={item.id}
