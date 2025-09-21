@@ -96,7 +96,7 @@ interface License {
 interface WorkExperience {
   id: string;
   industryId: number | null;
-  roleId: number | null;
+  roleId: number | null; // will map into position when saving
   company: string;
   location: string;
   startDate: string;
@@ -109,7 +109,7 @@ interface JobReference {
   name: string;
   businessName: string;
   email: string;
-  phone: string;
+  phone: string; // maps to mobile_num
   role: string;
 }
 
@@ -361,7 +361,7 @@ const WHVEditProfile: React.FC = () => {
           exp.map((e) => ({
             id: String(e.work_experience_id),
             industryId: e.industry_id,
-            roleId: null,
+            roleId: null, // later maps into position
             company: e.company || "",
             location: e.location || "",
             startDate: e.start_date || "",
@@ -371,7 +371,7 @@ const WHVEditProfile: React.FC = () => {
         );
       }
 
-      // References
+      // References ✅ fixed to mobile_num
       const { data: refs } = await supabase
         .from("maker_reference")
         .select("*")
@@ -383,7 +383,7 @@ const WHVEditProfile: React.FC = () => {
             name: r.name || "",
             businessName: r.business_name || "",
             email: r.email || "",
-            phone: r.mobile_num || "",
+            phone: r.mobile_num || "", // ✅ fixed
             role: r.role || "",
           }))
         );
