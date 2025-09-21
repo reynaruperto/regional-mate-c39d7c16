@@ -241,6 +241,32 @@ const WHVEditProfile: React.FC = () => {
         if (cn) setCountryId(cn.country_id);
       }
 
+      // Preferences
+      const { data: savedInd } = await supabase
+        .from("maker_pref_industry")
+        .select("industry_id")
+        .eq("user_id", user.id);
+      if (savedInd?.length) {
+        setSelectedIndustries(savedInd.map((i) => i.industry_id));
+      }
+
+      const { data: savedRoles } = await supabase
+        .from("maker_pref_industry_role")
+        .select("industry_role_id")
+        .eq("user_id", user.id);
+      if (savedRoles?.length) {
+        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
+      }
+
+      const { data: savedLocs } = await supabase
+        .from("maker_pref_location")
+        .select("state, suburb_city, postcode")
+        .eq("user_id", user.id);
+      if (savedLocs?.length) {
+        setPreferredStates([...new Set(savedLocs.map((l) => l.state))]);
+        setPreferredAreas(savedLocs.map((l) => `${l.suburb_city}::${l.postcode}`));
+      }
+
       // Work experience → map saved `position` to `roleId`
       const { data: exp } = await supabase
         .from("maker_work_experience")
@@ -300,11 +326,12 @@ const WHVEditProfile: React.FC = () => {
 
     loadData();
   }, []);
-  // ============= Handlers =============
+   // ============= Handlers =============
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
+  // Industries
   const handleIndustrySelect = (industryId: number) => {
     if (
       !selectedIndustries.includes(industryId) &&
@@ -361,7 +388,9 @@ const WHVEditProfile: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .filter(
+        (r) => r.state === state && selectedIndustries.includes(r.industry_id)
+      )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
@@ -528,7 +557,7 @@ const WHVEditProfile: React.FC = () => {
         }
       }
 
-      // Work experience
+      // Work experience (save role name into `position`)
       await supabase
         .from("maker_work_experience")
         .delete()
@@ -550,7 +579,7 @@ const WHVEditProfile: React.FC = () => {
           return {
             user_id: user.id,
             company: exp.company.trim(),
-            position: roleName, // ✅ save role name into `position`
+            position: roleName, // ✅ role name goes into DB column
             start_date: exp.startDate,
             end_date: exp.endDate,
             location: exp.location || null,
@@ -613,6 +642,8 @@ const WHVEditProfile: React.FC = () => {
           )
         )
       : [];
+
+
 
   // ============= Render =============
   if (loading) {
