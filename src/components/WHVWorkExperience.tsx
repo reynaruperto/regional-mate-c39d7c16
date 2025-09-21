@@ -1,3 +1,4 @@
+// src/components/WHVWorkExperience.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -119,15 +120,13 @@ const WHVWorkExperience: React.FC = () => {
     field: keyof WorkExperience,
     value: any
   ) => {
-    setWorkExperiences(
-      workExperiences.map((exp) =>
-        exp.id === id ? { ...exp, [field]: value } : exp
-      )
+    setWorkExperiences((prev) =>
+      prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp))
     );
   };
 
   const removeWorkExperience = (id: string) => {
-    setWorkExperiences(workExperiences.filter((exp) => exp.id !== id));
+    setWorkExperiences((prev) => prev.filter((exp) => exp.id !== id));
   };
 
   // ==========================
@@ -154,26 +153,24 @@ const WHVWorkExperience: React.FC = () => {
     field: keyof JobReference,
     value: string
   ) => {
-    setJobReferences(
-      jobReferences.map((ref) =>
-        ref.id === id ? { ...ref, [field]: value } : ref
-      )
+    setJobReferences((prev) =>
+      prev.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref))
     );
   };
 
   const removeJobReference = (id: string) => {
-    setJobReferences(jobReferences.filter((ref) => ref.id !== id));
+    setJobReferences((prev) => prev.filter((ref) => ref.id !== id));
   };
 
   // ==========================
   // License handlers
   // ==========================
   const toggleLicense = (licenseId: number) => {
-    if (licenses.includes(licenseId)) {
-      setLicenses(licenses.filter((l) => l !== licenseId));
-    } else {
-      setLicenses([...licenses, licenseId]);
-    }
+    setLicenses((prev) =>
+      prev.includes(licenseId)
+        ? prev.filter((l) => l !== licenseId)
+        : [...prev, licenseId]
+    );
   };
 
   // ==========================
@@ -193,22 +190,22 @@ const WHVWorkExperience: React.FC = () => {
 
     if (validRows.length === 0) return;
 
-    const workRows = validRows.map((exp) => ({
-      user_id: userId,
-      company: exp.company.trim(),
-      industry_id: exp.industryId!,
-      industry_role_id: exp.roleId!,
-      start_date: exp.startDate,
-      end_date: exp.endDate,
-      location: exp.location || null,
-      job_description: exp.description || null,
-    }));
+    const workRows = validRows.map((exp) => {
+      const roleName = roles.find((r) => r.id === exp.roleId)?.name || "";
+      return {
+        user_id: userId,
+        company: exp.company.trim(),
+        industry_id: exp.industryId!,
+        position: roleName, // ✅ save role as string
+        start_date: exp.startDate,
+        end_date: exp.endDate,
+        location: exp.location || null,
+        job_description: exp.description || null,
+      };
+    });
 
-    const { error: expError } = await supabase
-      .from("maker_work_experience")
-      .insert(workRows);
-
-    if (expError) console.error("❌ Work experience insert failed:", expError);
+    const { error } = await supabase.from("maker_work_experience").insert(workRows);
+    if (error) console.error("❌ Work experience insert failed:", error);
   };
 
   const saveJobReferences = async (userId: string) => {
@@ -219,15 +216,12 @@ const WHVWorkExperience: React.FC = () => {
       name: ref.name?.trim() || null,
       business_name: ref.businessName?.trim() || null,
       email: ref.email?.trim() || null,
-      mobile_num: ref.phone?.trim() || null,
+      mobile_num: ref.phone?.trim() || null, // ✅ correct column
       role: ref.role?.trim() || null,
     }));
 
-    const { error: refError } = await supabase
-      .from("maker_reference")
-      .insert(refRows);
-
-    if (refError) console.error("❌ Job reference insert failed:", refError);
+    const { error } = await supabase.from("maker_reference").insert(refRows);
+    if (error) console.error("❌ Job reference insert failed:", error);
   };
 
   const saveLicenses = async (userId: string) => {
@@ -242,11 +236,8 @@ const WHVWorkExperience: React.FC = () => {
           : null,
     }));
 
-    const { error: licError } = await supabase
-      .from("maker_license")
-      .upsert(licRows as any, { onConflict: "user_id,license_id" });
-
-    if (licError) console.error("❌ License insert failed:", licError);
+    const { error } = await supabase.from("maker_license").insert(licRows);
+    if (error) console.error("❌ License insert failed:", error);
   };
 
   // ==========================
