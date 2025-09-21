@@ -22,7 +22,7 @@ interface Job {
     role: string;
     industry?: { name: string };
   };
-  employer?: {
+  profile?: {
     company_name: string;
     profile_photo?: string;
   };
@@ -36,7 +36,7 @@ const WHVBrowseJobs: React.FC = () => {
   const [likedJobTitle, setLikedJobTitle] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // Fetch jobs with employer & role info
+  // Fetch jobs with profile & role info
   useEffect(() => {
     const fetchJobs = async () => {
       const { data, error } = await supabase
@@ -48,7 +48,7 @@ const WHVBrowseJobs: React.FC = () => {
             role,
             industry (name)
           ),
-          employer (
+          profile:profile!job_user_id_fkey (
             company_name,
             profile_photo
           )
@@ -131,17 +131,17 @@ const WHVBrowseJobs: React.FC = () => {
                     {/* Employer photo */}
                     <img
                       src={
-                        job.employer?.profile_photo
-                          ? getPublicUrl(job.employer.profile_photo)
+                        job.profile?.profile_photo
+                          ? getPublicUrl(job.profile.profile_photo)
                           : '/placeholder.png'
                       }
-                      alt={job.employer?.company_name || 'Employer'}
+                      alt={job.profile?.company_name || 'Employer'}
                       className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       {/* Employer name */}
                       <h3 className="font-semibold text-gray-900 text-base mb-1">
-                        {job.employer?.company_name || 'Employer'}
+                        {job.profile?.company_name || 'Employer'}
                       </h3>
                       {/* Job role + industry */}
                       <p className="text-sm text-gray-600 mb-1">
