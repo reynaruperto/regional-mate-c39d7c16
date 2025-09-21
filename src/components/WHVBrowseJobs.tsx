@@ -1,196 +1,192 @@
-// src/pages/WHV/BrowseJobs.tsx
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Search, Filter } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import WHVFilterPage from "@/components/WHVFilterPage";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Job {
   job_id: number;
   description: string;
   state: string;
   suburb_city: string;
-  postcode: string | null;
+  postcode: string;
   employment_type: string;
-  salary_range: string | null;
-  company_name: string | null;
-  profile_photo: string | null;
-  role: string | null;
-  industry: string | null;
+  salary_range: string;
+  job_status: string;
+  industry?: string;
+  role?: string;
 }
 
 const BrowseJobs: React.FC = () => {
-  const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<any>(null);
+  const [filters, setFilters] = useState({
+    state: "",
+    employment_type: "",
+    salary_range: "",
+  });
+
+  // dynamic enums from DB
+  const [states, setStates] = useState<string[]>([]);
+  const [jobTypes, setJobTypes] = useState<string[]>([]);
+  const [payRanges, setPayRanges] = useState<string[]>([]);
+
+  // fetch jobs
+  const fetchJobs = async () => {
+    setLoading(true);
+
+    let query = supabase
+      .from("job")
+      .select("job_id, description, state, suburb_city, postcode, employment_type, salary_range, job_status")
+      .eq("job_status", "active");
+
+    if (filters.state) query = query.eq("state", filters.state);
+    if (filters.employment_type)
+      query = query.eq("employment_type", filters.employment_type);
+    if (filters.salary_range)
+      query = query.eq("salary_range", filters.salary_range);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching jobs:", error);
+      setJobs([]);
+    } else {
+      setJobs(data || []);
+    }
+    setLoading(false);
+  };
+
+  // fetch enums dynamically
+  const fetchEnums = async () => {
+    const { data: stateEnum } = await supabase.rpc("get_enum_values", {
+      enum_name: "state",
+    });
+    const { data: jobTypeEnum } = await supabase.rpc("get_enum_values", {
+      enum_name: "job_type_enum",
+    });
+    const { data: payRangeEnum } = await supabase.rpc("get_enum_values", {
+      enum_name: "pay_range",
+    });
+
+    if (stateEnum) setStates(stateEnum);
+    if (jobTypeEnum) setJobTypes(jobTypeEnum);
+    if (payRangeEnum) setPayRanges(payRangeEnum);
+  };
 
   useEffect(() => {
-    const fetchJobs = async () => {
-      setLoading(true);
-
-      let query = supabase
-        .from("job")
-        .select(
-          `
-          job_id,
-          description,
-          state,
-          suburb_city,
-          postcode,
-          employment_type,
-          salary_range,
-          employer:employer (
-            company_name,
-            profile_photo
-          ),
-          industry_role:industry_role (
-            role,
-            industry:industry (
-              name
-            )
-          )
-        `
-        )
-        .eq("job_status", "active");
-
-      if (searchQuery) {
-        query = query.ilike("description", `%${searchQuery}%`);
-      }
-      if (filters?.state) {
-        query = query.eq("state", filters.state);
-      }
-      if (filters?.interestedIndustry) {
-        query = query.eq("industry_role.industry.name", filters.interestedIndustry);
-      }
-      if (filters?.lookingForJobType) {
-        query = query.eq("employment_type", filters.lookingForJobType);
-      }
-      if (filters?.minPayRate) {
-        query = query.gte("salary_range", filters.minPayRate);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error("Error fetching jobs:", error);
-        setJobs([]);
-      } else {
-        const mapped = data.map((j: any) => ({
-          job_id: j.job_id,
-          description: j.description,
-          state: j.state,
-          suburb_city: j.suburb_city,
-          postcode: j.postcode,
-          employment_type: j.employment_type,
-          salary_range: j.salary_range,
-          company_name: j.employer?.company_name || "Unknown company",
-          profile_photo: j.employer?.profile_photo || null,
-          role: j.industry_role?.role || "Unspecified role",
-          industry: j.industry_role?.industry?.name || "General",
-        }));
-        setJobs(mapped);
-      }
-      setLoading(false);
-    };
-
+    fetchEnums();
     fetchJobs();
-  }, [searchQuery, filters]);
+  }, []);
 
-  const handleApplyFilters = (appliedFilters: any) => {
-    setFilters(appliedFilters);
-    setShowFilters(false);
-  };
+  // refetch whenever filters change
+  useEffect(() => {
+    fetchJobs();
+  }, [filters]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
-      {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col">
-          {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-3"></div>
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
+          {/* Dynamic island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
-          <div className="px-4 py-3 border-b flex items-center gap-3">
-            <button onClick={() => navigate(-1)}>
-              <ArrowLeft size={22} className="text-gray-600" />
-            </button>
-            <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+          <div className="px-4 py-4 flex items-center gap-3 border-b">
+            <ArrowLeft className="w-6 h-6 text-gray-600" />
+            <h1 className="text-lg font-semibold text-gray-900 flex-1">
+              Browse Jobs
+            </h1>
+            <Filter className="w-5 h-5 text-gray-600" />
           </div>
 
-          {/* Search + Filter */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b">
-            <Input
-              type="text"
-              placeholder="Search jobs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(true)}
-              className="flex items-center gap-1"
+          {/* Filters */}
+          <div className="px-4 py-3 border-b space-y-3">
+            <Select
+              value={filters.state}
+              onValueChange={(v) => setFilters({ ...filters, state: v })}
             >
-              <Filter size={16} /> Filter
-            </Button>
+              <SelectTrigger>
+                <SelectValue placeholder="Select State" />
+              </SelectTrigger>
+              <SelectContent>
+                {states.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.employment_type}
+              onValueChange={(v) =>
+                setFilters({ ...filters, employment_type: v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Job Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {jobTypes.map((jt) => (
+                  <SelectItem key={jt} value={jt}>
+                    {jt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.salary_range}
+              onValueChange={(v) => setFilters({ ...filters, salary_range: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Pay Range" />
+              </SelectTrigger>
+              <SelectContent>
+                {payRanges.map((pr) => (
+                  <SelectItem key={pr} value={pr}>
+                    {pr}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Job list */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          {/* Job List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {loading ? (
-              <p className="text-center text-gray-500">Loading jobs...</p>
+              <p className="text-center text-gray-500">Loading...</p>
             ) : jobs.length === 0 ? (
               <p className="text-center text-gray-500">No jobs found</p>
             ) : (
               jobs.map((job) => (
                 <div
                   key={job.job_id}
-                  className="p-4 border rounded-xl shadow-sm bg-white hover:shadow-md transition"
+                  className="p-4 bg-white rounded-xl shadow border"
                 >
-                  <div className="flex items-start gap-3">
-                    {job.profile_photo ? (
-                      <img
-                        src={job.profile_photo}
-                        alt={job.company_name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-sm text-gray-500">
-                        {job.company_name[0]}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <h2 className="font-semibold text-gray-900">{job.company_name}</h2>
-                      <p className="text-sm text-gray-700">
-                        {job.role} • {job.industry}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {job.suburb_city}, {job.state}{" "}
-                        {job.postcode ? `(${job.postcode})` : ""}
-                      </p>
-                      <p className="text-sm text-gray-800 mt-1">
-                        {job.employment_type} • {job.salary_range || "Rate not specified"}
-                      </p>
-                    </div>
-                  </div>
+                  <h2 className="font-semibold text-gray-900">
+                    {job.description}
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    {job.suburb_city}, {job.state} ({job.postcode})
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {job.employment_type} • {job.salary_range}
+                  </p>
                 </div>
               ))
             )}
           </div>
         </div>
       </div>
-
-      {showFilters && (
-        <WHVFilterPage
-          onClose={() => setShowFilters(false)}
-          onApplyFilters={handleApplyFilters}
-        />
-      )}
     </div>
   );
 };
