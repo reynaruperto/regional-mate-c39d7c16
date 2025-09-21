@@ -32,14 +32,9 @@ const WHVBrowseJobs: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobName, setLikedJobName] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState<any>({});
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-
       const { data, error } = await supabase
         .from("job")
         .select(
@@ -63,7 +58,7 @@ const WHVBrowseJobs: React.FC = () => {
           postcode: j.postcode,
           employment_type: j.employment_type,
           salary_range: j.salary_range,
-          company_name: j.employer?.company_name || "Unknown",
+          company_name: j.employer?.company_name || "Unknown Employer",
           profile_photo: j.employer?.profile_photo || null,
           role: j.industry_role?.role || "N/A",
           industry: j.industry_role?.industry?.name || "N/A",
@@ -77,28 +72,39 @@ const WHVBrowseJobs: React.FC = () => {
   }, []);
 
   const applyFilters = (filters: any) => {
-    setSelectedFilters(filters);
+    const hasFilters =
+      filters.state ||
+      filters.citySuburb ||
+      filters.postcode ||
+      filters.interestedIndustry ||
+      filters.interestedRole ||
+      filters.lookingForJobType ||
+      filters.minPayRate ||
+      filters.maxPayRate;
+
+    if (!hasFilters) {
+      setJobs(allJobs); // reset if no filters applied
+      setShowFilters(false);
+      return;
+    }
+
     let filtered = [...allJobs];
 
-    // State
     if (filters.state) {
-      const cleanState = filters.state.split(" ")[0]; // remove (QLD) etc.
+      const cleanState = filters.state.split(" ")[0];
       filtered = filtered.filter((j) => j.state === cleanState);
     }
 
-    // City/Suburb
     if (filters.citySuburb) {
       filtered = filtered.filter((j) =>
         j.suburb_city.toLowerCase().includes(filters.citySuburb.toLowerCase())
       );
     }
 
-    // Postcode
     if (filters.postcode) {
       filtered = filtered.filter((j) => j.postcode === filters.postcode);
     }
 
-    // Industry
     if (filters.interestedIndustry) {
       filtered = filtered.filter(
         (j) =>
@@ -107,34 +113,30 @@ const WHVBrowseJobs: React.FC = () => {
       );
     }
 
-    // Role
     if (filters.interestedRole) {
       filtered = filtered.filter(
         (j) => j.role.toLowerCase() === filters.interestedRole.toLowerCase()
       );
     }
 
-    // Job type
     if (filters.lookingForJobType) {
       filtered = filtered.filter(
         (j) => j.employment_type === filters.lookingForJobType
       );
     }
 
-    // Salary
     if (filters.minPayRate || filters.maxPayRate) {
       filtered = filtered.filter((j) => {
         if (!j.salary_range) return false;
-        const [min, max] = j.salary_range.split("-").map((n) => parseInt(n, 10));
-        const minFilter = filters.minPayRate
-          ? parseInt(filters.minPayRate, 10)
-          : null;
-        const maxFilter = filters.maxPayRate
-          ? parseInt(filters.maxPayRate, 10)
-          : null;
-
-        if (minFilter && min < minFilter) return false;
-        if (maxFilter && max > maxFilter) return false;
+        const match = j.salary_range.match(/\$(\d+)/g);
+        if (!match) return false;
+        const numbers = match.map((m) => parseInt(m.replace("$", ""), 10));
+        const min = Math.min(...numbers);
+        const max = Math.max(...numbers);
+        if (filters.minPayRate && min < parseInt(filters.minPayRate, 10))
+          return false;
+        if (filters.maxPayRate && max > parseInt(filters.maxPayRate, 10))
+          return false;
         return true;
       });
     }
@@ -172,10 +174,10 @@ const WHVBrowseJobs: React.FC = () => {
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden relative">
           {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4"></div>
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
-          <div className="flex items-center gap-3 mb-4 px-4">
+          <div className="flex items-center gap-3 mb-4 px-4 pt-12">
             <button onClick={() => navigate("/whv/dashboard")}>
               <ArrowLeft size={20} className="text-gray-600" />
             </button>
@@ -276,6 +278,12 @@ const WHVBrowseJobs: React.FC = () => {
                   </div>
                 </div>
               ))}
+
+            {jobs.length === 0 && (
+              <p className="text-center text-gray-500 text-sm mt-10">
+                No jobs found matching filters
+              </p>
+            )}
           </div>
 
           {/* Bottom Navigation */}
