@@ -135,7 +135,7 @@ const App = () => (
           <Route path="/whv/employer/jobs/:employerId" element={<WHVEmployerJobs />} />
           <Route path="/whv/employer/job-details/:id" element={<WHVEmployerJobDetails />} />
           <Route path="/whv/job-details/:employerId/:jobId" element={<WHVJobDetails />} />
-          <Route path="/whv/browse-employers" element={<WHVBrowseEmployers />} />
+          <Route path="/whv/browse-jobs" element={<WHVBrowseJobs />} />
           <Route path="/whv/match-card" element={<WHVPreviewMatchCard />} />
           <Route path="/whv/login" element={<Navigate to="/sign-in" replace />} />
           <Route path="/employer/login" element={<Navigate to="/sign-in" replace />} />
