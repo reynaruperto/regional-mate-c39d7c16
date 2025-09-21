@@ -33,6 +33,17 @@ const australianStates = [
   "Western Australia",
 ];
 
+const ALL_STATES = [
+  "Queensland",
+  "New South Wales",
+  "Victoria",
+  "Tasmania",
+  "Western Australia",
+  "South Australia",
+  "Northern Territory",
+  "Australian Capital Territory",
+];
+
 interface Country {
   country_id: number;
   name: string;
@@ -41,7 +52,7 @@ interface Country {
 interface VisaStage {
   stage_id: number;
   label: string;
-  sub_class: string; // e.g. 417, 462, 500, etc.
+  sub_class: string;
   stage: number | null;
 }
 
@@ -61,14 +72,6 @@ interface Role {
   industryId: number;
 }
 
-interface RegionRuleRow {
-  id: number;
-  industry_id: number;
-  state: string;
-  suburb_city: string;
-  postcode: string;
-}
-
 interface Region {
   id: number;
   industry_id: number;
@@ -85,8 +88,7 @@ interface License {
 interface WorkExperience {
   id: string;
   industryId: number | null;
-  roleId: number | null; // NEW: capture role ID (as per onboarding)
-  position: string; // keep your position text as free text
+  roleId: number | null;
   company: string;
   location: string;
   startDate: string;
@@ -137,13 +139,14 @@ const WHVEditProfile: React.FC = () => {
   const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
-  const [preferredAreas, setPreferredAreas] = useState<string[]>([]); // suburb_city::postcode
+  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
   const [expandedSections, setExpandedSections] = useState({
     tagline: true,
     industries: false,
     states: false,
   });
+  const [showPopup, setShowPopup] = useState(false);
 
   // Step 3: Experience
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
@@ -151,6 +154,20 @@ const WHVEditProfile: React.FC = () => {
   const [allLicenses, setAllLicenses] = useState<License[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
+
+  // All industries/roles
+  const [allIndustries, setAllIndustries] = useState<Industry[]>([]);
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
+
+  // ============= Validation helpers =============
+  const isValidAUPhone = (p: string) => /^(\+614\d{8}|04\d{8})$/.test(p);
+  const isValidExpiry = (date: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const expiryDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return expiryDate > today;
+  };
 
   // ============= Load Data =============
   useEffect(() => {
@@ -160,7 +177,7 @@ const WHVEditProfile: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Basic lookups
+      // Lookups
       const [countriesRes, stagesRes, eligibilityRes, licenseRes] =
         await Promise.all([
           supabase.from("country").select("*").order("name"),
@@ -175,6 +192,28 @@ const WHVEditProfile: React.FC = () => {
       if (licenseRes.data) {
         setAllLicenses(
           licenseRes.data.map((l) => ({ id: l.license_id, name: l.name }))
+        );
+      }
+
+      // All industries/roles
+      const [indRes, roleRes] = await Promise.all([
+        supabase.from("industry").select("industry_id, name"),
+        supabase
+          .from("industry_role")
+          .select("industry_role_id, role, industry_id"),
+      ]);
+      if (indRes.data) {
+        setAllIndustries(
+          indRes.data.map((i) => ({ id: i.industry_id, name: i.name }))
+        );
+      }
+      if (roleRes.data) {
+        setAllRoles(
+          roleRes.data.map((r) => ({
+            id: r.industry_role_id,
+            name: r.role,
+            industryId: r.industry_id,
+          }))
         );
       }
 
@@ -202,139 +241,32 @@ const WHVEditProfile: React.FC = () => {
         if (cn) setCountryId(cn.country_id);
       }
 
-      // Visa
-      const { data: visa } = await supabase
-        .from("maker_visa")
-        .select(
-          `
-          expiry_date,
-          country_id,
-          stage_id,
-          visa_stage:visa_stage(stage, sub_class, label),
-          country:country(name)
-        `
-        )
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      let eligibleIndustryIds: number[] = [];
-
-      if (visa?.visa_stage && visa.country) {
-        setVisaType(visa.visa_stage.label);
-        setVisaExpiry(visa.expiry_date);
-        setVisaLabel(
-          `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
-        );
-        setCountryId(visa.country_id);
-
-        // Eligible industries (same as onboarding)
-        const { data: eligibleIndustries } = await supabase
-          .from("temp_eligibility")
-          .select("industry_id, industry_name")
-          .eq("sub_class", visa.visa_stage.sub_class)
-          .eq("stage", visa.visa_stage.stage)
-          .eq("country_name", visa.country.name);
-
-        if (eligibleIndustries?.length) {
-          const mapped = eligibleIndustries.map((i) => ({
-            id: i.industry_id,
-            name: i.industry_name,
-          }));
-          setIndustries(mapped);
-          eligibleIndustryIds = eligibleIndustries.map((i) => i.industry_id);
-
-          // Roles for those industries
-          const { data: roleData } = await supabase
-            .from("industry_role")
-            .select("industry_role_id, role, industry_id")
-            .in("industry_id", eligibleIndustryIds);
-
-          if (roleData) {
-            setRoles(
-              roleData.map((r) => ({
-                id: r.industry_role_id,
-                name: r.role,
-                industryId: r.industry_id,
-              }))
-            );
-          }
-
-          // Regional rules (for locations UI)
-          const { data: regionRows } = await supabase
-            .from("regional_rules")
-            .select("id, industry_id, state, suburb_city, postcode")
-            .in("industry_id", eligibleIndustryIds);
-
-          if (regionRows) {
-            setRegions(
-              regionRows.map((r: RegionRuleRow) => ({
-                id: r.id,
-                industry_id: r.industry_id,
-                state: r.state,
-                suburb_city: r.suburb_city,
-                postcode: r.postcode,
-              }))
-            );
-          }
-        }
-      }
-
-      // ===== Load saved preferences (NEW tables) =====
-      // industries
-      const { data: savedInd } = await supabase
-        .from("maker_pref_industry")
-        .select("industry_id")
-        .eq("user_id", user.id);
-      if (savedInd?.length) {
-        const indIds = savedInd.map((i) => i.industry_id);
-        setSelectedIndustries(indIds);
-      }
-
-      // roles
-      const { data: savedRoles } = await supabase
-        .from("maker_pref_industry_role")
-        .select("industry_role_id")
-        .eq("user_id", user.id);
-      if (savedRoles?.length) {
-        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
-      }
-
-      // locations
-      const { data: savedLocs } = await supabase
-        .from("maker_pref_location")
-        .select("state, suburb_city, postcode")
-        .eq("user_id", user.id);
-      if (savedLocs?.length) {
-        setPreferredStates([...new Set(savedLocs.map((l) => l.state))]);
-        setPreferredAreas(
-          savedLocs.map((l) => `${l.suburb_city}::${l.postcode}`)
-        );
-      }
-
-      // Load work experience (read both industry + role)
+      // Work experience → map saved `position` to `roleId`
       const { data: exp } = await supabase
         .from("maker_work_experience")
         .select(
-          "work_experience_id, industry_id, industry_role_id, position, company, location, start_date, end_date, job_description"
+          "work_experience_id, industry_id, position, company, location, start_date, end_date, job_description"
         )
         .eq("user_id", user.id);
       if (exp) {
         setWorkExperiences(
-          exp.map((e) => ({
-            id: String(e.work_experience_id),
-            industryId: e.industry_id,
-            roleId: e.industry_role_id ?? null,
-            position: e.position || "",
-            company: e.company || "",
-            location: e.location || "",
-            startDate: e.start_date || "",
-            endDate: e.end_date || "",
-            description: e.job_description || "",
-          }))
+          exp.map((e) => {
+            const matchingRole = allRoles.find((r) => r.name === e.position);
+            return {
+              id: String(e.work_experience_id),
+              industryId: e.industry_id,
+              roleId: matchingRole ? matchingRole.id : null,
+              company: e.company || "",
+              location: e.location || "",
+              startDate: e.start_date || "",
+              endDate: e.end_date || "",
+              description: e.job_description || "",
+            };
+          })
         );
       }
 
-      // references
+      // References
       const { data: refs } = await supabase
         .from("maker_reference")
         .select("*")
@@ -352,7 +284,7 @@ const WHVEditProfile: React.FC = () => {
         );
       }
 
-      // licenses
+      // Licenses
       const { data: makerLic } = await supabase
         .from("maker_license")
         .select("*")
@@ -368,341 +300,319 @@ const WHVEditProfile: React.FC = () => {
 
     loadData();
   }, []);
+  // ============= Handlers =============
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
 
-// ============= Handlers =============
-const toggleSection = (section: keyof typeof expandedSections) => {
-  setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-};
+  const handleIndustrySelect = (industryId: number) => {
+    if (
+      !selectedIndustries.includes(industryId) &&
+      selectedIndustries.length < 3
+    ) {
+      setSelectedIndustries([...selectedIndustries, industryId]);
+    } else if (selectedIndustries.includes(industryId)) {
+      setSelectedIndustries(
+        selectedIndustries.filter((id) => id !== industryId)
+      );
+      const industryRoles = roles
+        .filter((r) => r.industryId === industryId)
+        .map((r) => r.id);
+      setSelectedRoles(
+        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
+      );
+    }
+  };
 
-const handleIndustrySelect = (industryId: number) => {
-  if (
-    !selectedIndustries.includes(industryId) &&
-    selectedIndustries.length < 3
-  ) {
-    setSelectedIndustries([...selectedIndustries, industryId]);
-  } else if (selectedIndustries.includes(industryId)) {
-    setSelectedIndustries(
-      selectedIndustries.filter((id) => id !== industryId)
-    );
-    const industryRoles = roles
-      .filter((r) => r.industryId === industryId)
-      .map((r) => r.id);
+  const toggleRole = (roleId: number) => {
     setSelectedRoles(
-      selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
+      selectedRoles.includes(roleId)
+        ? selectedRoles.filter((r) => r !== roleId)
+        : [...selectedRoles, roleId]
     );
-  }
-};
+  };
 
-const toggleRole = (roleId: number) => {
-  setSelectedRoles(
-    selectedRoles.includes(roleId)
-      ? selectedRoles.filter((r) => r !== roleId)
-      : [...selectedRoles, roleId]
-  );
-};
+  // Preferred States: show ALL, only QLD actionable
+  const togglePreferredState = (state: string) => {
+    if (state !== "Queensland") {
+      setShowPopup(true);
+      return;
+    }
+    const newStates = preferredStates.includes(state)
+      ? preferredStates.filter((s) => s !== state)
+      : preferredStates.length < 3
+      ? [...preferredStates, state]
+      : preferredStates;
+    setPreferredStates(newStates);
 
-// Preferred States: show ALL, only QLD actionable
-const togglePreferredState = (state: string) => {
-  if (state !== "Queensland") {
-    setShowPopup(true);
-    return;
-  }
-  const newStates = preferredStates.includes(state)
-    ? preferredStates.filter((s) => s !== state)
-    : preferredStates.length < 3
-    ? [...preferredStates, state]
-    : preferredStates;
-  setPreferredStates(newStates);
+    const validAreaKeys = regions
+      .filter((r) => newStates.includes(r.state))
+      .map((r) => `${r.suburb_city}::${r.postcode}`);
+    setPreferredAreas((prev) => prev.filter((a) => validAreaKeys.includes(a)));
+  };
 
-  const validAreaKeys = regions
-    .filter((r) => newStates.includes(r.state))
-    .map((r) => `${r.suburb_city}::${r.postcode}`);
-  setPreferredAreas((prev) => prev.filter((a) => validAreaKeys.includes(a)));
-};
+  const togglePreferredArea = (locKey: string) => {
+    setPreferredAreas((prev) => {
+      if (prev.includes(locKey)) return prev.filter((a) => a !== locKey);
+      if (prev.length >= 3) return prev;
+      return [...prev, locKey];
+    });
+  };
 
-const togglePreferredArea = (locKey: string) => {
-  setPreferredAreas((prev) => {
-    if (prev.includes(locKey)) return prev.filter((a) => a !== locKey);
-    if (prev.length >= 3) return prev;
-    return [...prev, locKey];
-  });
-};
+  const getAreasForState = (state: string) => {
+    return regions
+      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .map((r) => `${r.suburb_city}::${r.postcode}`);
+  };
 
-const getAreasForState = (state: string) => {
-  return regions
-    .filter(
-      (r) => r.state === state && selectedIndustries.includes(r.industry_id)
-    )
-    .map((r) => `${r.suburb_city}::${r.postcode}`);
-};
-
-// Work Experience handlers
-const addWorkExperience = () => {
-  if (workExperiences.length < 8) {
-    setWorkExperiences([
-      ...workExperiences,
-      {
-        id: Date.now().toString(),
-        industryId: null,
-        roleId: null,
-        company: "",
-        location: "",
-        startDate: "",
-        endDate: "",
-        description: "",
-      },
-    ]);
-  }
-};
-
-const updateWorkExperience = (
-  id: string,
-  field: keyof WorkExperience,
-  value: any
-) => {
-  setWorkExperiences((prev) =>
-    prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp))
-  );
-};
-
-const removeWorkExperience = (id: string) => {
-  setWorkExperiences((prev) => prev.filter((exp) => exp.id !== id));
-};
-
-// Job Reference handlers
-const addJobReference = () => {
-  if (jobReferences.length < 5) {
-    setJobReferences([
-      ...jobReferences,
-      {
-        id: Date.now().toString(),
-        name: "",
-        businessName: "",
-        email: "",
-        phone: "",
-        role: "",
-      },
-    ]);
-  }
-};
-
-const updateJobReference = (
-  id: string,
-  field: keyof JobReference,
-  value: string
-) => {
-  setJobReferences((prev) =>
-    prev.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref))
-  );
-};
-
-const removeJobReference = (id: string) => {
-  setJobReferences((prev) => prev.filter((ref) => ref.id !== id));
-};
-
-// License handlers
-const toggleLicense = (licenseId: number) => {
-  setLicenses((prev) =>
-    prev.includes(licenseId)
-      ? prev.filter((l) => l !== licenseId)
-      : [...prev, licenseId]
-  );
-};
-
-// Save handlers
-const saveAllData = async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-
-  try {
-    console.log("📌 Starting saveAllData for user:", user.id);
-
-    // Save personal info
-    const selectedStage = visaStages.find((v) => v.label === visaType);
-
-    await supabase
-      .from("whv_maker")
-      .update({
-        nationality,
-        birth_date: dob,
-        mobile_num: phone,
-        address_line1: address.address1,
-        address_line2: address.address2 || null,
-        suburb: address.suburb,
-        state: address.state,
-        postcode: address.postcode,
-        tagline: tagline.trim(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
-
-    if (selectedStage) {
-      await supabase.from("maker_visa").upsert(
+  // Work Experience handlers
+  const addWorkExperience = () => {
+    if (workExperiences.length < 8) {
+      setWorkExperiences([
+        ...workExperiences,
         {
-          user_id: user.id,
-          country_id: countryId,
-          stage_id: selectedStage.stage_id,
-          dob,
-          expiry_date: visaExpiry,
+          id: Date.now().toString(),
+          industryId: null,
+          roleId: null,
+          company: "",
+          location: "",
+          startDate: "",
+          endDate: "",
+          description: "",
         },
-        { onConflict: "user_id" }
-      );
+      ]);
     }
+  };
 
-    // Preferences
-    await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase
-      .from("maker_pref_industry_role")
-      .delete()
-      .eq("user_id", user.id);
-    await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
-
-    if (selectedIndustries.length) {
-      await supabase.from("maker_pref_industry").insert(
-        selectedIndustries.map((industry_id) => ({
-          user_id: user.id,
-          industry_id,
-        }))
-      );
-    }
-
-    if (selectedRoles.length) {
-      await supabase.from("maker_pref_industry_role").insert(
-        selectedRoles.map((industry_role_id) => ({
-          user_id: user.id,
-          industry_role_id,
-        }))
-      );
-    }
-
-    if (preferredAreas.length) {
-      const rows: {
-        user_id: string;
-        state: string;
-        suburb_city: string;
-        postcode: string;
-      }[] = [];
-      const qldKeys = getAreasForState("Queensland");
-      preferredAreas.forEach((locKey) => {
-        if (qldKeys.includes(locKey)) {
-          const [suburb_city, postcode] = locKey.split("::");
-          rows.push({
-            user_id: user.id,
-            state: "Queensland",
-            suburb_city,
-            postcode,
-          });
-        }
-      });
-      if (rows.length) {
-        await supabase.from("maker_pref_location").insert(rows);
-      }
-    }
-
-    // Work experience (save role name → position column)
-    await supabase.from("maker_work_experience").delete().eq("user_id", user.id);
-
-    console.log("📌 Work experiences to save:", workExperiences);
-
-    const validExperiences = workExperiences.filter(
-      (exp) =>
-        exp.company.trim() &&
-        exp.industryId !== null &&
-        exp.roleId !== null &&
-        exp.startDate &&
-        exp.endDate
+  const updateWorkExperience = (
+    id: string,
+    field: keyof WorkExperience,
+    value: any
+  ) => {
+    setWorkExperiences((prev) =>
+      prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp))
     );
+  };
 
-    if (validExperiences.length > 0) {
-      const workRows = validExperiences.map((exp) => {
-        const roleName = allRoles.find((r) => r.id === exp.roleId)?.name || "";
-        return {
-          user_id: user.id,
-          company: exp.company.trim(),
-          position: roleName, // ✅ goes into text column
-          start_date: exp.startDate,
-          end_date: exp.endDate,
-          location: exp.location || null,
-          industry_id: exp.industryId!,
-          job_description: exp.description || null,
-        };
-      });
-      const { error: workError } = await supabase
-        .from("maker_work_experience")
-        .insert(workRows);
+  const removeWorkExperience = (id: string) => {
+    setWorkExperiences((prev) => prev.filter((exp) => exp.id !== id));
+  };
 
-      if (workError) console.error("❌ Error saving work experience:", workError);
-      else console.log("✅ Work experience saved:", workRows);
+  // Job Reference handlers
+  const addJobReference = () => {
+    if (jobReferences.length < 5) {
+      setJobReferences([
+        ...jobReferences,
+        {
+          id: Date.now().toString(),
+          name: "",
+          businessName: "",
+          email: "",
+          phone: "",
+          role: "",
+        },
+      ]);
     }
+  };
 
-    // References (use correct column names)
-    await supabase.from("maker_reference").delete().eq("user_id", user.id);
+  const updateJobReference = (
+    id: string,
+    field: keyof JobReference,
+    value: string
+  ) => {
+    setJobReferences((prev) =>
+      prev.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref))
+    );
+  };
 
-    console.log("📌 jobReferences before save:", jobReferences);
+  const removeJobReference = (id: string) => {
+    setJobReferences((prev) => prev.filter((ref) => ref.id !== id));
+  };
 
-    if (jobReferences.length > 0) {
-      const refRows = jobReferences.map((ref) => ({
-        user_id: user.id,
-        name: ref.name?.trim() || null,
-        business_name: ref.businessName?.trim() || null,
-        email: ref.email?.trim() || null,
-        mobile_num: ref.phone?.trim() || null, // ✅ correct column
-        role: ref.role?.trim() || null,
-      }));
+  // License handlers
+  const toggleLicense = (licenseId: number) => {
+    setLicenses((prev) =>
+      prev.includes(licenseId)
+        ? prev.filter((l) => l !== licenseId)
+        : [...prev, licenseId]
+    );
+  };
 
-      const { data, error } = await supabase
-        .from("maker_reference")
-        .insert(refRows);
+  // Save handlers
+  const saveAllData = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-      console.log("📌 Attempting to insert references:", refRows);
-      if (error) {
-        console.error("❌ Error inserting references:", error);
-      } else {
-        console.log("✅ References inserted:", data);
+    try {
+      // Save personal info
+      const selectedStage = visaStages.find((v) => v.label === visaType);
+
+      await supabase
+        .from("whv_maker")
+        .update({
+          nationality,
+          birth_date: dob,
+          mobile_num: phone,
+          address_line1: address.address1,
+          address_line2: address.address2 || null,
+          suburb: address.suburb,
+          state: address.state,
+          postcode: address.postcode,
+          tagline: tagline.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
+
+      if (selectedStage) {
+        await supabase.from("maker_visa").upsert(
+          {
+            user_id: user.id,
+            country_id: countryId,
+            stage_id: selectedStage.stage_id,
+            dob,
+            expiry_date: visaExpiry,
+          },
+          { onConflict: "user_id" }
+        );
       }
-    } else {
-      console.warn("⚠️ No jobReferences found when saving!");
+
+      // Preferences
+      await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
+      await supabase
+        .from("maker_pref_industry_role")
+        .delete()
+        .eq("user_id", user.id);
+      await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
+
+      if (selectedIndustries.length) {
+        await supabase.from("maker_pref_industry").insert(
+          selectedIndustries.map((industry_id) => ({
+            user_id: user.id,
+            industry_id,
+          }))
+        );
+      }
+
+      if (selectedRoles.length) {
+        await supabase.from("maker_pref_industry_role").insert(
+          selectedRoles.map((industry_role_id) => ({
+            user_id: user.id,
+            industry_role_id,
+          }))
+        );
+      }
+
+      if (preferredAreas.length) {
+        const rows: {
+          user_id: string;
+          state: string;
+          suburb_city: string;
+          postcode: string;
+        }[] = [];
+        const qldKeys = getAreasForState("Queensland");
+        preferredAreas.forEach((locKey) => {
+          if (qldKeys.includes(locKey)) {
+            const [suburb_city, postcode] = locKey.split("::");
+            rows.push({
+              user_id: user.id,
+              state: "Queensland",
+              suburb_city,
+              postcode,
+            });
+          }
+        });
+        if (rows.length) {
+          await supabase.from("maker_pref_location").insert(rows);
+        }
+      }
+
+      // Work experience
+      await supabase
+        .from("maker_work_experience")
+        .delete()
+        .eq("user_id", user.id);
+
+      const validExperiences = workExperiences.filter(
+        (exp) =>
+          exp.company.trim() &&
+          exp.industryId !== null &&
+          exp.roleId !== null &&
+          exp.startDate &&
+          exp.endDate
+      );
+
+      if (validExperiences.length > 0) {
+        const workRows = validExperiences.map((exp) => {
+          const roleName =
+            allRoles.find((r) => r.id === exp.roleId)?.name || "";
+          return {
+            user_id: user.id,
+            company: exp.company.trim(),
+            position: roleName, // ✅ save role name into `position`
+            start_date: exp.startDate,
+            end_date: exp.endDate,
+            location: exp.location || null,
+            industry_id: exp.industryId!,
+            job_description: exp.description || null,
+          };
+        });
+        await supabase.from("maker_work_experience").insert(workRows);
+      }
+
+      // References
+      await supabase.from("maker_reference").delete().eq("user_id", user.id);
+
+      if (jobReferences.length > 0) {
+        const refRows = jobReferences.map((ref) => ({
+          user_id: user.id,
+          name: ref.name?.trim() || null,
+          business_name: ref.businessName?.trim() || null,
+          email: ref.email?.trim() || null,
+          mobile_num: ref.phone?.trim() || null,
+          role: ref.role?.trim() || null,
+        }));
+        await supabase.from("maker_reference").insert(refRows);
+      }
+
+      // Licenses
+      await supabase.from("maker_license").delete().eq("user_id", user.id);
+      if (licenses.length > 0) {
+        const licRows = licenses.map((licenseId) => ({
+          user_id: user.id,
+          license_id: licenseId,
+          other:
+            allLicenses.find((l) => l.id === licenseId)?.name === "Other"
+              ? otherLicense
+              : null,
+        }));
+        await supabase.from("maker_license").insert(licRows);
+      }
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
+      });
+      navigate("/whv/dashboard");
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
     }
+  };
 
-    // Licenses
-    await supabase.from("maker_license").delete().eq("user_id", user.id);
-    if (licenses.length > 0) {
-      const licRows = licenses.map((licenseId) => ({
-        user_id: user.id,
-        license_id: licenseId,
-        other:
-          allLicenses.find((l) => l.id === licenseId)?.name === "Other"
-            ? otherLicense
-            : null,
-      }));
-      await supabase.from("maker_license").insert(licRows);
-    }
-
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been successfully updated.",
-    });
-    navigate("/whv/dashboard");
-  } catch (error) {
-    console.error("Error saving profile:", error);
-    toast({
-      title: "Error",
-      description: "Failed to update profile. Please try again.",
-      variant: "destructive",
-    });
-  }
-};
-
-const filteredStages =
-  countryId !== null
-    ? visaStages.filter((v) =>
-        eligibility.some(
-          (e) => e.country_id === countryId && e.stage_id === v.stage_id
+  const filteredStages =
+    countryId !== null
+      ? visaStages.filter((v) =>
+          eligibility.some(
+            (e) => e.country_id === countryId && e.stage_id === v.stage_id
+          )
         )
-      )
-    : [];
+      : [];
 
   // ============= Render =============
   if (loading) {
