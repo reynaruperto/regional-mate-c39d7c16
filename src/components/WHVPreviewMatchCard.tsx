@@ -28,10 +28,10 @@ interface WorkExperience {
 }
 
 interface Preference {
-  industry: string;
-  role: string;
-  state: string;
-  area: string;
+  industry?: string;
+  role?: string;
+  state?: string;
+  area?: string;
 }
 
 interface Reference {
@@ -39,7 +39,6 @@ interface Reference {
   business_name: string;
   email: string;
   mobile_num?: string;
-  role?: string;
 }
 
 const WHVPreviewMatchCard: React.FC = () => {
@@ -47,7 +46,8 @@ const WHVPreviewMatchCard: React.FC = () => {
   const [profileData, setProfileData] = useState<WHVProfileData | null>(null);
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
-  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const [workPreferences, setWorkPreferences] = useState<Preference[]>([]);
+  const [locationPreferences, setLocationPreferences] = useState<Preference[]>([]);
   const [references, setReferences] = useState<Reference[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,25 +87,36 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 4. Preferences
-        const { data: preferencesData } = await supabase
-          .from('maker_preference')
+        // 4. Work Preferences
+        const { data: workPrefsData } = await supabase
+          .from('maker_pref_industry_role')
           .select(`
-            industry_role(role, industry(name)),
-            region_rules(state, area)
+            industry_role (
+              role,
+              industry(name)
+            )
           `)
           .eq('user_id', user.id);
 
-        const formattedPreferences: Preference[] = (preferencesData || []).map((pref: any) => ({
+        const formattedWorkPrefs: Preference[] = (workPrefsData || []).map((pref: any) => ({
           industry: pref.industry_role?.industry?.name || '',
           role: pref.industry_role?.role || '',
-          state: pref.region_rules?.state || '',
-          area: pref.region_rules?.area || '',
         }));
+        setWorkPreferences(formattedWorkPrefs);
 
-        setPreferences(formattedPreferences);
+        // 5. Location Preferences
+        const { data: locationPrefsData } = await supabase
+          .from('maker_pref_location')
+          .select('state, suburb_city, postcode')
+          .eq('user_id', user.id);
 
-        // 5. Work experience
+        const formattedLocationPrefs: Preference[] = (locationPrefsData || []).map((loc: any) => ({
+          state: loc.state,
+          area: `${loc.suburb_city} (${loc.postcode})`,
+        }));
+        setLocationPreferences(formattedLocationPrefs);
+
+        // 6. Work experience
         const { data: experiences } = await supabase
           .from('maker_work_experience')
           .select('position, company, industry(name), location, start_date, end_date, job_description')
@@ -121,10 +132,9 @@ const WHVPreviewMatchCard: React.FC = () => {
           end_date: exp.end_date,
           description: exp.job_description || '',
         }));
-
         setWorkExperiences(formattedExperiences);
 
-        // 6. Licenses
+        // 7. Licenses
         const { data: licenseRows } = await supabase
           .from('maker_license')
           .select('license(name)')
@@ -133,14 +143,15 @@ const WHVPreviewMatchCard: React.FC = () => {
         const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown License');
         setLicenses(formattedLicenses);
 
-        // 7. References
+        // 8. References
         const { data: referenceRows } = await supabase
           .from('maker_reference')
-          .select('name, business_name, email, mobile_num, role')
+          .select('name, business_name, email, mobile_num')
           .eq('user_id', user.id);
+
         setReferences(referenceRows || []);
 
-        // 8. Profile photo
+        // 9. Profile photo
         let signedPhoto: string | null = null;
         if (whvMaker?.profile_photo) {
           let photoPath = whvMaker.profile_photo;
@@ -179,15 +190,34 @@ const WHVPreviewMatchCard: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // Group preferences
-  const groupedWorkPrefs = preferences.reduce((acc: any, pref) => {
+  // Helper: format dates
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+  // Helper: categorize years
+  const categorizeYears = (start: string, end: string | null) => {
+    const startDate = new Date(start);
+    const endDate = end ? new Date(end) : new Date();
+    const years = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
+
+    if (years < 1) return "<1 yr";
+    if (years < 3) return "1–2 yrs";
+    if (years < 5) return "3–4 yrs";
+    if (years < 8) return "5–7 yrs";
+    if (years < 11) return "8–10 yrs";
+    return "10+ yrs";
+  };
+
+  // Group work preferences by industry
+  const groupedWorkPrefs = workPreferences.reduce((acc: any, pref) => {
     if (!pref.industry || !pref.role) return acc;
     if (!acc[pref.industry]) acc[pref.industry] = new Set();
     acc[pref.industry].add(pref.role);
     return acc;
   }, {});
 
-  const groupedLocationPrefs = preferences.reduce((acc: any, pref) => {
+  // Group location preferences by state
+  const groupedLocationPrefs = locationPreferences.reduce((acc: any, pref) => {
     if (!pref.state || !pref.area) return acc;
     if (!acc[pref.state]) acc[pref.state] = new Set();
     acc[pref.state].add(pref.area);
@@ -289,7 +319,11 @@ const WHVPreviewMatchCard: React.FC = () => {
                         <p><span className="font-medium">Industry:</span> {exp.industry}</p>
                         <p><span className="font-medium">Position:</span> {exp.position}</p>
                         <p><span className="font-medium">Location:</span> {exp.location}</p>
-                        <p><span className="font-medium">Dates:</span> {exp.start_date} – {exp.end_date || 'Present'}</p>
+                        <p>
+                          <span className="font-medium">Dates:</span>{" "}
+                          {formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}{" "}
+                          ({categorizeYears(exp.start_date, exp.end_date)})
+                        </p>
                         {exp.description && <p><span className="font-medium">Description:</span> {exp.description}</p>}
                       </div>
                     ))
@@ -326,7 +360,6 @@ const WHVPreviewMatchCard: React.FC = () => {
                         <p><span className="font-medium">Business:</span> {ref.business_name}</p>
                         <p><span className="font-medium">Email:</span> {ref.email}</p>
                         {ref.mobile_num && <p><span className="font-medium">Phone:</span> {ref.mobile_num}</p>}
-                        {ref.role && <p><span className="font-medium">Role:</span> {ref.role}</p>}
                       </div>
                     ))
                   ) : (
