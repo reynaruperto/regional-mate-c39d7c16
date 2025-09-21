@@ -14,7 +14,6 @@ const WHVProfilePreview: React.FC = () => {
   const [industryPrefs, setIndustryPrefs] = useState<string[]>([]);
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
-  const [experienceYears, setExperienceYears] = useState<number>(0);
   const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,16 +79,6 @@ const WHVProfilePreview: React.FC = () => {
 
       if (expRows) {
         setWorkExperiences(expRows);
-
-        // Calculate total years
-        const totalYears = expRows.reduce((sum, exp) => {
-          const start = new Date(exp.start_date);
-          const end = exp.end_date ? new Date(exp.end_date) : new Date();
-          const years =
-            (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
-          return sum + years;
-        }, 0);
-        setExperienceYears(Math.round(totalYears));
       }
 
       // Licenses
@@ -135,6 +124,10 @@ const WHVProfilePreview: React.FC = () => {
       </div>
     );
   }
+
+  // Helper: format date to "MMM YYYY"
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -248,22 +241,39 @@ const WHVProfilePreview: React.FC = () => {
                 </div>
                 {workExperiences.length > 0 ? (
                   <div>
-                    <p className="text-gray-900 font-semibold mb-3">
-                      {experienceYears} years total
-                    </p>
-                    <ul className="space-y-2 text-sm text-gray-700">
+                    <ul className="space-y-3 text-sm text-gray-700">
                       {workExperiences.map((exp, i) => {
                         const industryName =
                           industries.find(
                             (ind) => ind.id === exp.industry_id
                           )?.name || "N/A";
+
+                        const start = new Date(exp.start_date);
+                        const end = exp.end_date ? new Date(exp.end_date) : new Date();
+                        const years =
+                          (end.getTime() - start.getTime()) /
+                          (1000 * 60 * 60 * 24 * 365);
+
+                        // Map years into your categories
+                        let yearsCategory = "";
+                        if (years < 1) yearsCategory = "<1 yr";
+                        else if (years < 3) yearsCategory = "1–2 yrs";
+                        else if (years < 5) yearsCategory = "3–4 yrs";
+                        else if (years < 8) yearsCategory = "5–7 yrs";
+                        else if (years < 11) yearsCategory = "8–10 yrs";
+                        else yearsCategory = "10+ yrs";
+
                         return (
-                          <li
-                            key={i}
-                            className="border-b last:border-0 pb-2"
-                          >
-                            <span className="font-medium">{exp.position}</span>{" "}
-                            in {industryName} at {exp.company}
+                          <li key={i} className="border-b last:border-0 pb-2">
+                            <div>
+                              <span className="font-medium">{exp.position}</span>{" "}
+                              in {industryName} at {exp.company} —{" "}
+                              <span className="text-gray-500">{yearsCategory}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {formatDate(start)} –{" "}
+                              {exp.end_date ? formatDate(end) : "Present"}
+                            </div>
                           </li>
                         );
                       })}
