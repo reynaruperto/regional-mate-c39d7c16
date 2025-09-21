@@ -1,11 +1,9 @@
 // src/pages/WHV/BrowseJobs.tsx
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Filter } from "lucide-react";
+import { ArrowLeft, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import WHVFilterPage from "@/components/WHVFilterPage";
 
 interface Job {
   job_id: number;
@@ -17,7 +15,6 @@ interface Job {
   salary_range: string | null;
   company_name: string;
   profile_photo: string | null;
-  role: string;
   industry: string;
 }
 
@@ -25,15 +22,12 @@ const BrowseJobs: React.FC = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<any>(null);
 
   useEffect(() => {
     const fetchJobs = async () => {
       setLoading(true);
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("job")
         .select(
           `
@@ -44,12 +38,9 @@ const BrowseJobs: React.FC = () => {
           postcode,
           employment_type,
           salary_range,
-          employer:employer (
+          employer:employer!job_user_id_fkey (
             company_name,
-            profile_photo
-          ),
-          industry_role:industry_role (
-            role,
+            profile_photo,
             industry:industry (
               name
             )
@@ -58,27 +49,11 @@ const BrowseJobs: React.FC = () => {
         )
         .eq("job_status", "active");
 
-      if (searchQuery) {
-        query = query.ilike("description", `%${searchQuery}%`);
-      }
-      if (filters?.state) {
-        query = query.eq("state", filters.state);
-      }
-      if (filters?.lookingForJobType) {
-        query = query.eq("employment_type", filters.lookingForJobType);
-      }
-      if (filters?.minPayRate) {
-        query = query.gte("salary_range", filters.minPayRate);
-      }
-
-      const { data, error } = await query;
-
       if (error) {
         console.error("Error fetching jobs:", error);
         setJobs([]);
       } else {
-        // Filter industry in JS since Supabase can’t filter deep join directly
-        let mapped = data.map((j: any) => ({
+        const mapped = (data || []).map((j: any) => ({
           job_id: j.job_id,
           description: j.description,
           state: j.state,
@@ -88,16 +63,8 @@ const BrowseJobs: React.FC = () => {
           salary_range: j.salary_range,
           company_name: j.employer?.company_name || "Unknown company",
           profile_photo: j.employer?.profile_photo || null,
-          role: j.industry_role?.role || "Unspecified role",
-          industry: j.industry_role?.industry?.name || "General",
+          industry: j.employer?.industry?.name || "General",
         }));
-
-        if (filters?.interestedIndustry) {
-          mapped = mapped.filter(
-            (j) => j.industry === filters.interestedIndustry
-          );
-        }
-
         setJobs(mapped);
       }
 
@@ -105,12 +72,7 @@ const BrowseJobs: React.FC = () => {
     };
 
     fetchJobs();
-  }, [searchQuery, filters]);
-
-  const handleApplyFilters = (appliedFilters: any) => {
-    setFilters(appliedFilters);
-    setShowFilters(false);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
@@ -126,24 +88,6 @@ const BrowseJobs: React.FC = () => {
               <ArrowLeft size={22} className="text-gray-600" />
             </button>
             <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
-          </div>
-
-          {/* Search + Filter */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b">
-            <Input
-              type="text"
-              placeholder="Search jobs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(true)}
-              className="flex items-center gap-1"
-            >
-              <Filter size={16} /> Filter
-            </Button>
           </div>
 
           {/* Job list */}
@@ -170,11 +114,10 @@ const BrowseJobs: React.FC = () => {
                         {job.company_name[0]}
                       </div>
                     )}
+
                     <div className="flex-1">
                       <h2 className="font-semibold text-gray-900">{job.company_name}</h2>
-                      <p className="text-sm text-gray-700">
-                        {job.role} • {job.industry}
-                      </p>
+                      <p className="text-sm text-gray-700">{job.industry}</p>
                       <p className="text-sm text-gray-600">
                         {job.suburb_city}, {job.state}{" "}
                         {job.postcode ? `(${job.postcode})` : ""}
@@ -182,6 +125,14 @@ const BrowseJobs: React.FC = () => {
                       <p className="text-sm text-gray-800 mt-1">
                         {job.employment_type} • {job.salary_range || "Rate not specified"}
                       </p>
+                      <div className="flex gap-3 mt-3">
+                        <Button size="sm" variant="outline">
+                          View Profile
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-red-500">
+                          <Heart size={18} />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -190,13 +141,6 @@ const BrowseJobs: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {showFilters && (
-        <WHVFilterPage
-          onClose={() => setShowFilters(false)}
-          onApplyFilters={handleApplyFilters}
-        />
-      )}
     </div>
   );
 };
