@@ -31,7 +31,9 @@ const WHVBrowseJobs: React.FC = () => {
       // 1️⃣ Jobs
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode")
+        .select(
+          "job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode"
+        )
         .eq("job_status", "active");
 
       if (jobsError) {
@@ -124,97 +126,112 @@ const WHVBrowseJobs: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-4">
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => navigate("/whv/dashboard")}>
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Browse Jobs
-              </h1>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                placeholder="Search for jobs"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-12 h-10 rounded-xl border-gray-200 bg-white"
-              />
-              <button
-                onClick={() => setShowFilters(true)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2"
-              >
-                <Filter className="text-gray-400" size={20} />
-              </button>
-            </div>
-
-            {/* Jobs List */}
-            <div className="space-y-4 pb-20">
-              {jobs.map((job) => (
-                <div
-                  key={job.job_id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            <div className="px-6 pt-16 pb-4">
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                  onClick={() => navigate("/whv/dashboard")}
                 >
-                  <div className="flex items-start gap-4">
-                    <img
-                      src={job.profile_photo}
-                      alt={job.company_name}
-                      className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-base mb-1">
-                        {job.company_name}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-1">
-                        {job.role} • {job.industry}
-                      </p>
-                      <p className="text-xs text-gray-500 mb-1">
-                        {job.location}
-                      </p>
+                  <ArrowLeft className="w-6 h-6 text-gray-700" />
+                </Button>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  Browse Jobs
+                </h1>
+              </div>
+            </div>
 
-                      <div className="flex items-center gap-3 mt-4">
-                        <Button
-                          onClick={() => handleViewJob(job.job_id)}
-                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-11 rounded-xl"
-                        >
-                          View Job
-                        </Button>
-                        <button
-                          onClick={() => handleLikeJob(job.job_id)}
-                          className={`h-11 w-11 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 shadow-sm ${
-                            job.isLiked
-                              ? "bg-orange-100"
-                              : "bg-slate-800"
-                          }`}
-                        >
-                          <Heart
-                            size={18}
-                            className={
-                              job.isLiked
-                                ? "text-orange-500 fill-orange-500"
-                                : "text-white"
-                            }
-                          />
-                        </button>
+            {/* Content */}
+            <div
+              className="flex-1 px-6 overflow-y-auto"
+              style={{ paddingBottom: "100px" }}
+            >
+              {/* Search Bar */}
+              <div className="relative mb-4">
+                <Search
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  size={20}
+                />
+                <Input
+                  placeholder="Search for jobs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white"
+                />
+                <button
+                  onClick={() => setShowFilters(true)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                >
+                  <Filter className="text-gray-400" size={20} />
+                </button>
+              </div>
+
+              {/* Jobs List */}
+              <div className="space-y-4">
+                {jobs.map((job) => (
+                  <div
+                    key={job.job_id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                  >
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={job.profile_photo}
+                        alt={job.company_name}
+                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1">
+                              {job.company_name}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-1">
+                              {job.role} • {job.industry}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {job.location}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-4">
+                          <Button
+                            onClick={() => handleViewJob(job.job_id)}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                          >
+                            View Job
+                          </Button>
+                          <button
+                            onClick={() => handleLikeJob(job.job_id)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-slate-300 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={20}
+                              className={
+                                job.isLiked
+                                  ? "text-slate-800 fill-slate-800"
+                                  : "text-slate-800"
+                              }
+                            />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="bg-white border-t flex-shrink-0 rounded-b-[48px]">
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
