@@ -1,3 +1,4 @@
+// src/pages/whv/WHVJobPreview.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -40,12 +41,12 @@ interface JobDetails {
 const WHVJobPreview: React.FC = () => {
   const navigate = useNavigate();
   const { jobId } = useParams();
-  const [whvId, setWhvId] = useState<string | null>(null);
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
 
-  // ✅ Get logged-in WHV
+  // ✅ Logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -54,14 +55,14 @@ const WHVJobPreview: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch job details + like state
+  // ✅ Fetch job details
   useEffect(() => {
     const fetchJobDetails = async () => {
       if (!jobId) return;
 
       try {
-        // Job + role
-        const { data: job } = await supabase
+        // 1️⃣ Job + role
+        const { data: job, error: jobError } = await supabase
           .from("job")
           .select(
             `
@@ -75,16 +76,16 @@ const WHVJobPreview: React.FC = () => {
             postcode,
             start_date,
             job_status,
-            industry_role ( role ),
+            industry_role ( role, industry(name) ),
             user_id
           `
           )
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
-        if (!job) return;
+        if (jobError || !job) return;
 
-        // Employer details
+        // 2️⃣ Employer details
         const { data: employer } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo, website")
@@ -103,7 +104,7 @@ const WHVJobPreview: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // Facilities
+        // 3️⃣ Facilities (join employer_facility → facility)
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility ( name )")
@@ -112,7 +113,7 @@ const WHVJobPreview: React.FC = () => {
         const facilities =
           facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // Licenses
+        // 4️⃣ Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license ( name )")
@@ -121,15 +122,15 @@ const WHVJobPreview: React.FC = () => {
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        // Like state
+        // 5️⃣ Check if liked
         let isLiked = false;
         if (whvId) {
           const { data: like } = await supabase
             .from("likes")
-            .select("liked_job_post_id")
+            .select("id")
             .eq("liker_id", whvId)
-            .eq("liker_type", "whv")
             .eq("liked_job_post_id", job.job_id)
+            .eq("liker_type", "whv")
             .maybeSingle();
           isLiked = !!like;
         }
@@ -154,23 +155,31 @@ const WHVJobPreview: React.FC = () => {
           website: employer?.website || "Not applicable",
           isLiked,
         });
+      } catch (err) {
+        console.error("Error fetching job preview:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchJobDetails();
+    if (whvId) fetchJobDetails();
   }, [jobId, whvId]);
 
-  // ✅ Optimistic Like toggle
+  // ✅ Toggle Like
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
 
-    const newState = !jobDetails.isLiked;
-    setJobDetails({ ...jobDetails, isLiked: newState });
-
     try {
-      if (newState) {
+      if (jobDetails.isLiked) {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", whvId)
+          .eq("liked_job_post_id", jobDetails.job_id)
+          .eq("liker_type", "whv");
+
+        setJobDetails({ ...jobDetails, isLiked: false });
+      } else {
         await supabase.from("likes").upsert(
           {
             liker_id: whvId,
@@ -179,29 +188,35 @@ const WHVJobPreview: React.FC = () => {
           },
           { onConflict: "liker_id,liked_job_post_id,liker_type" }
         );
+
+        setJobDetails({ ...jobDetails, isLiked: true });
         setShowLikeModal(true);
-      } else {
-        await supabase
-          .from("likes")
-          .delete()
-          .eq("liker_id", whvId)
-          .eq("liked_job_post_id", jobDetails.job_id)
-          .eq("liker_type", "whv");
       }
     } catch (err) {
       console.error("Error toggling like:", err);
-      setJobDetails({ ...jobDetails, isLiked: !newState }); // rollback
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  if (!jobDetails) return <div className="flex items-center justify-center min-h-screen">Job not found</div>;
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  if (!jobDetails) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Job not found</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4 relative">
-      {/* iPhone Frame */}
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative z-10">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* Phone frame */}
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
           <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
             <Button
@@ -237,40 +252,40 @@ const WHVJobPreview: React.FC = () => {
               {/* Job Info */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">{jobDetails.role}</h3>
-                <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                  jobDetails.job_status === "active"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-600"
+                }`}>
                   {jobDetails.job_status}
                 </span>
               </div>
 
-              {/* Job Details Grid */}
+              {/* Job Details */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <Clock className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-slate-800 mr-2" />
                     <span className="text-sm font-medium text-gray-600">Type</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <DollarSign className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-slate-800 mr-2" />
                     <span className="text-sm font-medium text-gray-600">Salary</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <User className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><User className="w-5 h-5 text-slate-800 mr-2" />
                     <span className="text-sm font-medium text-gray-600">Experience Required</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2">
-                    <Calendar className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-slate-800 mr-2" />
                     <span className="text-sm font-medium text-gray-600">Start Date</span>
                   </div>
                   <p className="text-gray-900 font-semibold">
@@ -281,27 +296,23 @@ const WHVJobPreview: React.FC = () => {
 
               {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <Award className="w-5 h-5 text-slate-800 mr-2" />
+                <div className="flex items-center mb-2"><Award className="w-5 h-5 text-slate-800 mr-2" />
                   <span className="text-sm font-medium text-gray-600">License Required</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0 ? (
-                    jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
-                        {l}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No licenses required</p>
-                  )}
+                  {jobDetails.licenses.length > 0
+                    ? jobDetails.licenses.map((l, i) => (
+                        <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
+                          {l}
+                        </span>
+                      ))
+                    : <p className="text-sm text-gray-500">No licenses required</p>}
                 </div>
               </div>
 
               {/* Location */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <MapPin className="w-5 h-5 text-slate-800 mr-2" />
+                <div className="flex items-center mb-2"><MapPin className="w-5 h-5 text-slate-800 mr-2" />
                   <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
                 <p className="text-gray-900 font-semibold">
@@ -313,22 +324,19 @@ const WHVJobPreview: React.FC = () => {
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0 ? (
-                    jobDetails.facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
-                        {f}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
-                  )}
+                  {jobDetails.facilities.length > 0
+                    ? jobDetails.facilities.map((f, i) => (
+                        <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">
+                          {f}
+                        </span>
+                      ))
+                    : <p className="text-sm text-gray-500">No facilities listed</p>}
                 </div>
               </div>
 
               {/* Website */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <Globe className="w-5 h-5 text-slate-800 mr-2" />
+                <div className="flex items-center mb-2"><Globe className="w-5 h-5 text-slate-800 mr-2" />
                   <span className="text-sm font-medium text-gray-600">Website</span>
                 </div>
                 <p className="text-gray-900 font-semibold">{jobDetails.website}</p>
@@ -356,14 +364,16 @@ const WHVJobPreview: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ✅ Modal outside phone frame */}
-      <LikeConfirmationModal
-        candidateName={jobDetails.role}
-        onClose={() => setShowLikeModal(false)}
-        isVisible={showLikeModal}
-      />
+        {/* ✅ Modal INSIDE phone only */}
+        <div className="absolute inset-0 z-50">
+          <LikeConfirmationModal
+            candidateName={`${jobDetails.role} at ${jobDetails.company_name}`}
+            onClose={() => setShowLikeModal(false)}
+            isVisible={showLikeModal}
+          />
+        </div>
+      </div>
     </div>
   );
 };
