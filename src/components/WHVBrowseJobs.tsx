@@ -10,17 +10,15 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Job {
   job_id: number;
-  description: string;
-  employment_type: string;
-  salary_range: string;
-  req_experience: string;
-  state: string;
-  suburb_city: string;
-  postcode: string;
+  user_id: string;
   start_date: string;
   industry_role?: {
     role: string;
     industry?: { name: string };
+  };
+  employer?: {
+    company_name: string;
+    profile_photo_url?: string;
   };
 }
 
@@ -30,27 +28,24 @@ const WHVBrowseJobs: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobTitle, setLikedJobTitle] = useState('');
-  const [selectedFilters, setSelectedFilters] = useState<any[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // Fetch jobs from Supabase
+  // Fetch jobs + employer + industry/role
   useEffect(() => {
     const fetchJobs = async () => {
       const { data, error } = await supabase
         .from('job')
         .select(`
           job_id,
-          description,
-          employment_type,
-          salary_range,
-          req_experience,
-          state,
-          suburb_city,
-          postcode,
+          user_id,
           start_date,
           industry_role (
             role,
             industry (name)
+          ),
+          employer (
+            company_name,
+            profile_photo_url
           )
         `)
         .eq('job_status', 'active')
@@ -66,14 +61,10 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, []);
 
-  const removeFilter = (filterValue: string) => {
-    setSelectedFilters(selectedFilters.filter((f) => f.value !== filterValue));
-  };
-
   const handleLikeJob = (jobId: number) => {
     const job = jobs.find((j) => j.job_id === jobId);
     if (job) {
-      setLikedJobTitle(job.industry_role?.role || job.description);
+      setLikedJobTitle(job.industry_role?.role || 'Job');
       setShowLikeModal(true);
     }
   };
@@ -87,13 +78,9 @@ const WHVBrowseJobs: React.FC = () => {
     setLikedJobTitle('');
   };
 
-  const handleApplyFilters = (filters: any) => {
-    console.log('Applied filters:', filters);
-  };
-
   if (showFilters) {
     return (
-      <WHVFilterPage onClose={() => setShowFilters(false)} onApplyFilters={handleApplyFilters} />
+      <WHVFilterPage onClose={() => setShowFilters(false)} onApplyFilters={() => {}} />
     );
   }
 
@@ -131,52 +118,44 @@ const WHVBrowseJobs: React.FC = () => {
               </button>
             </div>
 
-            {/* Active Filters */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {selectedFilters.map((filter) => (
-                <div key={filter.value} className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1">
-                  <span className="text-xs text-gray-700">{filter.label}</span>
-                  <button
-                    onClick={() => removeFilter(filter.value)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-
             {/* Jobs List */}
             <div className="space-y-4 pb-20">
               {jobs.map((job) => (
                 <div key={job.job_id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 text-base mb-1">
-                      {job.industry_role?.role || 'Job Role'}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-1">{job.industry_role?.industry?.name || 'Industry'}</p>
-                    <p className="text-sm text-gray-600 mb-1">
-                      {job.state}, {job.suburb_city} {job.postcode}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-1">Start Date: {job.start_date}</p>
-                    <p className="text-sm text-gray-600 mb-1">
-                      {job.employment_type} • {job.req_experience}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-1">Salary: {job.salary_range}</p>
+                  <div className="flex items-start gap-4">
+                    {/* Employer photo */}
+                    <img
+                      src={job.employer?.profile_photo_url || '/placeholder.png'}
+                      alt={job.employer?.company_name || 'Employer'}
+                      className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      {/* Employer name */}
+                      <h3 className="font-semibold text-gray-900 text-base mb-1">
+                        {job.employer?.company_name || 'Employer'}
+                      </h3>
+                      {/* Job role + industry */}
+                      <p className="text-sm text-gray-600 mb-1">
+                        {job.industry_role?.role || 'Role'} • {job.industry_role?.industry?.name || 'Industry'}
+                      </p>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Start Date: {job.start_date || 'TBD'}
+                      </p>
 
-                    <div className="flex items-center gap-3 mt-4">
-                      <Button
-                        onClick={() => handleViewJob(job.job_id)}
-                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-11 rounded-xl"
-                      >
-                        View Job
-                      </Button>
-                      <button
-                        onClick={() => handleLikeJob(job.job_id)}
-                        className="h-11 w-11 flex-shrink-0 bg-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all duration-200 shadow-sm"
-                      >
-                        <Heart size={18} className="text-white" />
-                      </button>
+                      <div className="flex items-center gap-3 mt-4">
+                        <Button
+                          onClick={() => handleViewJob(job.job_id)}
+                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-11 rounded-xl"
+                        >
+                          View Job
+                        </Button>
+                        <button
+                          onClick={() => handleLikeJob(job.job_id)}
+                          className="h-11 w-11 flex-shrink-0 bg-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all duration-200 shadow-sm"
+                        >
+                          <Heart size={18} className="text-white" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
