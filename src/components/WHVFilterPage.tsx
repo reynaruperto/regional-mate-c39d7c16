@@ -1,10 +1,28 @@
-import React, { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import React, { useState, useEffect } from "react";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Industry {
+  id: number;
+  name: string;
+}
+
+interface Role {
+  id: number;
+  name: string;
+  industryId: number;
+}
 
 interface WHVFilterPageProps {
   onClose: () => void;
@@ -13,96 +31,83 @@ interface WHVFilterPageProps {
 
 const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    state: '',
-    citySuburb: '',
-    postcode: '',
-    interestedIndustry: '',
-    lookingForJobType: '',
-    availableSeasons: '',
+    state: "",
+    citySuburb: "",
+    postcode: "",
+    interestedIndustry: "",
+    interestedRole: "",
+    lookingForJobType: "",
+    minPayRate: "",
+    maxPayRate: "",
     needsAccommodation: false,
     needsMeals: false,
     needsTransport: false,
     needsTraining: false,
     hasEquipment: false,
-    minPayRate: '',
-    maxPayRate: '',
   });
 
-  const states = [
-    'Queensland (QLD)',
-    'New South Wales (NSW)', 
-    'Victoria (VIC)',
-    'Western Australia (WA)',
-    'South Australia (SA)',
-    'Tasmania (TAS)',
-    'Northern Territory (NT)',
-    'Australian Capital Territory (ACT)'
-  ];
+  // 🔑 Enums + lookup tables
+  const [states, setStates] = useState<string[]>([]);
+  const [jobTypes, setJobTypes] = useState<string[]>([]);
+  const [payRanges, setPayRanges] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
 
-  const interestedIndustries = [
-    'Agriculture & Farming',
-    'Horticulture & Fruit Picking', 
-    'Livestock & Dairy Farming',
-    'Viticulture & Wine Production',
-    'Aquaculture & Fishing',
-    'Forestry & Logging',
-    'Hospitality & Food Service',
-    'Accommodation & Tourism',
-    'Event Management',
-    'Entertainment & Recreation',
-    'Construction & Building',
-    'Road Construction & Maintenance',
-    'Plumbing & Electrical',
-    'Landscaping & Gardening',
-    'Mining Operations',
-    'Oil & Gas',
-    'Resource Processing',
-    'Healthcare & Medical',
-    'Aged Care & Disability Services',
-    'Childcare & Education',
-    'Food Processing & Manufacturing',
-    'Industrial Manufacturing',
-    'Packaging & Warehousing',
-    'Transport & Delivery',
-    'Warehousing & Distribution',
-    'Freight & Logistics',
-    'Retail & Customer Service',
-    'Sales & Marketing',
-    'Cleaning Services',
-    'Administration & Office',
-    'General Labour'
-  ];
+  // Fetch enums & lookups from Supabase
+  useEffect(() => {
+    const fetchEnumsAndLookups = async () => {
+      try {
+        const { data: stateData } = await supabase.rpc("get_enum_values", {
+          enum_name: "state",
+        });
+        const { data: jobTypeData } = await supabase.rpc("get_enum_values", {
+          enum_name: "employment_type",
+        });
+        const { data: payRangeData } = await supabase.rpc("get_enum_values", {
+          enum_name: "salary_range",
+        });
 
-  const lookingForJobTypes = [
-    'Casual / Seasonal',
-    'Part-time',
-    'Full-time',
-    'Contract',
-    'Temporary'
-  ];
+        if (stateData) setStates(stateData);
+        if (jobTypeData) setJobTypes(jobTypeData);
+        if (payRangeData) setPayRanges(payRangeData);
 
+        // Industries
+        const { data: indRes } = await supabase.from("industry").select("industry_id, name");
+        if (indRes) {
+          setIndustries(indRes.map((i) => ({ id: i.industry_id, name: i.name })));
+        }
 
-  const availableSeasonOptions = [
-    'Spring (Sep-Nov)',
-    'Summer (Dec-Feb)', 
-    'Autumn (Mar-May)',
-    'Winter (Jun-Aug)',
-    'Year Round',
-    'Peak Season',
-    'Off Season'
-  ];
+        // Roles
+        const { data: roleRes } = await supabase
+          .from("industry_role")
+          .select("industry_role_id, role, industry_id");
+        if (roleRes) {
+          setRoles(
+            roleRes.map((r) => ({
+              id: r.industry_role_id,
+              name: r.role,
+              industryId: r.industry_id,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Error fetching enums/lookups:", err);
+      }
+    };
+    fetchEnumsAndLookups();
+  }, []);
 
   const handleSelectChange = (category: string, value: string) => {
-    setSelectedFilters(prev => ({
+    setSelectedFilters((prev) => ({
       ...prev,
-      [category]: value
+      [category]: value,
     }));
   };
 
   const handleBooleanFilterChange = (category: string, checked: boolean) => {
-    setSelectedFilters(prev => ({
+    setSelectedFilters((prev) => ({
       ...prev,
-      [category]: checked
+      [category]: checked,
     }));
   };
 
@@ -111,16 +116,22 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
     onClose();
   };
 
-  const DropdownSection = ({ title, items, category, placeholder }: { 
-    title: string; 
-    items: string[]; 
-    category: string; 
-    placeholder: string; 
+  // 🔽 Dropdown wrapper
+  const DropdownSection = ({
+    title,
+    items,
+    category,
+    placeholder,
+  }: {
+    title: string;
+    items: string[];
+    category: string;
+    placeholder: string;
   }) => (
     <div className="mb-6">
       <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
-      <Select 
-        value={selectedFilters[category] as string} 
+      <Select
+        value={selectedFilters[category as keyof typeof selectedFilters] as string}
         onValueChange={(value) => handleSelectChange(category, value)}
       >
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
@@ -139,13 +150,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone 16 Pro Max Frame - Fixed dimensions */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
-          
-          {/* Header - Fixed */}
+          {/* Header */}
           <div className="px-4 py-3 border-b bg-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <button onClick={onClose}>
@@ -157,158 +164,120 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
 
           {/* Scrollable Content */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            {/* Location Preferences */}
+            {/* Location */}
+            <DropdownSection
+              title="Preferred State"
+              items={states}
+              category="state"
+              placeholder="Select state"
+            />
+
+            <div className="mb-3">
+              <Label className="text-sm text-gray-600 mb-2 block">Preferred City or Area</Label>
+              <Input
+                type="text"
+                placeholder="e.g., Brisbane, Tamworth, Mildura..."
+                value={selectedFilters.citySuburb}
+                onChange={(e) => handleSelectChange("citySuburb", e.target.value)}
+                className="w-full bg-white border border-gray-300"
+              />
+            </div>
+
             <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Where I Want to Work</h3>
-              
-              {/* State Selection */}
-              <div className="mb-3">
-                <Label className="text-sm text-gray-600 mb-2 block">Preferred State</Label>
-                <Select 
-                  value={selectedFilters.state} 
-                  onValueChange={(value) => handleSelectChange('state', value)}
+              <Label className="text-sm text-gray-600 mb-2 block">Preferred Postcode</Label>
+              <Input
+                type="text"
+                placeholder="e.g., 4000, 2000, 3000..."
+                value={selectedFilters.postcode}
+                onChange={(e) => handleSelectChange("postcode", e.target.value)}
+                className="w-full bg-white border border-gray-300"
+              />
+            </div>
+
+            {/* Industry */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">Industry</h3>
+              <Select
+                value={selectedFilters.interestedIndustry}
+                onValueChange={(val) => handleSelectChange("interestedIndustry", val)}
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue placeholder="Select industry" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-300 shadow-lg max-h-60 overflow-y-auto">
+                  {industries.map((ind) => (
+                    <SelectItem key={ind.id} value={String(ind.id)}>
+                      {ind.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Role */}
+            {selectedFilters.interestedIndustry && (
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-900 mb-3">Role</h3>
+                <Select
+                  value={selectedFilters.interestedRole}
+                  onValueChange={(val) => handleSelectChange("interestedRole", val)}
                 >
-                  <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-                    <SelectValue placeholder="Select state (optional)" />
+                  <SelectTrigger className="w-full bg-white border border-gray-300">
+                    <SelectValue placeholder="Select role" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-300 shadow-lg z-50">
-                    {states.map((state) => (
-                      <SelectItem key={state} value={state} className="hover:bg-gray-100">
-                        {state}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="bg-white border border-gray-300 shadow-lg max-h-60 overflow-y-auto">
+                    {roles
+                      .filter((r) => r.industryId === Number(selectedFilters.interestedIndustry))
+                      .map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
+            )}
 
-              {/* City/Suburb Search */}
-              <div className="mb-3">
-                <Label className="text-sm text-gray-600 mb-2 block">Preferred City or Area</Label>
-                <Input
-                  type="text"
-                  placeholder="e.g., Brisbane, Tamworth, Mildura..."
-                  value={selectedFilters.citySuburb}
-                  onChange={(e) => handleSelectChange('citySuburb', e.target.value)}
-                  className="w-full bg-white border border-gray-300"
-                />
-              </div>
-
-              {/* Postcode Search */}
-              <div>
-                <Label className="text-sm text-gray-600 mb-2 block">Preferred Postcode</Label>
-                <Input
-                  type="text"
-                  placeholder="e.g., 4000, 2000, 3000..."
-                  value={selectedFilters.postcode}
-                  onChange={(e) => handleSelectChange('postcode', e.target.value)}
-                  className="w-full bg-white border border-gray-300"
-                />
-              </div>
-            </div>
-
-            {/* Job Preferences */}
-            <DropdownSection 
-              title="Industries I'm Interested In" 
-              items={interestedIndustries} 
-              category="interestedIndustry" 
-              placeholder="Select industry"
-            />
-
-            <DropdownSection 
-              title="Job Type I'm Looking For" 
-              items={lookingForJobTypes} 
-              category="lookingForJobType" 
+            {/* Job Type */}
+            <DropdownSection
+              title="Job Type"
+              items={jobTypes}
+              category="lookingForJobType"
               placeholder="Select job type"
             />
 
-            <DropdownSection 
-              title="Season I'm Available" 
-              items={availableSeasonOptions} 
-              category="availableSeasons" 
-              placeholder="Select season"
+            {/* Pay Range */}
+            <DropdownSection
+              title="Pay Range"
+              items={payRanges}
+              category="minPayRate"
+              placeholder="Select pay range"
             />
 
-            {/* Pay Rate Expectations */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Pay Rate I'm Looking For (per hour)</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-sm text-gray-600 mb-2 block">Min $</Label>
-                  <Input
-                    type="number"
-                    placeholder="25"
-                    value={selectedFilters.minPayRate}
-                    onChange={(e) => handleSelectChange('minPayRate', e.target.value)}
-                    className="w-full bg-white border border-gray-300"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-600 mb-2 block">Max $</Label>
-                  <Input
-                    type="number"
-                    placeholder="35"
-                    value={selectedFilters.maxPayRate}
-                    onChange={(e) => handleSelectChange('maxPayRate', e.target.value)}
-                    className="w-full bg-white border border-gray-300"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* What I Need from Employer */}
+            {/* Employer Benefits */}
             <div className="mb-6">
               <h3 className="font-semibold text-gray-900 mb-3">What I Need from Employer</h3>
               <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="needs-accommodation"
-                    checked={selectedFilters.needsAccommodation}
-                    onCheckedChange={(checked) => handleBooleanFilterChange('needsAccommodation', checked as boolean)}
-                  />
-                  <Label htmlFor="needs-accommodation" className="text-sm text-gray-700">
-                    I Need Accommodation
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="needs-meals"
-                    checked={selectedFilters.needsMeals}
-                    onCheckedChange={(checked) => handleBooleanFilterChange('needsMeals', checked as boolean)}
-                  />
-                  <Label htmlFor="needs-meals" className="text-sm text-gray-700">
-                    I Need Meals Provided
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="needs-transport"
-                    checked={selectedFilters.needsTransport}
-                    onCheckedChange={(checked) => handleBooleanFilterChange('needsTransport', checked as boolean)}
-                  />
-                  <Label htmlFor="needs-transport" className="text-sm text-gray-700">
-                    I Need Transport Provided
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="needs-training"
-                    checked={selectedFilters.needsTraining}
-                    onCheckedChange={(checked) => handleBooleanFilterChange('needsTraining', checked as boolean)}
-                  />
-                  <Label htmlFor="needs-training" className="text-sm text-gray-700">
-                    I Need Training Provided
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has-equipment"
-                    checked={selectedFilters.hasEquipment}
-                    onCheckedChange={(checked) => handleBooleanFilterChange('hasEquipment', checked as boolean)}
-                  />
-                  <Label htmlFor="has-equipment" className="text-sm text-gray-700">
-                    I Have My Own Equipment/Tools
-                  </Label>
-                </div>
+                {[
+                  { key: "needsAccommodation", label: "I Need Accommodation" },
+                  { key: "needsMeals", label: "I Need Meals Provided" },
+                  { key: "needsTransport", label: "I Need Transport Provided" },
+                  { key: "needsTraining", label: "I Need Training Provided" },
+                  { key: "hasEquipment", label: "I Have My Own Equipment/Tools" },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={item.key}
+                      checked={selectedFilters[item.key as keyof typeof selectedFilters] as boolean}
+                      onCheckedChange={(checked) =>
+                        handleBooleanFilterChange(item.key, checked as boolean)
+                      }
+                    />
+                    <Label htmlFor={item.key} className="text-sm text-gray-700">
+                      {item.label}
+                    </Label>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
