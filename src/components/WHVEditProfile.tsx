@@ -72,6 +72,14 @@ interface Role {
   industryId: number;
 }
 
+interface RegionRuleRow {
+  id: number;
+  industry_id: number;
+  state: string;
+  suburb_city: string;
+  postcode: string;
+}
+
 interface Region {
   id: number;
   industry_id: number;
@@ -88,7 +96,7 @@ interface License {
 interface WorkExperience {
   id: string;
   industryId: number | null;
-  roleId: number | null;
+  roleId: number | null; // will map into position when saving
   company: string;
   location: string;
   startDate: string;
@@ -101,7 +109,7 @@ interface JobReference {
   name: string;
   businessName: string;
   email: string;
-  phone: string;
+  phone: string; // maps to mobile_num
   role: string;
 }
 
@@ -155,7 +163,6 @@ const WHVEditProfile: React.FC = () => {
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
 
-  // All industries/roles
   const [allIndustries, setAllIndustries] = useState<Industry[]>([]);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
 
@@ -241,6 +248,79 @@ const WHVEditProfile: React.FC = () => {
         if (cn) setCountryId(cn.country_id);
       }
 
+      // Visa + eligibility
+      const { data: visa } = await supabase
+        .from("maker_visa")
+        .select(
+          `
+          expiry_date,
+          country_id,
+          stage_id,
+          visa_stage:visa_stage(stage, sub_class, label),
+          country:country(name)
+        `
+        )
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (visa?.visa_stage && visa.country) {
+        setVisaType(visa.visa_stage.label);
+        setVisaExpiry(visa.expiry_date);
+        setVisaLabel(
+          `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
+        );
+        setCountryId(visa.country_id);
+
+        const { data: eligibleIndustries } = await supabase
+          .from("temp_eligibility")
+          .select("industry_id, industry_name")
+          .eq("sub_class", visa.visa_stage.sub_class)
+          .eq("stage", visa.visa_stage.stage)
+          .eq("country_name", visa.country.name);
+
+        if (eligibleIndustries?.length) {
+          setIndustries(
+            eligibleIndustries.map((i) => ({
+              id: i.industry_id,
+              name: i.industry_name,
+            }))
+          );
+
+          const industryIds = eligibleIndustries.map((i) => i.industry_id);
+          const { data: roleData } = await supabase
+            .from("industry_role")
+            .select("industry_role_id, role, industry_id")
+            .in("industry_id", industryIds);
+
+          if (roleData) {
+            setRoles(
+              roleData.map((r) => ({
+                id: r.industry_role_id,
+                name: r.role,
+                industryId: r.industry_id,
+              }))
+            );
+          }
+
+          const { data: regionRows } = await supabase
+            .from("regional_rules")
+            .select("id, industry_id, state, suburb_city, postcode")
+            .in("industry_id", industryIds);
+
+          if (regionRows) {
+            setRegions(
+              regionRows.map((r: RegionRuleRow) => ({
+                id: r.id,
+                industry_id: r.industry_id,
+                state: r.state,
+                suburb_city: r.suburb_city,
+                postcode: r.postcode,
+              }))
+            );
+          }
+        }
+      }
+
       // Preferences
       const { data: savedInd } = await supabase
         .from("maker_pref_industry")
@@ -264,10 +344,12 @@ const WHVEditProfile: React.FC = () => {
         .eq("user_id", user.id);
       if (savedLocs?.length) {
         setPreferredStates([...new Set(savedLocs.map((l) => l.state))]);
-        setPreferredAreas(savedLocs.map((l) => `${l.suburb_city}::${l.postcode}`));
+        setPreferredAreas(
+          savedLocs.map((l) => `${l.suburb_city}::${l.postcode}`)
+        );
       }
 
-      // Work experience → map saved `position` to `roleId`
+      // Work experience
       const { data: exp } = await supabase
         .from("maker_work_experience")
         .select(
@@ -276,23 +358,20 @@ const WHVEditProfile: React.FC = () => {
         .eq("user_id", user.id);
       if (exp) {
         setWorkExperiences(
-          exp.map((e) => {
-            const matchingRole = allRoles.find((r) => r.name === e.position);
-            return {
-              id: String(e.work_experience_id),
-              industryId: e.industry_id,
-              roleId: matchingRole ? matchingRole.id : null,
-              company: e.company || "",
-              location: e.location || "",
-              startDate: e.start_date || "",
-              endDate: e.end_date || "",
-              description: e.job_description || "",
-            };
-          })
+          exp.map((e) => ({
+            id: String(e.work_experience_id),
+            industryId: e.industry_id,
+            roleId: null, // later maps into position
+            company: e.company || "",
+            location: e.location || "",
+            startDate: e.start_date || "",
+            endDate: e.end_date || "",
+            description: e.job_description || "",
+          }))
         );
       }
 
-      // References
+      // References ✅ fixed to mobile_num
       const { data: refs } = await supabase
         .from("maker_reference")
         .select("*")
@@ -304,7 +383,7 @@ const WHVEditProfile: React.FC = () => {
             name: r.name || "",
             businessName: r.business_name || "",
             email: r.email || "",
-            phone: r.mobile_num || "",
+            phone: r.mobile_num || "", // ✅ fixed
             role: r.role || "",
           }))
         );
@@ -326,12 +405,22 @@ const WHVEditProfile: React.FC = () => {
 
     loadData();
   }, []);
-   // ============= Handlers =============
+
+
+  // ============= Handlers =============
+  const isValidAUPhone = (p: string) => /^(\+614\d{8}|04\d{8})$/.test(p);
+  const isValidExpiry = (date: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const expiryDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return expiryDate > today;
+  };
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  // Industries
   const handleIndustrySelect = (industryId: number) => {
     if (
       !selectedIndustries.includes(industryId) &&
@@ -359,12 +448,7 @@ const WHVEditProfile: React.FC = () => {
     );
   };
 
-  // Preferred States: show ALL, only QLD actionable
   const togglePreferredState = (state: string) => {
-    if (state !== "Queensland") {
-      setShowPopup(true);
-      return;
-    }
     const newStates = preferredStates.includes(state)
       ? preferredStates.filter((s) => s !== state)
       : preferredStates.length < 3
@@ -372,6 +456,7 @@ const WHVEditProfile: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
+    // when states change, drop areas not in selected states
     const validAreaKeys = regions
       .filter((r) => newStates.includes(r.state))
       .map((r) => `${r.suburb_city}::${r.postcode}`);
@@ -387,11 +472,17 @@ const WHVEditProfile: React.FC = () => {
   };
 
   const getAreasForState = (state: string) => {
-    return regions
+    // areas (suburb_city::postcode) constrained by BOTH state and selected industries
+    const keys = regions
       .filter(
-        (r) => r.state === state && selectedIndustries.includes(r.industry_id)
+        (r) =>
+          r.state === state &&
+          (selectedIndustries.length === 0 ||
+            selectedIndustries.includes(r.industry_id))
       )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
+    // dedupe
+    return [...new Set(keys)];
   };
 
   // Work Experience handlers
@@ -403,6 +494,7 @@ const WHVEditProfile: React.FC = () => {
           id: Date.now().toString(),
           industryId: null,
           roleId: null,
+          position: "",
           company: "",
           location: "",
           startDate: "",
@@ -481,13 +573,13 @@ const WHVEditProfile: React.FC = () => {
       await supabase
         .from("whv_maker")
         .update({
-          nationality,
+          nationality: nationality as any,
           birth_date: dob,
           mobile_num: phone,
           address_line1: address.address1,
           address_line2: address.address2 || null,
           suburb: address.suburb,
-          state: address.state,
+          state: address.state as any,
           postcode: address.postcode,
           tagline: tagline.trim(),
           updated_at: new Date().toISOString(),
@@ -500,14 +592,15 @@ const WHVEditProfile: React.FC = () => {
             user_id: user.id,
             country_id: countryId,
             stage_id: selectedStage.stage_id,
-            dob,
+            dob: dob,
             expiry_date: visaExpiry,
           },
           { onConflict: "user_id" }
         );
       }
 
-      // Preferences
+      // ========= Save Preferences to NEW tables =========
+      // Clear old rows
       await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
       await supabase
         .from("maker_pref_industry_role")
@@ -515,6 +608,7 @@ const WHVEditProfile: React.FC = () => {
         .eq("user_id", user.id);
       await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
+      // Insert industries
       if (selectedIndustries.length) {
         await supabase.from("maker_pref_industry").insert(
           selectedIndustries.map((industry_id) => ({
@@ -524,6 +618,7 @@ const WHVEditProfile: React.FC = () => {
         );
       }
 
+      // Insert roles
       if (selectedRoles.length) {
         await supabase.from("maker_pref_industry_role").insert(
           selectedRoles.map((industry_role_id) => ({
@@ -533,31 +628,34 @@ const WHVEditProfile: React.FC = () => {
         );
       }
 
+      // Insert locations (state + suburb_city + postcode)
       if (preferredAreas.length) {
-        const rows: {
-          user_id: string;
-          state: string;
-          suburb_city: string;
-          postcode: string;
-        }[] = [];
-        const qldKeys = getAreasForState("Queensland");
-        preferredAreas.forEach((locKey) => {
-          if (qldKeys.includes(locKey)) {
-            const [suburb_city, postcode] = locKey.split("::");
-            rows.push({
-              user_id: user.id,
-              state: "Queensland",
-              suburb_city,
-              postcode,
-            });
-          }
+        // We store each selected area keyed by state(s) it belongs to
+        const rows: { user_id: string; state: string; suburb_city: string; postcode: string }[] =
+          [];
+        preferredStates.forEach((state) => {
+          const keysForState = getAreasForState(state);
+          preferredAreas.forEach((locKey) => {
+            if (keysForState.includes(locKey)) {
+              const [suburb_city, postcode] = locKey.split("::");
+              rows.push({
+                user_id: user.id,
+                state,
+                suburb_city,
+                postcode,
+              });
+            }
+          });
         });
+        // if user picked states but no areas were valid for that state, you can
+        // decide to save state-only rows by skipping suburb/postcode — leaving as-is (area required)
         if (rows.length) {
           await supabase.from("maker_pref_location").insert(rows);
         }
       }
 
-      // Work experience (save role name into `position`)
+      // ========= Save Work Experience =========
+      // Replace all with new set (as per your original approach)
       await supabase
         .from("maker_work_experience")
         .delete()
@@ -573,39 +671,35 @@ const WHVEditProfile: React.FC = () => {
       );
 
       if (validExperiences.length > 0) {
-        const workRows = validExperiences.map((exp) => {
-          const roleName =
-            allRoles.find((r) => r.id === exp.roleId)?.name || "";
-          return {
-            user_id: user.id,
-            company: exp.company.trim(),
-            position: roleName, // ✅ role name goes into DB column
-            start_date: exp.startDate,
-            end_date: exp.endDate,
-            location: exp.location || null,
-            industry_id: exp.industryId!,
-            job_description: exp.description || null,
-          };
-        });
+        const workRows = validExperiences.map((exp) => ({
+          user_id: user.id,
+          company: exp.company.trim(),
+          position: exp.position.trim(), // keep your free text position
+          start_date: exp.startDate,
+          end_date: exp.endDate,
+          location: exp.location || null,
+          industry_id: exp.industryId!,
+          industry_role_id: exp.roleId!, // NEW: save role
+          job_description: exp.description || null,
+        }));
         await supabase.from("maker_work_experience").insert(workRows);
       }
 
-      // References
+      // ========= Save References =========
       await supabase.from("maker_reference").delete().eq("user_id", user.id);
-
       if (jobReferences.length > 0) {
         const refRows = jobReferences.map((ref) => ({
           user_id: user.id,
-          name: ref.name?.trim() || null,
-          business_name: ref.businessName?.trim() || null,
-          email: ref.email?.trim() || null,
-          mobile_num: ref.phone?.trim() || null,
-          role: ref.role?.trim() || null,
+          name: ref.name || null,
+          business_name: ref.businessName || null,
+          email: ref.email || null,
+          mobile_num: ref.phone || null,
+          role: ref.role || null,
         }));
         await supabase.from("maker_reference").insert(refRows);
       }
 
-      // Licenses
+      // ========= Save Licenses =========
       await supabase.from("maker_license").delete().eq("user_id", user.id);
       if (licenses.length > 0) {
         const licRows = licenses.map((licenseId) => ({
@@ -623,6 +717,7 @@ const WHVEditProfile: React.FC = () => {
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
       });
+
       navigate("/whv/dashboard");
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -634,6 +729,7 @@ const WHVEditProfile: React.FC = () => {
     }
   };
 
+  // Filter stages by country eligibility (unchanged)
   const filteredStages =
     countryId !== null
       ? visaStages.filter((v) =>
@@ -642,8 +738,6 @@ const WHVEditProfile: React.FC = () => {
           )
         )
       : [];
-
-
 
   // ============= Render =============
   if (loading) {
