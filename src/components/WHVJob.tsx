@@ -2,15 +2,10 @@
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
-  MapPin,
-  Calendar,
   Clock,
   DollarSign,
-  User,
   Heart,
   Image,
-  Award,
-  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -32,7 +27,6 @@ interface JobDetails {
   company_name: string;
   tagline: string;
   company_photo: string | null;
-  facilities: string[];
   licenses: string[];
   website: string;
   isLiked?: boolean;
@@ -46,6 +40,7 @@ const WHVJobPreview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showLikeModal, setShowLikeModal] = useState(false);
 
+  // ✅ Get logged-in WHV
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -54,6 +49,7 @@ const WHVJobPreview: React.FC = () => {
     getUser();
   }, []);
 
+  // ✅ Fetch job details + like state
   useEffect(() => {
     const fetchJobDetails = async () => {
       if (!jobId) return;
@@ -135,7 +131,6 @@ const WHVJobPreview: React.FC = () => {
           company_name: employer?.company_name || "Unknown Company",
           tagline: employer?.tagline || "No tagline provided",
           company_photo: companyPhoto,
-          facilities: [],
           licenses,
           website: employer?.website || "Not applicable",
           isLiked,
@@ -152,13 +147,11 @@ const WHVJobPreview: React.FC = () => {
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
 
-    // optimistic update
     const newState = !jobDetails.isLiked;
     setJobDetails({ ...jobDetails, isLiked: newState });
 
     try {
       if (newState) {
-        // ❤️ Like
         await supabase.from("likes").upsert(
           {
             liker_id: whvId,
@@ -169,7 +162,6 @@ const WHVJobPreview: React.FC = () => {
         );
         setShowLikeModal(true);
       } else {
-        // 🔄 Unlike
         await supabase
           .from("likes")
           .delete()
@@ -179,8 +171,7 @@ const WHVJobPreview: React.FC = () => {
       }
     } catch (err) {
       console.error("Error toggling like:", err);
-      // rollback if something failed
-      setJobDetails({ ...jobDetails, isLiked: !newState });
+      setJobDetails({ ...jobDetails, isLiked: !newState }); // rollback if error
     }
   };
 
