@@ -1,225 +1,194 @@
-// src/pages/BrowseJobs.tsx
+// src/pages/WHV/BrowseJobs.tsx
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft, Search, Filter } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import BottomNavigation from "@/components/BottomNavigation";
 import WHVFilterPage from "@/components/WHVFilterPage";
 
-interface JobCard {
+interface Job {
   job_id: number;
   description: string;
   state: string;
   suburb_city: string;
-  postcode: string;
+  postcode: string | null;
   employment_type: string;
-  salary_range: string;
-  company_name: string;
+  salary_range: string | null;
+  company_name: string | null;
   profile_photo: string | null;
-  role: string;
-  industry: string;
+  role: string | null;
+  industry: string | null;
 }
 
 const BrowseJobs: React.FC = () => {
-  const [jobs, setJobs] = useState<JobCard[]>([]);
-  const [likes, setLikes] = useState<Set<number>>(new Set());
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<any>({});
+  const [filters, setFilters] = useState<any>(null);
 
-  // ---------- Fetch Jobs ----------
-  const fetchJobs = async (filters?: any) => {
-    let query = supabase
-      .from("job")
-      .select(
-        `
-        job_id,
-        description,
-        state,
-        suburb_city,
-        postcode,
-        employment_type,
-        salary_range,
-        industry_role:industry_role(role, industry:industry(name)),
-        employer:employer(company_name, profile_photo)
-      `
-      )
-      .eq("job_status", "active");
-
-    // Apply filters only if provided
-    if (filters?.state) query = query.eq("state", filters.state);
-    if (filters?.citySuburb)
-      query = query.ilike("suburb_city", `%${filters.citySuburb}%`);
-    if (filters?.postcode) query = query.eq("postcode", filters.postcode);
-    if (filters?.interestedIndustry)
-      query = query.ilike(
-        "industry_role.industry.name",
-        `%${filters.interestedIndustry}%`
-      );
-    if (filters?.lookingForJobType)
-      query = query.eq("employment_type", filters.lookingForJobType);
-    if (filters?.minPayRate)
-      query = query.gte("salary_range", filters.minPayRate);
-    if (filters?.maxPayRate)
-      query = query.lte("salary_range", filters.maxPayRate);
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching jobs:", error);
-      return;
-    }
-
-    if (data) {
-      const formatted: JobCard[] = data.map((j: any) => ({
-        job_id: j.job_id,
-        description: j.description,
-        state: j.state,
-        suburb_city: j.suburb_city,
-        postcode: j.postcode,
-        employment_type: j.employment_type,
-        salary_range: j.salary_range,
-        company_name: j.employer?.company_name || "Unknown",
-        profile_photo: j.employer?.profile_photo || null,
-        role: j.industry_role?.role || "Unspecified",
-        industry: j.industry_role?.industry?.name || "Unspecified",
-      }));
-      setJobs(formatted);
-    }
-  };
-
-  // ---------- Fetch Likes ----------
-  const fetchLikes = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("likes")
-      .select("liked_job_post_id")
-      .eq("liker_id", user.id)
-      .eq("liker_type", "whv");
-
-    if (!error && data) {
-      setLikes(new Set(data.map((l) => l.liked_job_post_id)));
-    }
-  };
-
-  // ---------- Toggle Like ----------
-  const toggleLike = async (jobId: number) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    if (likes.has(jobId)) {
-      await supabase
-        .from("likes")
-        .delete()
-        .eq("liker_id", user.id)
-        .eq("liked_job_post_id", jobId);
-      setLikes((prev) => {
-        const updated = new Set(prev);
-        updated.delete(jobId);
-        return updated;
-      });
-    } else {
-      await supabase.from("likes").insert({
-        liker_id: user.id,
-        liker_type: "whv",
-        liked_job_post_id: jobId,
-      });
-      setLikes((prev) => new Set(prev).add(jobId));
-    }
-  };
-
-  // ---------- Effects ----------
   useEffect(() => {
-    fetchJobs(activeFilters);
-    fetchLikes();
-  }, [activeFilters]);
+    const fetchJobs = async () => {
+      setLoading(true);
 
-  // ---------- Render ----------
+      let query = supabase
+        .from("job")
+        .select(
+          `
+          job_id,
+          description,
+          state,
+          suburb_city,
+          postcode,
+          employment_type,
+          salary_range,
+          employer:employer (
+            company_name,
+            profile_photo
+          ),
+          industry_role:industry_role (
+            role,
+            industry:industry (
+              name
+            )
+          )
+        `
+        )
+        .eq("job_status", "active");
+
+      if (searchQuery) {
+        query = query.ilike("description", `%${searchQuery}%`);
+      }
+      if (filters?.state) {
+        query = query.eq("state", filters.state);
+      }
+      if (filters?.interestedIndustry) {
+        query = query.eq("industry_role.industry.name", filters.interestedIndustry);
+      }
+      if (filters?.lookingForJobType) {
+        query = query.eq("employment_type", filters.lookingForJobType);
+      }
+      if (filters?.minPayRate) {
+        query = query.gte("salary_range", filters.minPayRate);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching jobs:", error);
+        setJobs([]);
+      } else {
+        const mapped = data.map((j: any) => ({
+          job_id: j.job_id,
+          description: j.description,
+          state: j.state,
+          suburb_city: j.suburb_city,
+          postcode: j.postcode,
+          employment_type: j.employment_type,
+          salary_range: j.salary_range,
+          company_name: j.employer?.company_name || "Unknown company",
+          profile_photo: j.employer?.profile_photo || null,
+          role: j.industry_role?.role || "Unspecified role",
+          industry: j.industry_role?.industry?.name || "General",
+        }));
+        setJobs(mapped);
+      }
+      setLoading(false);
+    };
+
+    fetchJobs();
+  }, [searchQuery, filters]);
+
+  const handleApplyFilters = (appliedFilters: any) => {
+    setFilters(appliedFilters);
+    setShowFilters(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
+      {/* iPhone frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
-          {/* Dynamic island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+        <div className="w-full h-full bg-white rounded-[48px] flex flex-col">
+          {/* Dynamic Island */}
+          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-3"></div>
 
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 border-b flex items-center justify-between">
-            <button
-              onClick={() => setShowFilters(true)}
-              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-700" />
+          <div className="px-4 py-3 border-b flex items-center gap-3">
+            <button onClick={() => navigate(-1)}>
+              <ArrowLeft size={22} className="text-gray-600" />
             </button>
             <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
-            <div className="w-12" />
           </div>
 
-          {/* Jobs List */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-            {jobs.length === 0 ? (
+          {/* Search + Filter */}
+          <div className="flex items-center gap-2 px-4 py-3 border-b">
+            <Input
+              type="text"
+              placeholder="Search jobs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-1"
+            >
+              <Filter size={16} /> Filter
+            </Button>
+          </div>
+
+          {/* Job list */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+            {loading ? (
+              <p className="text-center text-gray-500">Loading jobs...</p>
+            ) : jobs.length === 0 ? (
               <p className="text-center text-gray-500">No jobs found</p>
             ) : (
               jobs.map((job) => (
                 <div
                   key={job.job_id}
-                  className="border rounded-2xl p-4 flex items-start gap-4 bg-white shadow-sm"
+                  className="p-4 border rounded-xl shadow-sm bg-white hover:shadow-md transition"
                 >
-                  {job.profile_photo ? (
-                    <img
-                      src={job.profile_photo}
-                      alt={job.company_name}
-                      className="w-14 h-14 rounded-xl object-cover"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-500 text-sm">No Img</span>
+                  <div className="flex items-start gap-3">
+                    {job.profile_photo ? (
+                      <img
+                        src={job.profile_photo}
+                        alt={job.company_name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-sm text-gray-500">
+                        {job.company_name[0]}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <h2 className="font-semibold text-gray-900">{job.company_name}</h2>
+                      <p className="text-sm text-gray-700">
+                        {job.role} • {job.industry}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {job.suburb_city}, {job.state}{" "}
+                        {job.postcode ? `(${job.postcode})` : ""}
+                      </p>
+                      <p className="text-sm text-gray-800 mt-1">
+                        {job.employment_type} • {job.salary_range || "Rate not specified"}
+                      </p>
                     </div>
-                  )}
-                  <div className="flex-1">
-                    <h2 className="text-base font-semibold text-gray-900">
-                      {job.company_name}
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      {job.role} • {job.industry}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {job.suburb_city}, {job.state} {job.postcode}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {job.employment_type} • {job.salary_range}
-                    </p>
                   </div>
-                  <button onClick={() => toggleLike(job.job_id)}>
-                    <Heart
-                      className={`w-6 h-6 ${
-                        likes.has(job.job_id)
-                          ? "text-blue-900 fill-blue-900"
-                          : "text-gray-400"
-                      }`}
-                    />
-                  </button>
                 </div>
               ))
             )}
           </div>
-
-          {/* Bottom Nav */}
-          <BottomNavigation />
         </div>
       </div>
 
-      {/* Filter Page */}
       {showFilters && (
         <WHVFilterPage
           onClose={() => setShowFilters(false)}
-          onApplyFilters={(filters) => {
-            setActiveFilters(filters);
-          }}
+          onApplyFilters={handleApplyFilters}
         />
       )}
     </div>
