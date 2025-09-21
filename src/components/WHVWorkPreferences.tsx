@@ -1,3 +1,4 @@
+// src/components/WHVWorkPreferences.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [showPopup, setShowPopup] = useState(false);
 
   // ==========================
-  // Load data + existing prefs
+  // Load data + prefs
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -68,10 +69,10 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile nationality
+      // Profile tagline
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("nationality, tagline")
+        .select("tagline")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -90,20 +91,21 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!profile || !visa) return;
+      if (!visa) return;
 
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
       // Eligible industries
-      const { data: eligibleIndustries } = await supabase
+      const { data: eligibleIndustries, error: indError } = await supabase
         .from("temp_eligibility")
         .select("industry_id, industry_name")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", profile.nationality);
+        .eq("country_name", visa.country.name); // ✅ fix
 
+      if (indError) console.error("❌ Industry load error:", indError);
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
@@ -115,29 +117,36 @@ const WHVWorkPreferences: React.FC = () => {
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
         // Roles
-        const { data: roleData } = await supabase
-          .from("industry_role")
-          .select("industry_role_id, role, industry_id")
-          .in("industry_id", industryIds);
+        if (industryIds.length > 0) {
+          const { data: roleData, error: roleError } = await supabase
+            .from("industry_role")
+            .select("industry_role_id, role, industry_id")
+            .in("industry_id", industryIds);
 
-        if (roleData) {
-          setRoles(
-            roleData.map((r) => ({
-              id: r.industry_role_id,
-              name: r.role,
-              industryId: r.industry_id,
-            }))
-          );
+          if (roleError) console.error("❌ Role load error:", roleError);
+          if (roleData) {
+            setRoles(
+              roleData.map((r) => ({
+                id: r.industry_role_id,
+                name: r.role,
+                industryId: r.industry_id,
+              }))
+            );
+          }
         }
 
-        // Regions
-        const { data: regionData } = await supabase
-          .from("regional_rules")
-          .select("id, industry_id, state, suburb_city, postcode")
-          .in("industry_id", industryIds);
+        // Regions (QLD only for now)
+        if (industryIds.length > 0) {
+          const { data: regionData, error: regionError } = await supabase
+            .from("regional_rules")
+            .select("id, industry_id, state, suburb_city, postcode")
+            .in("industry_id", industryIds)
+            .eq("state", "Queensland");
 
-        if (regionData) {
-          setRegions(regionData);
+          if (regionError) console.error("❌ Region load error:", regionError);
+          if (regionData) {
+            setRegions(regionData);
+          }
         }
       }
 
@@ -185,7 +194,7 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Update tagline
+    // Save tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -196,18 +205,15 @@ const WHVWorkPreferences: React.FC = () => {
 
     // Clear old prefs
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase
-      .from("maker_pref_industry_role")
-      .delete()
-      .eq("user_id", user.id);
+    await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
     // Insert industries
     if (selectedIndustries.length) {
       await supabase.from("maker_pref_industry").insert(
-        selectedIndustries.map((indId) => ({
+        selectedIndustries.map((industry_id) => ({
           user_id: user.id,
-          industry_id: indId,
+          industry_id,
         }))
       );
     }
@@ -215,26 +221,25 @@ const WHVWorkPreferences: React.FC = () => {
     // Insert roles
     if (selectedRoles.length) {
       await supabase.from("maker_pref_industry_role").insert(
-        selectedRoles.map((roleId) => ({
+        selectedRoles.map((industry_role_id) => ({
           user_id: user.id,
-          industry_role_id: roleId,
+          industry_role_id,
         }))
       );
     }
 
-    // Insert locations
+    // Insert QLD locations
     if (preferredAreas.length) {
-      await supabase.from("maker_pref_location").insert(
-        preferredAreas.map((locKey) => {
-          const [suburb_city, postcode] = locKey.split("::");
-          return {
-            user_id: user.id,
-            state: "Queensland",
-            suburb_city,
-            postcode,
-          };
-        })
-      );
+      const rows = preferredAreas.map((locKey) => {
+        const [suburb_city, postcode] = locKey.split("::");
+        return {
+          user_id: user.id,
+          state: "Queensland",
+          suburb_city,
+          postcode,
+        };
+      });
+      await supabase.from("maker_pref_location").insert(rows);
     }
 
     navigate("/whv/work-experience");
@@ -254,9 +259,7 @@ const WHVWorkPreferences: React.FC = () => {
     ) {
       setSelectedIndustries([...selectedIndustries, industryId]);
     } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(
-        selectedIndustries.filter((id) => id !== industryId)
-      );
+      setSelectedIndustries(selectedIndustries.filter((id) => id !== industryId));
       const industryRoles = roles
         .filter((r) => r.industryId === industryId)
         .map((r) => r.id);
@@ -279,7 +282,6 @@ const WHVWorkPreferences: React.FC = () => {
       setShowPopup(true);
       return;
     }
-
     const newStates = preferredStates.includes(state)
       ? preferredStates.filter((s) => s !== state)
       : preferredStates.length < 3
@@ -290,17 +292,13 @@ const WHVWorkPreferences: React.FC = () => {
     const validAreas = regions
       .filter((r) => newStates.includes(r.state))
       .map((r) => `${r.suburb_city}::${r.postcode}`);
-    setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
+    setPreferredAreas((prev) => prev.filter((a) => validAreas.includes(a)));
   };
 
   const togglePreferredArea = (locKey: string) => {
     setPreferredAreas((prev) => {
-      if (prev.includes(locKey)) {
-        return prev.filter((a) => a !== locKey);
-      }
-      if (prev.length >= 3) {
-        return prev;
-      }
+      if (prev.includes(locKey)) return prev.filter((a) => a !== locKey);
+      if (prev.length >= 3) return prev;
       return [...prev, locKey];
     });
   };
@@ -318,9 +316,6 @@ const WHVWorkPreferences: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
           {/* Header */}
           <div className="px-4 py-4 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -344,7 +339,7 @@ const WHVWorkPreferences: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-            {/* 1. Tagline */}
+            {/* Tagline */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -352,11 +347,7 @@ const WHVWorkPreferences: React.FC = () => {
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">1. Profile Tagline</span>
-                {expandedSections.tagline ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
+                {expandedSections.tagline ? <ChevronDown /> : <ChevronRight />}
               </button>
               {expandedSections.tagline && (
                 <div className="px-4 pb-4 border-t space-y-3">
@@ -370,7 +361,7 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Industries & Roles */}
+            {/* Industries & Roles */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -378,20 +369,13 @@ const WHVWorkPreferences: React.FC = () => {
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">2. Industries & Roles</span>
-                {expandedSections.industries ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
+                {expandedSections.industries ? <ChevronDown /> : <ChevronRight />}
               </button>
               {expandedSections.industries && (
                 <div className="px-4 pb-4 border-t space-y-4">
                   <Label>Select up to 3 industries *</Label>
                   {industries.map((industry) => (
-                    <label
-                      key={industry.id}
-                      className="flex items-center space-x-2 py-1"
-                    >
+                    <label key={industry.id} className="flex items-center space-x-2 py-1">
                       <input
                         type="checkbox"
                         checked={selectedIndustries.includes(industry.id)}
@@ -408,9 +392,7 @@ const WHVWorkPreferences: React.FC = () => {
 
                   {selectedIndustries.map((industryId) => {
                     const industry = industries.find((i) => i.id === industryId);
-                    const industryRoles = roles.filter(
-                      (r) => r.industryId === industryId
-                    );
+                    const industryRoles = roles.filter((r) => r.industryId === industryId);
                     return (
                       <div key={industryId}>
                         <Label>Roles for {industry?.name}</Label>
@@ -437,7 +419,7 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* 3. Preferred Locations */}
+            {/* Preferred Locations */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -445,11 +427,7 @@ const WHVWorkPreferences: React.FC = () => {
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">3. Preferred Locations</span>
-                {expandedSections.states ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
+                {expandedSections.states ? <ChevronDown /> : <ChevronRight />}
               </button>
               {expandedSections.states && (
                 <div className="px-4 pb-4 border-t space-y-4">
@@ -461,93 +439,31 @@ const WHVWorkPreferences: React.FC = () => {
                           type="checkbox"
                           checked={preferredStates.includes(state)}
                           onChange={() => togglePreferredState(state)}
-                          disabled={
-                            preferredStates.length >= 3 &&
-                            !preferredStates.includes(state)
-                          }
                         />
                         <span>{state}</span>
                       </label>
 
-                      {preferredStates.includes(state) &&
-                        state === "Queensland" && (
-                          <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
-                            {getAreasForState(state).map((locKey) => {
-                              const [suburb_city, postcode] = locKey.split("::");
-                              return (
-                                <label
-                                  key={locKey}
-                                  className="flex items-center space-x-2 py-1"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={preferredAreas.includes(locKey)}
-                                    onChange={() => togglePreferredArea(locKey)}
-                                    disabled={
-                                      preferredAreas.length >= 3 &&
-                                      !preferredAreas.includes(locKey)
-                                    }
-                                  />
-                                  <span>
-                                    {suburb_city} ({postcode})
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
+                      {preferredStates.includes(state) && state === "Queensland" && (
+                        <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
+                          {getAreasForState(state).map((locKey) => {
+                            const [suburb_city, postcode] = locKey.split("::");
+                            return (
+                              <label key={locKey} className="flex items-center space-x-2 py-1">
+                                <input
+                                  type="checkbox"
+                                  checked={preferredAreas.includes(locKey)}
+                                  onChange={() => togglePreferredArea(locKey)}
+                                />
+                                <span>
+                                  {suburb_city} ({postcode})
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* 4. Review */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => toggleSection("summary")}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <span className="text-lg font-medium">4. Review</span>
-                {expandedSections.summary ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
-              </button>
-              {expandedSections.summary && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <p>
-                    <strong>Visa:</strong> {visaLabel}
-                  </p>
-                  <p>
-                    <strong>Tagline:</strong> {tagline}
-                  </p>
-                  <p>
-                    <strong>Industries:</strong>{" "}
-                    {selectedIndustries
-                      .map((id) => industries.find((i) => i.id === id)?.name)
-                      .join(", ")}
-                  </p>
-                  <p>
-                    <strong>Roles:</strong>{" "}
-                    {selectedRoles
-                      .map((id) => roles.find((r) => r.id === id)?.name)
-                      .join(", ")}
-                  </p>
-                  <p>
-                    <strong>States:</strong> {preferredStates.join(", ")}
-                  </p>
-                  <p>
-                    <strong>Suburbs:</strong>{" "}
-                    {preferredAreas
-                      .map((locKey) => {
-                        const [suburb_city, postcode] = locKey.split("::");
-                        return `${suburb_city} (${postcode})`;
-                      })
-                      .join(", ")}
-                  </p>
                 </div>
               )}
             </div>
