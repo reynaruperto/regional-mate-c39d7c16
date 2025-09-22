@@ -256,14 +256,7 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    const validAreas = regions
-      .filter(
-        (r) =>
-          newStates.includes(r.state) &&
-          selectedIndustries.includes(r.industry_id)
-      )
-      .map((r) => `${r.suburb_city}::${r.postcode}`);
-
+    const validAreas = getAreasForState(state);
     setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
   };
 
@@ -286,11 +279,12 @@ const WHVWorkPreferences: React.FC = () => {
         selectedIndustries.includes(r.industry_id)
     );
 
+    // ✅ Deduplicate by suburb + postcode
     const unique = Array.from(
       new Map(
         filtered.map((r) => [
-          `${r.suburb_city}::${r.postcode || ""}`,
-          `${r.suburb_city}::${r.postcode || ""}`,
+          `${r.suburb_city}::${r.postcode}`,
+          `${r.suburb_city}::${r.postcode}`,
         ])
       ).values()
     );
