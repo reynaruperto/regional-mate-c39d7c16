@@ -20,7 +20,6 @@ interface Role {
 interface Region {
   id: number;
   industry_id: number;
-  stage_id: number;
   state: string;
   suburb_city: string;
   postcode: string;
@@ -50,7 +49,6 @@ const WHVWorkPreferences: React.FC = () => {
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
-  const [visaStageId, setVisaStageId] = useState<number | null>(null);
 
   const [expandedSections, setExpandedSections] = useState({
     tagline: true,
@@ -85,7 +83,7 @@ const WHVWorkPreferences: React.FC = () => {
         .select(
           `
           stage_id,
-          visa_stage:visa_stage(stage, sub_class, label, stage_id),
+          visa_stage:visa_stage(stage, sub_class, label),
           country:country(name)
         `
         )
@@ -94,7 +92,6 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (!visa) return;
 
-      setVisaStageId(visa.stage_id);
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
@@ -133,10 +130,10 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // Regions (with stage_id)
+        // Regions (state + industry)
         const { data: regionData } = await supabase
           .from("regional_rules")
-          .select("id, industry_id, stage_id, state, suburb_city, postcode")
+          .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
 
         if (regionData) {
@@ -263,8 +260,7 @@ const WHVWorkPreferences: React.FC = () => {
       .filter(
         (r) =>
           newStates.includes(r.state) &&
-          selectedIndustries.includes(r.industry_id) &&
-          (!visaStageId || r.stage_id === visaStageId)
+          selectedIndustries.includes(r.industry_id)
       )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
 
@@ -284,19 +280,17 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   const getAreasForState = (state: string) => {
-    if (!visaStageId) return [];
     const filtered = regions.filter(
       (r) =>
-        r.state.toLowerCase().includes(state.toLowerCase()) &&
-        selectedIndustries.includes(r.industry_id) &&
-        r.stage_id === visaStageId
+        r.state.toLowerCase() === state.toLowerCase() &&
+        selectedIndustries.includes(r.industry_id)
     );
 
     const unique = Array.from(
       new Map(
         filtered.map((r) => [
-          `${r.suburb_city}::${r.postcode}`,
-          `${r.suburb_city}::${r.postcode}`,
+          `${r.suburb_city}::${r.postcode || ""}`,
+          `${r.suburb_city}::${r.postcode || ""}`,
         ])
       ).values()
     );
@@ -573,6 +567,7 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
                 <h2 className="text-lg font-semibold mb-3">Not Eligible</h2>
+                <p className="text-sm text-gray-600 mb-4">
                 <p className="text-sm text-gray-600 mb-4">
                   Only Queensland is eligible at this time.
                 </p>
