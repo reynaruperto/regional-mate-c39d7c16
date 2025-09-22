@@ -107,7 +107,9 @@ const WHVWorkPreferences: React.FC = () => {
       if (eligibleIndustries?.length) {
         const uniqueIndustries = Array.from(
           new Map(
-            eligibleIndustries.map((i) => [i.industry_id, i])
+            eligibleIndustries
+              .filter((i) => i.industry_id !== null)
+              .map((i) => [i.industry_id, i])
           ).values()
         );
 
@@ -135,16 +137,15 @@ const WHVWorkPreferences: React.FC = () => {
             }))
           );
         }
+      }
 
-        // Regions
-        const { data: regionData } = await supabase
-          .from("regional_rules")
-          .select("id, industry_id, state, suburb_city, postcode")
-          .in("industry_id", industryIds);
+      // ✅ Always load ALL regional rules
+      const { data: regionData } = await supabase
+        .from("regional_rules")
+        .select("id, industry_id, state, suburb_city, postcode");
 
-        if (regionData) {
-          setRegions(regionData);
-        }
+      if (regionData) {
+        setRegions(regionData.filter((r) => r.industry_id !== null));
       }
 
       // ===== Load saved prefs =====
@@ -321,7 +322,11 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .filter(
+        (r) =>
+          r.state === state &&
+          selectedIndustries.includes(r.industry_id)
+      )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
