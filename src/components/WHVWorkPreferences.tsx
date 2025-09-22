@@ -308,13 +308,16 @@ const WHVWorkPreferences: React.FC = () => {
     });
   };
 
+  // ✅ Fixed function: handles "Queensland" vs "QLD" mismatch + number casting
   const getAreasForState = (state: string) => {
     const result = regions
-      .filter(
-        (r) =>
-          r.state.toLowerCase().includes(state.toLowerCase()) &&
-          selectedIndustries.includes(r.industry_id)
-      )
+      .filter((r) => {
+        const stateMatch =
+          r.state.toLowerCase().includes(state.toLowerCase()) ||
+          state.toLowerCase().includes(r.state.toLowerCase());
+        const industryMatch = selectedIndustries.includes(Number(r.industry_id));
+        return stateMatch && industryMatch;
+      })
       .map((r) => `${r.suburb_city}::${r.postcode}`);
 
     console.log(`Areas for ${state}:`, result);
