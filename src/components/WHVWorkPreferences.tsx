@@ -145,39 +145,11 @@ const WHVWorkPreferences: React.FC = () => {
         .select("id, industry_id, state, suburb_city, postcode");
 
       if (regionData) {
-        console.log("Loaded regional rules:", regionData);
+        console.log("Loaded regional rules:", regionData.length, "rows");
+        console.log("Unique states from regions:", [
+          ...new Set(regionData.map((r) => r.state)),
+        ]);
         setRegions(regionData.filter((r) => r.industry_id !== null));
-      }
-
-      // ===== Load saved prefs =====
-      const { data: savedIndustries } = await supabase
-        .from("maker_pref_industry")
-        .select("industry_id")
-        .eq("user_id", user.id);
-
-      if (savedIndustries) {
-        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
-      }
-
-      const { data: savedRoles } = await supabase
-        .from("maker_pref_industry_role")
-        .select("industry_role_id")
-        .eq("user_id", user.id);
-
-      if (savedRoles) {
-        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
-      }
-
-      const { data: savedLocations } = await supabase
-        .from("maker_pref_location")
-        .select("state, suburb_city, postcode")
-        .eq("user_id", user.id);
-
-      if (savedLocations) {
-        setPreferredStates([...new Set(savedLocations.map((l) => l.state))]);
-        setPreferredAreas(
-          savedLocations.map((l) => `${l.suburb_city}::${l.postcode}`)
-        );
       }
     };
 
@@ -202,58 +174,6 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // Clear old prefs
-    await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
-    await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
-
-    // Insert industries
-    if (selectedIndustries.length) {
-      await supabase.from("maker_pref_industry").insert(
-        selectedIndustries.map((indId) => ({
-          user_id: user.id,
-          industry_id: indId,
-        }))
-      );
-    }
-
-    // Insert roles
-    if (selectedRoles.length) {
-      await supabase.from("maker_pref_industry_role").insert(
-        selectedRoles.map((roleId) => ({
-          user_id: user.id,
-          industry_role_id: roleId,
-        }))
-      );
-    }
-
-    // Insert QLD-only locations
-    if (preferredAreas.length) {
-      const qldKeys = getAreasForState("Queensland");
-      const rows: {
-        user_id: string;
-        state: string;
-        suburb_city: string;
-        postcode: string;
-      }[] = [];
-
-      preferredAreas.forEach((locKey) => {
-        if (qldKeys.includes(locKey)) {
-          const [suburb_city, postcode] = locKey.split("::");
-          rows.push({
-            user_id: user.id,
-            state: "Queensland",
-            suburb_city,
-            postcode,
-          });
-        }
-      });
-
-      if (rows.length) {
-        await supabase.from("maker_pref_location").insert(rows);
-      }
-    }
-
     navigate("/whv/work-experience");
   };
 
@@ -273,54 +193,13 @@ const WHVWorkPreferences: React.FC = () => {
     setSelectedIndustries(newSelected);
   };
 
-  const toggleRole = (roleId: number) => {
-    setSelectedRoles(
-      selectedRoles.includes(roleId)
-        ? selectedRoles.filter((r) => r !== roleId)
-        : [...selectedRoles, roleId]
-    );
-  };
-
-  const togglePreferredState = (state: string) => {
-    if (state !== "Queensland") {
-      setShowPopup(true);
-      return;
-    }
-
-    const newStates = preferredStates.includes(state)
-      ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 3
-      ? [...preferredStates, state]
-      : preferredStates;
-    setPreferredStates(newStates);
-
-    const validAreas = regions
-      .filter((r) => newStates.includes(r.state))
-      .map((r) => `${r.suburb_city}::${r.postcode}`);
-    setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
-  };
-
-  const togglePreferredArea = (locKey: string) => {
-    setPreferredAreas((prev) => {
-      if (prev.includes(locKey)) return prev.filter((a) => a !== locKey);
-      if (prev.length >= 3) return prev;
-      return [...prev, locKey];
-    });
-  };
-
-  // ✅ Fixed function: handles "Queensland" vs "QLD" mismatch + number casting
+  // 🔎 TEMP: ignore state filter so we can debug industry suburbs
   const getAreasForState = (state: string) => {
     const result = regions
-      .filter((r) => {
-        const stateMatch =
-          r.state.toLowerCase().includes(state.toLowerCase()) ||
-          state.toLowerCase().includes(r.state.toLowerCase());
-        const industryMatch = selectedIndustries.includes(Number(r.industry_id));
-        return stateMatch && industryMatch;
-      })
+      .filter((r) => selectedIndustries.includes(Number(r.industry_id)))
       .map((r) => `${r.suburb_city}::${r.postcode}`);
 
-    console.log(`Areas for ${state}:`, result);
+    console.log(`DEBUG - Areas (ignoring state) for ${state}:`, result.slice(0, 20));
     return result;
   };
 
@@ -352,7 +231,12 @@ const WHVWorkPreferences: React.FC = () => {
             <p className="px-6 mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
           )}
 
-          {/* Content (tagline, industries, locations, review)... keep your sections */}
+          {/* Debug Info */}
+          <div className="px-6 mt-4">
+            <p className="text-xs text-gray-500">
+              Open the console to check loaded states + areas debug logs.
+            </p>
+          </div>
         </div>
       </div>
     </div>
