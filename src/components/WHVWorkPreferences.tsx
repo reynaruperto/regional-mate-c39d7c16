@@ -109,7 +109,6 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("country_name", visa.country.name);
 
       if (eligibleIndustries?.length) {
-        // ✅ Deduplicate industries
         const uniqueIndustries = Array.from(
           new Map(
             eligibleIndustries.map((i) => [
@@ -130,7 +129,6 @@ const WHVWorkPreferences: React.FC = () => {
             .in("industry_id", industryIds);
 
           if (roleData) {
-            // ✅ Deduplicate roles
             const uniqueRoles = Array.from(
               new Map(
                 roleData.map((r) => [
@@ -197,7 +195,6 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Save tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -206,12 +203,10 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // Clear old prefs
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
-    // Insert industries
     if (selectedIndustries.length) {
       await supabase.from("maker_pref_industry").insert(
         selectedIndustries.map((industry_id) => ({
@@ -221,7 +216,6 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
-    // Insert roles
     if (selectedRoles.length) {
       await supabase.from("maker_pref_industry_role").insert(
         selectedRoles.map((industry_role_id) => ({
@@ -231,7 +225,6 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
-    // Insert QLD locations
     if (preferredAreas.length) {
       const rows = preferredAreas.map((locKey) => {
         const [suburb_city, postcode] = locKey.split("::");
@@ -292,7 +285,7 @@ const WHVWorkPreferences: React.FC = () => {
       : preferredStates;
     setPreferredStates(newStates);
 
-    const validAreas = getAreasForState(state);
+    const validAreas = getAreasForState(state).map((a) => a.key);
     setPreferredAreas((prev) => prev.filter((a) => validAreas.includes(a)));
   };
 
@@ -304,20 +297,17 @@ const WHVWorkPreferences: React.FC = () => {
     });
   };
 
-  // ✅ Fixed getAreasForState (normalize + deduplicate)
+  // ✅ Show all QLD suburbs but grey-out invalid ones
   const getAreasForState = (state: string) => {
-    const filtered = regions.filter(
-      (r) =>
-        r.state.toLowerCase().includes(state.toLowerCase()) &&
-        selectedIndustries.includes(r.industry_id)
+    const filtered = regions.filter((r) =>
+      r.state.toLowerCase().includes(state.toLowerCase())
     );
 
-    // Deduplicate by suburb + postcode
     const unique = Array.from(
       new Map(
         filtered.map((r) => [
           `${r.suburb_city}::${r.postcode}`,
-          `${r.suburb_city}::${r.postcode}`,
+          { key: `${r.suburb_city}::${r.postcode}`, industryId: r.industry_id },
         ])
       ).values()
     );
@@ -465,14 +455,21 @@ const WHVWorkPreferences: React.FC = () => {
 
                       {preferredStates.includes(state) && state === "Queensland" && (
                         <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
-                          {getAreasForState(state).map((locKey) => {
-                            const [suburb_city, postcode] = locKey.split("::");
+                          {getAreasForState(state).map((loc) => {
+                            const [suburb_city, postcode] = loc.key.split("::");
+                            const isValid = selectedIndustries.includes(loc.industryId);
                             return (
-                              <label key={locKey} className="flex items-center space-x-2 py-1">
+                              <label
+                                key={loc.key}
+                                className={`flex items-center space-x-2 py-1 ${
+                                  !isValid ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
+                              >
                                 <input
                                   type="checkbox"
-                                  checked={preferredAreas.includes(locKey)}
-                                  onChange={() => togglePreferredArea(locKey)}
+                                  checked={preferredAreas.includes(loc.key)}
+                                  onChange={() => togglePreferredArea(loc.key)}
+                                  disabled={!isValid}
                                 />
                                 <span>
                                   {suburb_city} ({postcode})
