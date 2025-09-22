@@ -336,25 +336,23 @@ const WHVWorkPreferences: React.FC = () => {
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
-          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/whv/profile-setup")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Work Preferences
-              </h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                <span className="text-sm font-medium text-gray-600">4/6</span>
-              </div>
+          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between">
+            <button
+              onClick={() => navigate("/whv/profile-setup")}
+              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">Work Preferences</h1>
+            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+              <span className="text-sm font-medium text-gray-600">4/6</span>
             </div>
-            {visaLabel && (
-              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
-            )}
           </div>
+
+          {/* Visa Label */}
+          {visaLabel && (
+            <p className="px-6 mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
+          )}
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
