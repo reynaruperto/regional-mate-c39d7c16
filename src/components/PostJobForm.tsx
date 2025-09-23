@@ -79,6 +79,17 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     const uid = auth.user?.id;
     if (!uid) return;
 
+    // Parse suburb + postcode cleanly
+    let suburb_city = "";
+    let postcode = "";
+    if (draft.suburbValue) {
+      const match = draft.suburbValue.match(/^(.*)\s\((\d+)\)$/);
+      if (match) {
+        suburb_city = match[1];
+        postcode = match[2];
+      }
+    }
+
     const payload = {
       user_id: uid,
       job_status: draft.status,
@@ -90,10 +101,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       salary_range: draft.salaryRange,
       req_experience: draft.experienceRange,
       state: draft.state,
-      suburb_city: draft.suburbValue.split(" (")[0] || "",
-      postcode: draft.postcode,
+      suburb_city,
+      postcode,
       start_date: draft.startDate || null,
     };
+
+    console.log("Saving job payload:", payload);
 
     if (draft.job_id) {
       await supabase.from("job").update(payload).eq("job_id", draft.job_id);
