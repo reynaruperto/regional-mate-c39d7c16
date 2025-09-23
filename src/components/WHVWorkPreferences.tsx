@@ -154,6 +154,17 @@ const WHVWorkPreferences: React.FC = () => {
 
         if (regionData) {
           setRegions(regionData);
+          // Debug: Check how many regions we have per industry
+          const regionsByIndustry = regionData.reduce((acc, r) => {
+            acc[r.industry_id] = (acc[r.industry_id] || 0) + 1;
+            return acc;
+          }, {});
+          console.log("Regions by industry:", regionsByIndustry);
+          
+          // Debug: Check for Mining (industry 11) specifically
+          const miningRegions = regionData.filter(r => r.industry_id === 11);
+          console.log("Mining regions found:", miningRegions.length);
+          console.log("Sample Mining regions:", miningRegions.slice(0, 3));
         }
       }
 
@@ -300,9 +311,25 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     const selectedIndustryId = selectedIndustries[0];
-    return regions
-      .filter((r) => r.state === state && r.industry_id === selectedIndustryId)
-      .map((r) => `${r.suburb_city}::${r.postcode}`);
+    console.log("getAreasForState called with:", { state, selectedIndustryId });
+    console.log("Total regions loaded:", regions.length);
+    console.log("Sample regions:", regions.slice(0, 3));
+    
+    const filtered = regions.filter((r) => {
+      const stateMatch = r.state === state;
+      const industryMatch = r.industry_id === selectedIndustryId;
+      console.log("Region check:", { 
+        regionId: r.id, 
+        regionState: r.state, 
+        regionIndustryId: r.industry_id, 
+        stateMatch, 
+        industryMatch 
+      });
+      return stateMatch && industryMatch;
+    });
+    
+    console.log("Filtered regions:", filtered.length);
+    return filtered.map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
   // ==========================
