@@ -14,15 +14,8 @@ import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+// ✅ Match Supabase enums exactly
 type JobStatus = "active" | "inactive" | "draft";
-
-type JobType =
-  | "Full-time"
-  | "Part-time"
-  | "Casual"
-  | "Contract"
-  | "Seasonal";
-
 type PayRange =
   | "$25-30/hour"
   | "$30-35/hour"
@@ -30,7 +23,7 @@ type PayRange =
   | "$40-45/hour"
   | "$45+/hour"
   | "Undisclosed";
-
+type JobType = "Full-time" | "Part-time" | "Casual" | "Contract" | "Seasonal";
 type YearsExperience =
   | "None"
   | "<1"
@@ -52,9 +45,7 @@ const ALL_STATES = [
   "South Australia",
   "Northern Territory",
   "Australian Capital Territory",
-] as const;
-
-type State = (typeof ALL_STATES)[number];
+];
 
 interface PostJobFormProps {
   onBack: () => void;
@@ -64,19 +55,15 @@ interface PostJobFormProps {
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [jobTypeEnum, setJobTypeEnum] = useState<JobType[]>([]);
-  const [payRangeEnum, setPayRangeEnum] = useState<PayRange[]>([]);
-  const [yearsExpEnum, setYearsExpEnum] = useState<YearsExperience[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
     industryRoleId: editingJob?.industry_role_id || "",
-    industryRoleName: editingJob?.role || "",
     description: editingJob?.description || "",
-    employmentType: editingJob?.employment_type || "",
-    salaryRange: editingJob?.salary_range || "",
-    experienceRange: editingJob?.req_experience || "",
+    employmentType: (editingJob?.employment_type || "") as JobType,
+    salaryRange: (editingJob?.salary_range || "") as PayRange,
+    experienceRange: (editingJob?.req_experience || "") as YearsExperience,
     state: editingJob?.state || "",
     suburbValue: editingJob?.suburb_city
       ? `${editingJob.suburb_city} (${editingJob.postcode})`
@@ -92,37 +79,40 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   const pretty = (t: string) =>
     t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
-  const handle = (k: keyof typeof form, v: string) => {
+  const handle = (k: keyof typeof form, v: any) => {
     setForm((p) => ({ ...p, [k]: v }));
     autosave({ ...form, [k]: v });
   };
 
   // ✅ Autosave Draft Function
   const autosave = async (draft: any) => {
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) return;
+
+    const payload = {
+      user_id: uid,
+      job_status: draft.status as JobStatus,
+      industry_role_id: draft.industryRoleId
+        ? Number(draft.industryRoleId)
+        : null,
+      description: draft.description,
+      employment_type: draft.employmentType as JobType,
+      salary_range: draft.salaryRange as PayRange,
+      req_experience: draft.experienceRange as YearsExperience,
+      state: draft.state,
+      suburb_city: draft.suburbValue.split(" (")[0] || "",
+      postcode: draft.postcode,
+      start_date: draft.startDate || null,
+    };
+
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) return;
-
-      const payload = {
-        user_id: uid,
-        job_status: draft.status as JobStatus,
-        industry_role_id: draft.industryRoleId
-          ? Number(draft.industryRoleId)
-          : null,
-        description: draft.description as string,
-        employment_type: draft.employmentType as JobType,
-        salary_range: draft.salaryRange as PayRange,
-        req_experience: draft.experienceRange as YearsExperience,
-        state: draft.state as State,
-        suburb_city: draft.suburbValue.split(" (")[0] || "",
-        postcode: draft.postcode,
-        start_date: draft.startDate || null,
-      };
-
       if (draft.job_id) {
-        await supabase.from("job").update(payload).eq("job_id", draft.job_id).throwOnError();
+        await supabase
+          .from("job")
+          .update(payload)
+          .eq("job_id", draft.job_id)
+          .throwOnError();
       } else {
         const { data } = await supabase
           .from("job")
@@ -130,80 +120,40 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           .select("job_id")
           .single()
           .throwOnError();
-        if (data?.job_id)
-          setForm((p) => ({ ...p, job_id: data.job_id }));
+        if (data?.job_id) setForm((p) => ({ ...p, job_id: data.job_id }));
       }
 
       // Sync licenses
       if (draft.job_id) {
-        await supabase.from("job_license").delete().eq("job_id", draft.job_id).throwOnError();
+        await supabase.from("job_license").delete().eq("job_id", draft.job_id);
         if (selectedLicenses.length) {
-          await supabase.from("job_license").insert(
-            selectedLicenses.map((lid) => ({
-              job_id: draft.job_id,
-              license_id: lid,
-            }))
-          ).throwOnError();
+          await supabase
+            .from("job_license")
+            .insert(
+              selectedLicenses.map((lid) => ({
+                job_id: draft.job_id,
+                license_id: lid,
+              }))
+            )
+            .throwOnError();
         }
       }
     } catch (error) {
       console.error("Autosave error:", error);
-      toast({
-        title: "Save Error",
-        description: "Failed to save draft. Please try again.",
-        variant: "destructive",
-      });
     }
   };
 
   // ✅ Final Save = Publish
   const onSave = async () => {
-    try {
-      await autosave({ ...form, status: "active" });
-      toast({
-        title: editingJob ? "Job updated" : "Job posted",
-        description: editingJob
-          ? "Your changes are saved."
-          : "Your job is now active.",
-      });
-      onBack();
-    } catch (error) {
-      console.error("Save error:", error);
-      toast({
-        title: "Save Error",
-        description: "Failed to save job. Please check all fields and try again.",
-        variant: "destructive",
-      });
-    }
+    await autosave({ ...form, status: "active" });
+    toast({
+      title: editingJob ? "Job updated" : "Job posted",
+      description: editingJob
+        ? "Your changes are saved."
+        : "Your job is now active.",
+    });
+    onBack();
   };
-
-  // Load enums
-  useEffect(() => {
-    setJobTypeEnum([
-      "Full-time",
-      "Part-time",
-      "Casual",
-      "Contract",
-      "Seasonal",
-    ]);
-    setPayRangeEnum([
-      "$25-30/hour",
-      "$30-35/hour",
-      "$35-40/hour",
-      "$40-45/hour",
-      "$45+/hour",
-      "Undisclosed",
-    ]);
-    setYearsExpEnum([
-      "None",
-      "<1",
-      "1-2",
-      "3-4",
-      "5-7",
-      "8-10",
-      "10+",
-    ]);
-  }, []);
 
   // Load roles
   useEffect(() => {
@@ -215,11 +165,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           .single()
           .throwOnError();
         if (!emp?.industry_id) return;
+
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role")
           .eq("industry_id", emp.industry_id)
           .throwOnError();
+
         if (roleData)
           setRoles(
             roleData.map((r) => ({
@@ -228,7 +180,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             }))
           );
       } catch (error) {
-        console.error("Error loading roles:", error);
+        console.error("Error fetching roles:", error);
       }
     })();
   }, []);
@@ -244,7 +196,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           .throwOnError();
         if (data) setLicenses(data);
       } catch (error) {
-        console.error("Error loading licenses:", error);
+        console.error("Error fetching licenses:", error);
       }
     })();
   }, []);
@@ -314,11 +266,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   <SelectValue placeholder="Select job type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {jobTypeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {pretty(t)}
-                    </SelectItem>
-                  ))}
+                  {["Full-time", "Part-time", "Casual", "Contract", "Seasonal"].map(
+                    (t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    )
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -334,9 +288,16 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
                 <SelectContent>
-                  {payRangeEnum.map((t) => (
+                  {[
+                    "$25-30/hour",
+                    "$30-35/hour",
+                    "$35-40/hour",
+                    "$40-45/hour",
+                    "$45+/hour",
+                    "Undisclosed",
+                  ].map((t) => (
                     <SelectItem key={t} value={t}>
-                      {pretty(t)}
+                      {t}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -345,9 +306,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Experience */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">
-                Years of Work Experience Required
-              </h2>
+              <h2 className="text-sm font-semibold mb-3">Experience Required</h2>
               <Select
                 value={form.experienceRange}
                 onValueChange={(v) => handle("experienceRange", v)}
@@ -356,9 +315,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
                 <SelectContent>
-                  {yearsExpEnum.map((t) => (
+                  {["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"].map((t) => (
                     <SelectItem key={t} value={t}>
-                      {pretty(t)}
+                      {t}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -367,9 +326,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Licenses */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">
-                Licenses Required
-              </h2>
+              <h2 className="text-sm font-semibold mb-3">Licenses</h2>
               {licenses.map((l) => (
                 <label key={l.license_id} className="flex items-center gap-2">
                   <input
@@ -379,9 +336,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                       const newLicenses = selectedLicenses.includes(
                         l.license_id
                       )
-                        ? selectedLicenses.filter(
-                            (id) => id !== l.license_id
-                          )
+                        ? selectedLicenses.filter((id) => id !== l.license_id)
                         : [...selectedLicenses, l.license_id];
                       setSelectedLicenses(newLicenses);
                       autosave({ ...form, licenses: newLicenses });
