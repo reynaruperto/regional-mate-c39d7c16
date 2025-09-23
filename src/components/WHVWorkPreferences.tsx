@@ -18,8 +18,9 @@ interface Role {
 }
 
 interface Region {
-  id: number;
   industry_id: number;
+  industry_role_id: number;
+  industry_role: string;
   state: string;
   suburb_city: string;
   postcode: string;
@@ -96,7 +97,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // Eligible industries (use the materialized view)
+      // ✅ Eligible industries from MVW
       const { data: eligibleIndustries } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
         .select("industry_id, industry")
@@ -114,30 +115,29 @@ const WHVWorkPreferences: React.FC = () => {
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // Roles for those industries
-        const { data: roleData } = await supabase
-          .from("industry_role")
-          .select("industry_role_id, role, industry_id")
-          .in("industry_id", industryIds);
-
-        if (roleData) {
-          setRoles(
-            roleData.map((r) => ({
-              id: r.industry_role_id,
-              name: r.role,
-              industryId: r.industry_id,
-            }))
-          );
-        }
-
-        // Regions for those industries
+        // ✅ Roles + Locations from MVW
         const { data: regionData } = await supabase
-          .from("regional_rules")
-          .select("id, industry_id, state, suburb_city, postcode")
+          .from("mvw_emp_location_roles")
+          .select(
+            "industry_id, industry_role_id, industry_role, state, suburb_city, postcode"
+          )
           .in("industry_id", industryIds);
 
         if (regionData) {
           setRegions(regionData);
+
+          // Extract unique roles with proper names
+          const roleMap = new Map<number, Role>();
+          regionData.forEach((r: any) => {
+            if (!roleMap.has(r.industry_role_id)) {
+              roleMap.set(r.industry_role_id, {
+                id: r.industry_role_id,
+                name: r.industry_role, // ✅ proper role name
+                industryId: r.industry_id,
+              });
+            }
+          });
+          setRoles(Array.from(roleMap.values()));
         }
       }
 
@@ -196,7 +196,10 @@ const WHVWorkPreferences: React.FC = () => {
 
     // Reset old prefs
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
+    await supabase
+      .from("maker_pref_industry_role")
+      .delete()
+      .eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
     // Save industries
@@ -249,7 +252,9 @@ const WHVWorkPreferences: React.FC = () => {
       const industryRoles = roles
         .filter((r) => r.industryId === industryId)
         .map((r) => r.id);
-      setSelectedRoles(selectedRoles.filter((roleId) => industryRoles.includes(roleId)));
+      setSelectedRoles(
+        selectedRoles.filter((roleId) => industryRoles.includes(roleId))
+      );
     } else {
       setSelectedIndustries([]);
       setSelectedRoles([]);
@@ -323,12 +328,16 @@ const WHVWorkPreferences: React.FC = () => {
               >
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">Work Preferences</h1>
+              <h1 className="text-lg font-medium text-gray-900">
+                Work Preferences
+              </h1>
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
             </div>
-            {visaLabel && <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>}
+            {visaLabel && (
+              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
+            )}
           </div>
 
           {/* Content */}
@@ -337,11 +346,17 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => setExpandedSections((p) => ({ ...p, tagline: !p.tagline }))}
+                onClick={() =>
+                  setExpandedSections((p) => ({ ...p, tagline: !p.tagline }))
+                }
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">1. Profile Tagline</span>
-                {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                {expandedSections.tagline ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
               </button>
               {expandedSections.tagline && (
                 <div className="px-4 pb-4 border-t space-y-3">
@@ -359,21 +374,35 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => setExpandedSections((p) => ({ ...p, industries: !p.industries }))}
+                onClick={() =>
+                  setExpandedSections((p) => ({ ...p, industries: !p.industries }))
+                }
                 className="w-full flex items-center justify-between p-4 text-left"
               >
-                <span className="text-lg font-medium">2. Industries & Roles</span>
-                {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                <span className="text-lg font-medium">
+                  2. Industries & Roles
+                </span>
+                {expandedSections.industries ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
               </button>
               {expandedSections.industries && (
                 <div className="px-4 pb-4 border-t space-y-4">
                   <Label>Select 1 industry *</Label>
                   {industries.map((industry) => (
-                    <label key={`industry-${industry.id}`} className="flex items-center space-x-2 py-1">
+                    <label
+                      key={`industry-${industry.id}`}
+                      className="flex items-center space-x-2 py-1"
+                    >
                       <input
                         type="checkbox"
                         checked={selectedIndustries.includes(industry.id)}
-                        disabled={selectedIndustries.length >= 1 && !selectedIndustries.includes(industry.id)}
+                        disabled={
+                          selectedIndustries.length >= 1 &&
+                          !selectedIndustries.includes(industry.id)
+                        }
                         onChange={() => handleIndustrySelect(industry.id)}
                         className="h-4 w-4"
                       />
@@ -383,7 +412,9 @@ const WHVWorkPreferences: React.FC = () => {
 
                   {selectedIndustries.map((industryId) => {
                     const industry = industries.find((i) => i.id === industryId);
-                    const industryRoles = roles.filter((r) => r.industryId === industryId);
+                    const industryRoles = roles.filter(
+                      (r) => r.industryId === industryId
+                    );
                     return (
                       <div key={`roles-${industryId}`}>
                         <Label>Roles for {industry?.name}</Label>
@@ -414,11 +445,19 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => setExpandedSections((p) => ({ ...p, states: !p.states }))}
+                onClick={() =>
+                  setExpandedSections((p) => ({ ...p, states: !p.states }))
+                }
                 className="w-full flex items-center justify-between p-4 text-left"
               >
-                <span className="text-lg font-medium">3. Preferred Locations</span>
-                {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                <span className="text-lg font-medium">
+                  3. Preferred Locations
+                </span>
+                {expandedSections.states ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
               </button>
               {expandedSections.states && (
                 <div className="px-4 pb-4 border-t space-y-4">
@@ -430,7 +469,10 @@ const WHVWorkPreferences: React.FC = () => {
                           type="checkbox"
                           checked={preferredStates.includes(state)}
                           onChange={() => togglePreferredState(state)}
-                          disabled={preferredStates.length >= 1 && !preferredStates.includes(state)}
+                          disabled={
+                            preferredStates.length >= 1 &&
+                            !preferredStates.includes(state)
+                          }
                         />
                         <span>{state}</span>
                       </label>
@@ -441,14 +483,22 @@ const WHVWorkPreferences: React.FC = () => {
                             {getAreasForState(state).map((locKey) => {
                               const [suburb_city, postcode] = locKey.split("::");
                               return (
-                                <label key={`area-${state}-${locKey}`} className="flex items-center space-x-2 py-1">
+                                <label
+                                  key={`area-${state}-${locKey}`}
+                                  className="flex items-center space-x-2 py-1"
+                                >
                                   <input
                                     type="checkbox"
                                     checked={preferredAreas.includes(locKey)}
                                     onChange={() => togglePreferredArea(locKey)}
-                                    disabled={preferredAreas.length >= 3 && !preferredAreas.includes(locKey)}
+                                    disabled={
+                                      preferredAreas.length >= 3 &&
+                                      !preferredAreas.includes(locKey)
+                                    }
                                   />
-                                  <span>{suburb_city} ({postcode})</span>
+                                  <span>
+                                    {suburb_city} ({postcode})
+                                  </span>
                                 </label>
                               );
                             })}
@@ -462,6 +512,11 @@ const WHVWorkPreferences: React.FC = () => {
 
             {/* Continue */}
             <div className="pt-4">
+              <Button
+                type="button"
+                onClick={handleContinue}
+                disabled={
+                  !tagline.trim() ||
               <Button
                 type="button"
                 onClick={handleContinue}
@@ -483,8 +538,13 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
                 <h2 className="text-lg font-semibold mb-3">Not Eligible</h2>
-                <p className="text-sm text-gray-600 mb-4">Only Queensland is eligible at this time.</p>
-                <Button onClick={() => setShowPopup(false)} className="w-full bg-slate-800 text-white rounded-lg">
+                <p className="text-sm text-gray-600 mb-4">
+                  Only Queensland is eligible at this time.
+                </p>
+                <Button
+                  onClick={() => setShowPopup(false)}
+                  className="w-full bg-slate-800 text-white rounded-lg"
+                >
                   OK
                 </Button>
               </div>
