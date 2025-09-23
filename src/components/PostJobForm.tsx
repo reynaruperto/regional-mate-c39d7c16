@@ -179,7 +179,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     ]);
   }, []);
 
-  // Load roles from industry_role
+  // Load roles
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -210,14 +210,25 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
-  // Load locations
+  // Load locations with deduplication
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("vw_regional_rules_base")
         .select("state, suburb_city, postcode")
         .limit(500);
-      if (data) setLocations(data);
+
+      if (data) {
+        const unique = Array.from(
+          new Map(
+            data.map((loc) => [
+              `${loc.suburb_city}-${loc.postcode}`,
+              loc,
+            ])
+          ).values()
+        );
+        setLocations(unique);
+      }
     })();
   }, []);
 
@@ -234,7 +245,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone frame size you were using */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
