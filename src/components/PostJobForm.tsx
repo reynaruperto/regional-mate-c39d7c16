@@ -254,7 +254,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent position="popper" sideOffset={4}>
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
@@ -287,7 +287,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select employment type" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent position="popper" sideOffset={4}>
                   {employmentTypeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -307,7 +307,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent position="popper" sideOffset={4}>
                   {payRangeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -327,7 +327,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent position="popper" sideOffset={4}>
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -354,7 +354,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent position="popper" sideOffset={4}>
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
