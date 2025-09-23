@@ -203,8 +203,6 @@ const WHVWorkExperience: React.FC = () => {
         end_date: exp.endDate,
         location: exp.location || null,
         job_description: exp.description || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       };
     });
 
@@ -222,10 +220,8 @@ const WHVWorkExperience: React.FC = () => {
       name: ref.name?.trim() || null,
       business_name: ref.businessName?.trim() || null,
       email: ref.email?.trim() || null,
-      mobile_num: ref.phone?.trim() || null,
+      mobile_num: ref.phone?.trim()?.substring(0, 10) || null, // Limit to 10 characters
       role: ref.role?.trim() || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     }));
 
     const { error } = await supabase.from("maker_reference" as any).insert(refRows);
@@ -244,8 +240,6 @@ const WHVWorkExperience: React.FC = () => {
         allLicenses.find((l) => l.id === licenseId)?.name === "Other"
           ? otherLicense
           : null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     }));
 
     const { error } = await supabase.from("maker_license" as any).insert(licRows);
