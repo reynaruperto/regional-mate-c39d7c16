@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// ✅ Validation schema
+// ✅ Validation schema (only fields for this step)
 const formSchema = z.object({
   givenName: z
     .string()
@@ -87,7 +87,7 @@ const BusinessRegistrationForm: React.FC = () => {
     resolver: zodResolver(formSchema),
   });
 
-  // ✅ Save to Supabase
+  // ✅ Save to Supabase (basic details only)
   const onSubmit = async (data: FormData) => {
     try {
       const {
@@ -118,33 +118,21 @@ const BusinessRegistrationForm: React.FC = () => {
         return;
       }
 
+      // ✅ Only save what belongs to this screen
       const { error } = await supabase.from("employer").upsert({
-        user_id: profile.user_id as unknown as string, // ✅ force TS accept user_id
+        user_id: profile.user_id as string,
         given_name: data.givenName,
         middle_name: data.middleName || null,
         family_name: data.familyName,
         abn: data.abn,
         company_name: data.companyName,
-        website:
-          data.website && data.website.trim() !== "" ? data.website : null,
+        website: data.website?.trim() !== "" ? data.website : null,
         mobile_num: data.businessPhone,
         address_line1: data.addressLine1,
         address_line2: data.addressLine2 || null,
         suburb_city: data.suburbCity,
-        state: data.state as
-          | "Australian Capital Territory"
-          | "New South Wales"
-          | "Northern Territory"
-          | "Queensland"
-          | "South Australia"
-          | "Tasmania"
-          | "Victoria"
-          | "Western Australia", // ✅ cast to enum
+        state: data.state,
         postcode: data.postCode,
-        // Add required fields with default values
-        business_tenure: "1-2 years" as const,
-        employee_count: "1-10" as const,
-        industry_id: 1, // Default industry ID
         updated_at: new Date().toISOString(),
       });
 
