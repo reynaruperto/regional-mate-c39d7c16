@@ -100,62 +100,81 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   // ✅ Autosave Draft Function
   const autosave = async (draft: any) => {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
-    if (!uid) return;
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return;
 
-    const payload = {
-      user_id: uid,
-      job_status: draft.status as JobStatus,
-      industry_role_id: draft.industryRoleId
-        ? Number(draft.industryRoleId)
-        : null,
-      description: draft.description as string,
-      employment_type: draft.employmentType as JobType,
-      salary_range: draft.salaryRange as PayRange,
-      req_experience: draft.experienceRange as YearsExperience,
-      state: draft.state as State,
-      suburb_city: draft.suburbValue.split(" (")[0] || "",
-      postcode: draft.postcode,
-      start_date: draft.startDate || null,
-    };
+      const payload = {
+        user_id: uid,
+        job_status: draft.status as JobStatus,
+        industry_role_id: draft.industryRoleId
+          ? Number(draft.industryRoleId)
+          : null,
+        description: draft.description as string,
+        employment_type: draft.employmentType as JobType,
+        salary_range: draft.salaryRange as PayRange,
+        req_experience: draft.experienceRange as YearsExperience,
+        state: draft.state as State,
+        suburb_city: draft.suburbValue.split(" (")[0] || "",
+        postcode: draft.postcode,
+        start_date: draft.startDate || null,
+      };
 
-    if (draft.job_id) {
-      await supabase.from("job").update(payload).eq("job_id", draft.job_id);
-    } else {
-      const { data } = await supabase
-        .from("job")
-        .insert({ ...payload, job_status: "draft" })
-        .select("job_id")
-        .single();
-      if (data?.job_id)
-        setForm((p) => ({ ...p, job_id: data.job_id }));
-    }
-
-    // Sync licenses
-    if (draft.job_id) {
-      await supabase.from("job_license").delete().eq("job_id", draft.job_id);
-      if (selectedLicenses.length) {
-        await supabase.from("job_license").insert(
-          selectedLicenses.map((lid) => ({
-            job_id: draft.job_id,
-            license_id: lid,
-          }))
-        );
+      if (draft.job_id) {
+        await supabase.from("job").update(payload).eq("job_id", draft.job_id).throwOnError();
+      } else {
+        const { data } = await supabase
+          .from("job")
+          .insert({ ...payload, job_status: "draft" })
+          .select("job_id")
+          .single()
+          .throwOnError();
+        if (data?.job_id)
+          setForm((p) => ({ ...p, job_id: data.job_id }));
       }
+
+      // Sync licenses
+      if (draft.job_id) {
+        await supabase.from("job_license").delete().eq("job_id", draft.job_id).throwOnError();
+        if (selectedLicenses.length) {
+          await supabase.from("job_license").insert(
+            selectedLicenses.map((lid) => ({
+              job_id: draft.job_id,
+              license_id: lid,
+            }))
+          ).throwOnError();
+        }
+      }
+    } catch (error) {
+      console.error("Autosave error:", error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save draft. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
   // ✅ Final Save = Publish
   const onSave = async () => {
-    await autosave({ ...form, status: "active" });
-    toast({
-      title: editingJob ? "Job updated" : "Job posted",
-      description: editingJob
-        ? "Your changes are saved."
-        : "Your job is now active.",
-    });
-    onBack();
+    try {
+      await autosave({ ...form, status: "active" });
+      toast({
+        title: editingJob ? "Job updated" : "Job posted",
+        description: editingJob
+          ? "Your changes are saved."
+          : "Your job is now active.",
+      });
+      onBack();
+    } catch (error) {
+      console.error("Save error:", error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save job. Please check all fields and try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Load enums
@@ -189,33 +208,44 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   // Load roles
   useEffect(() => {
     (async () => {
-      const { data: emp } = await supabase
-        .from("employer")
-        .select("industry_id")
-        .single();
-      if (!emp?.industry_id) return;
-      const { data: roleData } = await supabase
-        .from("industry_role")
-        .select("industry_role_id, role")
-        .eq("industry_id", emp.industry_id);
-      if (roleData)
-        setRoles(
-          roleData.map((r) => ({
-            industry_role_id: r.industry_role_id,
-            industry_role: r.role,
-          }))
-        );
+      try {
+        const { data: emp } = await supabase
+          .from("employer")
+          .select("industry_id")
+          .single()
+          .throwOnError();
+        if (!emp?.industry_id) return;
+        const { data: roleData } = await supabase
+          .from("industry_role")
+          .select("industry_role_id, role")
+          .eq("industry_id", emp.industry_id)
+          .throwOnError();
+        if (roleData)
+          setRoles(
+            roleData.map((r) => ({
+              industry_role_id: r.industry_role_id,
+              industry_role: r.role,
+            }))
+          );
+      } catch (error) {
+        console.error("Error loading roles:", error);
+      }
     })();
   }, []);
 
   // Load licenses
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("license")
-        .select("license_id, name")
-        .order("name");
-      if (data) setLicenses(data);
+      try {
+        const { data } = await supabase
+          .from("license")
+          .select("license_id, name")
+          .order("name")
+          .throwOnError();
+        if (data) setLicenses(data);
+      } catch (error) {
+        console.error("Error loading licenses:", error);
+      }
     })();
   }, []);
 

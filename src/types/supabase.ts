@@ -268,7 +268,7 @@ export type Database = {
           created_at: string | null;
           updated_at: string | null;
           industry_role_id: number | null;
-          salary_range: Database["public"]["Enums"]["pay_range"] | null;
+          salary_range: Database["public"]["Enums"]["pay_range"];
           req_experience: Database["public"]["Enums"]["years_experience"];
           postcode: string | null;
           start_date: string;
@@ -284,7 +284,7 @@ export type Database = {
           created_at?: string | null;
           updated_at?: string | null;
           industry_role_id?: number | null;
-          salary_range?: Database["public"]["Enums"]["pay_range"] | null;
+          salary_range: Database["public"]["Enums"]["pay_range"];
           req_experience: Database["public"]["Enums"]["years_experience"];
           postcode?: string | null;
           start_date: string;
@@ -300,7 +300,7 @@ export type Database = {
           created_at?: string | null;
           updated_at?: string | null;
           industry_role_id?: number | null;
-          salary_range?: Database["public"]["Enums"]["pay_range"] | null;
+          salary_range?: Database["public"]["Enums"]["pay_range"];
           req_experience?: Database["public"]["Enums"]["years_experience"];
           postcode?: string | null;
           start_date?: string;
