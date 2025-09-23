@@ -134,7 +134,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
-  // ✅ Load roles from industry_role table (fixed)
+  // ✅ Load roles from industry_role table (fixed to use `role`)
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -144,11 +144,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         return;
       }
 
-      // Get employer tied to this user
       const { data: emp, error: empErr } = await supabase
         .from("employer")
         .select("industry_id")
-        .eq("user_id", uid) // ✅ filter by current employer
+        .eq("user_id", uid)
         .single();
 
       if (empErr) {
@@ -160,10 +159,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         return;
       }
 
-      // Get roles for that industry
       const { data: roleData, error: roleErr } = await supabase
         .from("industry_role")
-        .select("industry_role_id, industry_role") // ✅ correct column name
+        .select("industry_role_id, role") // ✅ correct
         .eq("industry_id", emp.industry_id);
 
       if (roleErr) {
@@ -175,7 +173,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         setRoles(
           roleData.map((r) => ({
             industry_role_id: r.industry_role_id,
-            industry_role: r.industry_role,
+            industry_role: r.role, // ✅ correct
           }))
         );
       }
