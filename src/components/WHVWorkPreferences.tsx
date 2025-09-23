@@ -144,16 +144,18 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // Regions - Add limit to ensure we get all data
+        // Regions - Add limit to ensure we get all data and fix data types
         const { data: regionData, error: regionError } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
-          .in("industry_id", industryIds)
-          .limit(10000); // Ensure we get all records
+          .in("industry_id", industryIds.map(Number))
+          .limit(20000);
 
         console.log("Regions query with industryIds:", industryIds);
+        console.log("Regions query with converted industryIds:", industryIds.map(Number));
         console.log("Region query error:", regionError);
-        console.log("Regions", regionData);
+        console.log("Regions total count:", regionData?.length);
+        console.log("First 10 regionData results:", regionData?.slice(0, 10));
 
         if (regionData) {
           setRegions(regionData);
