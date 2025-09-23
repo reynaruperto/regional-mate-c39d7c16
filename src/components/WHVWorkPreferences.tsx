@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Industry {
@@ -23,14 +25,42 @@ interface Region {
   postcode: string;
 }
 
+const ALL_STATES = [
+  "Queensland",
+  "New South Wales",
+  "Victoria",
+  "Tasmania",
+  "Western Australia",
+  "South Australia",
+  "Northern Territory",
+  "Australian Capital Territory",
+];
+
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
+  const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+
+  const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [preferredStates, setPreferredStates] = useState<string[]>([]);
+  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
 
+  const [expandedSections, setExpandedSections] = useState({
+    tagline: true,
+    industries: false,
+    states: false,
+    summary: false,
+  });
+  const [showPopup, setShowPopup] = useState(false);
+
+  // ==========================
+  // Load data
+  // ==========================
   useEffect(() => {
     const loadData = async () => {
       const {
@@ -38,69 +68,57 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile
+      // Profile + tagline
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("nationality")
+        .select("nationality, tagline")
         .eq("user_id", user.id)
         .maybeSingle();
+
+      if (profile?.tagline) setTagline(profile.tagline);
 
       // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("stage_id, visa_stage:visa_stage(stage, sub_class, label), country:country(name)")
+        .select(
+          `
+          stage_id,
+          visa_stage:visa_stage(stage, sub_class, label),
+          country:country(name)
+        `
+        )
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!profile || !visa) return;
+      if (!visa || !visa.visa_stage || !visa.country) return;
 
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // Debug log: what we’re filtering with
-      console.log("Filtering with:", {
-        sub_class: visa.visa_stage.sub_class,
-        stage: visa.visa_stage.stage,
-        nationality: profile.nationality,
-      });
+      // Eligible industries (use new MV)
+      const { data: eligibleIndustries } = await supabase
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id, industry")
+        .eq("sub_class", visa.visa_stage.sub_class)
+        .eq("stage", visa.visa_stage.stage)
+        .eq("country", visa.country.name);
 
-      // ==========================
-      // 1. Industries (filtered, case-insensitive country)
-      // ==========================
-      const { data: filteredIndustries, error: industriesError } =
-        await supabase
-          .from("mvw_eligibility_visa_country_stage_industry")
-          .select("industry_id, industry, sub_class, stage, country")
-          .eq("sub_class", String(visa.visa_stage.sub_class)) // match text
-          .eq("stage", Number(visa.visa_stage.stage)) // match int
-          .ilike("country", profile.nationality); // case-insensitive match
-
-      if (industriesError) {
-        console.error("Industries error:", industriesError);
-      }
-
-      if (filteredIndustries?.length) {
+      if (eligibleIndustries?.length) {
         setIndustries(
-          filteredIndustries.map((i) => ({
+          eligibleIndustries.map((i) => ({
             id: i.industry_id,
             name: i.industry,
           }))
         );
 
-        const industryIds = filteredIndustries.map((i) => i.industry_id);
+        const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // ==========================
-        // 2. Roles (by industry)
-        // ==========================
-        const { data: roleData, error: roleError } = await supabase
+        // Roles
+        const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
-
-        if (roleError) {
-          console.error("Roles error:", roleError);
-        }
 
         if (roleData) {
           setRoles(
@@ -112,17 +130,11 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // ==========================
-        // 3. Regions (by industry)
-        // ==========================
-        const { data: regionData, error: regionError } = await supabase
+        // Regions
+        const { data: regionData } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
-
-        if (regionError) {
-          console.error("Regions error:", regionError);
-        }
 
         if (regionData) {
           setRegions(regionData);
@@ -133,6 +145,143 @@ const WHVWorkPreferences: React.FC = () => {
     loadData();
   }, []);
 
+  // ==========================
+  // Save before continue
+  // ==========================
+  const handleContinue = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Update tagline
+    await supabase
+      .from("whv_maker")
+      .update({
+        tagline: tagline.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id);
+
+    // Clear old prefs
+    await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
+    await supabase
+      .from("maker_pref_industry_role")
+      .delete()
+      .eq("user_id", user.id);
+    await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
+
+    // Insert industries
+    if (selectedIndustries.length) {
+      await supabase.from("maker_pref_industry").insert(
+        selectedIndustries.map((indId) => ({
+          user_id: user.id,
+          industry_id: indId,
+        }))
+      );
+    }
+
+    // Insert roles
+    if (selectedRoles.length) {
+      await supabase.from("maker_pref_industry_role").insert(
+        selectedRoles.map((roleId) => ({
+          user_id: user.id,
+          industry_role_id: roleId,
+        }))
+      );
+    }
+
+    // Insert locations
+    if (preferredAreas.length) {
+      await supabase.from("maker_pref_location").insert(
+        preferredAreas.map((locKey) => {
+          const [suburb_city, postcode] = locKey.split("::");
+          return {
+            user_id: user.id,
+            state: "Queensland",
+            suburb_city,
+            postcode,
+          };
+        })
+      );
+    }
+
+    navigate("/whv/work-experience");
+  };
+
+  // ==========================
+  // Handlers
+  // ==========================
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const handleIndustrySelect = (industryId: number) => {
+    if (
+      !selectedIndustries.includes(industryId) &&
+      selectedIndustries.length < 3
+    ) {
+      setSelectedIndustries([...selectedIndustries, industryId]);
+    } else if (selectedIndustries.includes(industryId)) {
+      setSelectedIndustries(
+        selectedIndustries.filter((id) => id !== industryId)
+      );
+      const industryRoles = roles
+        .filter((r) => r.industryId === industryId)
+        .map((r) => r.id);
+      setSelectedRoles(
+        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
+      );
+    }
+  };
+
+  const toggleRole = (roleId: number) => {
+    setSelectedRoles(
+      selectedRoles.includes(roleId)
+        ? selectedRoles.filter((r) => r !== roleId)
+        : [...selectedRoles, roleId]
+    );
+  };
+
+  const togglePreferredState = (state: string) => {
+    if (state !== "Queensland") {
+      setShowPopup(true);
+      return;
+    }
+    const newStates = preferredStates.includes(state)
+      ? preferredStates.filter((s) => s !== state)
+      : preferredStates.length < 3
+      ? [...preferredStates, state]
+      : preferredStates;
+    setPreferredStates(newStates);
+
+    const validAreas = regions
+      .filter((r) => newStates.includes(r.state))
+      .map((r) => `${r.suburb_city}::${r.postcode}`);
+    setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
+  };
+
+  const togglePreferredArea = (locKey: string) => {
+    setPreferredAreas((prev) => {
+      if (prev.includes(locKey)) {
+        return prev.filter((a) => a !== locKey);
+      }
+      if (prev.length >= 3) {
+        return prev;
+      }
+      return [...prev, locKey];
+    });
+  };
+
+  const getAreasForState = (state: string) => {
+    return regions
+      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .map((r) => `${r.suburb_city}::${r.postcode}`);
+  };
+
+  // ==========================
+  // Render
+  // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -158,24 +307,29 @@ const WHVWorkPreferences: React.FC = () => {
             )}
           </div>
 
-          {/* Debug Section */}
-          <div className="p-4 bg-gray-100 overflow-y-auto">
-            <h2 className="font-bold">Debug Data</h2>
+          {/* Debug */}
+          <div className="px-4 py-2 text-xs text-gray-500">
+            <p><strong>Debug Data</strong></p>
+            <p>Industries: {JSON.stringify(industries)}</p>
+            <p>Roles: {JSON.stringify(roles)}</p>
+            <p>Regions: {JSON.stringify(regions)}</p>
+          </div>
 
-            <h3>Industries (filtered)</h3>
-            <pre className="text-xs whitespace-pre-wrap">
-              {JSON.stringify(industries, null, 2)}
-            </pre>
-
-            <h3>Roles</h3>
-            <pre className="text-xs whitespace-pre-wrap">
-              {JSON.stringify(roles, null, 2)}
-            </pre>
-
-            <h3>Regions</h3>
-            <pre className="text-xs whitespace-pre-wrap">
-              {JSON.stringify(regions, null, 2)}
-            </pre>
+          {/* Continue */}
+          <div className="p-4 mt-auto">
+            <Button
+              type="button"
+              onClick={handleContinue}
+              disabled={
+                !tagline.trim() ||
+                selectedIndustries.length === 0 ||
+                preferredStates.length === 0 ||
+                preferredAreas.length === 0
+              }
+              className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
+            >
+              Continue →
+            </Button>
           </div>
         </div>
       </div>
