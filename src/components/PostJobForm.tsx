@@ -31,7 +31,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [locations, setLocations] = useState<SuburbRow[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
-  // Hardcoded enums from DB
+  // Hardcoded enums
   const jobTypeEnum = ["Full-time", "Part-time", "Casual", "Contract", "Seasonal"];
   const payRangeEnum = [
     "$25-30/hour",
@@ -129,16 +129,23 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
-  // Load roles from industry_role
+  // Load roles + locations tied to employer
   useEffect(() => {
     (async () => {
       try {
+        const { data: auth } = await supabase.auth.getUser();
+        const uid = auth.user?.id;
+        if (!uid) return;
+
         const { data: emp } = await supabase
           .from("employer")
           .select("industry_id")
-          .single();
+          .eq("user_id", uid)
+          .maybeSingle();
+
         if (!emp?.industry_id) return;
 
+        // Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role")
@@ -152,22 +159,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             }))
           );
         }
-      } catch (err) {
-        console.error("Error fetching roles:", err);
-      }
-    })();
-  }, []);
 
-  // Load locations from mvw_emp_location_roles
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: emp } = await supabase
-          .from("employer")
-          .select("industry_id")
-          .single();
-        if (!emp?.industry_id) return;
-
+        // Locations
         const { data: locData } = await supabase
           .from("mvw_emp_location_roles")
           .select("state, suburb_city, postcode")
@@ -183,7 +176,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           );
         }
       } catch (err) {
-        console.error("Error fetching locations:", err);
+        console.error("Error fetching roles/locations:", err);
       }
     })();
   }, []);
@@ -306,7 +299,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Experience */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Experience Required</h2>
+              <h2 className="text-sm font-semibold mb-3">
+                Years of Work Experience Required
+              </h2>
               <Select
                 value={form.experienceRange}
                 onValueChange={(v) => handle("experienceRange", v)}
@@ -349,7 +344,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Licenses */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Licenses</h2>
+              <h2 className="text-sm font-semibold mb-3">Licenses Required</h2>
               {licenses.map((l) => (
                 <label key={l.license_id} className="flex items-center gap-2">
                   <input
