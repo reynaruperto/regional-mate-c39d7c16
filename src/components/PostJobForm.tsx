@@ -73,7 +73,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     autosave({ ...form, [k]: v });
   };
 
-  // ✅ Autosave Draft Function with logging
+  // ✅ Autosave Draft Function (aligned with job table schema)
   const autosave = async (draft: any) => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
@@ -92,15 +92,15 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
     const payload = {
       user_id: uid,
-      job_status: draft.status,
+      job_status: draft.status,           // job_status enum
       industry_role_id: draft.industryRoleId
         ? Number(draft.industryRoleId)
         : null,
       description: draft.description,
-      employment_type: draft.employmentType,
-      salary_range: draft.salaryRange,
-      req_experience: draft.experienceRange,
-      state: draft.state,
+      employment_type: draft.employmentType, // job_type_enum
+      salary_range: draft.salaryRange,       // pay_range enum
+      req_experience: draft.experienceRange, // years_experience enum
+      state: draft.state,                    // state enum
       suburb_city,
       postcode,
       start_date: draft.startDate || null,
@@ -170,7 +170,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   // Load enums (hardcoded from Supabase definitions)
   useEffect(() => {
-    setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
+    setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract", "Seasonal"]);
     setPayRangeEnum([
       "$25-30/hour",
       "$30-35/hour",
