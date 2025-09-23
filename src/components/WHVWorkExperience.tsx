@@ -177,7 +177,7 @@ const WHVWorkExperience: React.FC = () => {
   // Save helpers
   // ==========================
   const saveWorkExperiences = async (userId: string) => {
-    await supabase.from("maker_work_experience").delete().eq("user_id", userId);
+    await supabase.from("maker_work_experience" as any).delete().eq("user_id", userId);
 
     if (workExperiences.length === 0) return;
 
@@ -213,7 +213,7 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   const saveJobReferences = async (userId: string) => {
-    await supabase.from("maker_reference").delete().eq("user_id", userId);
+    await supabase.from("maker_reference" as any).delete().eq("user_id", userId);
 
     if (jobReferences.length === 0) return;
 
@@ -233,7 +233,7 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   const saveLicenses = async (userId: string) => {
-    await supabase.from("maker_license").delete().eq("user_id", userId);
+    await supabase.from("maker_license" as any).delete().eq("user_id", userId);
 
     if (licenses.length === 0) return;
 
