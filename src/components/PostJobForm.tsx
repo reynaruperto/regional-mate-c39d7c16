@@ -124,6 +124,14 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   // ✅ Final Save = Publish
   const onSave = async () => {
+    if (!form.industryRoleId) {
+      toast({
+        title: "Missing Job Role",
+        description: "Please select a role before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!form.startDate || !form.postcode || !form.suburbValue) {
       toast({
         title: "Missing required fields",
@@ -238,7 +246,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           <div className="flex-1 px-6 overflow-y-auto pb-24">
             {/* Role */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Job Role</h2>
+              <h2 className="text-sm font-semibold mb-3">Job Role *</h2>
               <Select
                 value={form.industryRoleId}
                 onValueChange={(v) => handle("industryRoleId", v)}
@@ -261,7 +269,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Description */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Description</h2>
+              <h2 className="text-sm font-semibold mb-3">Description *</h2>
               <Textarea
                 value={form.description}
                 onChange={(e) => handle("description", e.target.value)}
@@ -271,7 +279,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Employment Type */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Employment Type</h2>
+              <h2 className="text-sm font-semibold mb-3">Employment Type *</h2>
               <Select
                 value={form.employmentType}
                 onValueChange={(v) => handle("employmentType", v)}
@@ -291,7 +299,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Salary */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Salary Range</h2>
+              <h2 className="text-sm font-semibold mb-3">Salary Range *</h2>
               <Select
                 value={form.salaryRange}
                 onValueChange={(v) => handle("salaryRange", v)}
@@ -311,7 +319,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Experience */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Experience Required</h2>
+              <h2 className="text-sm font-semibold mb-3">Experience Required *</h2>
               <Select
                 value={form.experienceRange}
                 onValueChange={(v) => handle("experienceRange", v)}
@@ -331,7 +339,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Location */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Location</h2>
+              <h2 className="text-sm font-semibold mb-3">Location *</h2>
               <Select
                 value={form.suburbValue}
                 onValueChange={(v) => {
@@ -361,7 +369,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Start Date */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Start Date</h2>
+              <h2 className="text-sm font-semibold mb-3">Start Date *</h2>
               <input
                 type="date"
                 className="w-full border rounded-lg p-2"
