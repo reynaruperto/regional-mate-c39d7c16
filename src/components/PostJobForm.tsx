@@ -38,15 +38,15 @@ interface PostJobFormProps {
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [jobTypeEnum, setJobTypeEnum] = useState<string[]>([]);
   const [payRangeEnum, setPayRangeEnum] = useState<string[]>([]);
   const [yearsExpEnum, setYearsExpEnum] = useState<string[]>([]);
+  const [jobTypeEnum, setJobTypeEnum] = useState<string[]>([]);
   const [locations, setLocations] = useState<SuburbRow[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
-    industryRoleId: editingJob?.industry_role_id || "",
+    industryRoleId: editingJob?.industry_role_id?.toString() || "",
     industryRoleName: editingJob?.role || "",
     description: editingJob?.description || "",
     employmentType: editingJob?.employment_type || "",
@@ -66,8 +66,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   );
   const [showPopup, setShowPopup] = useState(false);
 
-  const pretty = (t: string) =>
-    t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const handle = (k: keyof typeof form, v: string) => {
     setForm((p) => ({ ...p, [k]: v }));
     autosave({ ...form, [k]: v });
@@ -132,42 +130,57 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
-  // Load enums
+  // Load enums dynamically from Postgres via RPC
   useEffect(() => {
-    setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
-    setPayRangeEnum([
-      "Under $25/hr",
-      "$25-35/hr",
-      "$35-45/hr",
-      "$45+ /hr",
-    ]);
-    setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
+    (async () => {
+      setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
+
+      const { data: payEnum } = await supabase.rpc("enum_values", {
+        enum_name: "pay_range",
+      });
+      if (payEnum) setPayRangeEnum(payEnum);
+
+      const { data: expEnum } = await supabase.rpc("enum_values", {
+        enum_name: "years_experience",
+      });
+      if (expEnum) setYearsExpEnum(expEnum);
+    })();
   }, []);
 
   // Load roles + locations from materialized view
   useEffect(() => {
     (async () => {
-      const { data: emp } = await supabase
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return;
+
+      // ✅ Fetch employer industry_id tied to logged-in user
+      const { data: emp, error: empError } = await supabase
         .from("employer")
         .select("industry_id")
-        .single();
+        .eq("user_id", uid)
+        .maybeSingle();
+
+      if (empError) {
+        console.error("Error fetching employer:", empError);
+        return;
+      }
+
+      console.log("Employer industry_id:", emp?.industry_id);
+
       if (!emp?.industry_id) return;
 
       const { data: roleData, error } = await supabase
         .from("mvw_emp_location_roles")
-        .select(
-          "industry_role_id, industry_role, state, suburb_city, postcode"
-        )
+        .select("industry_role_id, industry_role, state, suburb_city, postcode")
         .eq("industry_id", emp.industry_id)
         .range(0, 39999);
 
-      if (error) {
-        console.error("Error loading roles:", error);
-        return;
-      }
+      console.log("Role data from mvw_emp_location_roles:", roleData);
+      console.log("Error fetching roles:", error);
 
       if (roleData) {
-        // ✅ Deduplicate roles correctly
+        // Deduplicate roles
         const uniqueRoles = Array.from(
           new Map(
             roleData.map((r) => [r.industry_role_id, r.industry_role])
@@ -179,7 +192,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
         setRoles(uniqueRoles);
 
-        // ✅ Deduplicate locations
+        // Deduplicate locations
         const locMap = new Map<string, SuburbRow>();
         roleData.forEach((r) => {
           const key = `${r.suburb_city}-${r.postcode}`;
@@ -218,7 +231,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     handle("postcode", chosenSuburb?.postcode ?? "");
   }, [chosenSuburb?.postcode]);
 
-  // ✅ State handler with popup
   const handleStateChange = (state: string) => {
     if (state !== "Queensland") {
       setShowPopup(true);
@@ -262,7 +274,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
-                      value={String(r.industry_role_id)}
+                      value={String(r.industry_role_id)} // ✅ cast to string
                     >
                       {r.industry_role}
                     </SelectItem>
@@ -294,7 +306,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent>
                   {jobTypeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
-                      {pretty(t)}
+                      {t}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -314,7 +326,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent>
                   {payRangeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
-                      {pretty(t)}
+                      {t}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -336,7 +348,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent>
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
-                      {pretty(t)}
+                      {t}
                     </SelectItem>
                   ))}
                 </SelectContent>
