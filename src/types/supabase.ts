@@ -282,7 +282,7 @@ export type Database = {
           req_experience: Database["public"]["Enums"]["years_experience"];
           postcode: string | null;
           start_date: string;
-          employment_type: Database["public"]["Enums"]["employment_type"];
+          employment_type: Database["public"]["Enums"]["job_type_enum"];
           state: Database["public"]["Enums"]["state"];
           suburb_city: string;
         };
@@ -298,7 +298,7 @@ export type Database = {
           req_experience: Database["public"]["Enums"]["years_experience"];
           postcode?: string | null;
           start_date: string;
-          employment_type: Database["public"]["Enums"]["employment_type"];
+          employment_type: Database["public"]["Enums"]["job_type_enum"];
           state: Database["public"]["Enums"]["state"];
           suburb_city: string;
         };
@@ -314,7 +314,7 @@ export type Database = {
           req_experience?: Database["public"]["Enums"]["years_experience"];
           postcode?: string | null;
           start_date?: string;
-          employment_type?: Database["public"]["Enums"]["employment_type"];
+          employment_type?: Database["public"]["Enums"]["job_type_enum"];
           state?: Database["public"]["Enums"]["state"];
           suburb_city?: string;
         };
@@ -346,6 +346,13 @@ export type Database = {
           other?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "job_license_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "job";
+            referencedColumns: ["job_id"];
+          },
           {
             foreignKeyName: "job_license_license_id_fkey";
             columns: ["license_id"];
@@ -1067,7 +1074,7 @@ export type Database = {
     };
     Enums: {
       job_status: "active" | "inactive" | "draft";
-      employment_type:
+      job_type_enum:
         | "Full-time"
         | "Part-time"
         | "Casual"
