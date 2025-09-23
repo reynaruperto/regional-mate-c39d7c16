@@ -68,6 +68,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Profile nationality + tagline
       const { data: profile } = await supabase
         .from("whv_maker")
         .select("nationality, tagline")
@@ -76,6 +77,7 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (profile?.tagline) setTagline(profile.tagline);
 
+      // Visa info
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
@@ -94,23 +96,25 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
+      // Eligible industries (use the materialized view)
       const { data: eligibleIndustries } = await supabase
-        .from("temp_eligibility")
-        .select("industry_id, industry_name")
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id, industry")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", profile.nationality);
+        .eq("country", profile.nationality);
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: i.industry_name,
+            name: i.industry,
           }))
         );
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
+        // Roles for those industries
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -126,6 +130,7 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
+        // Regions for those industries
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
@@ -136,6 +141,7 @@ const WHVWorkPreferences: React.FC = () => {
         }
       }
 
+      // ===== Load saved prefs =====
       const { data: savedIndustries } = await supabase
         .from("maker_pref_industry")
         .select("industry_id")
@@ -179,6 +185,7 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Save tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -187,10 +194,12 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
+    // Reset old prefs
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
+    // Save industries
     if (selectedIndustries.length) {
       await supabase.from("maker_pref_industry").insert(
         selectedIndustries.map((indId) => ({
@@ -200,6 +209,7 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
+    // Save roles
     if (selectedRoles.length) {
       await supabase.from("maker_pref_industry_role").insert(
         selectedRoles.map((roleId) => ({
@@ -209,6 +219,7 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
+    // Save locations
     if (preferredAreas.length) {
       await supabase.from("maker_pref_location").insert(
         preferredAreas.map((locKey) => {
@@ -230,12 +241,8 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   // ==========================
-  // Handlers
+  // Helpers
   // ==========================
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
   const handleIndustrySelect = (industryId: number) => {
     if (!selectedIndustries.includes(industryId)) {
       setSelectedIndustries([industryId]);
@@ -288,7 +295,6 @@ const WHVWorkPreferences: React.FC = () => {
     });
   };
 
-  // ✅ FIXED: now respects industry + dedupes results
   const getAreasForState = (state: string) => {
     const filtered = regions.filter(
       (r) =>
@@ -297,7 +303,7 @@ const WHVWorkPreferences: React.FC = () => {
     );
 
     return Array.from(
-      new Set(filtered.map((r) => `${r.suburb_city}::${r.postcode}`))
+      new Map(filtered.map((r) => [`${r.suburb_city}::${r.postcode}`, r])).keys()
     );
   };
 
@@ -327,11 +333,33 @@ const WHVWorkPreferences: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-            {/* Industries & Roles */}
+            {/* 1. Tagline */}
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => toggleSection("industries")}
+                onClick={() => setExpandedSections((p) => ({ ...p, tagline: !p.tagline }))}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">1. Profile Tagline</span>
+                {expandedSections.tagline ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+              </button>
+              {expandedSections.tagline && (
+                <div className="px-4 pb-4 border-t space-y-3">
+                  <Input
+                    type="text"
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    placeholder="e.g. Backpacker ready for farm work"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 2. Industries & Roles */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() => setExpandedSections((p) => ({ ...p, industries: !p.industries }))}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">2. Industries & Roles</span>
@@ -382,11 +410,11 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* Locations */}
+            {/* 3. Preferred Locations */}
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() => toggleSection("states")}
+                onClick={() => setExpandedSections((p) => ({ ...p, states: !p.states }))}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">3. Preferred Locations</span>
@@ -430,6 +458,23 @@ const WHVWorkPreferences: React.FC = () => {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Continue */}
+            <div className="pt-4">
+              <Button
+                type="button"
+                onClick={handleContinue}
+                disabled={
+                  !tagline.trim() ||
+                  selectedIndustries.length === 0 ||
+                  preferredStates.length === 0 ||
+                  preferredAreas.length === 0
+                }
+                className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
+              >
+                Continue →
+              </Button>
             </div>
           </div>
 
