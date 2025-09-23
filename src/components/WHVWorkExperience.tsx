@@ -177,7 +177,7 @@ const WHVWorkExperience: React.FC = () => {
   // Save helpers
   // ==========================
   const saveWorkExperiences = async (userId: string) => {
-    await supabase.from("maker_work_experience").delete().eq("user_id", userId);
+    await supabase.from("maker_work_experience" as any).delete().eq("user_id", userId);
 
     const validRows = workExperiences.filter(
       (exp) =>
@@ -196,7 +196,7 @@ const WHVWorkExperience: React.FC = () => {
         user_id: userId,
         company: exp.company.trim(),
         industry_id: exp.industryId!,
-        position: roleName, // ✅ save role name
+        position: roleName,
         start_date: exp.startDate,
         end_date: exp.endDate,
         location: exp.location || null,
@@ -204,12 +204,16 @@ const WHVWorkExperience: React.FC = () => {
       };
     });
 
-    const { error } = await supabase.from("maker_work_experience").insert(workRows);
-    if (error) console.error("❌ Work experience insert failed:", error);
+    const { error } = await supabase.from("maker_work_experience" as any).insert(workRows);
+    if (error) {
+      console.error("❌ Work experience insert failed:", error);
+    } else {
+      console.log(`✅ Saved ${workRows.length} work experiences`);
+    }
   };
 
   const saveJobReferences = async (userId: string) => {
-    await supabase.from("maker_reference").delete().eq("user_id", userId);
+    await supabase.from("maker_reference" as any).delete().eq("user_id", userId);
 
     if (jobReferences.length === 0) return;
 
@@ -222,12 +226,16 @@ const WHVWorkExperience: React.FC = () => {
       role: ref.role?.trim() || null,
     }));
 
-    const { error } = await supabase.from("maker_reference").insert(refRows);
-    if (error) console.error("❌ Job reference insert failed:", error);
+    const { error } = await supabase.from("maker_reference" as any).insert(refRows);
+    if (error) {
+      console.error("❌ Job reference insert failed:", error);
+    } else {
+      console.log(`✅ Saved ${refRows.length} job references`);
+    }
   };
 
   const saveLicenses = async (userId: string) => {
-    await supabase.from("maker_license").delete().eq("user_id", userId);
+    await supabase.from("maker_license" as any).delete().eq("user_id", userId);
 
     if (licenses.length === 0) return;
 
@@ -240,8 +248,12 @@ const WHVWorkExperience: React.FC = () => {
           : null,
     }));
 
-    const { error } = await supabase.from("maker_license").insert(licRows);
-    if (error) console.error("❌ License insert failed:", error);
+    const { error } = await supabase.from("maker_license" as any).insert(licRows);
+    if (error) {
+      console.error("❌ License insert failed:", error);
+    } else {
+      console.log(`✅ Saved ${licRows.length} licenses`);
+    }
   };
 
   // ==========================
@@ -253,7 +265,10 @@ const WHVWorkExperience: React.FC = () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.error("Not logged in");
+      return;
+    }
 
     const userId = user.id;
 
@@ -293,7 +308,7 @@ const WHVWorkExperience: React.FC = () => {
           <div className="flex-1 overflow-y-auto px-4 py-10">
             <form onSubmit={handleSubmit} className="space-y-10 pb-20">
               {/* Work Experience Section */}
-              {/* ... (keep your JSX form rendering here unchanged) ... */}
+              {/* ... (keep rest of render unchanged) ... */}
 
               {/* Continue Button */}
               <div className="pt-10 pb-6">
