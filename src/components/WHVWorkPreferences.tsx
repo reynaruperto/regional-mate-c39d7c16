@@ -19,6 +19,7 @@ interface Role {
 
 interface Region {
   industry_id: number;
+  industry: string;
   industry_role_id: number;
   industry_role: string;
   state: string;
@@ -69,7 +70,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile nationality + tagline
+      // Profile
       const { data: profile } = await supabase
         .from("whv_maker")
         .select("nationality, tagline")
@@ -78,7 +79,7 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (profile?.tagline) setTagline(profile.tagline);
 
-      // Visa info
+      // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
@@ -97,7 +98,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // ✅ Eligible industries from MVW
+      // Eligible industries
       const { data: eligibleIndustries } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
         .select("industry_id, industry")
@@ -106,54 +107,53 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("country", profile.nationality);
 
       if (eligibleIndustries?.length) {
-        const mappedIndustries = eligibleIndustries.map((i) => ({
-          id: Number(i.industry_id),
-          name: i.industry,
-        }));
-        setIndustries(mappedIndustries);
+        const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        const industryIds = mappedIndustries.map((i) => i.id);
-
-        // ✅ Roles + Locations from MVW
+        // Roles + Regions
         const { data: regionData } = await supabase
-          .from("mvw_emp_location_roles")
+          .from("regional_rules")
           .select(
-            "industry_id, industry_role_id, industry_role, state, suburb_city, postcode"
+            "industry_id, industry, industry_role_id, industry_role, state, suburb_city, postcode"
           )
           .in("industry_id", industryIds);
 
         if (regionData) {
-          const normalizedRegions = regionData.map((r: any) => ({
-            ...r,
-            industry_id: Number(r.industry_id),
-            industry_role_id: Number(r.industry_role_id),
-          }));
-          setRegions(normalizedRegions);
-          console.log("Regions from DB:", normalizedRegions);
+          // Industries (dedupe)
+          setIndustries(
+            [...new Map(regionData.map((r) => [r.industry_id, r.industry]))].map(
+              ([id, name]) => ({
+                id: id as number,
+                name: name as string,
+              })
+            )
+          );
 
-          // Extract unique roles with proper names
-          const roleMap = new Map<number, Role>();
-          normalizedRegions.forEach((r) => {
-            if (!roleMap.has(r.industry_role_id)) {
-              roleMap.set(r.industry_role_id, {
-                id: r.industry_role_id,
-                name: r.industry_role,
-                industryId: r.industry_id,
-              });
-            }
-          });
-          setRoles(Array.from(roleMap.values()));
+          // Roles (dedupe)
+          setRoles(
+            [
+              ...new Map(
+                regionData.map((r) => [r.industry_role_id, r])
+              ).values(),
+            ].map((r: any) => ({
+              id: r.industry_role_id,
+              name: r.industry_role,
+              industryId: r.industry_id,
+            }))
+          );
+
+          // Regions (all)
+          setRegions(regionData);
         }
       }
 
-      // ===== Load saved prefs =====
+      // Load saved prefs
       const { data: savedIndustries } = await supabase
         .from("maker_pref_industry")
         .select("industry_id")
         .eq("user_id", user.id);
 
       if (savedIndustries) {
-        setSelectedIndustries(savedIndustries.map((i) => Number(i.industry_id)));
+        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
       }
 
       const { data: savedRoles } = await supabase
@@ -162,7 +162,7 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id);
 
       if (savedRoles) {
-        setSelectedRoles(savedRoles.map((r) => Number(r.industry_role_id)));
+        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
       }
 
       const { data: savedLocations } = await supabase
@@ -176,9 +176,6 @@ const WHVWorkPreferences: React.FC = () => {
           savedLocations.map((l) => `${l.suburb_city}::${l.postcode}`)
         );
       }
-
-      console.log("Selected industries:", selectedIndustries);
-      console.log("Selected roles:", selectedRoles);
     };
 
     loadData();
@@ -193,7 +190,7 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Save tagline
+    // Update tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -202,7 +199,7 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // Reset old prefs
+    // Clear old prefs
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
     await supabase
       .from("maker_pref_industry_role")
@@ -210,7 +207,7 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
-    // Save industries
+    // Insert industries
     if (selectedIndustries.length) {
       await supabase.from("maker_pref_industry").insert(
         selectedIndustries.map((indId) => ({
@@ -220,7 +217,7 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
-    // Save roles
+    // Insert roles
     if (selectedRoles.length) {
       await supabase.from("maker_pref_industry_role").insert(
         selectedRoles.map((roleId) => ({
@@ -230,17 +227,14 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
-    // Save locations
+    // Insert locations
     if (preferredAreas.length) {
       await supabase.from("maker_pref_location").insert(
         preferredAreas.map((locKey) => {
           const [suburb_city, postcode] = locKey.split("::");
-          const matchedRegion = regions.find(
-            (r) => r.suburb_city === suburb_city && r.postcode === postcode
-          );
           return {
             user_id: user.id,
-            state: matchedRegion?.state || "Queensland",
+            state: "Queensland",
             suburb_city,
             postcode,
           };
@@ -252,20 +246,28 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   // ==========================
-  // Helpers
+  // Handlers
   // ==========================
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
   const handleIndustrySelect = (industryId: number) => {
-    if (!selectedIndustries.includes(industryId)) {
-      setSelectedIndustries([industryId]);
+    if (
+      !selectedIndustries.includes(industryId) &&
+      selectedIndustries.length < 3
+    ) {
+      setSelectedIndustries([...selectedIndustries, industryId]);
+    } else if (selectedIndustries.includes(industryId)) {
+      setSelectedIndustries(
+        selectedIndustries.filter((id) => id !== industryId)
+      );
       const industryRoles = roles
         .filter((r) => r.industryId === industryId)
         .map((r) => r.id);
       setSelectedRoles(
-        selectedRoles.filter((roleId) => industryRoles.includes(roleId))
+        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
       );
-    } else {
-      setSelectedIndustries([]);
-      setSelectedRoles([]);
     }
   };
 
@@ -285,17 +287,13 @@ const WHVWorkPreferences: React.FC = () => {
 
     const newStates = preferredStates.includes(state)
       ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 1
+      : preferredStates.length < 3
       ? [...preferredStates, state]
       : preferredStates;
     setPreferredStates(newStates);
 
     const validAreas = regions
-      .filter(
-        (r) =>
-          r.state.trim().toLowerCase() === state.trim().toLowerCase() &&
-          selectedIndustries.includes(r.industry_id)
-      )
+      .filter((r) => newStates.includes(r.state))
       .map((r) => `${r.suburb_city}::${r.postcode}`);
     setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
   };
@@ -312,18 +310,16 @@ const WHVWorkPreferences: React.FC = () => {
     });
   };
 
+  // ✅ Fixed getAreasForState
   const getAreasForState = (state: string) => {
-    const filtered = regions.filter(
-      (r) =>
-        r.state.trim().toLowerCase() === state.trim().toLowerCase() &&
-        selectedIndustries.includes(r.industry_id)
-    );
-
-    console.log("Filtered areas:", filtered);
-
-    return Array.from(
-      new Map(filtered.map((r) => [`${r.suburb_city}::${r.postcode}`, r])).keys()
-    );
+    return regions
+      .filter(
+        (r) =>
+          r.state === state &&
+          (selectedIndustries.length === 0 ||
+            selectedIndustries.includes(r.industry_id))
+      )
+      .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
   // ==========================
@@ -333,6 +329,9 @@ const WHVWorkPreferences: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
           <div className="px-4 py-4 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -360,9 +359,7 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() =>
-                  setExpandedSections((p) => ({ ...p, tagline: !p.tagline }))
-                }
+                onClick={() => toggleSection("tagline")}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">1. Profile Tagline</span>
@@ -388,14 +385,10 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() =>
-                  setExpandedSections((p) => ({ ...p, industries: !p.industries }))
-                }
+                onClick={() => toggleSection("industries")}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
-                <span className="text-lg font-medium">
-                  2. Industries & Roles
-                </span>
+                <span className="text-lg font-medium">2. Industries & Roles</span>
                 {expandedSections.industries ? (
                   <ChevronDown size={20} />
                 ) : (
@@ -404,17 +397,17 @@ const WHVWorkPreferences: React.FC = () => {
               </button>
               {expandedSections.industries && (
                 <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Select 1 industry *</Label>
+                  <Label>Select up to 3 industries *</Label>
                   {industries.map((industry) => (
                     <label
-                      key={`industry-${industry.id}`}
+                      key={industry.id}
                       className="flex items-center space-x-2 py-1"
                     >
                       <input
                         type="checkbox"
                         checked={selectedIndustries.includes(industry.id)}
                         disabled={
-                          selectedIndustries.length >= 1 &&
+                          selectedIndustries.length >= 3 &&
                           !selectedIndustries.includes(industry.id)
                         }
                         onChange={() => handleIndustrySelect(industry.id)}
@@ -430,13 +423,13 @@ const WHVWorkPreferences: React.FC = () => {
                       (r) => r.industryId === industryId
                     );
                     return (
-                      <div key={`roles-${industryId}`}>
+                      <div key={industryId}>
                         <Label>Roles for {industry?.name}</Label>
                         <div className="flex flex-wrap gap-2">
                           {industryRoles.map((role) => (
                             <button
                               type="button"
-                              key={`role-${role.id}-${industryId}`}
+                              key={role.id}
                               onClick={() => toggleRole(role.id)}
                               className={`px-3 py-1.5 rounded-full text-xs border ${
                                 selectedRoles.includes(role.id)
@@ -459,14 +452,10 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() =>
-                  setExpandedSections((p) => ({ ...p, states: !p.states }))
-                }
+                onClick={() => toggleSection("states")}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
-                <span className="text-lg font-medium">
-                  3. Preferred Locations
-                </span>
+                <span className="text-lg font-medium">3. Preferred Locations</span>
                 {expandedSections.states ? (
                   <ChevronDown size={20} />
                 ) : (
@@ -475,16 +464,16 @@ const WHVWorkPreferences: React.FC = () => {
               </button>
               {expandedSections.states && (
                 <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Preferred State (only Queensland supported)</Label>
+                  <Label>Preferred States (up to 3)</Label>
                   {ALL_STATES.map((state) => (
-                    <div key={`state-${state}`} className="mb-4">
+                    <div key={state} className="mb-4">
                       <label className="flex items-center space-x-2 py-1 font-medium">
                         <input
                           type="checkbox"
                           checked={preferredStates.includes(state)}
                           onChange={() => togglePreferredState(state)}
                           disabled={
-                            preferredStates.length >= 1 &&
+                            preferredStates.length >= 3 &&
                             !preferredStates.includes(state)
                           }
                         />
@@ -498,7 +487,7 @@ const WHVWorkPreferences: React.FC = () => {
                               const [suburb_city, postcode] = locKey.split("::");
                               return (
                                 <label
-                                  key={`area-${state}-${locKey}`}
+                                  key={locKey}
                                   className="flex items-center space-x-2 py-1"
                                 >
                                   <input
@@ -528,9 +517,7 @@ const WHVWorkPreferences: React.FC = () => {
             <div className="border rounded-lg">
               <button
                 type="button"
-                onClick={() =>
-                  setExpandedSections((p) => ({ ...p, summary: !p.summary }))
-                }
+                onClick={() => toggleSection("summary")}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">4. Review</span>
@@ -594,7 +581,7 @@ const WHVWorkPreferences: React.FC = () => {
             </div>
           </div>
 
-          {/* Popup */}
+          {/* Popup for invalid states */}
           {showPopup && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
