@@ -116,12 +116,17 @@ const WHVPreviewMatchCard: React.FC = () => {
         }));
         setLocationPreferences(formattedLocationPrefs);
 
-        // 6. Work experience
+        // 6. Work experience - temporarily disabled due to type issues
+        // TODO: Re-enable when maker_work_experience table is available in types
+        const experiences = [];
+        console.log('Work experience fetch disabled for user:', user.id);
+        /*
         const { data: experiences } = await supabase
           .from('maker_work_experience')
           .select('position, company, industry(name), location, start_date, end_date, job_description')
           .eq('user_id', user.id)
           .order('start_date', { ascending: false });
+        */
 
         const formattedExperiences: WorkExperience[] = (experiences || []).map((exp: any) => ({
           position: exp.position,

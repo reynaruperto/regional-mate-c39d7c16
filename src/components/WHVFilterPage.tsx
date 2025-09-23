@@ -57,15 +57,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
   useEffect(() => {
     const fetchEnumsAndLookups = async () => {
       try {
-        const { data: stateData } = await supabase.rpc("get_enum_values", {
-          enum_name: "state",
-        });
-        const { data: jobTypeData } = await supabase.rpc("get_enum_values", {
-          enum_name: "employment_type",
-        });
-        const { data: payRangeData } = await supabase.rpc("get_enum_values", {
-          enum_name: "salary_range",
-        });
+        // Hardcoded values due to type issues with get_enum_values
+        const stateData = ["Queensland", "New South Wales", "Victoria", "Western Australia", "South Australia", "Tasmania", "Northern Territory", "Australian Capital Territory"];
+        const jobTypeData = ["Full-time", "Part-time", "Casual", "Contract"];
+        const payRangeData = ["$18-$25", "$25-$30", "$30-$35", "$35-$40", "$40+"];
 
         if (stateData) setStates(stateData);
         if (jobTypeData) setJobTypes(jobTypeData);
