@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -40,14 +38,14 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load profile
+      // Profile
       const { data: profile } = await supabase
         .from("whv_maker")
         .select("nationality")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // Load visa
+      // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
         .select("stage_id, visa_stage:visa_stage(stage, sub_class, label), country:country(name)")
@@ -60,30 +58,37 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
+      // Debug log: what we’re filtering with
+      console.log("Filtering with:", {
+        sub_class: visa.visa_stage.sub_class,
+        stage: visa.visa_stage.stage,
+        nationality: profile.nationality,
+      });
+
       // ==========================
-      // 1. Industries (filtered)
+      // 1. Industries (filtered, case-insensitive country)
       // ==========================
-      const { data: eligibleIndustries, error: industriesError } =
+      const { data: filteredIndustries, error: industriesError } =
         await supabase
           .from("mvw_eligibility_visa_country_stage_industry")
-          .select("industry_id, industry")
-          .eq("sub_class", visa.visa_stage.sub_class)
-          .eq("stage", visa.visa_stage.stage)
-          .eq("country", profile.nationality);
+          .select("industry_id, industry, sub_class, stage, country")
+          .eq("sub_class", String(visa.visa_stage.sub_class)) // match text
+          .eq("stage", Number(visa.visa_stage.stage)) // match int
+          .ilike("country", profile.nationality); // case-insensitive match
 
       if (industriesError) {
         console.error("Industries error:", industriesError);
       }
 
-      if (eligibleIndustries?.length) {
+      if (filteredIndustries?.length) {
         setIndustries(
-          eligibleIndustries.map((i) => ({
+          filteredIndustries.map((i) => ({
             id: i.industry_id,
             name: i.industry,
           }))
         );
 
-        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+        const industryIds = filteredIndustries.map((i) => i.industry_id);
 
         // ==========================
         // 2. Roles (by industry)
@@ -157,7 +162,7 @@ const WHVWorkPreferences: React.FC = () => {
           <div className="p-4 bg-gray-100 overflow-y-auto">
             <h2 className="font-bold">Debug Data</h2>
 
-            <h3>Industries</h3>
+            <h3>Industries (filtered)</h3>
             <pre className="text-xs whitespace-pre-wrap">
               {JSON.stringify(industries, null, 2)}
             </pre>
