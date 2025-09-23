@@ -19,7 +19,7 @@ interface Candidate {
   experiences: string;
   licenses: string[];
   preferredLocations: string[];
-  isLiked?: boolean; // 🔑 Added flag for heart toggle
+  isLiked?: boolean;
 }
 
 const BrowseCandidates: React.FC = () => {
@@ -33,6 +33,10 @@ const BrowseCandidates: React.FC = () => {
   const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [employerId, setEmployerId] = useState<string | null>(null);
 
+  // New states for job posts
+  const [jobPosts, setJobPosts] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
   // ✅ Get logged-in employer ID once
   useEffect(() => {
     const getUser = async () => {
@@ -42,8 +46,31 @@ const BrowseCandidates: React.FC = () => {
     getUser();
   }, []);
 
+  // ✅ Fetch employer job posts
+  useEffect(() => {
+    const fetchJobs = async () => {
+      if (!employerId) return;
+      const { data, error } = await supabase
+        .from("job")
+        .select("job_id, description, job_status")
+        .eq("user_id", employerId)
+        .eq("job_status", "active");
+
+      if (error) {
+        console.error("Error fetching jobs:", error);
+      } else {
+        setJobPosts(data || []);
+        if (data && data.length > 0) setSelectedJobId(data[0].job_id); // default
+      }
+    };
+    fetchJobs();
+  }, [employerId]);
+
+  // ✅ Fetch candidates scoped to selected job
   useEffect(() => {
     const fetchCandidates = async () => {
+      if (!employerId || !selectedJobId) return;
+
       // 1️⃣ Fetch all WHV makers
       const { data: makers, error: makersError } = await supabase
         .from("whv_maker")
@@ -58,11 +85,10 @@ const BrowseCandidates: React.FC = () => {
 
       // 2️⃣ Fetch related tables
       const { data: preferences } = await supabase
-        .from("maker_pref_industry_role")
-        .select("user_id, industry_role_id, industry_role ( role, industry ( name ) )");
+        .from("maker_preference")
+        .select("user_id, industry_role ( role, industry ( name ) )");
 
-      // Skip work experience for now due to type issues
-      const experiences: any[] = [];
+      const experiences: any[] = []; // skipping for now
 
       const { data: locations } = await supabase
         .from("maker_pref_location")
@@ -72,16 +98,16 @@ const BrowseCandidates: React.FC = () => {
         .from("maker_license")
         .select("user_id, license ( name )");
 
-      // 3️⃣ Fetch existing likes by employer
+      // 3️⃣ Fetch existing likes by employer for this job
       let likedIds: string[] = [];
-      if (employerId) {
-        const { data: likes } = await supabase
-          .from("likes")
-          .select("liked_whv_id")
-          .eq("liker_id", employerId)
-          .eq("liker_type", "employer");
-        likedIds = likes?.map((l) => l.liked_whv_id) || [];
-      }
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_whv_id")
+        .eq("liker_id", employerId)
+        .eq("liker_type", "employer")
+        .eq("job_id", selectedJobId);
+
+      likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
       // 4️⃣ Merge into candidates
       const mapped: Candidate[] = visibleMakers.map((m) => {
@@ -99,7 +125,7 @@ const BrowseCandidates: React.FC = () => {
           ...new Set(userPrefs.map((p) => p.industry_role?.role).filter(Boolean)),
         ];
 
-        // Work Experiences
+        // Experiences
         const userExps = experiences?.filter((e) => e.user_id === userId) || [];
         const expSummaries = userExps
           .map((exp) => {
@@ -156,7 +182,7 @@ const BrowseCandidates: React.FC = () => {
           experiences: condensedExperience || "No work experience added",
           licenses: userLicenses,
           preferredLocations: userLocations,
-          isLiked: likedIds.includes(userId), // ✅ Persist like state
+          isLiked: likedIds.includes(userId),
         };
       });
 
@@ -164,23 +190,28 @@ const BrowseCandidates: React.FC = () => {
       setCandidates(mapped);
     };
 
-    if (employerId) fetchCandidates();
-  }, [employerId]);
+    fetchCandidates();
+  }, [employerId, selectedJobId]);
 
-  // ✅ Toggle like persistence
+  // ✅ Toggle like persistence per job
   const handleLikeCandidate = async (candidateId: string) => {
+    if (!employerId || !selectedJobId) {
+      alert("Please select a job post first.");
+      return;
+    }
+
     const candidate = candidates.find((c) => c.user_id === candidateId);
-    if (!candidate || !employerId) return;
+    if (!candidate) return;
 
     try {
       if (candidate.isLiked) {
-        // 🔄 Unlike
         await supabase
           .from("likes")
           .delete()
           .eq("liker_id", employerId)
           .eq("liked_whv_id", candidateId)
-          .eq("liker_type", "employer");
+          .eq("liker_type", "employer")
+          .eq("job_id", selectedJobId);
 
         setCandidates((prev) =>
           prev.map((c) =>
@@ -188,14 +219,14 @@ const BrowseCandidates: React.FC = () => {
           )
         );
       } else {
-        // ❤️ Like
         await supabase.from("likes").upsert(
           {
             liker_id: employerId,
             liker_type: "employer",
             liked_whv_id: candidateId,
+            job_id: selectedJobId,
           },
-          { onConflict: "liker_id,liked_whv_id,liker_type" }
+          { onConflict: "liker_id,liked_whv_id,liker_type,job_id" }
         );
 
         setLikedCandidateName(candidate.name);
@@ -307,6 +338,24 @@ const BrowseCandidates: React.FC = () => {
                   Browse Candidates
                 </h1>
               </div>
+            </div>
+
+            {/* Job Post Selector */}
+            <div className="px-6 mb-4">
+              <select
+                value={selectedJobId || ""}
+                onChange={(e) => setSelectedJobId(e.target.value)}
+                className="w-full h-12 border border-gray-300 rounded-xl px-3"
+              >
+                <option value="" disabled>
+                  Select job post
+                </option>
+                {jobPosts.map((job) => (
+                  <option key={job.job_id} value={job.job_id}>
+                    {job.description || `Job #${job.job_id}`}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Content */}
