@@ -71,16 +71,16 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       industry_role_id: draft.industryRoleId
         ? Number(draft.industryRoleId)
         : null,
-      description: draft.description || null,
-      employment_type: draft.employmentType || null,
-      salary_range: draft.salaryRange || null,
-      req_experience: draft.experienceRange || null,
-      state: draft.state || null,
+      description: draft.description,
+      employment_type: draft.employmentType,
+      salary_range: draft.salaryRange,
+      req_experience: draft.experienceRange,
+      state: draft.state,
       suburb_city: draft.suburbValue
         ? draft.suburbValue.split(" (")[0]
-        : null,
-      postcode: draft.postcode || null,
-      start_date: draft.startDate || null,
+        : "",
+      postcode: draft.postcode,
+      start_date: draft.startDate,
     };
 
     console.log("Saving job payload:", payload);
@@ -92,9 +92,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .from("job")
         .update(payload)
         .eq("job_id", jobId);
-      if (error) {
-        console.error("Update job error:", error.message, error.details);
-      }
+      if (error) console.error("Update job error:", error.message, error.details);
     } else {
       const { data, error } = await supabase
         .from("job")
@@ -119,14 +117,21 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             license_id: lid,
           }))
         );
-        if (error)
-          console.error("Insert job_license error:", error.message, error.details);
+        if (error) console.error("Insert job_license error:", error.message, error.details);
       }
     }
   };
 
   // ✅ Final Save = Publish
   const onSave = async () => {
+    if (!form.startDate || !form.postcode || !form.suburbValue) {
+      toast({
+        title: "Missing required fields",
+        description: "Start Date and Location are required.",
+        variant: "destructive",
+      });
+      return;
+    }
     await autosave({ ...form, status: "active" });
     toast({
       title: editingJob ? "Job updated" : "Job posted",
@@ -137,7 +142,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
-  // Load enums from DB schema (hard-coded from your CSV)
+  // Load enums
   useEffect(() => {
     setPayRangeEnum([
       "$25-30/hour",
@@ -147,9 +152,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       "$45+/hour",
       "Undisclosed",
     ]);
-
     setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10"]);
-
     setEmploymentTypeEnum([
       "Full-time",
       "Part-time",
@@ -159,40 +162,25 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     ]);
   }, []);
 
-  // ✅ Load roles from industry_role table
+  // Load roles from industry_role
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
-      if (!uid) {
-        console.error("No logged in user");
-        return;
-      }
+      if (!uid) return;
 
-      const { data: emp, error: empErr } = await supabase
+      const { data: emp } = await supabase
         .from("employer")
         .select("industry_id")
         .eq("user_id", uid)
         .single();
 
-      if (empErr) {
-        console.error("Error fetching employer:", empErr);
-        return;
-      }
-      if (!emp?.industry_id) {
-        console.warn("No industry_id found for this employer");
-        return;
-      }
+      if (!emp?.industry_id) return;
 
-      const { data: roleData, error: roleErr } = await supabase
+      const { data: roleData } = await supabase
         .from("industry_role")
         .select("industry_role_id, role")
         .eq("industry_id", emp.industry_id);
-
-      if (roleErr) {
-        console.error("Error fetching roles:", roleErr);
-        return;
-      }
 
       if (roleData) {
         setRoles(
@@ -205,14 +193,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
-  // Load locations from materialized view
+  // Load locations
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("vw_regional_rules_base")
         .select("state, suburb_city, postcode")
         .limit(500);
-      if (error) console.error("Error fetching locations:", error);
       if (data) setLocations(data);
     })();
   }, []);
@@ -259,7 +246,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portal={false}>
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
@@ -292,7 +279,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select employment type" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portal={false}>
                   {employmentTypeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -312,7 +299,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portal={false}>
                   {payRangeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -332,7 +319,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portal={false}>
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -359,7 +346,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portal={false}>
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
@@ -370,6 +357,18 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Start Date */}
+            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+              <h2 className="text-sm font-semibold mb-3">Start Date</h2>
+              <input
+                type="date"
+                className="w-full border rounded-lg p-2"
+                value={form.startDate}
+                onChange={(e) => handle("startDate", e.target.value)}
+                required
+              />
             </div>
 
             {/* Licenses */}
