@@ -97,24 +97,30 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // Fetch all industries for now - TODO: implement visa-based filtering
-      const { data: allIndustries } = await supabase
-        .from("industry")
-        .select("industry_id, name");
-      
-      const eligibleIndustries = allIndustries || [];
+      // ✅ Fetch eligible industries from the materialized view
+      const { data: eligibleIndustries, error: eligibilityError } = await supabase
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id, industry")
+        .eq("sub_class", visa.visa_stage.sub_class)
+        .eq("stage", visa.visa_stage.stage)
+        .eq("country", profile.nationality);
+
+      if (eligibilityError) {
+        console.error("Eligibility query error:", eligibilityError);
+      }
+      console.log("Eligible industries:", eligibleIndustries);
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: i.name,
+            name: i.industry,
           }))
         );
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // Load roles for selected industries from industry_role table
+        // ✅ Roles from industry_role
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -129,8 +135,9 @@ const WHVWorkPreferences: React.FC = () => {
             }))
           );
         }
+        console.log("Roles:", roleData);
 
-        // Load eligible locations from regional_rules table
+        // ✅ Regions from regional_rules
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
@@ -139,6 +146,7 @@ const WHVWorkPreferences: React.FC = () => {
         if (regionData) {
           setRegions(regionData);
         }
+        console.log("Regions:", regionData);
       }
 
       // ===== Load saved prefs =====
@@ -229,7 +237,15 @@ const WHVWorkPreferences: React.FC = () => {
           const [suburb_city, postcode] = locKey.split("::");
           return {
             user_id: user.id,
-            state: "Queensland" as "Queensland" | "New South Wales" | "Victoria" | "Tasmania" | "Western Australia" | "South Australia" | "Northern Territory" | "Australian Capital Territory",
+            state: "Queensland" as
+              | "Queensland"
+              | "New South Wales"
+              | "Victoria"
+              | "Tasmania"
+              | "Western Australia"
+              | "South Australia"
+              | "Northern Territory"
+              | "Australian Capital Territory",
             suburb_city,
             postcode,
           };
@@ -249,13 +265,10 @@ const WHVWorkPreferences: React.FC = () => {
 
   const handleIndustrySelect = (industryId: number) => {
     if (selectedIndustries.includes(industryId)) {
-      // Deselect the industry
       setSelectedIndustries([]);
       setSelectedRoles([]);
     } else {
-      // Select this industry (only one allowed)
       setSelectedIndustries([industryId]);
-      // Clear previous roles when switching industries
       setSelectedRoles([]);
     }
   };
@@ -301,7 +314,9 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .filter(
+        (r) => r.state === state && selectedIndustries.includes(r.industry_id)
+      )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
