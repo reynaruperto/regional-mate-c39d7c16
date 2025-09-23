@@ -134,25 +134,51 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
-  // Load roles from industry_role table
+  // ✅ Load roles from industry_role table (fixed)
   useEffect(() => {
     (async () => {
-      const { data: emp } = await supabase
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) {
+        console.error("No logged in user");
+        return;
+      }
+
+      // Get employer tied to this user
+      const { data: emp, error: empErr } = await supabase
         .from("employer")
         .select("industry_id")
+        .eq("user_id", uid) // ✅ filter by current employer
         .single();
-      if (!emp?.industry_id) return;
-      const { data: roleData } = await supabase
+
+      if (empErr) {
+        console.error("Error fetching employer:", empErr);
+        return;
+      }
+      if (!emp?.industry_id) {
+        console.warn("No industry_id found for this employer");
+        return;
+      }
+
+      // Get roles for that industry
+      const { data: roleData, error: roleErr } = await supabase
         .from("industry_role")
-        .select("industry_role_id, role")
+        .select("industry_role_id, industry_role") // ✅ correct column name
         .eq("industry_id", emp.industry_id);
-      if (roleData)
+
+      if (roleErr) {
+        console.error("Error fetching roles:", roleErr);
+        return;
+      }
+
+      if (roleData) {
         setRoles(
           roleData.map((r) => ({
             industry_role_id: r.industry_role_id,
-            industry_role: r.role,
+            industry_role: r.industry_role,
           }))
         );
+      }
     })();
   }, []);
 
@@ -160,7 +186,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
-        .from("vw_regional_rules_base") // ✅ replace with your view name
+        .from("vw_regional_rules_base")
         .select("state, suburb_city, postcode")
         .limit(500);
       if (error) console.error("Error fetching locations:", error);
