@@ -178,35 +178,24 @@ export type Database = {
         ];
       };
 
-      employer_role: {
+      employer_job_type: {
         Row: {
           user_id: string;
-          industry_role_id: number;
-          created_at: string | null;
+          type_id: number;
         };
         Insert: {
           user_id: string;
-          industry_role_id: number;
-          created_at?: string | null;
+          type_id: number;
         };
         Update: {
           user_id?: string;
-          industry_role_id?: number;
-          created_at?: string | null;
+          type_id?: number;
         };
-        Relationships: [
-          {
-            foreignKeyName: "employer_role_industry_role_id_fkey";
-            columns: ["industry_role_id"];
-            isOneToOne: false;
-            referencedRelation: "industry_role";
-            referencedColumns: ["industry_role_id"];
-          }
-        ];
+        Relationships: [];
       };
 
       // ==========================
-      // INDUSTRY
+      // FACILITY & INDUSTRY
       // ==========================
       facility: {
         Row: {
@@ -266,6 +255,7 @@ export type Database = {
           }
         ];
       };
+
       // ==========================
       // JOB
       // ==========================
@@ -386,7 +376,7 @@ export type Database = {
         Row: {
           id: string;
           liker_id: string;
-          liker_type: "whv" | "employer";
+          liker_type: string;
           liked_job_post_id: number | null;
           liked_whv_id: string | null;
           created_at: string | null;
@@ -394,7 +384,7 @@ export type Database = {
         Insert: {
           id?: string;
           liker_id: string;
-          liker_type: "whv" | "employer";
+          liker_type: string;
           liked_job_post_id?: number | null;
           liked_whv_id?: string | null;
           created_at?: string | null;
@@ -402,7 +392,7 @@ export type Database = {
         Update: {
           id?: string;
           liker_id?: string;
-          liker_type?: "whv" | "employer";
+          liker_type?: string;
           liked_job_post_id?: number | null;
           liked_whv_id?: string | null;
           created_at?: string | null;
@@ -529,25 +519,25 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
-          suburb_city: string;
           state: Database["public"]["Enums"]["state"];
-          postcode: string | null;
+          suburb_city: string;
+          postcode: string;
           created_at: string | null;
         };
         Insert: {
           id?: string;
           user_id: string;
-          suburb_city: string;
           state: Database["public"]["Enums"]["state"];
-          postcode?: string | null;
+          suburb_city: string;
+          postcode: string;
           created_at?: string | null;
         };
         Update: {
           id?: string;
           user_id?: string;
-          suburb_city?: string;
           state?: Database["public"]["Enums"]["state"];
-          postcode?: string | null;
+          suburb_city?: string;
+          postcode?: string;
           created_at?: string | null;
         };
         Relationships: [];
@@ -557,40 +547,25 @@ export type Database = {
         Row: {
           preference_id: number;
           user_id: string;
-          industry_role_id: number;
           region_rules_id: number;
-          created_at: string | null;
+          industry_role_id: number;
+          created_at: string;
         };
         Insert: {
           preference_id?: number;
           user_id: string;
-          industry_role_id: number;
           region_rules_id: number;
-          created_at?: string | null;
+          industry_role_id: number;
+          created_at?: string;
         };
         Update: {
           preference_id?: number;
           user_id?: string;
-          industry_role_id?: number;
           region_rules_id?: number;
-          created_at?: string | null;
+          industry_role_id?: number;
+          created_at?: string;
         };
-        Relationships: [
-          {
-            foreignKeyName: "maker_preference_industry_role_id_fkey";
-            columns: ["industry_role_id"];
-            isOneToOne: false;
-            referencedRelation: "industry_role";
-            referencedColumns: ["industry_role_id"];
-          },
-          {
-            foreignKeyName: "maker_preference_region_rules_id_fkey";
-            columns: ["region_rules_id"];
-            isOneToOne: false;
-            referencedRelation: "region_rules";
-            referencedColumns: ["id"];
-          }
-        ];
+        Relationships: [];
       };
 
       maker_reference: {
@@ -629,16 +604,14 @@ export type Database = {
         };
         Relationships: [];
       };
-      // ==========================
-      // MAKER VISA
-      // ==========================
+
       maker_visa: {
         Row: {
           user_id: string;
           country_id: number;
           stage_id: number;
-          dob: string;
           expiry_date: string;
+          dob: string;
           created_at: string | null;
           updated_at: string | null;
         };
@@ -646,8 +619,8 @@ export type Database = {
           user_id: string;
           country_id: number;
           stage_id: number;
-          dob: string;
           expiry_date: string;
+          dob: string;
           created_at?: string | null;
           updated_at?: string | null;
         };
@@ -655,8 +628,8 @@ export type Database = {
           user_id?: string;
           country_id?: number;
           stage_id?: number;
-          dob?: string;
           expiry_date?: string;
+          dob?: string;
           created_at?: string | null;
           updated_at?: string | null;
         };
@@ -700,6 +673,51 @@ export type Database = {
         Relationships: [];
       };
 
+      maker_work_experience: {
+        Row: {
+          work_experience_id: number;
+          user_id: string;
+          industry_id: number;
+          position: string;
+          company: string;
+          location: string | null;
+          job_description: string | null;
+          start_date: string;
+          end_date: string;
+        };
+        Insert: {
+          work_experience_id?: number;
+          user_id: string;
+          industry_id: number;
+          position: string;
+          company: string;
+          location?: string | null;
+          job_description?: string | null;
+          start_date: string;
+          end_date: string;
+        };
+        Update: {
+          work_experience_id?: number;
+          user_id?: string;
+          industry_id?: number;
+          position?: string;
+          company?: string;
+          location?: string | null;
+          job_description?: string | null;
+          start_date?: string;
+          end_date?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "maker_work_experience_industry_id_fkey";
+            columns: ["industry_id"];
+            isOneToOne: false;
+            referencedRelation: "industry";
+            referencedColumns: ["industry_id"];
+          }
+        ];
+      };
+
       // ==========================
       // MATCHES
       // ==========================
@@ -711,9 +729,9 @@ export type Database = {
           job_post_id: number;
           match_score: number | null;
           matched_at: string | null;
-          is_active: boolean | null;
           whm_viewed_at: string | null;
           employer_viewed_at: string | null;
+          is_active: boolean | null;
         };
         Insert: {
           id?: string;
@@ -722,9 +740,9 @@ export type Database = {
           job_post_id: number;
           match_score?: number | null;
           matched_at?: string | null;
-          is_active?: boolean | null;
           whm_viewed_at?: string | null;
           employer_viewed_at?: string | null;
+          is_active?: boolean | null;
         };
         Update: {
           id?: string;
@@ -733,19 +751,11 @@ export type Database = {
           job_post_id?: number;
           match_score?: number | null;
           matched_at?: string | null;
-          is_active?: boolean | null;
           whm_viewed_at?: string | null;
           employer_viewed_at?: string | null;
+          is_active?: boolean | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: "matches_job_post_id_fkey";
-            columns: ["job_post_id"];
-            isOneToOne: false;
-            referencedRelation: "job";
-            referencedColumns: ["job_id"];
-          }
-        ];
+        Relationships: [];
       };
 
       matching_score: {
@@ -779,38 +789,61 @@ export type Database = {
           industry_score?: number | null;
           calculated_at?: string | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: "matching_score_job_id_fkey";
-            columns: ["job_id"];
-            isOneToOne: false;
-            referencedRelation: "job";
-            referencedColumns: ["job_id"];
-          }
-        ];
+        Relationships: [];
       };
 
       // ==========================
-      // REGION TABLES
+      // POSTCODE & REGIONAL
       // ==========================
       postcode: {
         Row: {
           id: number;
-          state: string | null;
-          suburb_city: string | null;
           postcode: string | null;
+          suburb_city: string | null;
+          state: string | null;
         };
         Insert: {
           id?: number;
-          state?: string | null;
-          suburb_city?: string | null;
           postcode?: string | null;
+          suburb_city?: string | null;
+          state?: string | null;
         };
         Update: {
           id?: number;
-          state?: string | null;
-          suburb_city?: string | null;
           postcode?: string | null;
+          suburb_city?: string | null;
+          state?: string | null;
+        };
+        Relationships: [];
+      };
+
+      profile: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string;
+          user_type: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          encrypt_email: unknown | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email: string;
+          user_type?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          encrypt_email?: unknown | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string;
+          user_type?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          encrypt_email?: unknown | null;
         };
         Relationships: [];
       };
@@ -819,19 +852,19 @@ export type Database = {
         Row: {
           id: number;
           state: string;
-          area: "Regional" | "Northern" | "Remote" | "Very Remote";
+          area: string;
           postcode_range: string;
         };
         Insert: {
           id?: number;
           state: string;
-          area: "Regional" | "Northern" | "Remote" | "Very Remote";
+          area: string;
           postcode_range: string;
         };
         Update: {
           id?: number;
           state?: string;
-          area?: "Regional" | "Northern" | "Remote" | "Very Remote";
+          area?: string;
           postcode_range?: string;
         };
         Relationships: [];
@@ -842,31 +875,31 @@ export type Database = {
           id: number;
           sub_class: string;
           stage: number;
-          state: Database["public"]["Enums"]["state"];
+          state: string;
           area: string;
           postcode_range: string | null;
-          created_at: string | null;
           industry_id: number | null;
+          created_at: string | null;
         };
         Insert: {
           id?: number;
           sub_class: string;
           stage: number;
-          state: Database["public"]["Enums"]["state"];
+          state: string;
           area: string;
           postcode_range?: string | null;
-          created_at?: string | null;
           industry_id?: number | null;
+          created_at?: string | null;
         };
         Update: {
           id?: number;
           sub_class?: string;
           stage?: number;
-          state?: Database["public"]["Enums"]["state"];
+          state?: string;
           area?: string;
           postcode_range?: string | null;
-          created_at?: string | null;
           industry_id?: number | null;
+          created_at?: string | null;
         };
         Relationships: [];
       };
@@ -874,124 +907,59 @@ export type Database = {
       regional_rules: {
         Row: {
           id: number;
+          state: Database["public"]["Enums"]["state"];
+          area: string;
+          suburb_city: string;
+          postcode: string;
           stage_id: number | null;
           industry_id: number | null;
-          state: Database["public"]["Enums"]["state"];
-          suburb_city: string;
-          area: string;
-          postcode: string;
           created_at: string | null;
         };
         Insert: {
           id?: number;
+          state: Database["public"]["Enums"]["state"];
+          area: string;
+          suburb_city: string;
+          postcode: string;
           stage_id?: number | null;
           industry_id?: number | null;
-          state: Database["public"]["Enums"]["state"];
-          suburb_city: string;
-          area: string;
-          postcode: string;
           created_at?: string | null;
         };
         Update: {
           id?: number;
-          stage_id?: number | null;
-          industry_id?: number | null;
           state?: Database["public"]["Enums"]["state"];
-          suburb_city?: string;
           area?: string;
+          suburb_city?: string;
           postcode?: string;
-          created_at?: string | null;
-        };
-        Relationships: [];
-      };
-
-      temp_eligibility: {
-        Row: {
-          sub_class: string;
-          stage: number;
-          country_name: string;
-          industry_name: string;
-          industry_id: number | null;
-        };
-        Insert: {
-          sub_class: string;
-          stage: number;
-          country_name: string;
-          industry_name: string;
+          stage_id?: number | null;
           industry_id?: number | null;
-        };
-        Update: {
-          sub_class?: string;
-          stage?: number;
-          country_name?: string;
-          industry_name?: string;
-          industry_id?: number | null;
+          created_at?: string | null;
         };
         Relationships: [];
       };
 
-      // ==========================
-      // PROFILE
-      // ==========================
-      profile: {
-        Row: {
-          id: string;
-          user_id: string;
-          email: string;
-          created_at: string | null;
-          updated_at: string | null;
-          user_type: "employer" | "whv";
-          encrypt_email: string | null;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          email: string;
-          created_at?: string | null;
-          updated_at?: string | null;
-          user_type: "employer" | "whv";
-          encrypt_email?: string | null;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          email?: string;
-          created_at?: string | null;
-          updated_at?: string | null;
-          user_type?: "employer" | "whv";
-          encrypt_email?: string | null;
-        };
-        Relationships: [];
-      };
-
-      // ==========================
-      // VISA STAGE
-      // ==========================
       visa_stage: {
         Row: {
           stage_id: number;
-          sub_class: "417" | "462";
+          sub_class: string;
           stage: number;
           label: string;
         };
         Insert: {
           stage_id?: number;
-          sub_class: "417" | "462";
+          sub_class: string;
           stage: number;
           label: string;
         };
         Update: {
           stage_id?: number;
-          sub_class?: "417" | "462";
+          sub_class?: string;
           stage?: number;
           label?: string;
         };
         Relationships: [];
       };
 
-      // ==========================
-      // WHV MAKER
-      // ==========================
       whv_maker: {
         Row: {
           user_id: string;
@@ -1000,15 +968,15 @@ export type Database = {
           family_name: string;
           birth_date: string;
           nationality: Database["public"]["Enums"]["nationality"];
-          tagline: string | null;
           mobile_num: string;
+          profile_photo: string | null;
           address_line1: string;
           address_line2: string | null;
           suburb: string;
           state: Database["public"]["Enums"]["state"];
           postcode: string;
+          tagline: string | null;
           is_profile_visible: boolean | null;
-          profile_photo: string | null;
           created_at: string | null;
           updated_at: string | null;
         };
@@ -1019,15 +987,15 @@ export type Database = {
           family_name: string;
           birth_date: string;
           nationality: Database["public"]["Enums"]["nationality"];
-          tagline?: string | null;
           mobile_num: string;
+          profile_photo?: string | null;
           address_line1: string;
           address_line2?: string | null;
           suburb: string;
           state: Database["public"]["Enums"]["state"];
           postcode: string;
+          tagline?: string | null;
           is_profile_visible?: boolean | null;
-          profile_photo?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
         };
@@ -1038,33 +1006,474 @@ export type Database = {
           family_name?: string;
           birth_date?: string;
           nationality?: Database["public"]["Enums"]["nationality"];
-          tagline?: string | null;
           mobile_num?: string;
+          profile_photo?: string | null;
           address_line1?: string;
           address_line2?: string | null;
           suburb?: string;
           state?: Database["public"]["Enums"]["state"];
           postcode?: string;
+          tagline?: string | null;
           is_profile_visible?: boolean | null;
-          profile_photo?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
         };
         Relationships: [];
       };
-    }
+    };
     Views: {
       // ==========================
-      // MATERIALIZED VIEW
+      // MATERIALIZED VIEWS
       // ==========================
       mvw_emp_location_roles: {
         Row: {
-          industry_id: number;
-          industry_role_id: number;
-          industry_role: string;
-          state: string;
-          suburb_city: string;
-          postcode: string;
+          industry_id: number | null;
+          industry_role_id: number | null;
+          industry_role: string | null;
+          state: string | null;
+          suburb_city: string | null;
+          postcode: string | null;
+        };
+        Insert: {
+          industry_id?: never;
+          industry_role_id?: never;
+          industry_role?: never;
+          state?: never;
+          suburb_city?: never;
+          postcode?: never;
+        };
+        Update: {
+          industry_id?: never;
+          industry_role_id?: never;
+          industry_role?: never;
+          state?: never;
+          suburb_city?: never;
+          postcode?: never;
+        };
+        Relationships: [];
+      };
+
+      mvw_eligibility_visa_country_stage_industry: {
+        Row: {
+          country_id: number | null;
+          country_name: string | null;
+          stage_id: number | null;
+          stage_label: string | null;
+          industry_id: number | null;
+          industry_name: string | null;
+        };
+        Insert: {
+          country_id?: never;
+          country_name?: never;
+          stage_id?: never;
+          stage_label?: never;
+          industry_id?: never;
+          industry_name?: never;
+        };
+        Update: {
+          country_id?: never;
+          country_name?: never;
+          stage_id?: never;
+          stage_label?: never;
+          industry_id?: never;
+          industry_name?: never;
+        };
+        Relationships: [];
+      };
+
+      // Regular views
+      vw_emp_match_scores: {
+        Row: {
+          emp_id: string | null;
+          job_id: number | null;
+          match_score: number | null;
+          work_experience_score: number | null;
+          license_score: number | null;
+          location_score: number | null;
+          industry_score: number | null;
+          matching_rank: number | null;
+        };
+        Insert: {
+          emp_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Update: {
+          emp_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_emp_private_active_jobs: {
+        Row: {
+          job_id: number | null;
+          user_id: string | null;
+          role: string | null;
+          location: string | null;
+          job_type: Database["public"]["Enums"]["job_type_enum"] | null;
+          pay_range: Database["public"]["Enums"]["pay_range"] | null;
+          status: Database["public"]["Enums"]["job_status"] | null;
+        };
+        Insert: {
+          job_id?: never;
+          user_id?: never;
+          role?: never;
+          location?: never;
+          job_type?: never;
+          pay_range?: never;
+          status?: never;
+        };
+        Update: {
+          job_id?: never;
+          user_id?: never;
+          role?: never;
+          location?: never;
+          job_type?: never;
+          pay_range?: never;
+          status?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_emp_private_all_jobs: {
+        Row: {
+          job_id: number | null;
+          user_id: string | null;
+          role: string | null;
+          location: string | null;
+          job_type: Database["public"]["Enums"]["job_type_enum"] | null;
+          pay_range: Database["public"]["Enums"]["pay_range"] | null;
+          status: Database["public"]["Enums"]["job_status"] | null;
+        };
+        Insert: {
+          job_id?: never;
+          user_id?: never;
+          role?: never;
+          location?: never;
+          job_type?: never;
+          pay_range?: never;
+          status?: never;
+        };
+        Update: {
+          job_id?: never;
+          user_id?: never;
+          role?: never;
+          location?: never;
+          job_type?: never;
+          pay_range?: never;
+          status?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_emp_private_inactive_jobs: {
+        Row: {
+          job_id: number | null;
+          user_id: string | null;
+          role: string | null;
+          location: string | null;
+          job_type: Database["public"]["Enums"]["job_type_enum"] | null;
+          pay_range: Database["public"]["Enums"]["pay_range"] | null;
+          status: Database["public"]["Enums"]["job_status"] | null;
+        };
+        Insert: {
+          job_id?: never;
+          user_id?: never;
+          role?: never;
+          location?: never;
+          job_type?: never;
+          pay_range?: never;
+          status?: never;
+        };
+        Update: {
+          job_id?: never;
+          user_id?: never;
+          role?: never;
+          location?: never;
+          job_type?: never;
+          pay_range?: never;
+          status?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_industry_roles: {
+        Row: {
+          industry_id: number | null;
+          industry_name: string | null;
+          industry_role_id: number | null;
+          role: string | null;
+        };
+        Insert: {
+          industry_id?: never;
+          industry_name?: never;
+          industry_role_id?: never;
+          role?: never;
+        };
+        Update: {
+          industry_id?: never;
+          industry_name?: never;
+          industry_role_id?: never;
+          role?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_match_scores: {
+        Row: {
+          user_id: string | null;
+          job_id: number | null;
+          match_score: number | null;
+          work_experience_score: number | null;
+          license_score: number | null;
+          location_score: number | null;
+          industry_score: number | null;
+          matching_rank: number | null;
+        };
+        Insert: {
+          user_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Update: {
+          user_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_match_scores_top10: {
+        Row: {
+          user_id: string | null;
+          job_id: number | null;
+          match_score: number | null;
+          work_experience_score: number | null;
+          license_score: number | null;
+          location_score: number | null;
+          industry_score: number | null;
+          matching_rank: number | null;
+        };
+        Insert: {
+          user_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Update: {
+          user_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_match_scores_top5: {
+        Row: {
+          user_id: string | null;
+          job_id: number | null;
+          match_score: number | null;
+          work_experience_score: number | null;
+          license_score: number | null;
+          location_score: number | null;
+          industry_score: number | null;
+          matching_rank: number | null;
+        };
+        Insert: {
+          user_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Update: {
+          user_id?: never;
+          job_id?: never;
+          match_score?: never;
+          work_experience_score?: never;
+          license_score?: never;
+          location_score?: never;
+          industry_score?: never;
+          matching_rank?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_preference_industry_role: {
+        Row: {
+          industry: string | null;
+          role: string | null;
+        };
+        Insert: {
+          industry?: never;
+          role?: never;
+        };
+        Update: {
+          industry?: never;
+          role?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_preview_licenses: {
+        Row: {
+          name: string | null;
+        };
+        Insert: {
+          name?: never;
+        };
+        Update: {
+          name?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_preview_reference_location: {
+        Row: {
+          state: string | null;
+          area: string | null;
+        };
+        Insert: {
+          state?: never;
+          area?: never;
+        };
+        Update: {
+          state?: never;
+          area?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_preview_work_history: {
+        Row: {
+          position: string | null;
+          company: string | null;
+          location: string | null;
+          years_of_experience: unknown | null;
+        };
+        Insert: {
+          position?: never;
+          company?: never;
+          location?: never;
+          years_of_experience?: never;
+        };
+        Update: {
+          position?: never;
+          company?: never;
+          location?: never;
+          years_of_experience?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_maker_work_preference_industry_role: {
+        Row: {
+          industry: string | null;
+          role: string | null;
+        };
+        Insert: {
+          industry?: never;
+          role?: never;
+        };
+        Update: {
+          industry?: never;
+          role?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_regional_rules_base: {
+        Row: {
+          id: number | null;
+          state: Database["public"]["Enums"]["state"] | null;
+          area: string | null;
+          suburb_city: string | null;
+          postcode: string | null;
+          stage_id: number | null;
+          industry_id: number | null;
+          visa_stage_label: string | null;
+          industry_name: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: never;
+          state?: never;
+          area?: never;
+          suburb_city?: never;
+          postcode?: never;
+          stage_id?: never;
+          industry_id?: never;
+          visa_stage_label?: never;
+          industry_name?: never;
+          created_at?: never;
+        };
+        Update: {
+          id?: never;
+          state?: never;
+          area?: never;
+          suburb_city?: never;
+          postcode?: never;
+          stage_id?: never;
+          industry_id?: never;
+          visa_stage_label?: never;
+          industry_name?: never;
+          created_at?: never;
+        };
+        Relationships: [];
+      };
+
+      vw_stage_eligible_countries: {
+        Row: {
+          stage_id: number | null;
+          stage_label: string | null;
+          country_id: number | null;
+          country_name: string | null;
+        };
+        Insert: {
+          stage_id?: never;
+          stage_label?: never;
+          country_id?: never;
+          country_name?: never;
+        };
+        Update: {
+          stage_id?: never;
+          stage_label?: never;
+          country_id?: never;
+          country_name?: never;
         };
         Relationships: [];
       };
@@ -1073,48 +1482,6 @@ export type Database = {
       [_ in never]: never;
     };
     Enums: {
-      job_status: "active" | "inactive" | "draft";
-      job_type_enum:
-        | "Full-time"
-        | "Part-time"
-        | "Casual"
-        | "Contract"
-        | "Seasonal";
-      pay_range:
-        | "$25-30/hour"
-        | "$30-35/hour"
-        | "$35-40/hour"
-        | "$40-45/hour"
-        | "$45+/hour"
-        | "Undisclosed";
-      years_experience:
-        | "None"
-        | "<1"
-        | "1-2"
-        | "3-4"
-        | "5-7"
-        | "8-10"
-        | "10+";
-      state:
-        | "Australian Capital Territory"
-        | "New South Wales"
-        | "Northern Territory"
-        | "Queensland"
-        | "South Australia"
-        | "Tasmania"
-        | "Victoria"
-        | "Western Australia";
-      nationality:
-        | "Philippines"
-        | "Singapore"
-        | "United Kingdom"
-        | "Germany"
-        | "France"
-        | "United States"
-        | "Canada"
-        | "Japan"
-        | "South Korea"
-        | "India";
       business_tenure:
         | "<1"
         | "1"
@@ -1134,9 +1501,236 @@ export type Database = {
         | "21-50"
         | "51-100"
         | "100+";
+      job_status: "active" | "inactive" | "draft";
+      job_type_enum:
+        | "Full-time"
+        | "Part-time"
+        | "Casual"
+        | "Contract"
+        | "Seasonal";
+      nationality:
+        | "Afghan"
+        | "Albanian"
+        | "Algerian"
+        | "American"
+        | "Andorran"
+        | "Angolan"
+        | "Antiguans"
+        | "Argentinean"
+        | "Armenian"
+        | "Australian"
+        | "Austrian"
+        | "Azerbaijani"
+        | "Bahamian"
+        | "Bahraini"
+        | "Bangladeshi"
+        | "Barbadian"
+        | "Barbudans"
+        | "Batswana"
+        | "Belarusian"
+        | "Belgian"
+        | "Belizean"
+        | "Beninese"
+        | "Bhutanese"
+        | "Bolivian"
+        | "Bosnian"
+        | "Brazilian"
+        | "British"
+        | "Bruneian"
+        | "Bulgarian"
+        | "Burkinabe"
+        | "Burmese"
+        | "Burundian"
+        | "Cambodian"
+        | "Cameroonian"
+        | "Canadian"
+        | "Cape Verdean"
+        | "Central African"
+        | "Chadian"
+        | "Chilean"
+        | "Chinese"
+        | "Colombian"
+        | "Comoran"
+        | "Congolese"
+        | "Costa Rican"
+        | "Croatian"
+        | "Cuban"
+        | "Cypriot"
+        | "Czech"
+        | "Danish"
+        | "Djibouti"
+        | "Dominican"
+        | "Dutch"
+        | "East Timorese"
+        | "Ecuadorean"
+        | "Egyptian"
+        | "Emirian"
+        | "Equatorial Guinean"
+        | "Eritrean"
+        | "Estonian"
+        | "Ethiopian"
+        | "Fijian"
+        | "Filipino"
+        | "Finnish"
+        | "French"
+        | "Gabonese"
+        | "Gambian"
+        | "Georgian"
+        | "German"
+        | "Ghanaian"
+        | "Greek"
+        | "Grenadian"
+        | "Guatemalan"
+        | "Guinea-Bissauan"
+        | "Guinean"
+        | "Guyanese"
+        | "Haitian"
+        | "Herzegovinian"
+        | "Honduran"
+        | "Hungarian"
+        | "I-Kiribati"
+        | "Icelander"
+        | "Indian"
+        | "Indonesian"
+        | "Iranian"
+        | "Iraqi"
+        | "Irish"
+        | "Israeli"
+        | "Italian"
+        | "Ivorian"
+        | "Jamaican"
+        | "Japanese"
+        | "Jordanian"
+        | "Kazakhstani"
+        | "Kenyan"
+        | "Kittian and Nevisian"
+        | "Kuwaiti"
+        | "Kyrgyz"
+        | "Laotian"
+        | "Latvian"
+        | "Lebanese"
+        | "Liberian"
+        | "Libyan"
+        | "Liechtensteiner"
+        | "Lithuanian"
+        | "Luxembourger"
+        | "Macedonian"
+        | "Malagasy"
+        | "Malawian"
+        | "Malaysian"
+        | "Maldivan"
+        | "Malian"
+        | "Maltese"
+        | "Marshallese"
+        | "Mauritanian"
+        | "Mauritian"
+        | "Mexican"
+        | "Micronesian"
+        | "Moldovan"
+        | "Monacan"
+        | "Mongolian"
+        | "Moroccan"
+        | "Mosotho"
+        | "Motswana"
+        | "Mozambican"
+        | "Namibian"
+        | "Nauruan"
+        | "Nepalese"
+        | "New Zealander"
+        | "Ni-Vanuatu"
+        | "Nicaraguan"
+        | "Nigerian"
+        | "Nigerien"
+        | "North Korean"
+        | "Northern Irish"
+        | "Norwegian"
+        | "Omani"
+        | "Pakistani"
+        | "Palauan"
+        | "Panamanian"
+        | "Papua New Guinean"
+        | "Paraguayan"
+        | "Peruvian"
+        | "Polish"
+        | "Portuguese"
+        | "Qatari"
+        | "Romanian"
+        | "Russian"
+        | "Rwandan"
+        | "Saint Lucian"
+        | "Salvadoran"
+        | "Samoan"
+        | "San Marinese"
+        | "Sao Tomean"
+        | "Saudi"
+        | "Scottish"
+        | "Senegalese"
+        | "Serbian"
+        | "Seychellois"
+        | "Sierra Leonean"
+        | "Singaporean"
+        | "Slovakian"
+        | "Slovenian"
+        | "Solomon Islander"
+        | "Somali"
+        | "South African"
+        | "South Korean"
+        | "Spanish"
+        | "Sri Lankan"
+        | "Sudanese"
+        | "Surinamer"
+        | "Swazi"
+        | "Swedish"
+        | "Swiss"
+        | "Syrian"
+        | "Taiwanese"
+        | "Tajik"
+        | "Tanzanian"
+        | "Thai"
+        | "Togolese"
+        | "Tongan"
+        | "Trinidadian or Tobagonian"
+        | "Tunisian"
+        | "Turkish"
+        | "Tuvaluan"
+        | "Ugandan"
+        | "Ukrainian"
+        | "Uruguayan"
+        | "Uzbekistani"
+        | "Venezuelan"
+        | "Vietnamese"
+        | "Welsh"
+        | "Yemenite"
+        | "Zambian"
+        | "Zimbabwean";
+      pay_range:
+        | "$25-30/hour"
+        | "$30-35/hour"
+        | "$35-40/hour"
+        | "$40-45/hour"
+        | "$45+/hour"
+        | "Undisclosed";
+      state:
+        | "Australian Capital Territory"
+        | "New South Wales"
+        | "Northern Territory"
+        | "Queensland"
+        | "South Australia"
+        | "Tasmania"
+        | "Victoria"
+        | "Western Australia";
+      years_experience: "None" | "<1" | "1-2" | "3-4" | "5-7" | "8-10" | "10+";
     };
     CompositeTypes: {
       [_ in never]: never;
     };
-  }
+  };
 };
+
+// Export helpers
+export type Tables<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Row"];
+export type Views<T extends keyof Database["public"]["Views"]> =
+  Database["public"]["Views"][T]["Row"];
+export type Enums<T extends keyof Database["public"]["Enums"]> =
+  Database["public"]["Enums"][T];

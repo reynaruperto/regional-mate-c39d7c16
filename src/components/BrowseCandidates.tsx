@@ -58,8 +58,8 @@ const BrowseCandidates: React.FC = () => {
 
       // 2️⃣ Fetch related tables
       const { data: preferences } = await supabase
-        .from("maker_preference")
-        .select("user_id, industry_role ( role, industry ( name ) )");
+        .from("maker_pref_industry_role")
+        .select("user_id, industry_role_id, industry_role ( role, industry ( name ) )");
 
       // Skip work experience for now due to type issues
       const experiences: any[] = [];

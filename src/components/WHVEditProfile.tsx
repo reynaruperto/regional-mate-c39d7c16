@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Database } from "@/types/supabase";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -589,13 +590,13 @@ const WHVEditProfile: React.FC = () => {
       await supabase
         .from("whv_maker")
         .update({
-          nationality: nationality as "Philippines" | "Singapore" | "United Kingdom" | "Germany" | "France" | "United States" | "Canada" | "Japan" | "South Korea" | "India",
+          nationality: nationality as Database["public"]["Enums"]["nationality"],
           birth_date: dob,
           mobile_num: phone,
           address_line1: address.address1,
           address_line2: address.address2 || null,
           suburb: address.suburb,
-          state: address.state as "Australian Capital Territory" | "New South Wales" | "Northern Territory" | "Queensland" | "South Australia" | "Tasmania" | "Victoria" | "Western Australia",
+          state: address.state as Database["public"]["Enums"]["state"],
           postcode: address.postcode,
           tagline: tagline.trim(),
           updated_at: new Date().toISOString(),
