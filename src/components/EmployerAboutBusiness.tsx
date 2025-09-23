@@ -57,7 +57,7 @@ const EmployerAboutBusiness: React.FC = () => {
       const { data: facData } = await supabase.from("facility").select("facility_id, name");
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
 
-      // Hard-coded enum values for now
+      // Enums — use exactly what DB accepts
       setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"]);
       setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"]);
     };
@@ -71,12 +71,13 @@ const EmployerAboutBusiness: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("User not logged in");
 
+      // ✅ Update employer
       const { error: empError } = await supabase
         .from("employer")
         .update({
           tagline: data.businessTagline,
-          business_tenure: data.yearsInBusiness as any,
-          employee_count: data.employeeCount as any,
+          business_tenure: data.yearsInBusiness, // already valid enum
+          employee_count: data.employeeCount, // already valid enum
           industry_id: Number(data.industryId),
           updated_at: new Date().toISOString(),
         })
@@ -84,15 +85,20 @@ const EmployerAboutBusiness: React.FC = () => {
 
       if (empError) throw empError;
 
-      // ✅ Insert facilities
-      if (facilities.length) {
-        const selectedFacilityIds = facilities.filter(f => watchedFacilities.includes(f.name)).map(f => f.id);
-        const facilityRows = selectedFacilityIds.map(id => ({ user_id: user.id, facility_id: id }));
+      // ✅ Replace facilities: delete old → insert new
+      await supabase.from("employer_facility").delete().eq("user_id", user.id);
 
-        if (facilityRows.length > 0) {
-          const { error: facError } = await supabase.from("employer_facility").insert(facilityRows);
-          if (facError) throw facError;
-        }
+      const selectedFacilityIds = facilities
+        .filter(f => watchedFacilities.includes(f.name))
+        .map(f => f.id);
+
+      if (selectedFacilityIds.length > 0) {
+        const facilityRows = selectedFacilityIds.map(id => ({
+          user_id: user.id,
+          facility_id: id,
+        }));
+        const { error: facError } = await supabase.from("employer_facility").insert(facilityRows);
+        if (facError) throw facError;
       }
 
       toast({ title: "Business setup complete!", description: "Your employer profile has been updated successfully" });
