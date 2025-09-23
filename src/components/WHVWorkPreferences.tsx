@@ -102,7 +102,7 @@ const WHVWorkPreferences: React.FC = () => {
         .select("industry_id, industry")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country", profile.nationality);
+        .ilike("country", `%${profile.nationality}%`); // FIX HERE
 
       if (eligibleIndustries?.length) {
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
@@ -192,13 +192,10 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Save logic here (same as before) ...
+    // save logic...
     navigate("/whv/work-experience");
   };
 
-  // ==========================
-  // Handlers
-  // ==========================
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
@@ -277,35 +274,30 @@ const WHVWorkPreferences: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
-          {/* Header omitted for brevity */}
 
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-            {/* Sections omitted for brevity */}
-
-            {/* Debug output */}
-            <div className="p-4 border rounded bg-gray-50">
-              <h2 className="font-bold">Debug Data</h2>
-              <h3>Industries</h3>
-              <ul>
-                {industries.map((i) => (
-                  <li key={i.id}>{i.id} - {i.name}</li>
-                ))}
-              </ul>
-              <h3>Roles</h3>
-              <ul>
-                {roles.map((r) => (
-                  <li key={r.id}>{r.id} - {r.name} (Industry {r.industryId})</li>
-                ))}
-              </ul>
-              <h3>Regions</h3>
-              <ul>
-                {regions.map((r, idx) => (
-                  <li key={idx}>
-                    {r.state} - {r.suburb_city} ({r.postcode}) [Industry {r.industry_id}]
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* Debug output */}
+          <div className="p-4 border rounded bg-gray-50">
+            <h2 className="font-bold">Debug Data</h2>
+            <h3>Industries</h3>
+            <ul>
+              {industries.map((i) => (
+                <li key={i.id}>{i.id} - {i.name}</li>
+              ))}
+            </ul>
+            <h3>Roles</h3>
+            <ul>
+              {roles.map((r) => (
+                <li key={r.id}>{r.id} - {r.name} (Industry {r.industryId})</li>
+              ))}
+            </ul>
+            <h3>Regions</h3>
+            <ul>
+              {regions.map((r, idx) => (
+                <li key={idx}>
+                  {r.state} - {r.suburb_city} ({r.postcode}) [Industry {r.industry_id}]
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
