@@ -101,7 +101,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // ✅ Eligible industries from materialized view
+      // ✅ Fetch eligible industries from materialized view
       const { data: eligibleIndustries, error: eligibilityError } =
         await supabase
           .from("mvw_eligibility_visa_country_stage_industry" as any)
@@ -113,6 +113,8 @@ const WHVWorkPreferences: React.FC = () => {
       if (eligibilityError) {
         console.error("Eligibility query error:", eligibilityError);
       }
+
+      console.log("Eligible industries", eligibleIndustries);
 
       if (eligibleIndustries?.length) {
         setIndustries(
@@ -140,7 +142,7 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // ✅ Regions with auto-pagination
+        // Regions - Auto-pagination to fetch ALL rows
         let allRegions: Region[] = [];
         let page = 0;
         const pageSize = 1000;
@@ -170,6 +172,7 @@ const WHVWorkPreferences: React.FC = () => {
         console.log("✅ Total regions fetched:", allRegions.length);
         setRegions(allRegions);
 
+        // Debug counts by industry
         const regionsByIndustry = allRegions.reduce((acc, r) => {
           acc[r.industry_id] = (acc[r.industry_id] || 0) + 1;
           return acc;
@@ -320,7 +323,7 @@ const WHVWorkPreferences: React.FC = () => {
   const getAreasForState = (state: string) => {
     const selectedIndustryId = selectedIndustries[0];
     const filtered = regions.filter(
-      (r) => r.state === state && r.industry_id == selectedIndustryId
+      (r) => r.state === state && r.industry_id === selectedIndustryId
     );
     return filtered.map((r) => `${r.suburb_city}::${r.postcode}`);
   };
@@ -544,7 +547,6 @@ const WHVWorkPreferences: React.FC = () => {
                       .join(", ")}
                   </p>
                   <p>
-                                     <p>
                     <strong>States:</strong> {preferredStates.join(", ")}
                   </p>
                   <p>
