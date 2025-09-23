@@ -17,6 +17,59 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Enum mapping functions  
+const mapDbBusinessTenureToForm = (dbValue: any): string => {
+  const mapping: Record<string, string> = {
+    "Less than 1 year": "<1",
+    "1-2 years": "1",
+    "3-5 years": "3", 
+    "5-10 years": "6-10",
+    "10+ years": "20+"
+  };
+  return mapping[dbValue] || "1";
+};
+
+const mapFormBusinessTenureToDb = (formValue: any): "Less than 1 year" | "1-2 years" | "3-5 years" | "5-10 years" | "10+ years" => {
+  const mapping: Record<string, "Less than 1 year" | "1-2 years" | "3-5 years" | "5-10 years" | "10+ years"> = {
+    "<1": "Less than 1 year",
+    "1": "1-2 years", 
+    "2": "1-2 years",
+    "3": "3-5 years",
+    "4": "3-5 years",
+    "5": "3-5 years",
+    "6-10": "5-10 years",
+    "11-15": "10+ years",
+    "16-20": "10+ years",
+    "20+": "10+ years"
+  };
+  return mapping[formValue] || "1-2 years";
+};
+
+const mapDbEmployeeCountToForm = (dbValue: any): string => {
+  const mapping: Record<string, string> = {
+    "1-10": "1",
+    "11-50": "11-20",
+    "51-200": "21-50", 
+    "201-500": "51-100",
+    "501-1000": "100+",
+    "1000+": "100+"
+  };
+  return mapping[dbValue] || "1";
+};
+
+const mapFormEmployeeCountToDb = (formValue: any): "1-10" | "11-50" | "51-200" | "201-500" | "501-1000" | "1000+" => {
+  const mapping: Record<string, "1-10" | "11-50" | "51-200" | "201-500" | "501-1000" | "1000+"> = {
+    "1": "1-10",
+    "2-5": "1-10",
+    "6-10": "1-10",
+    "11-20": "11-50",
+    "21-50": "51-200",
+    "51-100": "201-500", 
+    "100+": "1000+"
+  };
+  return mapping[formValue] || "1-10";
+};
+
 // Australian States
 const AUSTRALIAN_STATES = [
   'Australian Capital Territory',
@@ -120,8 +173,8 @@ const EditBusinessProfile: React.FC = () => {
             state: employerData.state || undefined,
             postcode: employerData.postcode || '',
             businessTagline: employerData.tagline || '',
-            yearsInBusiness: employerData.business_tenure || undefined,
-            employeeCount: employerData.employee_count || undefined,
+            yearsInBusiness: mapDbBusinessTenureToForm(employerData.business_tenure) as "<1" | "1" | "2" | "3" | "4" | "5" | "6-10" | "11-15" | "16-20" | "20+",
+            employeeCount: mapDbEmployeeCountToForm(employerData.employee_count) as "1" | "6-10" | "2-5" | "11-20" | "21-50" | "51-100" | "100+",
             industryId: employerData.industry_id ? String(employerData.industry_id) : '',
             facilitiesAndExtras: employerFacilities?.map(f => f.facility_id) || [],
           });
@@ -172,8 +225,8 @@ const EditBusinessProfile: React.FC = () => {
         state: data.state,
         postcode: data.postcode,
         tagline: data.businessTagline,
-        business_tenure: data.yearsInBusiness,
-        employee_count: data.employeeCount,
+        business_tenure: mapFormBusinessTenureToDb(data.yearsInBusiness),
+        employee_count: mapFormEmployeeCountToDb(data.employeeCount),
         industry_id: Number(data.industryId),
         updated_at: new Date().toISOString(),
       }).eq('user_id', userId);

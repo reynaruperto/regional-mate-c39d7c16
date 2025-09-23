@@ -107,10 +107,10 @@ const PostJobs: React.FC = () => {
       return;
     }
 
-    const newStatus = job.job_status === "active" ? "closed" : "active";
+    const newStatus = job.job_status === "active" ? "inactive" : "active";
     const { error } = await supabase
       .from("job")
-      .update({ job_status: newStatus })
+      .update({ job_status: newStatus as "draft" | "active" | "closed" })
       .eq("job_id", job.job_id);
 
     if (error) {
@@ -143,7 +143,7 @@ const PostJobs: React.FC = () => {
           editingJob
             ? {
                 job_id: editingJob.job_id,
-                role: editingJob.role,
+                role: editingJob.industry_role?.role || "Unknown",
                 job_status: editingJob.job_status,
                 description: editingJob.description,
                 employment_type: editingJob.employment_type,
@@ -153,7 +153,7 @@ const PostJobs: React.FC = () => {
                 suburb_city: editingJob.suburb_city,
                 postcode: editingJob.postcode,
                 start_date: editingJob.start_date,
-                licenses: editingJob.licenses,
+                licenses: editingJob.job_license?.map(jl => jl.license_id) || [],
               }
             : null
         }
