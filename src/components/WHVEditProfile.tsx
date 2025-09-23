@@ -350,12 +350,14 @@ const WHVEditProfile: React.FC = () => {
       }
 
       // ---------- Work experience (prefill) ----------
-      // Skip work experience queries for now due to type issues
-      const exp: any[] = [];
+      const { data: exp } = await supabase
+        .from("maker_work_experience" as any)
+        .select("work_experience_id, industry_id, position, company, location, start_date, end_date, job_description")
+        .eq("user_id", user.id);
 
       if (exp) {
         setWorkExperiences(
-          exp.map((e) => {
+          exp.map((e: any) => {
             const foundRole =
               roleRes?.data?.find(
                 (r) =>
