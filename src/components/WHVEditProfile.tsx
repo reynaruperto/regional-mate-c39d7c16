@@ -271,22 +271,32 @@ const WHVEditProfile: React.FC = () => {
         );
         setCountryId(visa.country_id);
 
-        const { data: eligibleIndustries } = await supabase
-          .from("temp_eligibility")
-          .select("industry_id, industry_name")
-          .eq("sub_class", visa.visa_stage.sub_class)
-          .eq("stage", visa.visa_stage.stage)
-          .eq("country_name", visa.country.name);
+        // ✅ Fetch eligible industries from materialized view (matching onboarding)
+        const { data: eligibleIndustries, error: eligibilityError } =
+          await supabase
+            .from("mvw_eligibility_visa_country_stage_industry" as any)
+            .select("industry_id, industry")
+            .eq("sub_class", visa.visa_stage.sub_class)
+            .eq("stage", visa.visa_stage.stage)
+            .eq("country", visa.country.name);
+
+        if (eligibilityError) {
+          console.error("Eligibility query error:", eligibilityError);
+        }
+
+        console.log("Eligible industries", eligibleIndustries);
 
         if (eligibleIndustries?.length) {
           setIndustries(
-            eligibleIndustries.map((i) => ({
+            eligibleIndustries.map((i: any) => ({
               id: i.industry_id,
-              name: i.industry_name,
+              name: i.industry,
             }))
           );
 
-          const industryIds = eligibleIndustries.map((i) => i.industry_id);
+          const industryIds = eligibleIndustries.map((i: any) => i.industry_id);
+
+          // Roles
           const { data: roleData } = await supabase
             .from("industry_role")
             .select("industry_role_id, role, industry_id")
@@ -302,22 +312,42 @@ const WHVEditProfile: React.FC = () => {
             );
           }
 
-          const { data: regionRows } = await supabase
-            .from("regional_rules")
-            .select("id, industry_id, state, suburb_city, postcode")
-            .in("industry_id", industryIds);
+          // Regions - Auto-pagination to fetch ALL rows (matching onboarding)
+          let allRegions: Region[] = [];
+          let page = 0;
+          const pageSize = 1000;
+          let hasMore = true;
 
-          if (regionRows) {
-            setRegions(
-              regionRows.map((r: RegionRuleRow) => ({
-                id: r.id,
-                industry_id: r.industry_id,
-                state: r.state,
-                suburb_city: r.suburb_city,
-                postcode: r.postcode,
-              }))
-            );
+          while (hasMore) {
+            const { data: regionPage, error: regionError } = await supabase
+              .from("regional_rules")
+              .select("id, industry_id, state, suburb_city, postcode")
+              .in("industry_id", industryIds.map(Number))
+              .range(page * pageSize, (page + 1) * pageSize - 1);
+
+            if (regionError) {
+              console.error("Region query error:", regionError);
+              break;
+            }
+
+            if (regionPage && regionPage.length > 0) {
+              allRegions = [...allRegions, ...regionPage];
+              console.log(`Fetched ${regionPage.length} regions on page ${page}`);
+              page++;
+            } else {
+              hasMore = false;
+            }
           }
+
+          console.log("✅ Total regions fetched:", allRegions.length);
+          setRegions(allRegions);
+
+          // Debug counts by industry
+          const regionsByIndustry = allRegions.reduce((acc, r) => {
+            acc[r.industry_id] = (acc[r.industry_id] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          console.log("Regions by industry:", regionsByIndustry);
         }
       }
 
