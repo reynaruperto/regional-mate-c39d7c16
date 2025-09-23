@@ -73,13 +73,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     autosave({ ...form, [k]: v });
   };
 
-  // ✅ Autosave Draft Function
+  // ✅ Autosave Draft Function with logging
   const autosave = async (draft: any) => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) return;
 
-    // Parse suburb + postcode cleanly
+    // Parse suburb + postcode
     let suburb_city = "";
     let postcode = "";
     if (draft.suburbValue) {
@@ -106,30 +106,53 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       start_date: draft.startDate || null,
     };
 
-    console.log("Saving job payload:", payload);
+    console.log("Attempting to save job payload:", payload);
 
-    if (draft.job_id) {
-      await supabase.from("job").update(payload).eq("job_id", draft.job_id);
-    } else {
-      const { data } = await supabase
-        .from("job")
-        .insert({ ...payload, job_status: "draft" })
-        .select("job_id")
-        .single();
-      if (data?.job_id) setForm((p) => ({ ...p, job_id: data.job_id }));
-    }
+    try {
+      if (draft.job_id) {
+        const { error } = await supabase
+          .from("job")
+          .update(payload)
+          .eq("job_id", draft.job_id);
+        if (error) console.error("Update job error:", error);
+        else console.log("Job updated successfully:", draft.job_id);
+      } else {
+        const { data, error } = await supabase
+          .from("job")
+          .insert({ ...payload, job_status: "draft" })
+          .select("job_id")
+          .single();
 
-    // Sync licenses
-    if (draft.job_id) {
-      await supabase.from("job_license").delete().eq("job_id", draft.job_id);
-      if (selectedLicenses.length) {
-        await supabase.from("job_license").insert(
-          selectedLicenses.map((lid) => ({
-            job_id: draft.job_id,
-            license_id: lid,
-          }))
-        );
+        if (error) {
+          console.error("Insert job error:", error);
+        } else if (data?.job_id) {
+          setForm((p) => ({ ...p, job_id: data.job_id }));
+          console.log("New job inserted with ID:", data.job_id);
+        }
       }
+
+      // Sync licenses
+      if (draft.job_id) {
+        const { error } = await supabase
+          .from("job_license")
+          .delete()
+          .eq("job_id", draft.job_id);
+        if (error) console.error("Delete job_license error:", error);
+
+        if (selectedLicenses.length) {
+          const { error: insertErr } = await supabase
+            .from("job_license")
+            .insert(
+              selectedLicenses.map((lid) => ({
+                job_id: draft.job_id,
+                license_id: lid,
+              }))
+            );
+          if (insertErr) console.error("Insert job_license error:", insertErr);
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected autosave error:", err);
     }
   };
 
