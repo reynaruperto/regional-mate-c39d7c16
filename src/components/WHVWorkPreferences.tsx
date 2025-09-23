@@ -97,8 +97,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // For now, fetch all industries as a workaround for the materialized view
-      // TODO: Replace with materialized view query when types are updated
+      // Fetch all industries for now - TODO: implement visa-based filtering
       const { data: allIndustries } = await supabase
         .from("industry")
         .select("industry_id, name");
@@ -249,21 +248,15 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   const handleIndustrySelect = (industryId: number) => {
-    if (
-      !selectedIndustries.includes(industryId) &&
-      selectedIndustries.length < 3
-    ) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
-    } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(
-        selectedIndustries.filter((id) => id !== industryId)
-      );
-      const industryRoles = roles
-        .filter((r) => r.industryId === industryId)
-        .map((r) => r.id);
-      setSelectedRoles(
-        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
-      );
+    if (selectedIndustries.includes(industryId)) {
+      // Deselect the industry
+      setSelectedIndustries([]);
+      setSelectedRoles([]);
+    } else {
+      // Select this industry (only one allowed)
+      setSelectedIndustries([industryId]);
+      // Clear previous roles when switching industries
+      setSelectedRoles([]);
     }
   };
 
@@ -387,21 +380,18 @@ const WHVWorkPreferences: React.FC = () => {
               </button>
               {expandedSections.industries && (
                 <div className="px-4 pb-4 border-t space-y-4">
-                  <Label>Select up to 3 industries *</Label>
+                  <Label>Select one industry *</Label>
                   {industries.map((industry) => (
                     <label
                       key={industry.id}
                       className="flex items-center space-x-2 py-1"
                     >
                       <input
-                        type="checkbox"
+                        type="radio"
                         checked={selectedIndustries.includes(industry.id)}
-                        disabled={
-                          selectedIndustries.length >= 3 &&
-                          !selectedIndustries.includes(industry.id)
-                        }
                         onChange={() => handleIndustrySelect(industry.id)}
                         className="h-4 w-4"
+                        name="industry"
                       />
                       <span>{industry.name}</span>
                     </label>
