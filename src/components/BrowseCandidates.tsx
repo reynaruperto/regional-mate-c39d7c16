@@ -29,6 +29,9 @@ const BrowseCandidates: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<any>({});
+  const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [candidatesPerPage] = useState(6);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [employerId, setEmployerId] = useState<string | null>(null);
@@ -86,7 +89,14 @@ const BrowseCandidates: React.FC = () => {
       // 2️⃣ Fetch related tables
       const { data: preferences } = await supabase
         .from("maker_preference")
-        .select("user_id, industry_role ( role, industry ( name ) )");
+        .select(`
+          user_id,
+          industry_role_id,
+          industry_role(
+            role,
+            industry(name)
+          )
+        `);
 
       const experiences: any[] = []; // skipping for now
 
@@ -114,8 +124,7 @@ const BrowseCandidates: React.FC = () => {
         const userId = m.user_id;
 
         // Industries & Roles
-        const userPrefs =
-          preferences?.filter((p) => p.user_id === userId) || [];
+        const userPrefs = preferences?.filter((p) => p.user_id === userId) || [];
         const industries = [
           ...new Set(
             userPrefs.map((p) => p.industry_role?.industry?.name).filter(Boolean)
