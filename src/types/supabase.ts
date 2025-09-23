@@ -278,8 +278,8 @@ export type Database = {
           created_at: string | null;
           updated_at: string | null;
           industry_role_id: number | null;
-          salary_range: string | null;
-          req_experience: string;
+          salary_range: Database["public"]["Enums"]["pay_range"] | null;
+          req_experience: Database["public"]["Enums"]["years_experience"];
           postcode: string | null;
           start_date: string;
           employment_type: Database["public"]["Enums"]["employment_type"];
@@ -294,8 +294,8 @@ export type Database = {
           created_at?: string | null;
           updated_at?: string | null;
           industry_role_id?: number | null;
-          salary_range?: string | null;
-          req_experience: string;
+          salary_range?: Database["public"]["Enums"]["pay_range"] | null;
+          req_experience: Database["public"]["Enums"]["years_experience"];
           postcode?: string | null;
           start_date: string;
           employment_type: Database["public"]["Enums"]["employment_type"];
@@ -310,8 +310,8 @@ export type Database = {
           created_at?: string | null;
           updated_at?: string | null;
           industry_role_id?: number | null;
-          salary_range?: string | null;
-          req_experience?: string;
+          salary_range?: Database["public"]["Enums"]["pay_range"] | null;
+          req_experience?: Database["public"]["Enums"]["years_experience"];
           postcode?: string | null;
           start_date?: string;
           employment_type?: Database["public"]["Enums"]["employment_type"];
@@ -1066,21 +1066,37 @@ export type Database = {
       [_ in never]: never;
     };
     Enums: {
-      job_status: "draft" | "active" | "closed";
+      job_status: "active" | "inactive" | "draft";
       employment_type:
-        | "full_time"
-        | "part_time"
-        | "casual"
-        | "contract";
+        | "Full-time"
+        | "Part-time"
+        | "Casual"
+        | "Contract"
+        | "Seasonal";
+      pay_range:
+        | "$25-30/hour"
+        | "$30-35/hour"
+        | "$35-40/hour"
+        | "$40-45/hour"
+        | "$45+/hour"
+        | "Undisclosed";
+      years_experience:
+        | "None"
+        | "<1"
+        | "1-2"
+        | "3-4"
+        | "5-7"
+        | "8-10"
+        | "10+";
       state:
-        | "Queensland"
+        | "Australian Capital Territory"
         | "New South Wales"
-        | "Victoria"
-        | "South Australia"
-        | "Western Australia"
-        | "Tasmania"
         | "Northern Territory"
-        | "Australian Capital Territory";
+        | "Queensland"
+        | "South Australia"
+        | "Tasmania"
+        | "Victoria"
+        | "Western Australia";
       nationality:
         | "Philippines"
         | "Singapore"

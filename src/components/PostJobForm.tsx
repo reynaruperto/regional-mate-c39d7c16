@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/types/supabase";
+
+type Job = Database["public"]["Tables"]["job"];
+type JobInsert = Job["Insert"];
 
 // ✅ Enum values directly from DB
 const jobTypes = ["Full-time", "Part-time", "Casual", "Contract", "Seasonal"];
@@ -28,17 +32,22 @@ const states = [
   "Western Australia",
 ];
 
-const PostJobForm: React.FC = () => {
+interface PostJobFormProps {
+  onBack?: () => void;
+  editingJob?: any;
+}
+
+const PostJobForm: React.FC<PostJobFormProps> = ({ onBack }) => {
   const navigate = useNavigate();
 
   // Form state
   const [description, setDescription] = useState("");
   const [industryRoleId, setIndustryRoleId] = useState<number | null>(null);
-  const [employmentType, setEmploymentType] = useState(jobTypes[0]);
-  const [salaryRange, setSalaryRange] = useState(payRanges[0]);
-  const [reqExperience, setReqExperience] = useState(yearsExperience[0]);
-  const [jobStatus, setJobStatus] = useState(jobStatuses[0]);
-  const [state, setState] = useState(states[3]); // Default: Queensland
+  const [employmentType, setEmploymentType] = useState<Database["public"]["Enums"]["employment_type"]>(jobTypes[0] as Database["public"]["Enums"]["employment_type"]);
+  const [salaryRange, setSalaryRange] = useState<Database["public"]["Enums"]["pay_range"]>(payRanges[0] as Database["public"]["Enums"]["pay_range"]);
+  const [reqExperience, setReqExperience] = useState<Database["public"]["Enums"]["years_experience"]>(yearsExperience[0] as Database["public"]["Enums"]["years_experience"]);
+  const [jobStatus, setJobStatus] = useState<Database["public"]["Enums"]["job_status"]>(jobStatuses[0] as Database["public"]["Enums"]["job_status"]);
+  const [state, setState] = useState<Database["public"]["Enums"]["state"]>(states[3] as Database["public"]["Enums"]["state"]); // Default: Queensland
   const [suburbCity, setSuburbCity] = useState("");
   const [postcode, setPostcode] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -75,7 +84,7 @@ const PostJobForm: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const payload = {
+    const payload: JobInsert = {
       industry_role_id: industryRoleId,
       description,
       job_status: jobStatus,
@@ -91,7 +100,7 @@ const PostJobForm: React.FC = () => {
 
     console.log("🚀 Attempting to save job payload:", payload);
 
-    const { error } = await supabase.from("job").insert([payload]);
+    const { error } = await supabase.from("job").insert(payload);
 
     if (error) {
       console.error("❌ Insert job error:", error);
@@ -139,7 +148,7 @@ const PostJobForm: React.FC = () => {
           <Label>Employment Type</Label>
           <select
             value={employmentType}
-            onChange={(e) => setEmploymentType(e.target.value)}
+            onChange={(e) => setEmploymentType(e.target.value as Database["public"]["Enums"]["employment_type"])}
             className="border rounded-md p-2 w-full"
           >
             {jobTypes.map((type) => (
@@ -155,7 +164,7 @@ const PostJobForm: React.FC = () => {
           <Label>Salary Range</Label>
           <select
             value={salaryRange}
-            onChange={(e) => setSalaryRange(e.target.value)}
+            onChange={(e) => setSalaryRange(e.target.value as Database["public"]["Enums"]["pay_range"])}
             className="border rounded-md p-2 w-full"
           >
             {payRanges.map((range) => (
@@ -171,7 +180,7 @@ const PostJobForm: React.FC = () => {
           <Label>Years of Work Experience Required</Label>
           <select
             value={reqExperience}
-            onChange={(e) => setReqExperience(e.target.value)}
+            onChange={(e) => setReqExperience(e.target.value as Database["public"]["Enums"]["years_experience"])}
             className="border rounded-md p-2 w-full"
           >
             {yearsExperience.map((exp) => (
@@ -187,7 +196,7 @@ const PostJobForm: React.FC = () => {
           <Label>State</Label>
           <select
             value={state}
-            onChange={(e) => setState(e.target.value)}
+            onChange={(e) => setState(e.target.value as Database["public"]["Enums"]["state"])}
             className="border rounded-md p-2 w-full"
           >
             {states.map((s) => (
@@ -234,7 +243,7 @@ const PostJobForm: React.FC = () => {
           <Label>Job Status</Label>
           <select
             value={jobStatus}
-            onChange={(e) => setJobStatus(e.target.value)}
+            onChange={(e) => setJobStatus(e.target.value as Database["public"]["Enums"]["job_status"])}
             className="border rounded-md p-2 w-full"
           >
             {jobStatuses.map((status) => (

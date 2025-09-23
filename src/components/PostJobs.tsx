@@ -110,7 +110,7 @@ const PostJobs: React.FC = () => {
     const newStatus = job.job_status === "active" ? "inactive" : "active";
     const { error } = await supabase
       .from("job")
-      .update({ job_status: newStatus as "draft" | "active" | "closed" })
+      .update({ job_status: newStatus })
       .eq("job_id", job.job_id);
 
     if (error) {
