@@ -19,11 +19,9 @@ interface Role {
 
 interface Region {
   industry_id: number;
-  industry: string;
-  industry_role_id: number;
-  industry_role: string;
   state: string;
   suburb_city: string;
+  area: string;
   postcode: string;
 }
 
@@ -109,39 +107,39 @@ const WHVWorkPreferences: React.FC = () => {
       if (eligibleIndustries?.length) {
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // Roles + Regions
-        const { data: regionData } = await supabase
-          .from("regional_rules")
-          .select(
-            "industry_id, industry, industry_role_id, industry_role, state, suburb_city, postcode"
-          )
+        // Roles
+        const { data: roleData } = await supabase
+          .from("industry_role")
+          .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
 
-        if (regionData) {
-          // Industries (dedupe)
-          setIndustries(
-            [...new Map(regionData.map((r) => [r.industry_id, r.industry]))].map(
-              ([id, name]) => ({
-                id: id as number,
-                name: name as string,
-              })
-            )
-          );
+        // Regions
+        const { data: regionData } = await supabase
+          .from("regional_rules")
+          .select("industry_id, state, suburb_city, area, postcode")
+          .in("industry_id", industryIds);
 
-          // Roles (dedupe)
+        // Industries
+        setIndustries(
+          eligibleIndustries.map((i) => ({
+            id: i.industry_id,
+            name: i.industry,
+          }))
+        );
+
+        // Roles
+        if (roleData) {
           setRoles(
-            [
-              ...new Map(
-                regionData.map((r) => [r.industry_role_id, r])
-              ).values(),
-            ].map((r: any) => ({
+            roleData.map((r) => ({
               id: r.industry_role_id,
-              name: r.industry_role,
+              name: r.role,
               industryId: r.industry_id,
             }))
           );
+        }
 
-          // Regions (all)
+        // Regions
+        if (regionData) {
           setRegions(regionData);
         }
       }
@@ -151,7 +149,6 @@ const WHVWorkPreferences: React.FC = () => {
         .from("maker_pref_industry")
         .select("industry_id")
         .eq("user_id", user.id);
-
       if (savedIndustries) {
         setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
       }
@@ -160,7 +157,6 @@ const WHVWorkPreferences: React.FC = () => {
         .from("maker_pref_industry_role")
         .select("industry_role_id")
         .eq("user_id", user.id);
-
       if (savedRoles) {
         setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
       }
@@ -169,7 +165,6 @@ const WHVWorkPreferences: React.FC = () => {
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
         .eq("user_id", user.id);
-
       if (savedLocations) {
         setPreferredStates([...new Set(savedLocations.map((l) => l.state))]);
         setPreferredAreas(
@@ -310,7 +305,6 @@ const WHVWorkPreferences: React.FC = () => {
     });
   };
 
-  // ✅ Fixed getAreasForState
   const getAreasForState = (state: string) => {
     return regions
       .filter(
