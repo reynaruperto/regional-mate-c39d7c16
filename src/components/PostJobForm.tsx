@@ -1,476 +1,254 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import BottomNavigation from "@/components/BottomNavigation";
-import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
-type JobStatus = "active" | "inactive" | "draft";
-
-type RoleRow = { industry_role_id: number; industry_role: string };
-type SuburbRow = { suburb_city: string; postcode: string; state: string };
-type LicenseRow = { license_id: number; name: string };
-
-const ALL_STATES = [
-  "Queensland",
-  "New South Wales",
-  "Victoria",
-  "Tasmania",
-  "Western Australia",
-  "South Australia",
-  "Northern Territory",
+// ✅ Enum values directly from DB
+const jobTypes = ["Full-time", "Part-time", "Casual", "Contract", "Seasonal"];
+const payRanges = [
+  "$25-30/hour",
+  "$30-35/hour",
+  "$35-40/hour",
+  "$40-45/hour",
+  "$45+/hour",
+  "Undisclosed",
+];
+const yearsExperience = ["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"];
+const jobStatuses = ["active", "inactive", "draft"];
+const states = [
   "Australian Capital Territory",
+  "New South Wales",
+  "Northern Territory",
+  "Queensland",
+  "South Australia",
+  "Tasmania",
+  "Victoria",
+  "Western Australia",
 ];
 
-interface PostJobFormProps {
-  onBack: () => void;
-  editingJob?: any | null;
-}
+const PostJobForm: React.FC = () => {
+  const navigate = useNavigate();
 
-const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
-  const { toast } = useToast();
-  const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [locations, setLocations] = useState<SuburbRow[]>([]);
-  const [licenses, setLicenses] = useState<LicenseRow[]>([]);
+  // Form state
+  const [description, setDescription] = useState("");
+  const [industryRoleId, setIndustryRoleId] = useState<number | null>(null);
+  const [employmentType, setEmploymentType] = useState(jobTypes[0]);
+  const [salaryRange, setSalaryRange] = useState(payRanges[0]);
+  const [reqExperience, setReqExperience] = useState(yearsExperience[0]);
+  const [jobStatus, setJobStatus] = useState(jobStatuses[0]);
+  const [state, setState] = useState(states[3]); // Default: Queensland
+  const [suburbCity, setSuburbCity] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
 
-  const [jobTypeEnum, setJobTypeEnum] = useState<string[]>([]);
-  const [payRangeEnum, setPayRangeEnum] = useState<string[]>([]);
-  const [yearsExpEnum, setYearsExpEnum] = useState<string[]>([]);
-
-  const [form, setForm] = useState({
-    job_id: editingJob?.job_id || null,
-    industryRoleId: editingJob?.industry_role_id?.toString() || "",
-    description: editingJob?.description || "",
-    employmentType: editingJob?.employment_type || "",
-    salaryRange: editingJob?.salary_range || "",
-    experienceRange: editingJob?.req_experience || "",
-    state: editingJob?.state || "",
-    suburbValue: editingJob?.suburb_city
-      ? `${editingJob.suburb_city} (${editingJob.postcode})`
-      : "",
-    postcode: editingJob?.postcode || "",
-    status: (editingJob?.job_status || "draft") as JobStatus,
-    startDate: editingJob?.start_date || "",
-  });
-
-  const [selectedLicenses, setSelectedLicenses] = useState<number[]>(
-    editingJob?.licenses || []
-  );
-
-  const pretty = (t: string) =>
-    t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
-  const handle = (k: keyof typeof form, v: string) => {
-    setForm((p) => ({ ...p, [k]: v }));
-    autosave({ ...form, [k]: v });
-  };
-
-  // ✅ Autosave Draft Function (aligned with job table schema)
-  const autosave = async (draft: any) => {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
-    if (!uid) return;
-
-    // Parse suburb + postcode
-    let suburb_city = "";
-    let postcode = "";
-    if (draft.suburbValue) {
-      const match = draft.suburbValue.match(/^(.*)\s\((\d+)\)$/);
-      if (match) {
-        suburb_city = match[1];
-        postcode = match[2];
-      }
-    }
-
-    const payload = {
-      user_id: uid,
-      job_status: draft.status,           // job_status enum
-      industry_role_id: draft.industryRoleId
-        ? Number(draft.industryRoleId)
-        : null,
-      description: draft.description,
-      employment_type: draft.employmentType, // job_type_enum
-      salary_range: draft.salaryRange,       // pay_range enum
-      req_experience: draft.experienceRange, // years_experience enum
-      state: draft.state,                    // state enum
-      suburb_city,
-      postcode,
-      start_date: draft.startDate || null,
-    };
-
-    console.log("Attempting to save job payload:", payload);
-
-    try {
-      if (draft.job_id) {
-        const { error } = await supabase
-          .from("job")
-          .update(payload)
-          .eq("job_id", draft.job_id);
-        if (error) console.error("Update job error:", error);
-        else console.log("Job updated successfully:", draft.job_id);
-      } else {
-        const { data, error } = await supabase
-          .from("job")
-          .insert({ ...payload, job_status: "draft" })
-          .select("job_id")
-          .single();
-
-        if (error) {
-          console.error("Insert job error:", error);
-        } else if (data?.job_id) {
-          setForm((p) => ({ ...p, job_id: data.job_id }));
-          console.log("New job inserted with ID:", data.job_id);
-        }
-      }
-
-      // Sync licenses
-      if (draft.job_id) {
-        const { error } = await supabase
-          .from("job_license")
-          .delete()
-          .eq("job_id", draft.job_id);
-        if (error) console.error("Delete job_license error:", error);
-
-        if (selectedLicenses.length) {
-          const { error: insertErr } = await supabase
-            .from("job_license")
-            .insert(
-              selectedLicenses.map((lid) => ({
-                job_id: draft.job_id,
-                license_id: lid,
-              }))
-            );
-          if (insertErr) console.error("Insert job_license error:", insertErr);
-        }
-      }
-    } catch (err) {
-      console.error("Unexpected autosave error:", err);
-    }
-  };
-
-  // ✅ Final Save = Publish
-  const onSave = async () => {
-    await autosave({ ...form, status: "active" });
-    toast({
-      title: editingJob ? "Job updated" : "Job posted",
-      description: editingJob
-        ? "Your changes are saved."
-        : "Your job is now active.",
-    });
-    onBack();
-  };
-
-  // Load enums (hardcoded from Supabase definitions)
+  // Load roles (can later be tied to industry selection if needed)
   useEffect(() => {
-    setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract", "Seasonal"]);
-    setPayRangeEnum([
-      "$25-30/hour",
-      "$30-35/hour",
-      "$35-40/hour",
-      "$40-45/hour",
-      "$45+/hour",
-      "Undisclosed",
-    ]);
-    setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
-  }, []);
-
-  // Load roles from industry_role
-  useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) return;
-
-      const { data: emp } = await supabase
-        .from("employer")
-        .select("industry_id")
-        .eq("user_id", uid)
-        .maybeSingle();
-
-      if (!emp?.industry_id) return;
-
-      const { data: roleData, error } = await supabase
-        .from("industry_role")
-        .select("industry_role_id, role")
-        .eq("industry_id", emp.industry_id)
-        .order("role");
+    const loadRoles = async () => {
+      const { data, error } = await supabase
+        .from("mvw_emp_location_roles")
+        .select("industry_role_id, industry_role")
+        .limit(100);
 
       if (error) {
         console.error("Error fetching roles:", error);
-        return;
-      }
-
-      if (roleData) {
+      } else if (data) {
         setRoles(
-          roleData.map((r) => ({
-            industry_role_id: r.industry_role_id,
-            industry_role: r.role,
+          data.map((r) => ({
+            id: r.industry_role_id,
+            name: r.industry_role,
           }))
         );
       }
-    })();
+    };
+    loadRoles();
   }, []);
 
-  // Load locations when a role is chosen
-  useEffect(() => {
-    if (!form.industryRoleId) return;
+  // Handle save
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    (async () => {
-      const { data: locData, error } = await supabase
-        .from("mvw_emp_location_roles")
-        .select("state, suburb_city, postcode")
-        .eq("industry_role_id", Number(form.industryRoleId))
-        .limit(40000);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-      if (error) {
-        console.error("Error fetching locations:", error);
-        return;
-      }
+    const payload = {
+      industry_role_id: industryRoleId,
+      description,
+      job_status: jobStatus,
+      employment_type: employmentType,
+      salary_range: salaryRange,
+      req_experience: reqExperience,
+      state,
+      suburb_city: suburbCity,
+      postcode,
+      start_date: startDate,
+      user_id: user.id,
+    };
 
-      if (locData) {
-        const locMap = new Map<string, SuburbRow>();
-        locData.forEach((r) => {
-          const key = `${r.suburb_city}-${r.postcode}`;
-          if (!locMap.has(key)) {
-            locMap.set(key, {
-              suburb_city: r.suburb_city,
-              postcode: r.postcode,
-              state: r.state,
-            });
-          }
-        });
-        setLocations(Array.from(locMap.values()));
-      }
-    })();
-  }, [form.industryRoleId]);
+    console.log("🚀 Attempting to save job payload:", payload);
 
-  // Load licenses
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("license")
-        .select("license_id, name")
-        .order("name");
-      if (data) setLicenses(data);
-    })();
-  }, []);
+    const { error } = await supabase.from("job").insert([payload]);
 
-  const chosenSuburb = useMemo(
-    () =>
-      locations.find(
-        (s) => `${s.suburb_city} (${s.postcode})` === form.suburbValue
-      ),
-    [locations, form.suburbValue]
-  );
-  useEffect(() => {
-    handle("postcode", chosenSuburb?.postcode ?? "");
-  }, [chosenSuburb?.postcode]);
+    if (error) {
+      console.error("❌ Insert job error:", error);
+      alert("Failed to save job: " + error.message);
+    } else {
+      alert("✅ Job saved successfully!");
+      navigate("/employer/dashboard");
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Header */}
-          <div className="px-6 pt-16 pb-4 flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-12 h-12 bg-white rounded-xl shadow mr-4"
-              onClick={onBack}
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-700" />
-            </Button>
-            <h1 className="text-lg font-semibold text-gray-900">
-              {editingJob ? "Edit Job" : "Post Job"}
-            </h1>
-          </div>
-
-          {/* Body */}
-          <div className="flex-1 px-6 overflow-y-auto pb-24">
-            {/* Role */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Job Role</h2>
-              <Select
-                value={form.industryRoleId}
-                onValueChange={(v) => handle("industryRoleId", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((r) => (
-                    <SelectItem
-                      key={r.industry_role_id}
-                      value={String(r.industry_role_id)}
-                    >
-                      {r.industry_role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Description */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Description</h2>
-              <Textarea
-                value={form.description}
-                onChange={(e) => handle("description", e.target.value)}
-                placeholder="Describe the role..."
-              />
-            </div>
-
-            {/* Job type */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Job Type</h2>
-              <Select
-                value={form.employmentType}
-                onValueChange={(v) => handle("employmentType", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select job type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jobTypeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {pretty(t)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Salary */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Salary Range</h2>
-              <Select
-                value={form.salaryRange}
-                onValueChange={(v) => handle("salaryRange", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select salary range" />
-                </SelectTrigger>
-                <SelectContent>
-                  {payRangeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Experience */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">
-                Years of Work Experience Required
-              </h2>
-              <Select
-                value={form.experienceRange}
-                onValueChange={(v) => handle("experienceRange", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select experience" />
-                </SelectTrigger>
-                <SelectContent>
-                  {yearsExpEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* State */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">State</h2>
-              <Select
-                value={form.state}
-                onValueChange={(v) => handle("state", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ALL_STATES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Location */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Location</h2>
-              <Select
-                value={form.suburbValue}
-                onValueChange={(v) => handle("suburbValue", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select suburb/postcode" />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map((l, idx) => (
-                    <SelectItem
-                      key={`${l.suburb_city}-${l.postcode}-${idx}`}
-                      value={`${l.suburb_city} (${l.postcode})`}
-                    >
-                      {`${l.suburb_city} (${l.postcode})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Licenses */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Licenses Required</h2>
-              {licenses.map((l) => (
-                <label key={l.license_id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedLicenses.includes(l.license_id)}
-                    onChange={() => {
-                      const newLicenses = selectedLicenses.includes(l.license_id)
-                        ? selectedLicenses.filter((id) => id !== l.license_id)
-                        : [...selectedLicenses, l.license_id];
-                      setSelectedLicenses(newLicenses);
-                      autosave({ ...form, licenses: newLicenses });
-                    }}
-                  />
-                  <span>{l.name}</span>
-                </label>
-              ))}
-            </div>
-
-            {/* Save */}
-            <div className="pb-6">
-              <Button
-                onClick={onSave}
-                className="w-full bg-[#1E293B] text-white rounded-xl h-12"
-              >
-                {editingJob ? "Update Job" : "Post Job"}
-              </Button>
-            </div>
-          </div>
-
-          {/* Bottom Nav */}
-          <div className="absolute bottom-0 left-0 right-0 bg-white">
-            <BottomNavigation />
-          </div>
+    <div className="p-6 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Post a Job</h1>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Description */}
+        <div>
+          <Label>Description</Label>
+          <Input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Job description"
+          />
         </div>
-      </div>
+
+        {/* Role */}
+        <div>
+          <Label>Job Role</Label>
+          <select
+            value={industryRoleId ?? ""}
+            onChange={(e) => setIndustryRoleId(Number(e.target.value))}
+            className="border rounded-md p-2 w-full"
+          >
+            <option value="">Select a role</option>
+            {roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Employment Type */}
+        <div>
+          <Label>Employment Type</Label>
+          <select
+            value={employmentType}
+            onChange={(e) => setEmploymentType(e.target.value)}
+            className="border rounded-md p-2 w-full"
+          >
+            {jobTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Salary Range */}
+        <div>
+          <Label>Salary Range</Label>
+          <select
+            value={salaryRange}
+            onChange={(e) => setSalaryRange(e.target.value)}
+            className="border rounded-md p-2 w-full"
+          >
+            {payRanges.map((range) => (
+              <option key={range} value={range}>
+                {range}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Experience */}
+        <div>
+          <Label>Years of Work Experience Required</Label>
+          <select
+            value={reqExperience}
+            onChange={(e) => setReqExperience(e.target.value)}
+            className="border rounded-md p-2 w-full"
+          >
+            {yearsExperience.map((exp) => (
+              <option key={exp} value={exp}>
+                {exp}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* State */}
+        <div>
+          <Label>State</Label>
+          <select
+            value={state}
+            onChange={(e) => setState(e.target.value)}
+            className="border rounded-md p-2 w-full"
+          >
+            {states.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Suburb + Postcode */}
+        <div>
+          <Label>Suburb / City</Label>
+          <Input
+            type="text"
+            value={suburbCity}
+            onChange={(e) => setSuburbCity(e.target.value)}
+            placeholder="e.g. Brisbane"
+          />
+        </div>
+
+        <div>
+          <Label>Postcode</Label>
+          <Input
+            type="text"
+            value={postcode}
+            onChange={(e) => setPostcode(e.target.value)}
+            placeholder="e.g. 4000"
+          />
+        </div>
+
+        {/* Start Date */}
+        <div>
+          <Label>Start Date</Label>
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+
+        {/* Job Status */}
+        <div>
+          <Label>Job Status</Label>
+          <select
+            value={jobStatus}
+            onChange={(e) => setJobStatus(e.target.value)}
+            className="border rounded-md p-2 w-full"
+          >
+            {jobStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <Button type="submit" className="w-full bg-orange-500 text-white">
+          Save Job
+        </Button>
+      </form>
     </div>
   );
 };
