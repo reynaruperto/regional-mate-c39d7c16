@@ -97,14 +97,19 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // Skip eligibility query for now due to type issues
-      const eligibleIndustries: any[] = [];
+      // For now, fetch all industries as a workaround for the materialized view
+      // TODO: Replace with materialized view query when types are updated
+      const { data: allIndustries } = await supabase
+        .from("industry")
+        .select("industry_id, name");
+      
+      const eligibleIndustries = allIndustries || [];
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: i.industry,
+            name: i.name,
           }))
         );
 
