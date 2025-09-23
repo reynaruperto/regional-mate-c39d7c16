@@ -167,21 +167,19 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       }
 
       if (roleData) {
-        // Deduplicate roles
-        const roleMap = new Map<number, string>();
-        roleData.forEach((r) => {
-          if (!roleMap.has(r.industry_role_id)) {
-            roleMap.set(r.industry_role_id, r.industry_role);
-          }
-        });
-        setRoles(
-          Array.from(roleMap, ([id, name]) => ({
-            industry_role_id: id,
-            industry_role: name,
-          }))
-        );
+        // ✅ Deduplicate roles correctly
+        const uniqueRoles = Array.from(
+          new Map(
+            roleData.map((r) => [r.industry_role_id, r.industry_role])
+          ).entries()
+        ).map(([id, role]) => ({
+          industry_role_id: id,
+          industry_role: role,
+        }));
 
-        // Deduplicate locations
+        setRoles(uniqueRoles);
+
+        // ✅ Deduplicate locations
         const locMap = new Map<string, SuburbRow>();
         roleData.forEach((r) => {
           const key = `${r.suburb_city}-${r.postcode}`;
@@ -333,7 +331,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 onValueChange={(v) => handle("experienceRange", v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select experience" />
+                  <SelectValue placeholder="Select years of work experience" />
                 </SelectTrigger>
                 <SelectContent>
                   {yearsExpEnum.map((t) => (
