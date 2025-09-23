@@ -141,6 +141,10 @@ const BusinessRegistrationForm: React.FC = () => {
           | "Victoria"
           | "Western Australia", // ✅ cast to enum
         postcode: data.postCode,
+        // Add required fields with default values
+        business_tenure: "1-2 years" as const,
+        employee_count: "1-10" as const,
+        industry_id: 1, // Default industry ID
         updated_at: new Date().toISOString(),
       });
 

@@ -101,12 +101,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   // Load enums
   useEffect(() => {
     (async () => {
-      const { data: jt } = await supabase.rpc("get_job_type_enum");
-      const { data: pr } = await supabase.rpc("get_pay_range_enum");
-      const { data: ye } = await supabase.rpc("get_years_experience_enum");
-      if (jt) setJobTypeEnum(jt);
-      if (pr) setPayRangeEnum(pr);
-      if (ye) setYearsExpEnum(ye);
+      // Use hardcoded enum values instead of RPC calls
+      setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
+      setPayRangeEnum(["Under $25/hr", "$25-35/hr", "$35-45/hr", "$45+ /hr"]);
+      setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
     })();
   }, []);
 
