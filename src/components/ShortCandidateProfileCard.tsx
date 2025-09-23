@@ -1,173 +1,288 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Heart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import LikeConfirmationModal from '@/components/LikeConfirmationModal';
+// src/pages/ShortCandidateProfileCard.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Heart, Briefcase, MapPin, Award, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ShortCandidateProfileCardProps {
   candidateId: string;
 }
 
-const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({ candidateId }) => {
+const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
+  candidateId,
+}) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showLikeModal, setShowLikeModal] = useState(false);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [industryPrefs, setIndustryPrefs] = useState<string[]>([]);
+  const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
+  const [licenses, setLicenses] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock candidate data
-  const getCandidateData = (id: string) => {
-    const candidates = {
-      '1': {
-        id: '1',
-        name: 'Peter',
-        profileImage: '/lovable-uploads/bbc5bcc9-817f-41e3-a13b-fdf1a0031017.png',
-        description: 'Backpacker from Argentina with experience in farm work, currently in Brisbane, QLD',
-        nationality: 'Argentina',
-        location: 'Brisbane, QLD 4000',
-        willingToRelocate: 'Yes, anywhere in QLD/NSW',
-        industry: 'Agriculture and Farming',
-        visa: '417 (Working Holiday)',
-        visaExpiry: 'Sep 2026',
-        experience: [
-          { startDate: '01/2020', endDate: '12/2025', position: 'Farm Attendant', company: 'VillaFarm', location: 'Brisbane, QLD' },
-          { startDate: '03/2019', endDate: '12/2020', position: 'Marketing Head', company: 'Workspace', location: 'Buenos Aires, Argentina' },
-          { startDate: '06/2007', endDate: '02/2019', position: 'Winery Assistant', company: 'BodegaWinery', location: 'Mendoza, Argentina' }
-        ],
-        licenses: 'Driver\'s License, First Aid',
-        availability: 'Sep 2025 (8 months)',
-      },
-      '2': {
-        id: '2',
-        name: 'Daniel',
-        profileImage: '/lovable-uploads/da0de5ef-7b36-4a46-8929-8ab1398fe7d6.png',
-        description: 'German backpacker with construction and agriculture experience, currently in Tamworth, NSW',
-        nationality: 'Germany',
-        location: 'Tamworth, NSW 2340',
-        willingToRelocate: 'Yes, within NSW/QLD',
-        industry: 'Construction, Agriculture',
-        visa: '462 (Work and Holiday)',
-        visaExpiry: 'Oct 2026',
-        experience: [
-          { startDate: '01/2020', endDate: '12/2024', position: 'Construction Worker', company: 'Berlin Infrastructure', location: 'Berlin, Germany' },
-          { startDate: '03/2019', endDate: '12/2020', position: 'Farm Equipment Technician', company: 'Bavaria Farms', location: 'Munich, Germany' },
-          { startDate: '06/2018', endDate: '02/2019', position: 'Apprentice Carpenter', company: 'Munich Construction', location: 'Munich, Germany' }
-        ],
-        licenses: 'White Card, Forklift License, Driver\'s License',
-        availability: 'Oct 2025 (12 months)',
-      },
-      '3': {
-        id: '3',
-        name: 'Hannah',
-        profileImage: '/lovable-uploads/f8e06077-061a-45ec-b61f-f9f81d72b6ed.png',
-        description: 'British hospitality professional exploring agriculture opportunities, currently in Mildura, VIC',
-        nationality: 'United Kingdom',
-        location: 'Mildura, VIC 3500',
-        willingToRelocate: 'Yes, anywhere in Australia',
-        industry: 'Hospitality, Agriculture',
-        visa: '417 (Working Holiday)',
-        visaExpiry: 'Nov 2026',
-        experience: [
-          { startDate: '01/2021', endDate: '12/2024', position: 'Restaurant Supervisor', company: 'London Bistro Chain', location: 'London, UK' },
-          { startDate: '03/2020', endDate: '12/2021', position: 'Barista', company: 'Edinburgh Coffee House', location: 'Edinburgh, UK' },
-          { startDate: '06/2019', endDate: '02/2020', position: 'Hotel Receptionist', company: 'Manchester Grand Hotel', location: 'Manchester, UK' }
-        ],
-        licenses: 'RSA, Food Safety Certificate, Driver\'s License',
-        availability: 'Nov 2025 (10 months)',
-      }
+  const [employerId, setEmployerId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
+  // ✅ Get logged-in employer ID
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setEmployerId(user.id);
     };
-    return candidates[id as keyof typeof candidates] || candidates['1'];
+    getUser();
+  }, []);
+
+  // ✅ Load candidate profile
+  useEffect(() => {
+    const fetchCandidate = async () => {
+      setLoading(true);
+
+      // Candidate profile
+      const { data: whv } = await supabase
+        .from("whv_maker")
+        .select("given_name, middle_name, family_name, tagline, profile_photo, state")
+        .eq("user_id", candidateId)
+        .maybeSingle();
+
+      // Industry Preferences
+      const { data: industryRows } = await supabase
+        .from("maker_pref_industry")
+        .select("industry ( name )")
+        .eq("user_id", candidateId);
+      setIndustryPrefs(
+        industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
+      );
+
+      // Location Preferences
+      const { data: locationRows } = await supabase
+        .from("maker_pref_location")
+        .select("state, suburb_city, postcode")
+        .eq("user_id", candidateId);
+      if (locationRows) {
+        const grouped: Record<string, string[]> = {};
+        locationRows.forEach((loc) => {
+          const state = loc.state;
+          const suburb = `${loc.suburb_city} (${loc.postcode})`;
+          if (!grouped[state]) grouped[state] = [];
+          if (!grouped[state].includes(suburb)) grouped[state].push(suburb);
+        });
+        setLocationPreferences(Object.entries(grouped));
+      }
+
+      // Licenses
+      const { data: licenseRows } = await supabase
+        .from("maker_license")
+        .select("license(name)")
+        .eq("user_id", candidateId);
+      setLicenses(
+        licenseRows?.map((l) => l.license?.name).filter(Boolean) || []
+      );
+
+      // Signed photo
+      let signedPhoto: string | null = null;
+      if (whv?.profile_photo) {
+        let photoPath = whv.profile_photo;
+        if (photoPath.includes("/profile_photo/")) {
+          photoPath = photoPath.split("/profile_photo/")[1];
+        }
+        const { data } = await supabase.storage
+          .from("profile_photo")
+          .createSignedUrl(photoPath, 3600);
+        signedPhoto = data?.signedUrl ?? null;
+      }
+
+      setProfileData({
+        name: [whv?.given_name, whv?.middle_name, whv?.family_name]
+          .filter(Boolean)
+          .join(" "),
+        tagline: whv?.tagline || "No tagline added",
+        state: whv?.state,
+        profilePhoto: signedPhoto,
+      });
+
+      setLoading(false);
+    };
+
+    fetchCandidate();
+  }, [candidateId]);
+
+  // ✅ Like candidate (job-specific)
+  const handleLikeCandidate = async () => {
+    if (!employerId || !selectedJobId) {
+      alert("Please select a job post first.");
+      return;
+    }
+
+    await supabase.from("likes").upsert(
+      {
+        liker_id: employerId,
+        liker_type: "employer",
+        liked_whv_id: candidateId,
+        job_id: selectedJobId,
+      },
+      { onConflict: "liker_id,liked_whv_id,liker_type,job_id" }
+    );
+
+    setShowLikeModal(true);
   };
 
-  const candidate = getCandidateData(candidateId);
-
-  const handleLikeCandidate = () => setShowLikeModal(true);
   const handleCloseLikeModal = () => setShowLikeModal(false);
 
-  // ✅ Clean back button logic
+  // ✅ Back button logic
   const handleBack = () => {
-    const fromPage = searchParams.get('from');
-    const tab = searchParams.get('tab');
+    const fromPage = searchParams.get("from");
+    const tab = searchParams.get("tab");
 
-    if (fromPage === 'employer-matches') {
-      navigate(`/employer/matches?tab=${tab || 'matches'}`);
-    } else if (fromPage === 'browse-candidates') {
-      navigate('/browse-candidates');
+    if (fromPage === "employer-matches") {
+      navigate(`/employer/matches?tab=${tab || "matches"}`);
+    } else if (fromPage === "browse-candidates") {
+      navigate("/browse-candidates");
     } else {
-      navigate('/browse-candidates'); // fallback
+      navigate("/browse-candidates"); // fallback
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          
-          <div className="w-full h-full flex flex-col relative bg-gray-200">
-            <div className="flex-1 px-6 pt-16 pb-24 overflow-y-auto">
-              <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 shadow-lg">
-                
-                <div className="bg-slate-800 text-white text-center py-4 rounded-2xl mb-6">
-                  <h2 className="text-xl font-bold">{candidate.name.toUpperCase()}</h2>
-                </div>
 
-                <div className="flex justify-center mb-6">
-                  <div className="w-32 h-32 rounded-full border-4 border-slate-800 overflow-hidden">
-                    <img src={candidate.profileImage} alt={candidate.name} className="w-full h-full object-cover" />
-                  </div>
-                </div>
+          {/* Header */}
+          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-10 h-10"
+              onClick={handleBack}
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900">
+              Candidate Profile
+            </h1>
+            <div className="w-10"></div>
+          </div>
 
-                <div className="text-center mb-6">
-                  <p className="text-gray-700 text-sm leading-relaxed">{candidate.description}</p>
-                </div>
-
-                <div className="space-y-2 text-sm mb-6">
-                  <div><span className="font-semibold">Nationality:</span> {candidate.nationality}</div>
-                  <div><span className="font-semibold">Location:</span> {candidate.location}</div>
-                  <div><span className="font-semibold">Relocate:</span> {candidate.willingToRelocate}</div>
-                  <div><span className="font-semibold">Visa:</span> {candidate.visa} - Expires {candidate.visaExpiry}</div>
-                  <div><span className="font-semibold">Industry:</span> {candidate.industry}</div>
-                  <div>
-                    <span className="font-semibold">Experience:</span>
-                    <div className="mt-1 space-y-1 text-xs">
-                      {candidate.experience.map((exp, index) => (
-                        <div key={index}>{exp.startDate}-{exp.endDate}: {exp.position} - {exp.company}</div>
-                      ))}
+          {/* Content */}
+          <div className="flex-1 px-6 py-6 overflow-y-auto">
+            <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
+              {/* Profile Header */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
+                  {profileData?.profilePhoto ? (
+                    <img
+                      src={profileData.profilePhoto}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <User size={32} />
                     </div>
+                  )}
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {profileData?.name}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {profileData?.tagline}
+                </p>
+              </div>
+
+              {/* Industry Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Briefcase size={16} className="text-orange-500 mr-2" />
+                  Industry Preferences
+                </h3>
+                {industryPrefs.length > 0 ? (
+                  <ul className="list-disc list-inside text-sm text-gray-700">
+                    {industryPrefs.map((ind, i) => (
+                      <li key={i}>{ind}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No industries set</p>
+                )}
+              </div>
+
+              {/* Location Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <MapPin size={16} className="text-orange-500 mr-2" />
+                  Location Preferences
+                </h3>
+                {locationPreferences.length > 0 ? (
+                  <div className="space-y-3">
+                    {locationPreferences.map(([state, suburbs]) => (
+                      <div key={state}>
+                        <p className="font-medium text-gray-800">{state}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(suburbs as string[]).map((s, i) => (
+                            <span
+                              key={i}
+                              className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div><span className="font-semibold">Licenses:</span> {candidate.licenses}</div>
-                  <div><span className="font-semibold">Availability:</span> {candidate.availability}</div>
-                </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No location preferences set
+                  </p>
+                )}
+              </div>
 
-                <div className="bg-gray-200 text-center py-3 rounded-xl mb-4">
-                  <p className="text-gray-600 text-sm">Full Details Unlocked if you both Match</p>
-                </div>
-
-                <div className="space-y-3">
-                  <Button
-                    onClick={handleLikeCandidate}
-                    className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white px-8 py-3 rounded-2xl flex items-center gap-3 justify-center"
-                  >
-                    <span className="font-semibold">Heart to Match</span>
-                    <div className="bg-orange-500 rounded-full p-2">
-                      <Heart size={20} className="text-white fill-white" />
-                    </div>
-                  </Button>
+              {/* Licenses */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Award size={16} className="text-orange-500 mr-2" />
+                  Licenses & Certifications
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {licenses.length > 0 ? (
+                    licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses added</p>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <div className="absolute bottom-8 left-6">
-              <button
-                onClick={handleBack}
-                className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center"
+              {/* Heart to Match */}
+              <Button
+                onClick={handleLikeCandidate}
+                className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
               >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </button>
+                <Heart size={18} className="fill-white" /> Heart to Match
+              </Button>
             </div>
           </div>
 
           <LikeConfirmationModal
-            candidateName={candidate.name}
+            candidateName={profileData?.name}
             onClose={handleCloseLikeModal}
             isVisible={showLikeModal}
           />
