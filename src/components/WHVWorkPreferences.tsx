@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Industry {
@@ -25,112 +25,109 @@ interface Region {
   postcode: string;
 }
 
-const ALL_STATES = [
-  "Queensland",
-  "New South Wales",
-  "Victoria",
-  "Tasmania",
-  "Western Australia",
-  "South Australia",
-  "Northern Territory",
-  "Australian Capital Territory",
-];
-
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
-  const [tagline, setTagline] = useState("");
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
-
-  const [selectedIndustries, setSelectedIndustries] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
-  const [preferredStates, setPreferredStates] = useState<string[]>([]);
-  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
 
-  const [expandedSections, setExpandedSections] = useState({
-    tagline: true,
-    industries: false,
-    states: false,
-    summary: false,
-  });
-
-  const [showPopup, setShowPopup] = useState(false);
-
-  // ==========================
-  // Load data (no filters first)
-  // ==========================
   useEffect(() => {
     const loadData = async () => {
-      // Industries from materialized view
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Load profile
+      const { data: profile } = await supabase
+        .from("whv_maker")
+        .select("nationality")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      // Load visa
+      const { data: visa } = await supabase
+        .from("maker_visa")
+        .select("stage_id, visa_stage:visa_stage(stage, sub_class, label), country:country(name)")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!profile || !visa) return;
+
+      setVisaLabel(
+        `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
+      );
+
+      // ==========================
+      // 1. Industries (filtered)
+      // ==========================
       const { data: eligibleIndustries, error: industriesError } =
         await supabase
           .from("mvw_eligibility_visa_country_stage_industry")
-          .select("industry_id, industry, sub_class, stage, country")
-          .limit(20);
+          .select("industry_id, industry")
+          .eq("sub_class", visa.visa_stage.sub_class)
+          .eq("stage", visa.visa_stage.stage)
+          .eq("country", profile.nationality);
 
       if (industriesError) {
-        console.error("Supabase industries error:", industriesError);
-      } else {
-        console.log("Industries result:", eligibleIndustries);
+        console.error("Industries error:", industriesError);
       }
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: `${i.industry} [${i.sub_class} / Stage ${i.stage} / ${i.country}]`,
+            name: i.industry,
           }))
         );
-      }
 
-      // Roles from industry_role
-      const { data: roleData, error: roleError } = await supabase
-        .from("industry_role")
-        .select("industry_role_id, role, industry_id")
-        .limit(20);
+        const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-      if (roleError) {
-        console.error("Supabase roles error:", roleError);
-      } else {
-        console.log("Roles result:", roleData);
-      }
+        // ==========================
+        // 2. Roles (by industry)
+        // ==========================
+        const { data: roleData, error: roleError } = await supabase
+          .from("industry_role")
+          .select("industry_role_id, role, industry_id")
+          .in("industry_id", industryIds);
 
-      if (roleData) {
-        setRoles(
-          roleData.map((r) => ({
-            id: r.industry_role_id,
-            name: r.role,
-            industryId: r.industry_id,
-          }))
-        );
-      }
+        if (roleError) {
+          console.error("Roles error:", roleError);
+        }
 
-      // Regions from regional_rules
-      const { data: regionData, error: regionError } = await supabase
-        .from("regional_rules")
-        .select("id, industry_id, state, suburb_city, postcode")
-        .limit(20);
+        if (roleData) {
+          setRoles(
+            roleData.map((r) => ({
+              id: r.industry_role_id,
+              name: r.role,
+              industryId: r.industry_id,
+            }))
+          );
+        }
 
-      if (regionError) {
-        console.error("Supabase regions error:", regionError);
-      } else {
-        console.log("Regions result:", regionData);
-      }
+        // ==========================
+        // 3. Regions (by industry)
+        // ==========================
+        const { data: regionData, error: regionError } = await supabase
+          .from("regional_rules")
+          .select("id, industry_id, state, suburb_city, postcode")
+          .in("industry_id", industryIds);
 
-      if (regionData) {
-        setRegions(regionData);
+        if (regionError) {
+          console.error("Regions error:", regionError);
+        }
+
+        if (regionData) {
+          setRegions(regionData);
+        }
       }
     };
 
     loadData();
   }, []);
 
-  // ==========================
-  // Render
-  // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -151,6 +148,9 @@ const WHVWorkPreferences: React.FC = () => {
                 <span className="text-sm font-medium text-gray-600">4/6</span>
               </div>
             </div>
+            {visaLabel && (
+              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
+            )}
           </div>
 
           {/* Debug Section */}
