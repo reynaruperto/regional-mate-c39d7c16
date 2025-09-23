@@ -18,8 +18,8 @@ interface Role {
 }
 
 interface Region {
-  industry_id: number;
-  industry_role_id: number;
+  industry_id: number | string;
+  industry_role_id: number | string;
   industry_role: string;
   state: string;
   suburb_city: string;
@@ -124,16 +124,18 @@ const WHVWorkPreferences: React.FC = () => {
           .in("industry_id", industryIds);
 
         if (regionData) {
+          console.log("Regions from DB:", regionData); // 🐛 debug
           setRegions(regionData);
 
           // Extract unique roles with proper names
           const roleMap = new Map<number, Role>();
           regionData.forEach((r: any) => {
-            if (!roleMap.has(r.industry_role_id)) {
-              roleMap.set(r.industry_role_id, {
-                id: r.industry_role_id,
-                name: r.industry_role, // ✅ proper role name
-                industryId: r.industry_id,
+            const roleId = Number(r.industry_role_id);
+            if (!roleMap.has(roleId)) {
+              roleMap.set(roleId, {
+                id: roleId,
+                name: r.industry_role,
+                industryId: Number(r.industry_id),
               });
             }
           });
@@ -259,6 +261,7 @@ const WHVWorkPreferences: React.FC = () => {
       setSelectedIndustries([]);
       setSelectedRoles([]);
     }
+    console.log("Selected industries:", selectedIndustries); // 🐛 debug
   };
 
   const toggleRole = (roleId: number) => {
@@ -283,7 +286,11 @@ const WHVWorkPreferences: React.FC = () => {
     setPreferredStates(newStates);
 
     const validAreas = regions
-      .filter((r) => newStates.includes(r.state))
+      .filter(
+        (r) =>
+          r.state.trim().toLowerCase() === state.trim().toLowerCase() &&
+          selectedIndustries.includes(Number(r.industry_id))
+      )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
     setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
   };
@@ -303,9 +310,11 @@ const WHVWorkPreferences: React.FC = () => {
   const getAreasForState = (state: string) => {
     const filtered = regions.filter(
       (r) =>
-        r.state === state &&
+        r.state.trim().toLowerCase() === state.trim().toLowerCase() &&
         selectedIndustries.includes(Number(r.industry_id))
     );
+
+    console.log("Filtered areas:", filtered); // 🐛 debug
 
     return Array.from(
       new Map(filtered.map((r) => [`${r.suburb_city}::${r.postcode}`, r])).keys()
