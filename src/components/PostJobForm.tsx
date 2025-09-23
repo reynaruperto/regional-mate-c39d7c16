@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -47,7 +46,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
-    industryRoleId: editingJob?.industry_role_id || "",
+    industryRoleId: editingJob?.industry_role_id?.toString() || "",
     description: editingJob?.description || "",
     employmentType: editingJob?.employment_type || "",
     salaryRange: editingJob?.salary_range || "",
@@ -64,10 +63,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [selectedLicenses, setSelectedLicenses] = useState<number[]>(
     editingJob?.licenses || []
   );
-  const [showPopup, setShowPopup] = useState(false);
 
   const pretty = (t: string) =>
     t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
   const handle = (k: keyof typeof form, v: string) => {
     setForm((p) => ({ ...p, [k]: v }));
     autosave({ ...form, [k]: v });
@@ -110,11 +109,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     if (draft.job_id) {
       await supabase.from("job_license").delete().eq("job_id", draft.job_id);
       if (selectedLicenses.length) {
-        await supabase
-          .from("job_license")
-          .insert(
-            selectedLicenses.map((lid) => ({ job_id: draft.job_id, license_id: lid }))
-          );
+        await supabase.from("job_license").insert(
+          selectedLicenses.map((lid) => ({
+            job_id: draft.job_id,
+            license_id: lid,
+          }))
+        );
       }
     }
   };
@@ -148,10 +148,21 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   // Load roles + locations
   useEffect(() => {
     (async () => {
-      const { data: emp } = await supabase
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return;
+
+      const { data: emp, error: empError } = await supabase
         .from("employer")
         .select("industry_id")
-        .single();
+        .eq("user_id", uid)
+        .maybeSingle();
+
+      if (empError) {
+        console.error("Error fetching employer:", empError);
+        return;
+      }
+
       if (!emp?.industry_id) return;
 
       const { data: roleData, error } = await supabase
@@ -159,10 +170,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .select("industry_role_id, industry_role, state, suburb_city, postcode")
         .eq("industry_id", emp.industry_id);
 
-      if (error) {
-        console.error("Error fetching roles:", error);
-        return;
-      }
+      console.log("Fetched roles for industry", emp.industry_id, roleData, error);
 
       if (roleData) {
         // Deduplicate roles
@@ -321,6 +329,49 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* State */}
+            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+              <h2 className="text-sm font-semibold mb-3">State</h2>
+              <Select
+                value={form.state}
+                onValueChange={(v) => handle("state", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select state" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_STATES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location */}
+            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+              <h2 className="text-sm font-semibold mb-3">Location</h2>
+              <Select
+                value={form.suburbValue}
+                onValueChange={(v) => handle("suburbValue", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select suburb/postcode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((l, idx) => (
+                    <SelectItem
+                      key={`${l.suburb_city}-${l.postcode}-${idx}`}
+                      value={`${l.suburb_city} (${l.postcode})`}
+                    >
+                      {`${l.suburb_city} (${l.postcode})`}
                     </SelectItem>
                   ))}
                 </SelectContent>
