@@ -58,9 +58,6 @@ const WHVWorkPreferences: React.FC = () => {
   });
   const [showPopup, setShowPopup] = useState(false);
 
-  // ==========================
-  // Load data + existing prefs
-  // ==========================
   useEffect(() => {
     const loadData = async () => {
       const {
@@ -68,7 +65,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile nationality
+      // Profile
       const { data: profile } = await supabase
         .from("whv_maker")
         .select("nationality, tagline")
@@ -96,15 +93,25 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
+      console.log("DEBUG filters →");
+      console.log("sub_class:", visa.visa_stage.sub_class);
+      console.log("stage:", visa.visa_stage.stage);
+      console.log("nationality:", profile.nationality);
+
       // ==========================
-      // Eligible industries (SWAPPED to use materialized view)
+      // Eligible industries (forgiving filters)
       // ==========================
-      const { data: eligibleIndustries } = await supabase
+      const { data: eligibleIndustries, error } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id, industry")
-        .eq("sub_class", String(visa.visa_stage.sub_class))
-        .eq("stage", Number(visa.visa_stage.stage))
+        .select("industry_id, industry, sub_class, stage, country")
+        .ilike("sub_class", `%${String(visa.visa_stage.sub_class).trim()}%`)
+        .filter("stage::text", "ilike", `%${String(visa.visa_stage.stage).trim()}%`)
         .ilike("country", `%${profile.nationality?.trim()}%`);
+
+      if (error) {
+        console.error("Supabase error (eligibility):", error);
+      }
+      console.log("Eligible industries result:", eligibleIndustries);
 
       if (eligibleIndustries?.length) {
         setIndustries(
@@ -117,10 +124,13 @@ const WHVWorkPreferences: React.FC = () => {
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
         // Roles
-        const { data: roleData } = await supabase
+        const { data: roleData, error: roleError } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
+
+        if (roleError) console.error("Supabase error (roles):", roleError);
+        console.log("Roles result:", roleData);
 
         if (roleData) {
           setRoles(
@@ -133,45 +143,17 @@ const WHVWorkPreferences: React.FC = () => {
         }
 
         // Regions
-        const { data: regionData } = await supabase
+        const { data: regionData, error: regionError } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
 
+        if (regionError) console.error("Supabase error (regions):", regionError);
+        console.log("Regions result:", regionData);
+
         if (regionData) {
           setRegions(regionData);
         }
-      }
-
-      // ===== Load saved prefs =====
-      const { data: savedIndustries } = await supabase
-        .from("maker_pref_industry")
-        .select("industry_id")
-        .eq("user_id", user.id);
-
-      if (savedIndustries) {
-        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
-      }
-
-      const { data: savedRoles } = await supabase
-        .from("maker_pref_industry_role")
-        .select("industry_role_id")
-        .eq("user_id", user.id);
-
-      if (savedRoles) {
-        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
-      }
-
-      const { data: savedLocations } = await supabase
-        .from("maker_pref_location")
-        .select("state, suburb_city, postcode")
-        .eq("user_id", user.id);
-
-      if (savedLocations) {
-        setPreferredStates([...new Set(savedLocations.map((l) => l.state))]);
-        setPreferredAreas(
-          savedLocations.map((l) => `${l.suburb_city}::${l.postcode}`)
-        );
       }
     };
 
@@ -187,7 +169,6 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Update tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -196,15 +177,10 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // Clear old prefs
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase
-      .from("maker_pref_industry_role")
-      .delete()
-      .eq("user_id", user.id);
+    await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
 
-    // Insert industries
     if (selectedIndustries.length) {
       await supabase.from("maker_pref_industry").insert(
         selectedIndustries.map((indId) => ({
@@ -214,7 +190,6 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
-    // Insert roles
     if (selectedRoles.length) {
       await supabase.from("maker_pref_industry_role").insert(
         selectedRoles.map((roleId) => ({
@@ -224,7 +199,6 @@ const WHVWorkPreferences: React.FC = () => {
       );
     }
 
-    // Insert locations
     if (preferredAreas.length) {
       await supabase.from("maker_pref_location").insert(
         preferredAreas.map((locKey) => {
@@ -243,109 +217,35 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   // ==========================
-  // Handlers
-  // ==========================
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const handleIndustrySelect = (industryId: number) => {
-    if (
-      !selectedIndustries.includes(industryId) &&
-      selectedIndustries.length < 3
-    ) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
-    } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(
-        selectedIndustries.filter((id) => id !== industryId)
-      );
-      const industryRoles = roles
-        .filter((r) => r.industryId === industryId)
-        .map((r) => r.id);
-      setSelectedRoles(
-        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
-      );
-    }
-  };
-
-  const toggleRole = (roleId: number) => {
-    setSelectedRoles(
-      selectedRoles.includes(roleId)
-        ? selectedRoles.filter((r) => r !== roleId)
-        : [...selectedRoles, roleId]
-    );
-  };
-
-  const togglePreferredState = (state: string) => {
-    if (state !== "Queensland") {
-      setShowPopup(true);
-      return;
-    }
-
-    const newStates = preferredStates.includes(state)
-      ? preferredStates.filter((s) => s !== state)
-      : preferredStates.length < 3
-      ? [...preferredStates, state]
-      : preferredStates;
-    setPreferredStates(newStates);
-
-    const validAreas = regions
-      .filter((r) => newStates.includes(r.state))
-      .map((r) => `${r.suburb_city}::${r.postcode}`);
-    setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
-  };
-
-  const togglePreferredArea = (locKey: string) => {
-    setPreferredAreas((prev) => {
-      if (prev.includes(locKey)) {
-        return prev.filter((a) => a !== locKey);
-      }
-      if (prev.length >= 3) {
-        return prev;
-      }
-      return [...prev, locKey];
-    });
-  };
-
-  const getAreasForState = (state: string) => {
-    return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
-      .map((r) => `${r.suburb_city}::${r.postcode}`);
-  };
-
-  // ==========================
-  // Render (same as before)
+  // Render
   // ==========================
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
-          {/* Header */}
-          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/whv/profile-setup")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Work Preferences
-              </h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                <span className="text-sm font-medium text-gray-600">4/6</span>
-              </div>
-            </div>
-            {visaLabel && (
-              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
-            )}
+          <div className="p-4 border rounded bg-gray-50">
+            <h2 className="font-bold">Debug Data</h2>
+            <h3>Industries</h3>
+            <ul>
+              {industries.map((i) => (
+                <li key={i.id}>{i.id} - {i.name}</li>
+              ))}
+            </ul>
+            <h3>Roles</h3>
+            <ul>
+              {roles.map((r) => (
+                <li key={r.id}>{r.id} - {r.name} (Industry {r.industryId})</li>
+              ))}
+            </ul>
+            <h3>Regions</h3>
+            <ul>
+              {regions.map((r, idx) => (
+                <li key={idx}>
+                  {r.state} - {r.suburb_city} ({r.postcode}) [Industry {r.industry_id}]
+                </li>
+              ))}
+            </ul>
           </div>
-
-          {/* Content (your collapsible UI sections stay unchanged) */}
-          {/* ... */}
         </div>
       </div>
     </div>
