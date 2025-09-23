@@ -56,165 +56,77 @@ const WHVWorkPreferences: React.FC = () => {
     states: false,
     summary: false,
   });
+
   const [showPopup, setShowPopup] = useState(false);
 
+  // ==========================
+  // Load data (no filters first)
+  // ==========================
   useEffect(() => {
     const loadData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      // Industries from materialized view
+      const { data: eligibleIndustries, error: industriesError } =
+        await supabase
+          .from("mvw_eligibility_visa_country_stage_industry")
+          .select("industry_id, industry, sub_class, stage, country")
+          .limit(20);
 
-      // Profile
-      const { data: profile } = await supabase
-        .from("whv_maker")
-        .select("nationality, tagline")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (profile?.tagline) setTagline(profile.tagline);
-
-      // Visa
-      const { data: visa } = await supabase
-        .from("maker_visa")
-        .select(
-          `
-          stage_id,
-          visa_stage:visa_stage(stage, sub_class, label),
-          country:country(name)
-        `
-        )
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!profile || !visa) return;
-
-      setVisaLabel(
-        `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
-      );
-
-      console.log("DEBUG filters →");
-      console.log("sub_class:", visa.visa_stage.sub_class);
-      console.log("stage:", visa.visa_stage.stage);
-      console.log("nationality:", profile.nationality);
-
-      // ==========================
-      // Eligible industries (forgiving filters)
-      // ==========================
-      const { data: eligibleIndustries, error } = await supabase
-        .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id, industry, sub_class, stage, country")
-        .ilike("sub_class", `%${String(visa.visa_stage.sub_class).trim()}%`)
-        .filter("stage::text", "ilike", `%${String(visa.visa_stage.stage).trim()}%`)
-        .ilike("country", `%${profile.nationality?.trim()}%`);
-
-      if (error) {
-        console.error("Supabase error (eligibility):", error);
+      if (industriesError) {
+        console.error("Supabase industries error:", industriesError);
+      } else {
+        console.log("Industries result:", eligibleIndustries);
       }
-      console.log("Eligible industries result:", eligibleIndustries);
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: i.industry,
+            name: `${i.industry} [${i.sub_class} / Stage ${i.stage} / ${i.country}]`,
           }))
         );
+      }
 
-        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+      // Roles from industry_role
+      const { data: roleData, error: roleError } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role, industry_id")
+        .limit(20);
 
-        // Roles
-        const { data: roleData, error: roleError } = await supabase
-          .from("industry_role")
-          .select("industry_role_id, role, industry_id")
-          .in("industry_id", industryIds);
-
-        if (roleError) console.error("Supabase error (roles):", roleError);
+      if (roleError) {
+        console.error("Supabase roles error:", roleError);
+      } else {
         console.log("Roles result:", roleData);
+      }
 
-        if (roleData) {
-          setRoles(
-            roleData.map((r) => ({
-              id: r.industry_role_id,
-              name: r.role,
-              industryId: r.industry_id,
-            }))
-          );
-        }
+      if (roleData) {
+        setRoles(
+          roleData.map((r) => ({
+            id: r.industry_role_id,
+            name: r.role,
+            industryId: r.industry_id,
+          }))
+        );
+      }
 
-        // Regions
-        const { data: regionData, error: regionError } = await supabase
-          .from("regional_rules")
-          .select("id, industry_id, state, suburb_city, postcode")
-          .in("industry_id", industryIds);
+      // Regions from regional_rules
+      const { data: regionData, error: regionError } = await supabase
+        .from("regional_rules")
+        .select("id, industry_id, state, suburb_city, postcode")
+        .limit(20);
 
-        if (regionError) console.error("Supabase error (regions):", regionError);
+      if (regionError) {
+        console.error("Supabase regions error:", regionError);
+      } else {
         console.log("Regions result:", regionData);
+      }
 
-        if (regionData) {
-          setRegions(regionData);
-        }
+      if (regionData) {
+        setRegions(regionData);
       }
     };
 
     loadData();
   }, []);
-
-  // ==========================
-  // Save before continue
-  // ==========================
-  const handleContinue = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    await supabase
-      .from("whv_maker")
-      .update({
-        tagline: tagline.trim(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
-
-    await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
-    await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
-
-    if (selectedIndustries.length) {
-      await supabase.from("maker_pref_industry").insert(
-        selectedIndustries.map((indId) => ({
-          user_id: user.id,
-          industry_id: indId,
-        }))
-      );
-    }
-
-    if (selectedRoles.length) {
-      await supabase.from("maker_pref_industry_role").insert(
-        selectedRoles.map((roleId) => ({
-          user_id: user.id,
-          industry_role_id: roleId,
-        }))
-      );
-    }
-
-    if (preferredAreas.length) {
-      await supabase.from("maker_pref_location").insert(
-        preferredAreas.map((locKey) => {
-          const [suburb_city, postcode] = locKey.split("::");
-          return {
-            user_id: user.id,
-            state: "Queensland",
-            suburb_city,
-            postcode,
-          };
-        })
-      );
-    }
-
-    navigate("/whv/work-experience");
-  };
 
   // ==========================
   // Render
@@ -223,28 +135,42 @@ const WHVWorkPreferences: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
-          <div className="p-4 border rounded bg-gray-50">
+          {/* Header */}
+          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => navigate("/whv/profile-setup")}
+                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
+              >
+                <ArrowLeft size={20} className="text-gray-600" />
+              </button>
+              <h1 className="text-lg font-medium text-gray-900">
+                Work Preferences
+              </h1>
+              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+                <span className="text-sm font-medium text-gray-600">4/6</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Debug Section */}
+          <div className="p-4 bg-gray-100 overflow-y-auto">
             <h2 className="font-bold">Debug Data</h2>
+
             <h3>Industries</h3>
-            <ul>
-              {industries.map((i) => (
-                <li key={i.id}>{i.id} - {i.name}</li>
-              ))}
-            </ul>
+            <pre className="text-xs whitespace-pre-wrap">
+              {JSON.stringify(industries, null, 2)}
+            </pre>
+
             <h3>Roles</h3>
-            <ul>
-              {roles.map((r) => (
-                <li key={r.id}>{r.id} - {r.name} (Industry {r.industryId})</li>
-              ))}
-            </ul>
+            <pre className="text-xs whitespace-pre-wrap">
+              {JSON.stringify(roles, null, 2)}
+            </pre>
+
             <h3>Regions</h3>
-            <ul>
-              {regions.map((r, idx) => (
-                <li key={idx}>
-                  {r.state} - {r.suburb_city} ({r.postcode}) [Industry {r.industry_id}]
-                </li>
-              ))}
-            </ul>
+            <pre className="text-xs whitespace-pre-wrap">
+              {JSON.stringify(regions, null, 2)}
+            </pre>
           </div>
         </div>
       </div>
