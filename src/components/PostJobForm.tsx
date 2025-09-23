@@ -130,21 +130,20 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
-  // Load enums dynamically from Postgres via RPC
+  // Load enums (hardcoded from Supabase definition)
   useEffect(() => {
-    (async () => {
-      setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
+    setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
 
-      const { data: payEnum } = await supabase.rpc("enum_values", {
-        enum_name: "pay_range",
-      });
-      if (payEnum) setPayRangeEnum(payEnum);
+    setPayRangeEnum([
+      "$25-30/hour",
+      "$30-35/hour",
+      "$35-40/hour",
+      "$40-45/hour",
+      "$45+/hour",
+      "Undisclosed",
+    ]);
 
-      const { data: expEnum } = await supabase.rpc("enum_values", {
-        enum_name: "years_experience",
-      });
-      if (expEnum) setYearsExpEnum(expEnum);
-    })();
+    setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
   // Load roles + locations from materialized view
@@ -154,7 +153,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       const uid = auth.user?.id;
       if (!uid) return;
 
-      // ✅ Fetch employer industry_id tied to logged-in user
       const { data: emp, error: empError } = await supabase
         .from("employer")
         .select("industry_id")
@@ -166,31 +164,23 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         return;
       }
 
-      console.log("Employer industry_id:", emp?.industry_id);
-
       if (!emp?.industry_id) return;
 
       const { data: roleData, error } = await supabase
         .from("mvw_emp_location_roles")
-        .select("industry_role_id, industry_role, state, suburb_city, postcode")
+        .select("industry_role_id, industry_role, state, suburb_city, postcode", {
+          distinct: true,
+        })
         .eq("industry_id", emp.industry_id)
+        .order("industry_role")
         .range(0, 39999);
 
-      console.log("Role data from mvw_emp_location_roles:", roleData);
-      console.log("Error fetching roles:", error);
+      if (error) {
+        console.error("Error fetching roles:", error);
+      }
 
       if (roleData) {
-        // Deduplicate roles
-        const uniqueRoles = Array.from(
-          new Map(
-            roleData.map((r) => [r.industry_role_id, r.industry_role])
-          ).entries()
-        ).map(([id, role]) => ({
-          industry_role_id: id,
-          industry_role: role,
-        }));
-
-        setRoles(uniqueRoles);
+        setRoles(roleData);
 
         // Deduplicate locations
         const locMap = new Map<string, SuburbRow>();
@@ -274,7 +264,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
-                      value={String(r.industry_role_id)} // ✅ cast to string
+                      value={String(r.industry_role_id)}
                     >
                       {r.industry_role}
                     </SelectItem>
