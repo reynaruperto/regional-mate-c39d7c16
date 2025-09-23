@@ -144,13 +144,15 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // Regions
-        const { data: regionData } = await supabase
+        // Regions - Add limit to ensure we get all data
+        const { data: regionData, error: regionError } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
-          .in("industry_id", industryIds);
+          .in("industry_id", industryIds)
+          .limit(10000); // Ensure we get all records
 
         console.log("Regions query with industryIds:", industryIds);
+        console.log("Region query error:", regionError);
         console.log("Regions", regionData);
 
         if (regionData) {
@@ -321,6 +323,7 @@ const WHVWorkPreferences: React.FC = () => {
     const uniqueIndustryIds = [...new Set(regions.map(r => r.industry_id))];
     console.log("Unique industry IDs in regions:", uniqueIndustryIds);
     console.log("Expected industry IDs from eligible industries:", industries.map(i => i.id));
+    console.log("Sample regions with industry IDs:", regions.slice(0, 10).map(r => ({ id: r.id, industry_id: r.industry_id, state: r.state })));
     console.log("Types of industry IDs in regions:", regions.slice(0, 3).map(r => ({ id: r.industry_id, type: typeof r.industry_id })));
     
     const filtered = regions.filter((r) => {
