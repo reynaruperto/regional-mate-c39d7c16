@@ -1094,18 +1094,24 @@ export type Database = {
         | "South Korea"
         | "India";
       business_tenure:
-        | "Less than 1 year"
-        | "1-2 years"
-        | "3-5 years"
-        | "5-10 years"
-        | "10+ years";
+        | "<1"
+        | "1"
+        | "2"
+        | "3"
+        | "4"
+        | "5"
+        | "6-10"
+        | "11-15"
+        | "16-20"
+        | "20+";
       employee_count:
-        | "1-10"
-        | "11-50"
-        | "51-200"
-        | "201-500"
-        | "501-1000"
-        | "1000+";
+        | "1"
+        | "2-5"
+        | "6-10"
+        | "11-20"
+        | "21-50"
+        | "51-100"
+        | "100+";
     };
     CompositeTypes: {
       [_ in never]: never;

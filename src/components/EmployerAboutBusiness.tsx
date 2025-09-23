@@ -62,8 +62,8 @@ const EmployerAboutBusiness: React.FC = () => {
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
 
       // Enums — use exactly what DB accepts
-      setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"]);
-      setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"]);
+      setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const);
+      setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const);
     };
     loadOptions();
   }, []);
