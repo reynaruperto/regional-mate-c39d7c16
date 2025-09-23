@@ -104,7 +104,7 @@ const WHVWorkPreferences: React.FC = () => {
       // ✅ Fetch eligible industries from materialized view
       const { data: eligibleIndustries, error: eligibilityError } =
         await supabase
-          .from<EligibilityRow>("mvw_eligibility_visa_country_stage_industry" as any)
+          .from("mvw_eligibility_visa_country_stage_industry" as any)
           .select("industry_id, industry")
           .eq("sub_class", visa.visa_stage.sub_class)
           .eq("stage", visa.visa_stage.stage)
@@ -114,21 +114,25 @@ const WHVWorkPreferences: React.FC = () => {
         console.error("Eligibility query error:", eligibilityError);
       }
 
+      console.log("Eligible industries", eligibleIndustries);
+
       if (eligibleIndustries?.length) {
         setIndustries(
-          eligibleIndustries.map((i) => ({
+          eligibleIndustries.map((i: any) => ({
             id: i.industry_id,
             name: i.industry,
           }))
         );
 
-        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+        const industryIds = eligibleIndustries.map((i: any) => i.industry_id);
 
         // Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
+
+        console.log("Roles", roleData);
 
         if (roleData) {
           setRoles(
@@ -145,6 +149,8 @@ const WHVWorkPreferences: React.FC = () => {
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
+
+        console.log("Regions", regionData);
 
         if (regionData) {
           setRegions(regionData);
