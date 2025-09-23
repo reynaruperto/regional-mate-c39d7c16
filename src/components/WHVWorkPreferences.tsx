@@ -510,13 +510,60 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
+            {/* 4. Review */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedSections((p) => ({ ...p, summary: !p.summary }))
+                }
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">4. Review</span>
+                {expandedSections.summary ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
+              </button>
+              {expandedSections.summary && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  <p>
+                    <strong>Visa:</strong> {visaLabel}
+                  </p>
+                  <p>
+                    <strong>Tagline:</strong> {tagline}
+                  </p>
+                  <p>
+                    <strong>Industries:</strong>{" "}
+                    {selectedIndustries
+                      .map((id) => industries.find((i) => i.id === id)?.name)
+                      .join(", ")}
+                  </p>
+                  <p>
+                    <strong>Roles:</strong>{" "}
+                    {selectedRoles
+                      .map((id) => roles.find((r) => r.id === id)?.name)
+                      .join(", ")}
+                  </p>
+                  <p>
+                    <strong>States:</strong> {preferredStates.join(", ")}
+                  </p>
+                  <p>
+                    <strong>Suburbs:</strong>{" "}
+                    {preferredAreas
+                      .map((locKey) => {
+                        const [suburb_city, postcode] = locKey.split("::");
+                        return `${suburb_city} (${postcode})`;
+                      })
+                      .join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Continue */}
             <div className="pt-4">
-              <Button
-                type="button"
-                onClick={handleContinue}
-                disabled={
-                  !tagline.trim() ||
               <Button
                 type="button"
                 onClick={handleContinue}
