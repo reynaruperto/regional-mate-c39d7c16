@@ -158,10 +158,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .eq("user_id", uid)
         .maybeSingle();
 
-      if (empError) {
-        console.error("Error fetching employer:", empError);
-        return;
-      }
+      console.log("Employer industry_id:", emp?.industry_id, empError);
 
       if (!emp?.industry_id) return;
 
@@ -170,17 +167,29 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .select("industry_role_id, industry_role, state, suburb_city, postcode")
         .eq("industry_id", emp.industry_id);
 
-      console.log("Fetched roles for industry", emp.industry_id, roleData, error);
+      console.log(
+        "Raw roles fetched:",
+        roleData?.length,
+        roleData?.slice(0, 10),
+        error
+      );
 
       if (roleData) {
-        // Deduplicate roles
-        const uniqueRoles = roleData.filter(
-          (r, i, self) =>
-            i === self.findIndex((x) => x.industry_role_id === r.industry_role_id)
+        // Deduplicate roles using Map
+        const roleMap = new Map<number, string>();
+        roleData.forEach((r) => {
+          if (!roleMap.has(r.industry_role_id)) {
+            roleMap.set(r.industry_role_id, r.industry_role);
+          }
+        });
+        setRoles(
+          Array.from(roleMap, ([id, name]) => ({
+            industry_role_id: id,
+            industry_role: name,
+          }))
         );
-        setRoles(uniqueRoles);
 
-        // Deduplicate suburbs
+        // Deduplicate suburbs using Map
         const locMap = new Map<string, SuburbRow>();
         roleData.forEach((r) => {
           const key = `${r.suburb_city}-${r.postcode}`;
