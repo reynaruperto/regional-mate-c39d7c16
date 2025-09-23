@@ -144,12 +144,12 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // Regions - Add limit to ensure we get all data and fix data types
+        // Regions - Add explicit limit and cast industry_id to number
         const { data: regionData, error: regionError } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds.map(Number))
-          .limit(20000);
+          .range(0, 19999);
 
         console.log("Regions query with industryIds:", industryIds);
         console.log("Regions query with converted industryIds:", industryIds.map(Number));
@@ -329,10 +329,10 @@ const WHVWorkPreferences: React.FC = () => {
     console.log("Types of industry IDs in regions:", regions.slice(0, 3).map(r => ({ id: r.industry_id, type: typeof r.industry_id })));
     
     const filtered = regions.filter((r) => {
-      const stateMatch = r.state === state || r.state?.toString() === state;
-      const industryMatch = r.industry_id === selectedIndustryId || r.industry_id == selectedIndustryId;
+      const stateMatch = r.state === state;
+      const industryMatch = Number(r.industry_id) === Number(selectedIndustryId);
       
-      if (r.industry_id === selectedIndustryId || r.industry_id == selectedIndustryId) {
+      if (Number(r.industry_id) === Number(selectedIndustryId)) {
         console.log("Found potential match:", { 
           regionId: r.id, 
           regionState: r.state, 
