@@ -262,6 +262,7 @@ const WHVWorkPreferences: React.FC = () => {
     } else {
       setSelectedIndustries([industryId]);
       setSelectedRoles([]);
+      console.log("Selected industry:", industryId, "Available areas for Queensland:", getAreasForState("Queensland").length);
     }
   };
 
@@ -453,26 +454,33 @@ const WHVWorkPreferences: React.FC = () => {
                       </label>
 
                       {preferredStates.includes(state) &&
-                        state === "Queensland" && (
+                        state === "Queensland" &&
+                        selectedIndustries.length > 0 && (
                           <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
-                            {getAreasForState(state).map((locKey) => {
-                              const [suburb_city, postcode] = locKey.split("::");
-                              return (
-                                <label
-                                  key={locKey}
-                                  className="flex items-center space-x-2 py-1"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={preferredAreas.includes(locKey)}
-                                    onChange={() => togglePreferredArea(locKey)}
-                                  />
-                                  <span>
-                                    {suburb_city} ({postcode})
-                                  </span>
-                                </label>
-                              );
-                            })}
+                            {getAreasForState(state).length > 0 ? (
+                              getAreasForState(state).map((locKey) => {
+                                const [suburb_city, postcode] = locKey.split("::");
+                                return (
+                                  <label
+                                    key={locKey}
+                                    className="flex items-center space-x-2 py-1"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={preferredAreas.includes(locKey)}
+                                      onChange={() => togglePreferredArea(locKey)}
+                                    />
+                                    <span>
+                                      {suburb_city} ({postcode})
+                                    </span>
+                                  </label>
+                                );
+                              })
+                            ) : (
+                              <p className="text-sm text-gray-500 p-2">
+                                No locations available for the selected industry in {state}
+                              </p>
+                            )}
                           </div>
                         )}
                     </div>
