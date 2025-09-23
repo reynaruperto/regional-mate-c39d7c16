@@ -144,8 +144,8 @@ const BusinessRegistrationForm: React.FC = () => {
         state: data.state as Database["public"]["Enums"]["state"],
         postcode: data.postCode,
         // These are required but will be filled in later steps
-        business_tenure: "Less than 1 year" as Database["public"]["Enums"]["business_tenure"],
-        employee_count: "1-10" as Database["public"]["Enums"]["employee_count"],
+        business_tenure: "<1" as Database["public"]["Enums"]["business_tenure"],
+        employee_count: "1" as Database["public"]["Enums"]["employee_count"],
         industry_id: 1, // Will be updated in next step
         updated_at: new Date().toISOString(),
       });
