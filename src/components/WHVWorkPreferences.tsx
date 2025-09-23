@@ -18,8 +18,8 @@ interface Role {
 }
 
 interface Region {
-  industry_id: number | string;
-  industry_role_id: number | string;
+  industry_id: number;
+  industry_role_id: number;
   industry_role: string;
   state: string;
   suburb_city: string;
@@ -106,14 +106,13 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("country", profile.nationality);
 
       if (eligibleIndustries?.length) {
-        setIndustries(
-          eligibleIndustries.map((i) => ({
-            id: i.industry_id,
-            name: i.industry,
-          }))
-        );
+        const mappedIndustries = eligibleIndustries.map((i) => ({
+          id: Number(i.industry_id),
+          name: i.industry,
+        }));
+        setIndustries(mappedIndustries);
 
-        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+        const industryIds = mappedIndustries.map((i) => i.id);
 
         // ✅ Roles + Locations from MVW
         const { data: regionData } = await supabase
@@ -124,18 +123,22 @@ const WHVWorkPreferences: React.FC = () => {
           .in("industry_id", industryIds);
 
         if (regionData) {
-          console.log("Regions from DB:", regionData); // 🐛 debug
-          setRegions(regionData);
+          const normalizedRegions = regionData.map((r: any) => ({
+            ...r,
+            industry_id: Number(r.industry_id),
+            industry_role_id: Number(r.industry_role_id),
+          }));
+          setRegions(normalizedRegions);
+          console.log("Regions from DB:", normalizedRegions);
 
           // Extract unique roles with proper names
           const roleMap = new Map<number, Role>();
-          regionData.forEach((r: any) => {
-            const roleId = Number(r.industry_role_id);
-            if (!roleMap.has(roleId)) {
-              roleMap.set(roleId, {
-                id: roleId,
+          normalizedRegions.forEach((r) => {
+            if (!roleMap.has(r.industry_role_id)) {
+              roleMap.set(r.industry_role_id, {
+                id: r.industry_role_id,
                 name: r.industry_role,
-                industryId: Number(r.industry_id),
+                industryId: r.industry_id,
               });
             }
           });
@@ -150,7 +153,7 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id);
 
       if (savedIndustries) {
-        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
+        setSelectedIndustries(savedIndustries.map((i) => Number(i.industry_id)));
       }
 
       const { data: savedRoles } = await supabase
@@ -159,7 +162,7 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id);
 
       if (savedRoles) {
-        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
+        setSelectedRoles(savedRoles.map((r) => Number(r.industry_role_id)));
       }
 
       const { data: savedLocations } = await supabase
@@ -173,6 +176,9 @@ const WHVWorkPreferences: React.FC = () => {
           savedLocations.map((l) => `${l.suburb_city}::${l.postcode}`)
         );
       }
+
+      console.log("Selected industries:", selectedIndustries);
+      console.log("Selected roles:", selectedRoles);
     };
 
     loadData();
@@ -261,7 +267,6 @@ const WHVWorkPreferences: React.FC = () => {
       setSelectedIndustries([]);
       setSelectedRoles([]);
     }
-    console.log("Selected industries:", selectedIndustries); // 🐛 debug
   };
 
   const toggleRole = (roleId: number) => {
@@ -289,7 +294,7 @@ const WHVWorkPreferences: React.FC = () => {
       .filter(
         (r) =>
           r.state.trim().toLowerCase() === state.trim().toLowerCase() &&
-          selectedIndustries.includes(Number(r.industry_id))
+          selectedIndustries.includes(r.industry_id)
       )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
     setPreferredAreas(preferredAreas.filter((a) => validAreas.includes(a)));
@@ -311,10 +316,10 @@ const WHVWorkPreferences: React.FC = () => {
     const filtered = regions.filter(
       (r) =>
         r.state.trim().toLowerCase() === state.trim().toLowerCase() &&
-        selectedIndustries.includes(Number(r.industry_id))
+        selectedIndustries.includes(r.industry_id)
     );
 
-    console.log("Filtered areas:", filtered); // 🐛 debug
+    console.log("Filtered areas:", filtered);
 
     return Array.from(
       new Map(filtered.map((r) => [`${r.suburb_city}::${r.postcode}`, r])).keys()
