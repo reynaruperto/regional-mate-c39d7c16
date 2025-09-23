@@ -1052,13 +1052,12 @@ export type Database = {
       // ==========================
       mvw_emp_location_roles: {
         Row: {
-          industry: string;
-          industry_role: string;
-          state: Database["public"]["Enums"]["state"];
-          suburb_city: string;
-          postcode: string;
           industry_id: number;
           industry_role_id: number;
+          industry_role: string;
+          state: string;
+          suburb_city: string;
+          postcode: string;
         };
         Relationships: [];
       };
