@@ -59,7 +59,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [showPopup, setShowPopup] = useState(false);
 
   // ==========================
-  // Load data
+  // Load data + existing prefs
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -68,7 +68,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile + tagline
+      // Profile nationality
       const { data: profile } = await supabase
         .from("whv_maker")
         .select("nationality, tagline")
@@ -90,25 +90,28 @@ const WHVWorkPreferences: React.FC = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!visa || !visa.visa_stage || !visa.country) return;
+      if (visa?.visa_stage && visa.country) {
+        setVisaLabel(
+          `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
+        );
+      }
 
-      setVisaLabel(
-        `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
-      );
-
-      // Eligible industries (use new MV)
-      const { data: eligibleIndustries } = await supabase
+      // ✅ Eligible industries (pull ALL for now, no filters)
+      const { data: eligibleIndustries, error } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id, industry")
-        .eq("sub_class", visa.visa_stage.sub_class)
-        .eq("stage", visa.visa_stage.stage)
-        .eq("country", visa.country.name);
+        .select("industry_id, industry, sub_class, stage, country")
+        .limit(20);
+
+      console.log("Eligibility Debug (no filters)", {
+        eligibleIndustries,
+        error,
+      });
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: i.industry,
+            name: `${i.industry} [${i.sub_class} / Stage ${i.stage} / ${i.country}]`,
           }))
         );
 
@@ -144,70 +147,6 @@ const WHVWorkPreferences: React.FC = () => {
 
     loadData();
   }, []);
-
-  // ==========================
-  // Save before continue
-  // ==========================
-  const handleContinue = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Update tagline
-    await supabase
-      .from("whv_maker")
-      .update({
-        tagline: tagline.trim(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
-
-    // Clear old prefs
-    await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
-    await supabase
-      .from("maker_pref_industry_role")
-      .delete()
-      .eq("user_id", user.id);
-    await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
-
-    // Insert industries
-    if (selectedIndustries.length) {
-      await supabase.from("maker_pref_industry").insert(
-        selectedIndustries.map((indId) => ({
-          user_id: user.id,
-          industry_id: indId,
-        }))
-      );
-    }
-
-    // Insert roles
-    if (selectedRoles.length) {
-      await supabase.from("maker_pref_industry_role").insert(
-        selectedRoles.map((roleId) => ({
-          user_id: user.id,
-          industry_role_id: roleId,
-        }))
-      );
-    }
-
-    // Insert locations
-    if (preferredAreas.length) {
-      await supabase.from("maker_pref_location").insert(
-        preferredAreas.map((locKey) => {
-          const [suburb_city, postcode] = locKey.split("::");
-          return {
-            user_id: user.id,
-            state: "Queensland",
-            suburb_city,
-            postcode,
-          };
-        })
-      );
-    }
-
-    navigate("/whv/work-experience");
-  };
 
   // ==========================
   // Handlers
@@ -248,6 +187,7 @@ const WHVWorkPreferences: React.FC = () => {
       setShowPopup(true);
       return;
     }
+
     const newStates = preferredStates.includes(state)
       ? preferredStates.filter((s) => s !== state)
       : preferredStates.length < 3
@@ -275,7 +215,9 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .filter(
+        (r) => r.state === state && selectedIndustries.includes(r.industry_id)
+      )
       .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
@@ -286,6 +228,9 @@ const WHVWorkPreferences: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+
           {/* Header */}
           <div className="px-4 py-4 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -307,29 +252,12 @@ const WHVWorkPreferences: React.FC = () => {
             )}
           </div>
 
-          {/* Debug */}
-          <div className="px-4 py-2 text-xs text-gray-500">
-            <p><strong>Debug Data</strong></p>
-            <p>Industries: {JSON.stringify(industries)}</p>
-            <p>Roles: {JSON.stringify(roles)}</p>
-            <p>Regions: {JSON.stringify(regions)}</p>
-          </div>
-
-          {/* Continue */}
-          <div className="p-4 mt-auto">
-            <Button
-              type="button"
-              onClick={handleContinue}
-              disabled={
-                !tagline.trim() ||
-                selectedIndustries.length === 0 ||
-                preferredStates.length === 0 ||
-                preferredAreas.length === 0
-              }
-              className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
-            >
-              Continue →
-            </Button>
+          {/* Debug data */}
+          <div className="p-4 text-xs text-gray-700">
+            <strong>Debug Data</strong>
+            <div>Industries: {JSON.stringify(industries)}</div>
+            <div>Roles: {JSON.stringify(roles)}</div>
+            <div>Regions: {JSON.stringify(regions)}</div>
           </div>
         </div>
       </div>
