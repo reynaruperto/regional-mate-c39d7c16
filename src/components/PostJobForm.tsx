@@ -38,11 +38,12 @@ interface PostJobFormProps {
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const [roles, setRoles] = useState<RoleRow[]>([]);
+  const [locations, setLocations] = useState<SuburbRow[]>([]);
+  const [licenses, setLicenses] = useState<LicenseRow[]>([]);
+
   const [jobTypeEnum, setJobTypeEnum] = useState<string[]>([]);
   const [payRangeEnum, setPayRangeEnum] = useState<string[]>([]);
   const [yearsExpEnum, setYearsExpEnum] = useState<string[]>([]);
-  const [locations, setLocations] = useState<SuburbRow[]>([]);
-  const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
@@ -145,53 +146,62 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
-  // Load roles + locations
+  // Load roles from industry_role
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) return;
 
-      const { data: emp, error: empError } = await supabase
+      const { data: emp } = await supabase
         .from("employer")
         .select("industry_id")
         .eq("user_id", uid)
         .maybeSingle();
 
-      console.log("Employer industry_id:", emp?.industry_id, empError);
-
       if (!emp?.industry_id) return;
 
       const { data: roleData, error } = await supabase
-        .from("mvw_emp_location_roles")
-        .select("industry_role_id, industry_role, state, suburb_city, postcode")
-        .eq("industry_id", emp.industry_id);
+        .from("industry_role")
+        .select("industry_role_id, role")
+        .eq("industry_id", emp.industry_id)
+        .order("role");
 
-      console.log(
-        "Raw roles fetched:",
-        roleData?.length,
-        roleData?.slice(0, 10),
-        error
-      );
+      if (error) {
+        console.error("Error fetching roles:", error);
+        return;
+      }
 
       if (roleData) {
-        // Deduplicate roles using Map
-        const roleMap = new Map<number, string>();
-        roleData.forEach((r) => {
-          if (!roleMap.has(r.industry_role_id)) {
-            roleMap.set(r.industry_role_id, r.industry_role);
-          }
-        });
         setRoles(
-          Array.from(roleMap, ([id, name]) => ({
-            industry_role_id: id,
-            industry_role: name,
+          roleData.map((r) => ({
+            industry_role_id: r.industry_role_id,
+            industry_role: r.role,
           }))
         );
+      }
+    })();
+  }, []);
 
-        // Deduplicate suburbs using Map
+  // Load locations when a role is chosen
+  useEffect(() => {
+    if (!form.industryRoleId) return;
+
+    (async () => {
+      const { data: locData, error } = await supabase
+        .from("mvw_emp_location_roles")
+        .select("state, suburb_city, postcode")
+        .eq("industry_role_id", Number(form.industryRoleId))
+        .limit(40000);
+
+      if (error) {
+        console.error("Error fetching locations:", error);
+        return;
+      }
+
+      if (locData) {
         const locMap = new Map<string, SuburbRow>();
-        roleData.forEach((r) => {
+        locData.forEach((r) => {
           const key = `${r.suburb_city}-${r.postcode}`;
           if (!locMap.has(key)) {
             locMap.set(key, {
@@ -204,7 +214,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         setLocations(Array.from(locMap.values()));
       }
     })();
-  }, []);
+  }, [form.industryRoleId]);
 
   // Load licenses
   useEffect(() => {
