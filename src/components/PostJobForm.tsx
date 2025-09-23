@@ -80,7 +80,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         ? draft.suburbValue.split(" (")[0]
         : "",
       postcode: draft.postcode,
-      start_date: draft.startDate,
+      start_date:
+        draft.startDate && draft.startDate.trim() !== ""
+          ? draft.startDate
+          : null,
     };
 
     console.log("Saving job payload:", payload);
@@ -132,10 +135,18 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       });
       return;
     }
-    if (!form.startDate || !form.postcode || !form.suburbValue) {
+    if (!form.startDate || form.startDate.trim() === "") {
       toast({
-        title: "Missing required fields",
-        description: "Start Date and Location are required.",
+        title: "Missing Start Date",
+        description: "Please select a start date.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!form.postcode || !form.suburbValue) {
+      toast({
+        title: "Missing Location",
+        description: "Please select a location.",
         variant: "destructive",
       });
       return;
