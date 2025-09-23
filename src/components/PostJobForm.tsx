@@ -1,5 +1,5 @@
 // src/components/PostJobForm.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 type JobStatus = "active" | "inactive" | "draft";
 
 type RoleRow = { industry_role_id: number; industry_role: string };
-type SuburbRow = { suburb_city: string; postcode: string; state: string };
+type LocationRow = { state: string; suburb_city: string; postcode: string };
 type LicenseRow = { license_id: number; name: string };
 
 interface PostJobFormProps {
@@ -28,20 +28,10 @@ interface PostJobFormProps {
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [locations, setLocations] = useState<SuburbRow[]>([]);
+  const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [payRangeEnum, setPayRangeEnum] = useState<string[]>([]);
+  const [yearsExpEnum, setYearsExpEnum] = useState<string[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
-
-  // Hardcoded enums
-  const jobTypeEnum = ["Full-time", "Part-time", "Casual", "Contract", "Seasonal"];
-  const payRangeEnum = [
-    "$25-30/hour",
-    "$30-35/hour",
-    "$35-40/hour",
-    "$40-45/hour",
-    "$45+/hour",
-    "Undisclosed",
-  ];
-  const yearsExpEnum = ["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"];
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
@@ -63,8 +53,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     editingJob?.licenses || []
   );
 
-  const pretty = (t: string) =>
-    t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const handle = (k: keyof typeof form, v: string) => {
     setForm((p) => ({ ...p, [k]: v }));
     autosave({ ...form, [k]: v });
@@ -84,22 +72,25 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         : null,
       description: draft.description,
       employment_type: draft.employmentType,
-      salary_range: draft.salaryRange,
-      req_experience: draft.experienceRange,
+      salary_range: draft.salaryRange as any, // DB enum
+      req_experience: draft.experienceRange as any, // DB enum
       state: draft.state,
       suburb_city: draft.suburbValue.split(" (")[0] || "",
       postcode: draft.postcode,
       start_date: draft.startDate || null,
     };
 
+    console.log("Attempting to save job payload:", payload);
+
     if (draft.job_id) {
       await supabase.from("job").update(payload).eq("job_id", draft.job_id);
     } else {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("job")
         .insert({ ...payload, job_status: "draft" })
         .select("job_id")
         .single();
+      if (error) console.error("Insert job error:", error);
       if (data?.job_id) setForm((p) => ({ ...p, job_id: data.job_id }));
     }
 
@@ -129,55 +120,51 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
-  // Load roles + locations tied to employer
+  // Load enums (use DB enums exactly)
+  useEffect(() => {
+    setPayRangeEnum([
+      "$25-30/hour",
+      "$30-35/hour",
+      "$35-40/hour",
+      "$40-45/hour",
+      "$45+/hour",
+      "Undisclosed",
+    ]);
+
+    setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
+  }, []);
+
+  // Load roles from industry_role table
   useEffect(() => {
     (async () => {
-      try {
-        const { data: auth } = await supabase.auth.getUser();
-        const uid = auth.user?.id;
-        if (!uid) return;
+      const { data: emp } = await supabase
+        .from("employer")
+        .select("industry_id")
+        .single();
+      if (!emp?.industry_id) return;
+      const { data: roleData } = await supabase
+        .from("industry_role")
+        .select("industry_role_id, role")
+        .eq("industry_id", emp.industry_id);
+      if (roleData)
+        setRoles(
+          roleData.map((r) => ({
+            industry_role_id: r.industry_role_id,
+            industry_role: r.role,
+          }))
+        );
+    })();
+  }, []);
 
-        const { data: emp } = await supabase
-          .from("employer")
-          .select("industry_id")
-          .eq("user_id", uid)
-          .maybeSingle();
-
-        if (!emp?.industry_id) return;
-
-        // Roles
-        const { data: roleData } = await supabase
-          .from("industry_role")
-          .select("industry_role_id, role")
-          .eq("industry_id", emp.industry_id);
-
-        if (roleData) {
-          setRoles(
-            roleData.map((r) => ({
-              industry_role_id: r.industry_role_id,
-              industry_role: r.role,
-            }))
-          );
-        }
-
-        // Locations
-        const { data: locData } = await supabase
-          .from("mvw_emp_location_roles")
-          .select("state, suburb_city, postcode")
-          .eq("industry_id", emp.industry_id);
-
-        if (locData) {
-          setLocations(
-            locData.map((l) => ({
-              state: l.state,
-              suburb_city: l.suburb_city,
-              postcode: l.postcode,
-            }))
-          );
-        }
-      } catch (err) {
-        console.error("Error fetching roles/locations:", err);
-      }
+  // Load locations from materialized view
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("vw_regional_rules_base") // ✅ replace with your view name
+        .select("state, suburb_city, postcode")
+        .limit(500);
+      if (error) console.error("Error fetching locations:", error);
+      if (data) setLocations(data);
     })();
   }, []);
 
@@ -191,17 +178,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       if (data) setLicenses(data);
     })();
   }, []);
-
-  const chosenSuburb = useMemo(
-    () =>
-      locations.find(
-        (s) => `${s.suburb_city} (${s.postcode})` === form.suburbValue
-      ),
-    [locations, form.suburbValue]
-  );
-  useEffect(() => {
-    handle("postcode", chosenSuburb?.postcode ?? "");
-  }, [chosenSuburb?.postcode]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -257,26 +233,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               />
             </div>
 
-            {/* Job type */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Job Type</h2>
-              <Select
-                value={form.employmentType}
-                onValueChange={(v) => handle("employmentType", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select job type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jobTypeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {pretty(t)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Salary */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Salary Range</h2>
@@ -299,9 +255,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Experience */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">
-                Years of Work Experience Required
-              </h2>
+              <h2 className="text-sm font-semibold mb-3">Experience Required</h2>
               <Select
                 value={form.experienceRange}
                 onValueChange={(v) => handle("experienceRange", v)}
@@ -324,18 +278,25 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               <h2 className="text-sm font-semibold mb-3">Location</h2>
               <Select
                 value={form.suburbValue}
-                onValueChange={(v) => handle("suburbValue", v)}
+                onValueChange={(v) => {
+                  const chosen = locations.find(
+                    (loc) => `${loc.suburb_city} (${loc.postcode})` === v
+                  );
+                  handle("suburbValue", v);
+                  handle("state", chosen?.state || "");
+                  handle("postcode", chosen?.postcode || "");
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a location" />
+                  <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>
-                  {locations.map((l, i) => (
+                  {locations.map((l, idx) => (
                     <SelectItem
-                      key={i}
+                      key={`${l.suburb_city}-${l.postcode}-${idx}`}
                       value={`${l.suburb_city} (${l.postcode})`}
                     >
-                      {l.suburb_city} ({l.postcode}) – {l.state}
+                      {l.suburb_city}, {l.state} {l.postcode}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -344,16 +305,14 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Licenses */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Licenses Required</h2>
+              <h2 className="text-sm font-semibold mb-3">Licenses</h2>
               {licenses.map((l) => (
                 <label key={l.license_id} className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={selectedLicenses.includes(l.license_id)}
                     onChange={() => {
-                      const newLicenses = selectedLicenses.includes(
-                        l.license_id
-                      )
+                      const newLicenses = selectedLicenses.includes(l.license_id)
                         ? selectedLicenses.filter((id) => id !== l.license_id)
                         : [...selectedLicenses, l.license_id];
                       setSelectedLicenses(newLicenses);
