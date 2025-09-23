@@ -101,7 +101,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // ✅ Fetch eligible industries from materialized view
+      // ✅ Eligible industries from materialized view
       const { data: eligibleIndustries, error: eligibilityError } =
         await supabase
           .from("mvw_eligibility_visa_country_stage_industry" as any)
@@ -113,8 +113,6 @@ const WHVWorkPreferences: React.FC = () => {
       if (eligibilityError) {
         console.error("Eligibility query error:", eligibilityError);
       }
-
-      console.log("Eligible industries", eligibleIndustries);
 
       if (eligibleIndustries?.length) {
         setIndustries(
@@ -132,8 +130,6 @@ const WHVWorkPreferences: React.FC = () => {
           .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
 
-        console.log("Roles", roleData);
-
         if (roleData) {
           setRoles(
             roleData.map((r) => ({
@@ -144,33 +140,41 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // Regions - Add explicit limit and cast industry_id to number
-        const { data: regionData, error: regionError } = await supabase
-          .from("regional_rules")
-          .select("id, industry_id, state, suburb_city, postcode")
-          .in("industry_id", industryIds.map(Number))
-          .range(0, 19999);
+        // ✅ Regions with auto-pagination
+        let allRegions: Region[] = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        console.log("Regions query with industryIds:", industryIds);
-        console.log("Regions query with converted industryIds:", industryIds.map(Number));
-        console.log("Region query error:", regionError);
-        console.log("Regions total count:", regionData?.length);
-        console.log("First 10 regionData results:", regionData?.slice(0, 10));
+        while (hasMore) {
+          const { data: regionPage, error: regionError } = await supabase
+            .from("regional_rules")
+            .select("id, industry_id, state, suburb_city, postcode")
+            .in("industry_id", industryIds.map(Number))
+            .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        if (regionData) {
-          setRegions(regionData);
-          // Debug: Check how many regions we have per industry
-          const regionsByIndustry = regionData.reduce((acc, r) => {
-            acc[r.industry_id] = (acc[r.industry_id] || 0) + 1;
-            return acc;
-          }, {});
-          console.log("Regions by industry:", regionsByIndustry);
-          
-          // Debug: Check for Mining (industry 11) specifically
-          const miningRegions = regionData.filter(r => r.industry_id === 11);
-          console.log("Mining regions found:", miningRegions.length);
-          console.log("Sample Mining regions:", miningRegions.slice(0, 3));
+          if (regionError) {
+            console.error("Region query error:", regionError);
+            break;
+          }
+
+          if (regionPage && regionPage.length > 0) {
+            allRegions = [...allRegions, ...regionPage];
+            console.log(`Fetched ${regionPage.length} regions on page ${page}`);
+            page++;
+          } else {
+            hasMore = false;
+          }
         }
+
+        console.log("✅ Total regions fetched:", allRegions.length);
+        setRegions(allRegions);
+
+        const regionsByIndustry = allRegions.reduce((acc, r) => {
+          acc[r.industry_id] = (acc[r.industry_id] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>);
+        console.log("Regions by industry:", regionsByIndustry);
       }
 
       // ===== Load saved prefs =====
@@ -278,7 +282,6 @@ const WHVWorkPreferences: React.FC = () => {
     } else {
       setSelectedIndustries([industryId]);
       setSelectedRoles([]);
-      console.log("Selected industry:", industryId, "Available areas for Queensland:", getAreasForState("Queensland").length);
     }
   };
 
@@ -316,43 +319,9 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     const selectedIndustryId = selectedIndustries[0];
-    console.log("=== getAreasForState DEBUG ===");
-    console.log("State:", state, "Type:", typeof state);
-    console.log("Selected Industry ID:", selectedIndustryId, "Type:", typeof selectedIndustryId);
-    console.log("Total regions loaded:", regions.length);
-    
-    // Debug: Check what industry IDs exist in regions
-    const uniqueIndustryIds = [...new Set(regions.map(r => r.industry_id))];
-    console.log("Unique industry IDs in regions:", uniqueIndustryIds);
-    console.log("Expected industry IDs from eligible industries:", industries.map(i => i.id));
-    console.log("Sample regions with industry IDs:", regions.slice(0, 10).map(r => ({ id: r.id, industry_id: r.industry_id, state: r.state })));
-    console.log("Types of industry IDs in regions:", regions.slice(0, 3).map(r => ({ id: r.industry_id, type: typeof r.industry_id })));
-    
-    const filtered = regions.filter((r) => {
-      const stateMatch = r.state === state;
-      const industryMatch = Number(r.industry_id) === Number(selectedIndustryId);
-      
-      if (Number(r.industry_id) === Number(selectedIndustryId)) {
-        console.log("Found potential match:", { 
-          regionId: r.id, 
-          regionState: r.state, 
-          regionStateType: typeof r.state,
-          regionIndustryId: r.industry_id, 
-          regionIndustryType: typeof r.industry_id,
-          selectedIndustryId,
-          selectedIndustryType: typeof selectedIndustryId,
-          stateMatch, 
-          industryMatch,
-          strictEqual: r.industry_id === selectedIndustryId,
-          looseEqual: r.industry_id == selectedIndustryId
-        });
-      }
-      
-      return stateMatch && industryMatch;
-    });
-    
-    console.log("Filtered regions count:", filtered.length);
-    console.log("=== END DEBUG ===");
+    const filtered = regions.filter(
+      (r) => r.state === state && r.industry_id == selectedIndustryId
+    );
     return filtered.map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
@@ -575,6 +544,7 @@ const WHVWorkPreferences: React.FC = () => {
                       .join(", ")}
                   </p>
                   <p>
+                                     <p>
                     <strong>States:</strong> {preferredStates.join(", ")}
                   </p>
                   <p>
@@ -590,6 +560,7 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
+            {/* Continue */}
             <div className="pt-4">
               <Button
                 type="button"
