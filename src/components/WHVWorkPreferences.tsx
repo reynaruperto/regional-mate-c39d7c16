@@ -150,6 +150,7 @@ const WHVWorkPreferences: React.FC = () => {
           .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
 
+        console.log("Regions query with industryIds:", industryIds);
         console.log("Regions", regionData);
 
         if (regionData) {
@@ -319,6 +320,7 @@ const WHVWorkPreferences: React.FC = () => {
     // Debug: Check what industry IDs exist in regions
     const uniqueIndustryIds = [...new Set(regions.map(r => r.industry_id))];
     console.log("Unique industry IDs in regions:", uniqueIndustryIds);
+    console.log("Expected industry IDs from eligible industries:", industries.map(i => i.id));
     console.log("Types of industry IDs in regions:", regions.slice(0, 3).map(r => ({ id: r.industry_id, type: typeof r.industry_id })));
     
     const filtered = regions.filter((r) => {
