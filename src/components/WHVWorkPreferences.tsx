@@ -311,24 +311,41 @@ const WHVWorkPreferences: React.FC = () => {
 
   const getAreasForState = (state: string) => {
     const selectedIndustryId = selectedIndustries[0];
-    console.log("getAreasForState called with:", { state, selectedIndustryId });
+    console.log("=== getAreasForState DEBUG ===");
+    console.log("State:", state, "Type:", typeof state);
+    console.log("Selected Industry ID:", selectedIndustryId, "Type:", typeof selectedIndustryId);
     console.log("Total regions loaded:", regions.length);
-    console.log("Sample regions:", regions.slice(0, 3));
+    
+    // Debug: Check what industry IDs exist in regions
+    const uniqueIndustryIds = [...new Set(regions.map(r => r.industry_id))];
+    console.log("Unique industry IDs in regions:", uniqueIndustryIds);
+    console.log("Types of industry IDs in regions:", regions.slice(0, 3).map(r => ({ id: r.industry_id, type: typeof r.industry_id })));
     
     const filtered = regions.filter((r) => {
-      const stateMatch = r.state === state;
-      const industryMatch = r.industry_id === selectedIndustryId;
-      console.log("Region check:", { 
-        regionId: r.id, 
-        regionState: r.state, 
-        regionIndustryId: r.industry_id, 
-        stateMatch, 
-        industryMatch 
-      });
+      const stateMatch = r.state === state || r.state?.toString() === state;
+      const industryMatch = r.industry_id === selectedIndustryId || r.industry_id == selectedIndustryId;
+      
+      if (r.industry_id === selectedIndustryId || r.industry_id == selectedIndustryId) {
+        console.log("Found potential match:", { 
+          regionId: r.id, 
+          regionState: r.state, 
+          regionStateType: typeof r.state,
+          regionIndustryId: r.industry_id, 
+          regionIndustryType: typeof r.industry_id,
+          selectedIndustryId,
+          selectedIndustryType: typeof selectedIndustryId,
+          stateMatch, 
+          industryMatch,
+          strictEqual: r.industry_id === selectedIndustryId,
+          looseEqual: r.industry_id == selectedIndustryId
+        });
+      }
+      
       return stateMatch && industryMatch;
     });
     
-    console.log("Filtered regions:", filtered.length);
+    console.log("Filtered regions count:", filtered.length);
+    console.log("=== END DEBUG ===");
     return filtered.map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
