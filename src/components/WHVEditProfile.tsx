@@ -420,21 +420,12 @@ const WHVEditProfile: React.FC = () => {
   };
 
   const handleIndustrySelect = (industryId: number) => {
-    if (
-      !selectedIndustries.includes(industryId) &&
-      selectedIndustries.length < 3
-    ) {
-      setSelectedIndustries([...selectedIndustries, industryId]);
-    } else if (selectedIndustries.includes(industryId)) {
-      setSelectedIndustries(
-        selectedIndustries.filter((id) => id !== industryId)
-      );
-      const industryRoles = roles
-        .filter((r) => r.industryId === industryId)
-        .map((r) => r.id);
-      setSelectedRoles(
-        selectedRoles.filter((roleId) => !industryRoles.includes(roleId))
-      );
+    if (selectedIndustries.includes(industryId)) {
+      setSelectedIndustries([]);
+      setSelectedRoles([]);
+    } else {
+      setSelectedIndustries([industryId]);
+      setSelectedRoles([]);
     }
   };
 
@@ -474,9 +465,11 @@ const WHVEditProfile: React.FC = () => {
   };
 
   const getAreasForState = (state: string) => {
-    return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
-      .map((r) => `${r.suburb_city}::${r.postcode}`);
+    const selectedIndustryId = selectedIndustries[0];
+    const filtered = regions.filter(
+      (r) => r.state === state && Number(r.industry_id) === Number(selectedIndustryId)
+    );
+    return filtered.map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
   // Work Experience handlers
@@ -938,21 +931,18 @@ const WHVEditProfile: React.FC = () => {
                   </button>
                   {expandedSections.industries && (
                     <div className="px-4 pb-4 border-t space-y-4">
-                      <Label>Select up to 3 industries *</Label>
+                      <Label>Select one industry *</Label>
                       {industries.map((industry) => (
                         <label
                           key={industry.id}
                           className="flex items-center space-x-2 py-1"
                         >
                           <input
-                            type="checkbox"
+                            type="radio"
                             checked={selectedIndustries.includes(industry.id)}
-                            disabled={
-                              selectedIndustries.length >= 3 &&
-                              !selectedIndustries.includes(industry.id)
-                            }
                             onChange={() => handleIndustrySelect(industry.id)}
                             className="h-4 w-4"
+                            name="industry"
                           />
                           <span>{industry.name}</span>
                         </label>
@@ -1023,7 +1013,8 @@ const WHVEditProfile: React.FC = () => {
                             <span>{state}</span>
                           </label>
                           {preferredStates.includes(state) &&
-                            state === "Queensland" && (
+                            state === "Queensland" &&
+                            selectedIndustries.length > 0 && (
                               <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
                                 {getAreasForState(state).map((locKey) => {
                                   const [suburb_city, postcode] = locKey.split("::");
