@@ -68,7 +68,7 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile nationality
+      // Get nationality and tagline from whv_maker
       const { data: profile } = await supabase
         .from("whv_maker")
         .select("nationality, tagline")
@@ -77,7 +77,7 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (profile?.tagline) setTagline(profile.tagline);
 
-      // Visa
+      // Get stage, sub_class, and country from maker_visa
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
@@ -92,29 +92,30 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (!profile || !visa) return;
 
+      // Display visa label
       setVisaLabel(
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // Eligible industries
+      // Filter eligible industries using mvw_eligibility_visa_country_stage_industry
       const { data: eligibleIndustries } = await supabase
-        .from("temp_eligibility")
-        .select("industry_id, industry_name")
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id, industry")
         .eq("sub_class", visa.visa_stage.sub_class)
         .eq("stage", visa.visa_stage.stage)
-        .eq("country_name", profile.nationality);
+        .eq("country", visa.country.name);
 
       if (eligibleIndustries?.length) {
         setIndustries(
           eligibleIndustries.map((i) => ({
             id: i.industry_id,
-            name: i.industry_name,
+            name: i.industry,
           }))
         );
 
         const industryIds = eligibleIndustries.map((i) => i.industry_id);
 
-        // Roles
+        // Load roles for selected industries from industry_role table
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
@@ -130,7 +131,7 @@ const WHVWorkPreferences: React.FC = () => {
           );
         }
 
-        // Regions
+        // Load eligible locations from regional_rules table
         const { data: regionData } = await supabase
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
