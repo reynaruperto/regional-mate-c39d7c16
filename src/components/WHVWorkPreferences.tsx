@@ -59,7 +59,7 @@ const WHVWorkPreferences: React.FC = () => {
   const [showPopup, setShowPopup] = useState(false);
 
   // ==========================
-  // Load data + existing prefs
+  // Load data with RPC
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -68,61 +68,50 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Profile nationality
+      // Profile tagline
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("nationality, tagline")
+        .select("tagline")
         .eq("user_id", user.id)
         .maybeSingle();
-
       if (profile?.tagline) setTagline(profile.tagline);
 
-      // Visa
+      // Visa label
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
           `
-          stage_id,
           visa_stage:visa_stage(stage, sub_class, label),
           country:country(name)
         `
         )
         .eq("user_id", user.id)
         .maybeSingle();
-
       if (visa?.visa_stage && visa.country) {
         setVisaLabel(
           `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
         );
       }
 
-      // ✅ Eligible industries (pull ALL for now, no filters)
-      const { data: eligibleIndustries, error } = await supabase
-        .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id, industry, sub_class, stage, country")
-        .limit(20);
-
-      console.log("Eligibility Debug (no filters)", {
-        eligibleIndustries,
-        error,
-      });
+      // ✅ Call RPC instead of materialized view
+      const { data: eligibleIndustries, error } = await supabase.rpc("get_eligibility");
+      console.log("RPC data:", eligibleIndustries, error);
 
       if (eligibleIndustries?.length) {
         setIndustries(
-          eligibleIndustries.map((i) => ({
+          eligibleIndustries.map((i: any) => ({
             id: i.industry_id,
-            name: `${i.industry} [${i.sub_class} / Stage ${i.stage} / ${i.country}]`,
+            name: i.industry,
           }))
         );
 
-        const industryIds = eligibleIndustries.map((i) => i.industry_id);
+        const industryIds = eligibleIndustries.map((i: any) => i.industry_id);
 
         // Roles
         const { data: roleData } = await supabase
           .from("industry_role")
           .select("industry_role_id, role, industry_id")
           .in("industry_id", industryIds);
-
         if (roleData) {
           setRoles(
             roleData.map((r) => ({
@@ -138,7 +127,6 @@ const WHVWorkPreferences: React.FC = () => {
           .from("regional_rules")
           .select("id, industry_id, state, suburb_city, postcode")
           .in("industry_id", industryIds);
-
         if (regionData) {
           setRegions(regionData);
         }
