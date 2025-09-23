@@ -71,8 +71,11 @@ const WHVProfilePreview: React.FC = () => {
       }
 
       // Work Experiences
-      // Skip work experiences for now due to type issues
-      const expRows: any[] = [];
+      const { data: expRows } = await supabase
+        .from("maker_work_experience" as any)
+        .select("position, company, industry_id, location, start_date, end_date, job_description")
+        .eq("user_id", user.id)
+        .order("start_date", { ascending: false });
 
       if (expRows) {
         setWorkExperiences(expRows);

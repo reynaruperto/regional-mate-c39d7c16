@@ -116,27 +116,30 @@ const WHVPreviewMatchCard: React.FC = () => {
         }));
         setLocationPreferences(formattedLocationPrefs);
 
-        // 6. Work experience - temporarily disabled due to type issues
-        // TODO: Re-enable when maker_work_experience table is available in types
-        const experiences = [];
-        console.log('Work experience fetch disabled for user:', user.id);
-        /*
+        // 6. Work experience
         const { data: experiences } = await supabase
-          .from('maker_work_experience')
-          .select('position, company, industry(name), location, start_date, end_date, job_description')
+          .from('maker_work_experience' as any)
+          .select('position, company, industry_id, location, start_date, end_date, job_description')
           .eq('user_id', user.id)
           .order('start_date', { ascending: false });
-        */
 
-        const formattedExperiences: WorkExperience[] = (experiences || []).map((exp: any) => ({
-          position: exp.position,
-          company: exp.company,
-          industry: exp.industry?.name || 'Not specified',
-          location: exp.location || 'Not specified',
-          start_date: exp.start_date,
-          end_date: exp.end_date,
-          description: exp.job_description || '',
-        }));
+        // Get industry data to match with work experiences
+        const { data: industryData } = await supabase
+          .from('industry')
+          .select('industry_id, name');
+
+        const formattedExperiences: WorkExperience[] = (experiences || []).map((exp: any) => {
+          const industry = industryData?.find((ind: any) => ind.industry_id === exp.industry_id);
+          return {
+            position: exp.position,
+            company: exp.company,
+            industry: industry?.name || 'Not specified',
+            location: exp.location || 'Not specified',
+            start_date: exp.start_date,
+            end_date: exp.end_date,
+            description: exp.job_description || '',
+          };
+        });
         setWorkExperiences(formattedExperiences);
 
         // 7. Licenses
