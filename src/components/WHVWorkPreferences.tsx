@@ -298,8 +298,9 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   const getAreasForState = (state: string) => {
+    const selectedIndustryId = selectedIndustries[0];
     return regions
-      .filter((r) => r.state === state && selectedIndustries.includes(r.industry_id))
+      .filter((r) => r.state === state && r.industry_id === selectedIndustryId)
       .map((r) => `${r.suburb_city}::${r.postcode}`);
   };
 
