@@ -16,6 +16,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/types/supabase";
 
 // ✅ Validation schema (only fields for this step)
 const formSchema = z.object({
@@ -53,7 +54,16 @@ const formSchema = z.object({
   addressLine1: z.string().min(2, { message: "Address line 1 is required." }),
   addressLine2: z.string().optional(),
   suburbCity: z.string().min(2, { message: "Suburb / City is required." }),
-  state: z.string().min(1, { message: "Please select a state." }),
+  state: z.enum([
+    "Australian Capital Territory",
+    "New South Wales", 
+    "Northern Territory",
+    "Queensland",
+    "South Australia",
+    "Tasmania",
+    "Victoria",
+    "Western Australia"
+  ], { message: "Please select a state." }),
   postCode: z
     .string()
     .min(4, { message: "Please enter a valid post code." })
@@ -63,7 +73,7 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-const AUSTRALIAN_STATES = [
+const AUSTRALIAN_STATES: Database["public"]["Enums"]["state"][] = [
   "Australian Capital Territory",
   "New South Wales",
   "Northern Territory",
@@ -120,7 +130,7 @@ const BusinessRegistrationForm: React.FC = () => {
 
       // ✅ Only save what belongs to this screen
       const { error } = await supabase.from("employer").upsert({
-        user_id: profile.user_id as string,
+        user_id: profile.user_id,
         given_name: data.givenName,
         middle_name: data.middleName || null,
         family_name: data.familyName,
@@ -131,8 +141,12 @@ const BusinessRegistrationForm: React.FC = () => {
         address_line1: data.addressLine1,
         address_line2: data.addressLine2 || null,
         suburb_city: data.suburbCity,
-        state: data.state,
+        state: data.state as Database["public"]["Enums"]["state"],
         postcode: data.postCode,
+        // These are required but will be filled in later steps
+        business_tenure: "Less than 1 year" as Database["public"]["Enums"]["business_tenure"],
+        employee_count: "1-10" as Database["public"]["Enums"]["employee_count"],
+        industry_id: 1, // Will be updated in next step
         updated_at: new Date().toISOString(),
       });
 
@@ -387,18 +401,18 @@ const BusinessRegistrationForm: React.FC = () => {
                   <Label htmlFor="state">
                     State <span className="text-red-500">*</span>
                   </Label>
-                  <Select onValueChange={(value) => setValue("state", value)}>
-                    <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
-                      <SelectValue placeholder="Select a state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AUSTRALIAN_STATES.map((state) => (
-                        <SelectItem key={state} value={state}>
-                          {state}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                   <Select onValueChange={(value) => setValue("state", value as Database["public"]["Enums"]["state"])}>
+                     <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
+                       <SelectValue placeholder="Select a state" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {AUSTRALIAN_STATES.map((state) => (
+                         <SelectItem key={state} value={state}>
+                           {state}
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
                   {errors.state && (
                     <p className="text-red-500 text-sm mt-1">
                       {errors.state.message}

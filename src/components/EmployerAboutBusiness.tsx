@@ -13,8 +13,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   businessTagline: z.string().min(10, "Please enter at least 10 characters").max(200, "Max 200 characters"),
-  yearsInBusiness: z.string().min(1, "Required"),
-  employeeCount: z.string().min(1, "Required"),
+  yearsInBusiness: z.enum(["Less than 1 year", "1-2 years", "3-5 years", "5-10 years", "10+ years"]).refine(val => val, {
+    message: "Please select years in business",
+  }),
+  employeeCount: z.enum(["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"]).refine(val => val, {
+    message: "Please select employee count",
+  }),
   industryId: z.string().min(1, "Required"),
   facilitiesAndExtras: z.array(z.string()).min(1, "Select at least one facility"),
 });
@@ -58,8 +62,8 @@ const EmployerAboutBusiness: React.FC = () => {
       if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
 
       // Enums — use exactly what DB accepts
-      setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"]);
-      setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"]);
+      setYearsOptions(["Less than 1 year", "1-2 years", "3-5 years", "5-10 years", "10+ years"]);
+      setEmployeeOptions(["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"]);
     };
     loadOptions();
   }, []);
@@ -76,8 +80,8 @@ const EmployerAboutBusiness: React.FC = () => {
         .from("employer")
         .update({
           tagline: data.businessTagline,
-          business_tenure: data.yearsInBusiness, // already valid enum
-          employee_count: data.employeeCount, // already valid enum
+          business_tenure: data.yearsInBusiness,
+          employee_count: data.employeeCount,
           industry_id: Number(data.industryId),
           updated_at: new Date().toISOString(),
         })
