@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -38,16 +39,15 @@ interface PostJobFormProps {
 const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const { toast } = useToast();
   const [roles, setRoles] = useState<RoleRow[]>([]);
+  const [jobTypeEnum, setJobTypeEnum] = useState<string[]>([]);
   const [payRangeEnum, setPayRangeEnum] = useState<string[]>([]);
   const [yearsExpEnum, setYearsExpEnum] = useState<string[]>([]);
-  const [jobTypeEnum, setJobTypeEnum] = useState<string[]>([]);
   const [locations, setLocations] = useState<SuburbRow[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
-    industryRoleId: editingJob?.industry_role_id?.toString() || "",
-    industryRoleName: editingJob?.role || "",
+    industryRoleId: editingJob?.industry_role_id || "",
     description: editingJob?.description || "",
     employmentType: editingJob?.employment_type || "",
     salaryRange: editingJob?.salary_range || "",
@@ -66,6 +66,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   );
   const [showPopup, setShowPopup] = useState(false);
 
+  const pretty = (t: string) =>
+    t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const handle = (k: keyof typeof form, v: string) => {
     setForm((p) => ({ ...p, [k]: v }));
     autosave({ ...form, [k]: v });
@@ -108,12 +110,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     if (draft.job_id) {
       await supabase.from("job_license").delete().eq("job_id", draft.job_id);
       if (selectedLicenses.length) {
-        await supabase.from("job_license").insert(
-          selectedLicenses.map((lid) => ({
-            job_id: draft.job_id,
-            license_id: lid,
-          }))
-        );
+        await supabase
+          .from("job_license")
+          .insert(
+            selectedLicenses.map((lid) => ({ job_id: draft.job_id, license_id: lid }))
+          );
       }
     }
   };
@@ -130,10 +131,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
-  // Load enums (hardcoded from Supabase definition)
+  // Load enums (hardcoded from Supabase definitions)
   useEffect(() => {
     setJobTypeEnum(["Full-time", "Part-time", "Casual", "Contract"]);
-
     setPayRangeEnum([
       "$25-30/hour",
       "$30-35/hour",
@@ -142,47 +142,37 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       "$45+/hour",
       "Undisclosed",
     ]);
-
     setYearsExpEnum(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
-  // Load roles + locations from materialized view
+  // Load roles + locations
   useEffect(() => {
     (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) return;
-
-      const { data: emp, error: empError } = await supabase
+      const { data: emp } = await supabase
         .from("employer")
         .select("industry_id")
-        .eq("user_id", uid)
-        .maybeSingle();
-
-      if (empError) {
-        console.error("Error fetching employer:", empError);
-        return;
-      }
-
+        .single();
       if (!emp?.industry_id) return;
 
       const { data: roleData, error } = await supabase
         .from("mvw_emp_location_roles")
-        .select("industry_role_id, industry_role, state, suburb_city, postcode", {
-          distinct: true,
-        })
-        .eq("industry_id", emp.industry_id)
-        .order("industry_role")
-        .range(0, 39999);
+        .select("industry_role_id, industry_role, state, suburb_city, postcode")
+        .eq("industry_id", emp.industry_id);
 
       if (error) {
         console.error("Error fetching roles:", error);
+        return;
       }
 
       if (roleData) {
-        setRoles(roleData);
+        // Deduplicate roles
+        const uniqueRoles = roleData.filter(
+          (r, i, self) =>
+            i === self.findIndex((x) => x.industry_role_id === r.industry_role_id)
+        );
+        setRoles(uniqueRoles);
 
-        // Deduplicate locations
+        // Deduplicate suburbs
         const locMap = new Map<string, SuburbRow>();
         roleData.forEach((r) => {
           const key = `${r.suburb_city}-${r.postcode}`;
@@ -220,14 +210,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   useEffect(() => {
     handle("postcode", chosenSuburb?.postcode ?? "");
   }, [chosenSuburb?.postcode]);
-
-  const handleStateChange = (state: string) => {
-    if (state !== "Queensland") {
-      setShowPopup(true);
-      return;
-    }
-    handle("state", state);
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -296,7 +278,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent>
                   {jobTypeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
-                      {t}
+                      {pretty(t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -333,52 +315,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 onValueChange={(v) => handle("experienceRange", v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select years of work experience" />
+                  <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
                 <SelectContent>
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* State */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">State</h2>
-              <Select value={form.state} onValueChange={handleStateChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ALL_STATES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Suburb + Postcode */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Location</h2>
-              <Select
-                value={form.suburbValue}
-                onValueChange={(v) => handle("suburbValue", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select suburb/postcode" />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map((l, idx) => (
-                    <SelectItem
-                      key={`${l.suburb_city}-${l.postcode}-${idx}`}
-                      value={`${l.suburb_city} (${l.postcode})`}
-                    >
-                      {`${l.suburb_city} (${l.postcode})`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -421,24 +363,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           <div className="absolute bottom-0 left-0 right-0 bg-white">
             <BottomNavigation />
           </div>
-
-          {/* Popup */}
-          {showPopup && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
-                <h2 className="text-lg font-semibold mb-3">Not Eligible</h2>
-                <p className="text-sm text-gray-600 mb-4">
-                  Only Queensland is eligible at this time.
-                </p>
-                <Button
-                  onClick={() => setShowPopup(false)}
-                  className="w-full bg-slate-800 text-white rounded-lg"
-                >
-                  OK
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
