@@ -76,9 +76,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       salary_range: draft.salaryRange,
       req_experience: draft.experienceRange,
       state: draft.state,
-      suburb_city: draft.suburbValue
-        ? draft.suburbValue.split(" (")[0]
-        : "",
+      suburb_city: draft.suburbValue ? draft.suburbValue.split(" (")[0] : "",
       postcode: draft.postcode,
       start_date:
         draft.startDate && draft.startDate.trim() !== ""
@@ -236,6 +234,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* iPhone frame size you were using */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
@@ -265,7 +264,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4}>
+                <SelectContent
+                  position="popper"
+                  sideOffset={4}
+                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                >
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
@@ -298,7 +301,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select employment type" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4}>
+                <SelectContent
+                  position="popper"
+                  sideOffset={4}
+                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                >
                   {employmentTypeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -318,7 +325,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4}>
+                <SelectContent
+                  position="popper"
+                  sideOffset={4}
+                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                >
                   {payRangeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -338,7 +349,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4}>
+                <SelectContent
+                  position="popper"
+                  sideOffset={4}
+                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                >
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -365,7 +380,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4}>
+                <SelectContent
+                  position="popper"
+                  sideOffset={4}
+                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                >
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
