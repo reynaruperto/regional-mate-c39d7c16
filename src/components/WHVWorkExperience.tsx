@@ -177,7 +177,9 @@ const WHVWorkExperience: React.FC = () => {
   // Save helpers
   // ==========================
   const saveWorkExperiences = async (userId: string) => {
-    await supabase.from("maker_work_experience" as any).delete().eq("user_id", userId);
+    await supabase.from("maker_work_experience").delete().eq("user_id", userId);
+
+    if (workExperiences.length === 0) return;
 
     const validRows = workExperiences.filter(
       (exp) =>
@@ -201,6 +203,8 @@ const WHVWorkExperience: React.FC = () => {
         end_date: exp.endDate,
         location: exp.location || null,
         job_description: exp.description || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
     });
 
@@ -209,7 +213,7 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   const saveJobReferences = async (userId: string) => {
-    await supabase.from("maker_reference" as any).delete().eq("user_id", userId);
+    await supabase.from("maker_reference").delete().eq("user_id", userId);
 
     if (jobReferences.length === 0) return;
 
@@ -220,6 +224,8 @@ const WHVWorkExperience: React.FC = () => {
       email: ref.email?.trim() || null,
       mobile_num: ref.phone?.trim() || null,
       role: ref.role?.trim() || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }));
 
     const { error } = await supabase.from("maker_reference" as any).insert(refRows);
@@ -227,7 +233,7 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   const saveLicenses = async (userId: string) => {
-    await supabase.from("maker_license" as any).delete().eq("user_id", userId);
+    await supabase.from("maker_license").delete().eq("user_id", userId);
 
     if (licenses.length === 0) return;
 
@@ -238,6 +244,8 @@ const WHVWorkExperience: React.FC = () => {
         allLicenses.find((l) => l.id === licenseId)?.name === "Other"
           ? otherLicense
           : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }));
 
     const { error } = await supabase.from("maker_license" as any).insert(licRows);
