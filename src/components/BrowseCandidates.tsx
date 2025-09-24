@@ -93,14 +93,14 @@ const BrowseCandidates: React.FC = () => {
         .select("user_id, position, start_date, end_date, industry_id, industry ( name )")) as any;
 
       // 4️⃣ Location Preferences
-      const { data: locations } = await supabase
+      const { data: locations } = (await supabase
         .from("maker_pref_location")
-        .select("user_id, state, suburb_city, postcode");
+        .select("user_id, state, suburb_city, postcode")) as any;
 
       // 5️⃣ Licenses
-      const { data: licenses } = await supabase
+      const { data: licenses } = (await supabase
         .from("maker_license")
-        .select("user_id, license ( name )");
+        .select("user_id, license ( name )")) as any;
 
       // 6️⃣ Likes for this job
       let likedIds: string[] = [];
@@ -118,20 +118,34 @@ const BrowseCandidates: React.FC = () => {
         const userId = m.user_id;
 
         // Industries & Roles
-        const userPrefs = preferences?.filter((p: any) => p.user_id === userId) || [];
-        const industries = [...new Set(userPrefs.map((p: any) => p.industry_role?.industry?.name).filter(Boolean))];
-        const roles = [...new Set(userPrefs.map((p: any) => p.industry_role?.industry_role).filter(Boolean))];
+        const userPrefs = (preferences as any[])?.filter((p) => p.user_id === userId) || [];
+        const industries: string[] = [
+          ...new Set(
+            userPrefs
+              .map((p) => p.industry_role?.industry?.name as string | undefined)
+              .filter((n): n is string => Boolean(n))
+          ),
+        ];
+        const roles: string[] = [
+          ...new Set(
+            userPrefs
+              .map((p) => p.industry_role?.industry_role as string | undefined)
+              .filter((r): r is string => Boolean(r))
+          ),
+        ];
 
-        // Work Experiences
-        const userExps = experiences?.filter((e: any) => e.user_id === userId) || [];
-        const expSummaries = userExps.map((exp: any) => {
-          if (!exp.start_date) return null;
-          const start = new Date(exp.start_date);
-          const end = exp.end_date ? new Date(exp.end_date) : new Date();
-          const diffYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
-          const duration = diffYears < 1 ? `${Math.round(diffYears * 12)} mos` : `${Math.round(diffYears)} yrs`;
-          return `${exp.industry?.name || "Unknown"} – ${exp.position || "Role"} (${duration})`;
-        }).filter(Boolean);
+        // Work Experiences (summarized string)
+        const userExps = (experiences as any[])?.filter((e) => e.user_id === userId) || [];
+        const expSummaries: string[] = userExps
+          .map((exp) => {
+            if (!exp.start_date) return null;
+            const start = new Date(exp.start_date);
+            const end = exp.end_date ? new Date(exp.end_date) : new Date();
+            const diffYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365);
+            const duration = diffYears < 1 ? `${Math.round(diffYears * 12)} mos` : `${Math.round(diffYears)} yrs`;
+            return `${exp.industry?.name || "Unknown"} – ${exp.position || "Role"} (${duration})`;
+          })
+          .filter((s): s is string => Boolean(s));
 
         let condensedExperience = "";
         if (expSummaries.length > 2) {
@@ -141,12 +155,21 @@ const BrowseCandidates: React.FC = () => {
         }
 
         // Licenses
-        const userLicenses = licenses?.filter((l) => l.user_id === userId).map((l) => l.license?.name) || [];
+        const userLicenses: string[] =
+          (licenses as any[])
+            ?.filter((l) => l.user_id === userId)
+            .map((l) => l.license?.name as string | undefined)
+            .filter((n): n is string => Boolean(n)) || [];
 
         // Locations
-        const userLocations = locations?.filter((loc) => loc.user_id === userId).map(
-          (loc) => `${loc.suburb_city}, ${loc.state} ${loc.postcode || ""}`
-        ) || [];
+        const userLocations: string[] =
+          (locations as any[])
+            ?.filter((loc) => loc.user_id === userId)
+            .map(
+              (loc) =>
+                `${loc.suburb_city}, ${loc.state} ${loc.postcode || ""}` as string | undefined
+            )
+            .filter((n): n is string => Boolean(n)) || [];
 
         // Profile photo
         const photoUrl = m.profile_photo
