@@ -20,9 +20,9 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     state: "",
     citySuburbPostcode: "",
-    industry: "",
+    industryId: "",
     yearsExperience: "",
-    license: "",
+    licenseId: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
@@ -31,7 +31,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
   const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
 
-  // ✅ States (all Australian states)
+  // ✅ Hardcode states (only QLD works now, but keep others for UX)
   useEffect(() => {
     setStates([
       "Queensland",
@@ -45,7 +45,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     ]);
   }, []);
 
-  // ✅ City + Postcode from regional_rules
+  // ✅ Fetch suburbs + postcodes from regional_rules
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
@@ -54,7 +54,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         .order("suburb_city");
 
       if (error) {
-        console.error("Error fetching city/postcodes:", error);
+        console.error("Error fetching locations:", error);
         return;
       }
 
@@ -63,14 +63,15 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         setCitySuburbPostcodes([...new Set(combined)]);
       }
     };
-
     fetchLocations();
   }, []);
 
-  // ✅ Industries
+  // ✅ Fetch industries
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase.from("industry").select("industry_id, name");
+      const { data, error } = await supabase
+        .from("industry")
+        .select("industry_id, name");
 
       if (error) {
         console.error("Error fetching industries:", error);
@@ -81,26 +82,20 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
       }
     };
-
     fetchIndustries();
   }, []);
 
-  // ✅ Experience levels (static buckets)
+  // ✅ Set years of experience (must match backend CASE)
   useEffect(() => {
-    setExperienceLevels([
-      "Less than 1 Year",
-      "1–2 Years",
-      "3–4 Years",
-      "5–7 Years",
-      "8–10 Years",
-      "10+ Years",
-    ]);
+    setExperienceLevels(["<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
-  // ✅ Licenses
+  // ✅ Fetch licenses
   useEffect(() => {
     const fetchLicenses = async () => {
-      const { data, error } = await supabase.from("license").select("license_id, name");
+      const { data, error } = await supabase
+        .from("license")
+        .select("license_id, name");
 
       if (error) {
         console.error("Error fetching licenses:", error);
@@ -111,15 +106,11 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
       }
     };
-
     fetchLicenses();
   }, []);
 
   const handleSelectChange = (category: string, value: string) => {
-    setSelectedFilters((prev) => ({
-      ...prev,
-      [category]: value,
-    }));
+    setSelectedFilters((prev) => ({ ...prev, [category]: value }));
   };
 
   const applyFilters = () => {
@@ -127,6 +118,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     onClose();
   };
 
+  // ✅ Reusable dropdown for simple lists
   const DropdownSection = ({
     title,
     items,
@@ -166,10 +158,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
           <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
 
           {/* Header */}
@@ -178,14 +168,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               <button onClick={onClose}>
                 <ArrowLeft size={24} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Candidate Filters
-              </h1>
+              <h1 className="text-lg font-medium text-gray-900">Candidate Filters</h1>
             </div>
           </div>
 
           {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
+            {/* State */}
             <DropdownSection
               title="State"
               items={states}
@@ -193,6 +182,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               placeholder="Any state"
             />
 
+            {/* City + Postcode */}
             <DropdownSection
               title="City & Postcode"
               items={citySuburbPostcodes}
@@ -200,13 +190,27 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               placeholder="Any city/postcode"
             />
 
-            <DropdownSection
-              title="Industry"
-              items={industries.map((i) => i.name)}
-              category="industry"
-              placeholder="Any industry"
-            />
+            {/* Industry (store ID) */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">Industry</h3>
+              <Select
+                value={selectedFilters.industryId}
+                onValueChange={(value) => handleSelectChange("industryId", value)}
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
+                  <SelectValue placeholder="Any industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  {industries.map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
+            {/* Years of Experience */}
             <DropdownSection
               title="Years of Experience"
               items={experienceLevels}
@@ -214,12 +218,25 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               placeholder="Any experience"
             />
 
-            <DropdownSection
-              title="License"
-              items={licenses.map((l) => l.name)}
-              category="license"
-              placeholder="Any license"
-            />
+            {/* License (store ID) */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">License</h3>
+              <Select
+                value={selectedFilters.licenseId}
+                onValueChange={(value) => handleSelectChange("licenseId", value)}
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
+                  <SelectValue placeholder="Any license" />
+                </SelectTrigger>
+                <SelectContent>
+                  {licenses.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Apply Button */}
