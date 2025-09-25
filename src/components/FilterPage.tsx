@@ -27,43 +27,50 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   const [states, setStates] = useState<string[]>([]);
   const [citySuburbPostcodes, setCitySuburbPostcodes] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
-  const [licenses, setLicenses] = useState<string[]>([]);
+  const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
 
-  // ✅ Fetch States + Locations from regional_rules
+  // ✅ States (all Australian states)
+  useEffect(() => {
+    setStates([
+      "Queensland",
+      "New South Wales",
+      "Victoria",
+      "Tasmania",
+      "Western Australia",
+      "South Australia",
+      "Northern Territory",
+      "Australian Capital Territory",
+    ]);
+  }, []);
+
+  // ✅ City + Postcode from regional_rules
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
         .from("regional_rules")
-        .select("state, suburb_city, postcode");
+        .select("suburb_city, postcode")
+        .order("suburb_city");
 
       if (error) {
-        console.error("Error fetching locations:", error);
+        console.error("Error fetching city/postcodes:", error);
         return;
       }
 
       if (data) {
-        setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
-        setCitySuburbPostcodes([
-          ...new Set(
-            data
-              .filter((l) => l.suburb_city && l.postcode)
-              .map((l) => `${l.suburb_city} (${l.postcode})`)
-          ),
-        ]);
+        const combined = data.map((r) => `${r.suburb_city} (${r.postcode})`);
+        setCitySuburbPostcodes([...new Set(combined)]);
       }
     };
 
     fetchLocations();
   }, []);
 
-  // ✅ Fetch Industries from makers’ work experience
+  // ✅ Industries
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase
-        .from("maker_work_experience")
-        .select("industry(name)");
+      const { data, error } = await supabase.from("industry").select("industry_id, name");
 
       if (error) {
         console.error("Error fetching industries:", error);
@@ -71,17 +78,14 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       }
 
       if (data) {
-        const industryNames = [
-          ...new Set(data.map((row) => row.industry?.name).filter(Boolean)),
-        ];
-        setIndustries(industryNames);
+        setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
       }
     };
 
     fetchIndustries();
   }, []);
 
-  // ✅ Experience levels (predefined buckets)
+  // ✅ Experience levels (static buckets)
   useEffect(() => {
     setExperienceLevels([
       "Less than 1 Year",
@@ -93,10 +97,10 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     ]);
   }, []);
 
-  // ✅ Fetch Licenses
+  // ✅ Licenses
   useEffect(() => {
     const fetchLicenses = async () => {
-      const { data, error } = await supabase.from("license").select("name");
+      const { data, error } = await supabase.from("license").select("license_id, name");
 
       if (error) {
         console.error("Error fetching licenses:", error);
@@ -104,7 +108,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       }
 
       if (data) {
-        setLicenses(data.map((l) => l.name));
+        setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
       }
     };
 
@@ -190,15 +194,15 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
             />
 
             <DropdownSection
-              title="City/Suburb + Postcode"
+              title="City & Postcode"
               items={citySuburbPostcodes}
               category="citySuburbPostcode"
-              placeholder="Any location"
+              placeholder="Any city/postcode"
             />
 
             <DropdownSection
-              title="Industry (Work Experience)"
-              items={industries}
+              title="Industry"
+              items={industries.map((i) => i.name)}
               category="industry"
               placeholder="Any industry"
             />
@@ -207,12 +211,12 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               title="Years of Experience"
               items={experienceLevels}
               category="yearsExperience"
-              placeholder="Any experience level"
+              placeholder="Any experience"
             />
 
             <DropdownSection
-              title="Licenses"
-              items={licenses}
+              title="License"
+              items={licenses.map((l) => l.name)}
               category="license"
               placeholder="Any license"
             />
