@@ -18,40 +18,25 @@ interface FilterPageProps {
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    state: "",
-    citySuburbPostcode: "",
-    industryId: "",
-    yearsExperience: "",
-    licenseId: "",
+    preferredState: "",
+    preferredCity: "",
+    preferredPostcode: "",
+    candidateIndustry: "",
+    candidateExperience: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
-  const [citySuburbPostcodes, setCitySuburbPostcodes] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [postcodes, setPostcodes] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
-  const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
 
-  // ✅ Hardcode states (only QLD works now, but keep others for UX)
-  useEffect(() => {
-    setStates([
-      "Queensland",
-      "New South Wales",
-      "Victoria",
-      "Tasmania",
-      "Western Australia",
-      "South Australia",
-      "Northern Territory",
-      "Australian Capital Territory",
-    ]);
-  }, []);
-
-  // ✅ Fetch suburbs + postcodes from regional_rules
+  // ✅ Fetch Preferred Location (state, city, postcode)
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
-        .from("regional_rules")
-        .select("suburb_city, postcode")
-        .order("suburb_city");
+        .from("maker_pref_location")
+        .select("state, suburb_city, postcode");
 
       if (error) {
         console.error("Error fetching locations:", error);
@@ -59,66 +44,51 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       }
 
       if (data) {
-        const combined = data.map((r) => `${r.suburb_city} (${r.postcode})`);
-        setCitySuburbPostcodes([...new Set(combined)]);
+        setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
+        setCities([...new Set(data.map((l) => l.suburb_city).filter(Boolean))]);
+        setPostcodes([...new Set(data.map((l) => l.postcode).filter(Boolean))]);
       }
     };
+
     fetchLocations();
   }, []);
 
-  // ✅ Fetch industries
+  // ✅ Fetch Industries (store names directly)
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase
-        .from("industry")
-        .select("industry_id, name");
-
+      const { data, error } = await supabase.from("industry").select("name");
       if (error) {
         console.error("Error fetching industries:", error);
         return;
       }
-
       if (data) {
-        setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
+        setIndustries(data.map((row) => row.name));
       }
     };
     fetchIndustries();
   }, []);
 
-  // ✅ Set years of experience (must match backend CASE)
+  // ✅ Experience Levels
   useEffect(() => {
-    setExperienceLevels(["<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
-  }, []);
-
-  // ✅ Fetch licenses
-  useEffect(() => {
-    const fetchLicenses = async () => {
-      const { data, error } = await supabase
-        .from("license")
-        .select("license_id, name");
-
-      if (error) {
-        console.error("Error fetching licenses:", error);
-        return;
-      }
-
-      if (data) {
-        setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
-      }
-    };
-    fetchLicenses();
+    setExperienceLevels(["Less than 1 Year", "1-2 Years", "3-5 Years", "5+ Years"]);
   }, []);
 
   const handleSelectChange = (category: string, value: string) => {
-    setSelectedFilters((prev) => ({ ...prev, [category]: value }));
+    setSelectedFilters((prev) => ({
+      ...prev,
+      [category]: value,
+    }));
   };
 
   const applyFilters = () => {
-    onApplyFilters(selectedFilters);
+    // Clean up blank filters before applying
+    const cleaned = Object.fromEntries(
+      Object.entries(selectedFilters).filter(([_, v]) => v && v.trim() !== "")
+    );
+    onApplyFilters(cleaned);
     onClose();
   };
 
-  // ✅ Reusable dropdown for simple lists
   const DropdownSection = ({
     title,
     items,
@@ -133,7 +103,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     <div className="mb-6">
       <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
       <Select
-        value={selectedFilters[category as keyof typeof selectedFilters] as string}
+        value={selectedFilters[category as keyof typeof selectedFilters]}
         onValueChange={(value) => handleSelectChange(category, value)}
       >
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
@@ -158,8 +128,10 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Dynamic Island */}
           <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
 
           {/* Header */}
@@ -168,75 +140,44 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               <button onClick={onClose}>
                 <ArrowLeft size={24} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">Candidate Filters</h1>
+              <h1 className="text-lg font-medium text-gray-900">
+                Candidate Filters
+              </h1>
             </div>
           </div>
 
           {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            {/* State */}
             <DropdownSection
-              title="State"
+              title="Preferred State"
               items={states}
-              category="state"
+              category="preferredState"
               placeholder="Any state"
             />
-
-            {/* City + Postcode */}
             <DropdownSection
-              title="City & Postcode"
-              items={citySuburbPostcodes}
-              category="citySuburbPostcode"
-              placeholder="Any city/postcode"
+              title="Preferred City/Suburb"
+              items={cities}
+              category="preferredCity"
+              placeholder="Any suburb"
             />
-
-            {/* Industry (store ID) */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Industry</h3>
-              <Select
-                value={selectedFilters.industryId}
-                onValueChange={(value) => handleSelectChange("industryId", value)}
-              >
-                <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-                  <SelectValue placeholder="Any industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  {industries.map((i) => (
-                    <SelectItem key={i.id} value={String(i.id)}>
-                      {i.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Years of Experience */}
             <DropdownSection
-              title="Years of Experience"
+              title="Preferred Postcode"
+              items={postcodes}
+              category="preferredPostcode"
+              placeholder="Any postcode"
+            />
+            <DropdownSection
+              title="Preferred Industry"
+              items={industries}
+              category="candidateIndustry"
+              placeholder="Any industry"
+            />
+            <DropdownSection
+              title="Years of Work Experience"
               items={experienceLevels}
-              category="yearsExperience"
-              placeholder="Any experience"
+              category="candidateExperience"
+              placeholder="Any experience level"
             />
-
-            {/* License (store ID) */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">License</h3>
-              <Select
-                value={selectedFilters.licenseId}
-                onValueChange={(value) => handleSelectChange("licenseId", value)}
-              >
-                <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-                  <SelectValue placeholder="Any license" />
-                </SelectTrigger>
-                <SelectContent>
-                  {licenses.map((l) => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           {/* Apply Button */}
