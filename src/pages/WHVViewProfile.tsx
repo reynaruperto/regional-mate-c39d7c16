@@ -4,7 +4,7 @@ import { Eye, Check, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Switch } from '@/components/ui/switch';
 
-const ViewProfile: React.FC = () => {
+const WHVViewProfile: React.FC = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState({
     given_name: '',
@@ -187,4 +187,4 @@ const ViewProfile: React.FC = () => {
   );
 };
 
-export default ViewProfile;
+export default WHVViewProfile;
