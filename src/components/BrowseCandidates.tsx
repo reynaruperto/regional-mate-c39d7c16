@@ -84,13 +84,29 @@ const BrowseCandidates: React.FC = () => {
     fetchJobs();
   }, [employerId]);
 
-  // ✅ Fetch candidates using backend function
-  const fetchCandidates = async (filterState: string | null = null) => {
+  // ✅ Fetch candidates (with filters)
+  const fetchCandidates = async (filters: any = {}) => {
     if (!selectedJobId) return;
 
+    // Parse suburb + postcode
+    let citySuburb: string | null = null;
+    let postcode: string | null = null;
+    if (filters.citySuburbPostcode) {
+      const match = filters.citySuburbPostcode.match(/^(.*)\s\((\d+)\)$/);
+      if (match) {
+        citySuburb = match[1];
+        postcode = match[2];
+      }
+    }
+
     // 1. Call backend function to get candidate IDs
-    const { data: ids, error } = await supabase.rpc("filter_maker_for_employer", {
-      p_filter_state: filterState,
+    const { data: ids, error } = await (supabase as any).rpc("filter_maker_for_employer", {
+      p_filter_state: filters.state || null,
+      p_city_suburb: citySuburb,
+      p_postcode: postcode,
+      p_industry: filters.industry || null,
+      p_years_experience: filters.yearsExperience || null,
+      p_license: filters.license || null,
     });
 
     if (error) {
@@ -175,7 +191,7 @@ const BrowseCandidates: React.FC = () => {
           experiences: condensedExperience || "No work experience added",
           licenses: userLicenses,
           preferredLocations: userLocations,
-          isLiked: false, // We can fetch likes later if needed
+          isLiked: false,
         };
       }) || [];
 
@@ -186,7 +202,7 @@ const BrowseCandidates: React.FC = () => {
   // ✅ Initial fetch
   useEffect(() => {
     if (selectedJobId) {
-      fetchCandidates(null);
+      fetchCandidates({});
     }
   }, [selectedJobId]);
 
@@ -209,11 +225,11 @@ const BrowseCandidates: React.FC = () => {
 
   // ✅ Apply filters
   const handleApplyFilters = (filters: any) => {
-    fetchCandidates(filters.state || null);
+    fetchCandidates(filters);
     setShowFilters(false);
   };
 
-  // ✅ Like toggle (same as before)
+  // ✅ Like toggle (still simplified)
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) {
       alert("Please select a job post first.");
@@ -222,7 +238,6 @@ const BrowseCandidates: React.FC = () => {
     setCandidates((prev) =>
       prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: !c.isLiked } : c))
     );
-    // Later we persist with supabase.from("likes")
   };
 
   if (showFilters) {
