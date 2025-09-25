@@ -1,7 +1,6 @@
 // src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +42,7 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
 
   const [nationality, setNationality] = useState<string>("");
-  const [visaStage, setVisaStage] = useState<string>("");
+  const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
   // ✅ Get logged-in WHV ID
   useEffect(() => {
@@ -54,7 +53,7 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch nationality, visa stage, and jobs filtered by eligibility
+  // ✅ Fetch jobs (only eligible for WHV user)
   useEffect(() => {
     const fetchJobs = async () => {
       if (!whvId) return;
@@ -62,74 +61,40 @@ const WHVBrowseJobs: React.FC = () => {
       // 1️⃣ Get WHV nationality
       const { data: maker } = await supabase
         .from("whv_maker")
-        .select("nationality, user_id")
+        .select("nationality")
         .eq("user_id", whvId)
         .single();
 
       if (!maker) return;
       setNationality(maker.nationality);
 
-      // 2️⃣ Get latest visa_stage via maker_visa → visa_stage join
+      // 2️⃣ Get WHV visa stage + label
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(`
-          stage_id,
-          created_at,
-          visa_stage:visa_stage(stage)
-        `)
+        .select("stage_id, visa_stage(label)")
         .eq("user_id", whvId)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
 
-      setVisaStage(String(visa?.visa_stage?.stage || "")); // ✅ force string
+      setVisaStageLabel(visa?.visa_stage?.label || "");
 
-      console.log("➡️ WHV Nationality:", maker.nationality);
-      console.log("➡️ Visa Stage ID:", visa?.stage_id);
-      console.log("➡️ Visa Stage Label:", visa?.visa_stage?.stage);
+      // 3️⃣ Get eligible industry IDs
+      const { data: eligibility } = await supabase
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id")
+        .eq("country", maker.nationality)
+        .eq("stage_id", visa?.stage_id);
 
-      // 3️⃣ Get eligible industry IDs (match country + stage_id)  
-      if (!visa?.stage_id) {
-        console.warn("⚠️ No visa stage found");
-        setJobs([]);
-        setAllJobs([]);
-        return;
-      }
-
-      // Bypass TypeScript issues with manual query
-      let eligibility: any = null;
-      let eligError: any = null;
-      
-      try {
-        const { data, error } = await (supabase as any)
-          .from("mvw_eligibility_visa_country_stage_industry")
-          .select("industry_id")
-          .eq("country", maker.nationality)
-          .eq("stage_id", visa.stage_id);
-        eligibility = data;
-        eligError = error;
-      } catch (err) {
-        eligError = err;
-      }
-
-      if (eligError) {
-        console.error("❌ Error fetching eligibility:", eligError);
-      }
-
-      console.log("➡️ Eligibility Results:", eligibility);
-
-      const eligibleIds: number[] = eligibility?.map((e) => e.industry_id) || [];
+      const eligibleIds = eligibility?.map((e) => e.industry_id) || [];
       if (eligibleIds.length === 0) {
-        console.warn("⚠️ No eligible industries for:", maker.nationality, visa.stage_id);
         setJobs([]);
         setAllJobs([]);
         return;
       }
 
-      console.log("✅ Eligible Industry IDs:", eligibleIds);
-
-      // 4️⃣ Fetch jobs in eligible industries
-      const { data: jobsData, error: jobsError } = await supabase
+      // 4️⃣ Fetch jobs only from eligible industries
+      const { data: jobsData, error } = await supabase
         .from("job")
         .select(`
           job_id,
@@ -149,19 +114,30 @@ const WHVBrowseJobs: React.FC = () => {
             company_name,
             profile_photo
           )
-        `)
+        ` as any)
         .eq("job_status", "active")
-        .in("industry_role.industry_id", eligibleIds);
+        .in("industry_role.industry_id", eligibleIds as any);
 
-      if (jobsError) {
-        console.error("❌ Error fetching jobs:", jobsError);
+      if (error) {
+        console.error("Error fetching jobs:", error);
+        return;
       }
+      if (!jobsData) return;
 
-      console.log("➡️ Jobs fetched from DB:", jobsData);
+      // 5️⃣ Fetch likes for this WHV
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_job_post_id")
+        .eq("liker_id", whvId)
+        .eq("liker_type", "whv");
 
-      const mapped: JobCard[] = (jobsData || []).map((job: any) => {
+      const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+      const mapped: JobCard[] = jobsData.map((job: any) => {
         const photoUrl = job.employer?.profile_photo
-          ? supabase.storage.from("profile_photo").getPublicUrl(job.employer.profile_photo).data.publicUrl
+          ? supabase.storage
+              .from("profile_photo")
+              .getPublicUrl(job.employer.profile_photo).data.publicUrl
           : "/placeholder.png";
 
         return {
@@ -178,11 +154,9 @@ const WHVBrowseJobs: React.FC = () => {
           start_date: job.start_date,
           description: job.description || "",
           facilities: [],
-          isLiked: false,
+          isLiked: likedIds.includes(job.job_id),
         };
       });
-
-      console.log("✅ Jobs mapped to frontend:", mapped);
 
       setJobs(mapped);
       setAllJobs(mapped);
@@ -233,19 +207,29 @@ const WHVBrowseJobs: React.FC = () => {
           .from("likes")
           .delete()
           .eq("liker_id", whvId)
-          .eq("liked_job_post_id", jobId)
-          .eq("liker_type", "whv");
+          .eq("liker_type", "whv")
+          .eq("liked_job_post_id", jobId);
 
-        setJobs((prev) => prev.map((j) => j.job_id === jobId ? { ...j, isLiked: false } : j));
-        setAllJobs((prev) => prev.map((j) => j.job_id === jobId ? { ...j, isLiked: false } : j));
-      } else {
-        await supabase.from("likes").upsert(
-          { liker_id: whvId, liker_type: "whv", liked_job_post_id: jobId },
-          { onConflict: "liker_id,liked_job_post_id,liker_type" }
+        setJobs((prev) =>
+          prev.map((j) => j.job_id === jobId ? { ...j, isLiked: false } : j)
         );
+        setAllJobs((prev) =>
+          prev.map((j) => j.job_id === jobId ? { ...j, isLiked: false } : j)
+        );
+      } else {
+        await supabase.from("likes").insert({
+          liker_id: whvId,
+          liker_type: "whv",
+          liked_job_post_id: jobId,
+          liked_whv_id: null,
+        });
 
-        setJobs((prev) => prev.map((j) => j.job_id === jobId ? { ...j, isLiked: true } : j));
-        setAllJobs((prev) => prev.map((j) => j.job_id === jobId ? { ...j, isLiked: true } : j));
+        setJobs((prev) =>
+          prev.map((j) => j.job_id === jobId ? { ...j, isLiked: true } : j)
+        );
+        setAllJobs((prev) =>
+          prev.map((j) => j.job_id === jobId ? { ...j, isLiked: true } : j)
+        );
 
         setLikedJobTitle(job.role);
         setShowLikeModal(true);
@@ -267,34 +251,31 @@ const WHVBrowseJobs: React.FC = () => {
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header + Visa Info Banner */}
-            <div className="px-6 pt-16 pb-2 flex flex-col gap-2">
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                  onClick={() => navigate("/whv/dashboard")}
-                >
-                  <ArrowLeft className="w-6 h-6 text-gray-700" />
-                </Button>
-                <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
-              </div>
+            {/* Header */}
+            <div className="px-6 pt-16 pb-2 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={() => navigate("/whv/dashboard")}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+            </div>
 
-              {nationality && visaStage && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 text-sm text-orange-800">
-                  <p>
-                    <strong>{nationality}</strong> • {visaStage} WHV
-                  </p>
-                  <p className="text-xs text-orange-700">
-                    Only jobs eligible for your visa will appear here.
-                  </p>
-                </div>
-              )}
+            {/* Visa Info */}
+            <div className="bg-gray-100 px-6 py-2 text-sm text-gray-700 text-center">
+              <p>
+                Your visa: <strong>{visaStageLabel || "Unknown"}</strong>
+              </p>
+              <p className="text-xs text-gray-500">
+                Only jobs eligible for your visa will appear here.
+              </p>
             </div>
 
             {/* Search */}
-            <div className="relative mb-4 px-6">
+            <div className="relative mb-4 px-6 mt-2">
               <Search className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <Input
                 placeholder="Search jobs..."
@@ -314,7 +295,7 @@ const WHVBrowseJobs: React.FC = () => {
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {jobs.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>No eligible jobs found for your visa stage and nationality.</p>
+                  <p>No jobs found. Try adjusting your search or filters.</p>
                 </div>
               ) : (
                 jobs.map((job) => (
