@@ -18,26 +18,24 @@ interface FilterPageProps {
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    preferredState: "",
-    preferredCity: "",
-    preferredPostcode: "",
-    candidateIndustry: "",
-    candidateExperience: "",
+    state: "",
+    citySuburbPostcode: "",
+    industry: "",
+    yearsExperience: "",
+    license: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [postcodes, setPostcodes] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>(
-    []
-  );
+  const [citySuburbPostcodes, setCitySuburbPostcodes] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
+  const [licenses, setLicenses] = useState<string[]>([]);
 
-  // ✅ Fetch Preferred Location (state, city, postcode)
+  // ✅ Fetch States + Locations from regional_rules
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
-        .from("maker_pref_location")
+        .from("regional_rules")
         .select("state, suburb_city, postcode");
 
       if (error) {
@@ -47,20 +45,25 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
       if (data) {
         setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
-        setCities([...new Set(data.map((l) => l.suburb_city).filter(Boolean))]);
-        setPostcodes([...new Set(data.map((l) => l.postcode).filter(Boolean))]);
+        setCitySuburbPostcodes([
+          ...new Set(
+            data
+              .filter((l) => l.suburb_city && l.postcode)
+              .map((l) => `${l.suburb_city} (${l.postcode})`)
+          ),
+        ]);
       }
     };
 
     fetchLocations();
   }, []);
 
-  // ✅ Fetch Industries
+  // ✅ Fetch Industries from makers’ work experience
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase
-        .from("industry")
-        .select("industry_id, name");
+        .from("maker_work_experience")
+        .select("industry(name)");
 
       if (error) {
         console.error("Error fetching industries:", error);
@@ -68,23 +71,44 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       }
 
       if (data) {
-        setIndustries(
-          data.map((row) => ({ id: row.industry_id, name: row.name }))
-        );
+        const industryNames = [
+          ...new Set(data.map((row) => row.industry?.name).filter(Boolean)),
+        ];
+        setIndustries(industryNames);
       }
     };
 
     fetchIndustries();
   }, []);
 
-  // ✅ Fetch & Calculate Work Experience Levels
+  // ✅ Experience levels (predefined buckets)
   useEffect(() => {
-    const fetchExperience = async () => {
-      // Skip work experience calculation for now due to type issues
-      setExperienceLevels(["Less than 1 Year", "1-2 Years", "3-5 Years", "5+ Years"]);
+    setExperienceLevels([
+      "Less than 1 Year",
+      "1–2 Years",
+      "3–4 Years",
+      "5–7 Years",
+      "8–10 Years",
+      "10+ Years",
+    ]);
+  }, []);
+
+  // ✅ Fetch Licenses
+  useEffect(() => {
+    const fetchLicenses = async () => {
+      const { data, error } = await supabase.from("license").select("name");
+
+      if (error) {
+        console.error("Error fetching licenses:", error);
+        return;
+      }
+
+      if (data) {
+        setLicenses(data.map((l) => l.name));
+      }
     };
 
-    fetchExperience();
+    fetchLicenses();
   }, []);
 
   const handleSelectChange = (category: string, value: string) => {
@@ -113,7 +137,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     <div className="mb-6">
       <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
       <Select
-        value={selectedFilters[category] as string}
+        value={selectedFilters[category as keyof typeof selectedFilters] as string}
         onValueChange={(value) => handleSelectChange(category, value)}
       >
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
@@ -159,38 +183,38 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
           {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
             <DropdownSection
-              title="Preferred State"
+              title="State"
               items={states}
-              category="preferredState"
+              category="state"
               placeholder="Any state"
             />
 
             <DropdownSection
-              title="Preferred City/Suburb"
-              items={cities}
-              category="preferredCity"
-              placeholder="Any suburb"
+              title="City/Suburb + Postcode"
+              items={citySuburbPostcodes}
+              category="citySuburbPostcode"
+              placeholder="Any location"
             />
 
             <DropdownSection
-              title="Preferred Postcode"
-              items={postcodes}
-              category="preferredPostcode"
-              placeholder="Any postcode"
-            />
-
-            <DropdownSection
-              title="Preferred Industry"
-              items={industries.map((i) => i.name)}
-              category="candidateIndustry"
+              title="Industry (Work Experience)"
+              items={industries}
+              category="industry"
               placeholder="Any industry"
             />
 
             <DropdownSection
-              title="Years of Work Experience"
+              title="Years of Experience"
               items={experienceLevels}
-              category="candidateExperience"
+              category="yearsExperience"
               placeholder="Any experience level"
+            />
+
+            <DropdownSection
+              title="Licenses"
+              items={licenses}
+              category="license"
+              placeholder="Any license"
             />
           </div>
 
