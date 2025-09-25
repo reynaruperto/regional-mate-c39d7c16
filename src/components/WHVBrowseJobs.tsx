@@ -41,6 +41,9 @@ const WHVBrowseJobs: React.FC = () => {
   const [filters, setFilters] = useState<any>({});
   const [whvId, setWhvId] = useState<string | null>(null);
 
+  const [nationality, setNationality] = useState<string>("");
+  const [visaStage, setVisaStage] = useState<string>("");
+
   // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
@@ -50,10 +53,48 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs with employer join
+  // ✅ Fetch nationality, visa stage, and jobs filtered by eligibility
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data: jobsData, error } = await supabase
+      if (!whvId) return;
+
+      // 1️⃣ Get WHV nationality & visa_stage
+      const { data: maker, error: makerError } = await supabase
+        .from("whv_maker")
+        .select("nationality, visa_stage")
+        .eq("user_id", whvId)
+        .single();
+
+      if (makerError || !maker) {
+        console.error("Error fetching maker:", makerError);
+        return;
+      }
+
+      setNationality(maker.nationality);
+      setVisaStage(maker.visa_stage);
+
+      // 2️⃣ Get eligible industry IDs
+      const { data: eligibility, error: eligError } = await supabase
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id")
+        .eq("visa_country", maker.nationality)
+        .eq("visa_stage", maker.visa_stage);
+
+      if (eligError) {
+        console.error("Error fetching eligibility:", eligError);
+        return;
+      }
+
+      const eligibleIds = eligibility?.map((e) => e.industry_id) || [];
+      if (eligibleIds.length === 0) {
+        console.warn("No eligible industries found for", maker.nationality, maker.visa_stage);
+        setJobs([]);
+        setAllJobs([]);
+        return;
+      }
+
+      // 3️⃣ Fetch jobs in eligible industries
+      const { data: jobsData, error: jobsError } = await supabase
         .from("job")
         .select(`
           job_id,
@@ -65,6 +106,7 @@ const WHVBrowseJobs: React.FC = () => {
           start_date,
           description,
           industry_role (
+            industry_id,
             role,
             industry ( name )
           ),
@@ -73,17 +115,17 @@ const WHVBrowseJobs: React.FC = () => {
             profile_photo
           )
         `)
-        .filter("job_status", "eq", "active");
+        .filter("job_status", "eq", "active")
+        .in("industry_role.industry_id", eligibleIds);
 
-      console.log("DEBUG jobsData with employer:", jobsData, "error:", error);
+      console.log("DEBUG jobsData:", jobsData, "error:", jobsError);
 
-      if (error) {
-        console.error("Error fetching jobs:", error);
+      if (jobsError) {
+        console.error("Error fetching jobs:", jobsError);
         return;
       }
-      if (!jobsData) return;
 
-      const mapped: JobCard[] = jobsData.map((job: any) => {
+      const mapped: JobCard[] = (jobsData || []).map((job: any) => {
         const photoUrl = job.employer?.profile_photo
           ? supabase.storage
               .from("profile_photo")
@@ -145,7 +187,7 @@ const WHVBrowseJobs: React.FC = () => {
     setJobs(list);
   }, [searchQuery, filters, allJobs]);
 
-  // ✅ Like/unlike (kept but won’t run until we add likes back)
+  // ✅ Like/unlike (kept same as before)
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -192,7 +234,7 @@ const WHVBrowseJobs: React.FC = () => {
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4 flex items-center">
+            <div className="px-6 pt-16 pb-2 flex items-center">
               <Button
                 variant="ghost"
                 size="icon"
@@ -201,7 +243,14 @@ const WHVBrowseJobs: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+                {nationality && visaStage && (
+                  <p className="text-sm text-gray-600">
+                    {nationality} • {visaStage} Year WHV
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Search */}
@@ -225,7 +274,7 @@ const WHVBrowseJobs: React.FC = () => {
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {jobs.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>No jobs found. Try adjusting your search or filters.</p>
+                  <p>No eligible jobs found for your visa stage and nationality.</p>
                 </div>
               ) : (
                 jobs.map((job) => (
