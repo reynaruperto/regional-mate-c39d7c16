@@ -167,3 +167,5 @@ const ViewProfile: React.FC = () => {
 };
 
 export default ViewProfile;
+
+export default ViewProfile;
