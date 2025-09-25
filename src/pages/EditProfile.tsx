@@ -1,7 +1,7 @@
-import EditProfile from '@/components/EditProfile';
+import ViewProfile from '@/components/whv/ViewProfile';
 
 const EditProfilePage = () => {
-  return <EditProfile />;
+  return <ViewProfile />;
 };
 
 export default EditProfilePage;

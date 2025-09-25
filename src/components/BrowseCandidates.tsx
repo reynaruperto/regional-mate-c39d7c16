@@ -212,6 +212,43 @@ const BrowseCandidates: React.FC = () => {
     setCandidates(filtered);
   }, [searchQuery, allCandidates]);
 
+  // ✅ Handle liking a candidate
+  const handleLikeCandidate = async (candidateId: string) => {
+    if (!employerId || !selectedJobId) return;
+
+    try {
+      // Insert like into database
+      await supabase
+        .from('likes')
+        .insert({
+          liker_id: employerId,
+          liker_type: 'employer',
+          liked_whv_id: candidateId,
+          liked_job_post_id: selectedJobId,
+        });
+
+      // Update local state
+      const updatedCandidates = candidates.map(c => 
+        c.user_id === candidateId ? { ...c, isLiked: true } : c
+      );
+      setCandidates(updatedCandidates);
+
+      const updatedAllCandidates = allCandidates.map(c => 
+        c.user_id === candidateId ? { ...c, isLiked: true } : c
+      );
+      setAllCandidates(updatedAllCandidates);
+
+      // Show confirmation modal
+      const candidate = candidates.find(c => c.user_id === candidateId);
+      if (candidate) {
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+      }
+    } catch (error) {
+      console.error('Error liking candidate:', error);
+    }
+  };
+
   // ✅ Apply filters
   const applyFilters = (f: any) => {
     let list = [...allCandidates];
