@@ -58,43 +58,43 @@ const WHVBrowseJobs: React.FC = () => {
     const fetchJobs = async () => {
       if (!whvId) return;
 
-      // 1️⃣ Get WHV nationality & visa_stage
-      const { data: maker, error: makerError } = await supabase
+      // 1️⃣ Get WHV nationality
+      const { data: maker } = await supabase
         .from("whv_maker")
-        .select("nationality, visa_stage")
+        .select("nationality, user_id")
         .eq("user_id", whvId)
         .single();
 
-      if (makerError || !maker) {
-        console.error("Error fetching maker:", makerError);
-        return;
-      }
-
+      if (!maker) return;
       setNationality(maker.nationality);
-      setVisaStage(maker.visa_stage);
 
-      // 2️⃣ Get eligible industry IDs
-      const { data: eligibility, error: eligError } = await supabase
+      // 2️⃣ Get latest visa_stage from maker_visa
+      const { data: visa } = await supabase
+        .from("maker_visa")
+        .select("visa_stage, created_at")
+        .eq("user_id", whvId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      setVisaStage(visa?.visa_stage || "");
+
+      // 3️⃣ Get eligible industry IDs
+      const { data: eligibility } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
         .select("industry_id")
         .eq("visa_country", maker.nationality)
-        .eq("visa_stage", maker.visa_stage);
-
-      if (eligError) {
-        console.error("Error fetching eligibility:", eligError);
-        return;
-      }
+        .eq("visa_stage", visa?.visa_stage);
 
       const eligibleIds = eligibility?.map((e) => e.industry_id) || [];
       if (eligibleIds.length === 0) {
-        console.warn("No eligible industries found for", maker.nationality, maker.visa_stage);
         setJobs([]);
         setAllJobs([]);
         return;
       }
 
-      // 3️⃣ Fetch jobs in eligible industries
-      const { data: jobsData, error: jobsError } = await supabase
+      // 4️⃣ Fetch jobs in eligible industries
+      const { data: jobsData } = await supabase
         .from("job")
         .select(`
           job_id,
@@ -117,13 +117,6 @@ const WHVBrowseJobs: React.FC = () => {
         `)
         .filter("job_status", "eq", "active")
         .in("industry_role.industry_id", eligibleIds);
-
-      console.log("DEBUG jobsData:", jobsData, "error:", jobsError);
-
-      if (jobsError) {
-        console.error("Error fetching jobs:", jobsError);
-        return;
-      }
 
       const mapped: JobCard[] = (jobsData || []).map((job: any) => {
         const photoUrl = job.employer?.profile_photo
@@ -187,7 +180,7 @@ const WHVBrowseJobs: React.FC = () => {
     setJobs(list);
   }, [searchQuery, filters, allJobs]);
 
-  // ✅ Like/unlike (kept same as before)
+  // ✅ Like/unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -233,24 +226,30 @@ const WHVBrowseJobs: React.FC = () => {
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header */}
-            <div className="px-6 pt-16 pb-2 flex items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={() => navigate("/whv/dashboard")}
-              >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
-              <div>
+            {/* Header + Visa Info Banner */}
+            <div className="px-6 pt-16 pb-2 flex flex-col gap-2">
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                  onClick={() => navigate("/whv/dashboard")}
+                >
+                  <ArrowLeft className="w-6 h-6 text-gray-700" />
+                </Button>
                 <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
-                {nationality && visaStage && (
-                  <p className="text-sm text-gray-600">
-                    {nationality} • {visaStage} Year WHV
-                  </p>
-                )}
               </div>
+
+              {nationality && visaStage && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 text-sm text-orange-800">
+                  <p>
+                    <strong>{nationality}</strong> • {visaStage} Year WHV
+                  </p>
+                  <p className="text-xs text-orange-700">
+                    Only jobs eligible for your visa will appear here.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Search */}
