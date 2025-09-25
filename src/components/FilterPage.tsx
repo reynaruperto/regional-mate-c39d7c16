@@ -18,20 +18,20 @@ interface FilterPageProps {
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    preferredState: "",
-    preferredCity: "",
-    preferredPostcode: "",
-    candidateIndustry: "",
+    workExpIndustry: "",
+    state: "",
+    suburbPostcode: "",
+    license: "",
     candidateExperience: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [postcodes, setPostcodes] = useState<string[]>([]);
+  const [suburbPostcodes, setSuburbPostcodes] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
+  const [licenses, setLicenses] = useState<string[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
-  // ✅ Fetch Preferred Location (state, city, postcode)
+  // ✅ Fetch distinct states & suburb+postcode
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
@@ -45,32 +45,69 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
       if (data) {
         setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
-        setCities([...new Set(data.map((l) => l.suburb_city).filter(Boolean))]);
-        setPostcodes([...new Set(data.map((l) => l.postcode).filter(Boolean))]);
+        setSuburbPostcodes([
+          ...new Set(
+            data
+              .map((l) =>
+                l.suburb_city && l.postcode
+                  ? `${l.suburb_city} – ${l.postcode}`
+                  : null
+              )
+              .filter(Boolean)
+          ),
+        ]);
       }
     };
 
     fetchLocations();
   }, []);
 
-  // ✅ Fetch Industries (store names directly)
+  // ✅ Fetch industries from maker_work_experience
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase.from("industry").select("name");
+      const { data, error } = await supabase
+        .from("maker_work_experience")
+        .select("industry ( name )");
+
       if (error) {
         console.error("Error fetching industries:", error);
         return;
       }
+
       if (data) {
-        setIndustries(data.map((row) => row.name));
+        setIndustries([
+          ...new Set(
+            data.map((row) => row.industry?.name).filter(Boolean) as string[]
+          ),
+        ]);
       }
     };
     fetchIndustries();
   }, []);
 
+  // ✅ Fetch licenses
+  useEffect(() => {
+    const fetchLicenses = async () => {
+      const { data, error } = await supabase.from("license").select("name");
+      if (error) {
+        console.error("Error fetching licenses:", error);
+        return;
+      }
+      if (data) {
+        setLicenses(data.map((row) => row.name));
+      }
+    };
+    fetchLicenses();
+  }, []);
+
   // ✅ Experience Levels
   useEffect(() => {
-    setExperienceLevels(["Less than 1 Year", "1-2 Years", "3-5 Years", "5+ Years"]);
+    setExperienceLevels([
+      "Less than 1 Year",
+      "1-2 Years",
+      "3-5 Years",
+      "5+ Years",
+    ]);
   }, []);
 
   const handleSelectChange = (category: string, value: string) => {
@@ -81,7 +118,6 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   };
 
   const applyFilters = () => {
-    // Clean up blank filters before applying
     const cleaned = Object.fromEntries(
       Object.entries(selectedFilters).filter(([_, v]) => v && v.trim() !== "")
     );
@@ -149,28 +185,28 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
           {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
             <DropdownSection
-              title="Preferred State"
+              title="Industry of Work Experience"
+              items={industries}
+              category="workExpIndustry"
+              placeholder="Any industry"
+            />
+            <DropdownSection
+              title="Candidate State"
               items={states}
-              category="preferredState"
+              category="state"
               placeholder="Any state"
             />
             <DropdownSection
-              title="Preferred City/Suburb"
-              items={cities}
-              category="preferredCity"
-              placeholder="Any suburb"
+              title="Candidate Suburb & Postcode"
+              items={suburbPostcodes}
+              category="suburbPostcode"
+              placeholder="Any suburb & postcode"
             />
             <DropdownSection
-              title="Preferred Postcode"
-              items={postcodes}
-              category="preferredPostcode"
-              placeholder="Any postcode"
-            />
-            <DropdownSection
-              title="Preferred Industry"
-              items={industries}
-              category="candidateIndustry"
-              placeholder="Any industry"
+              title="Candidate License"
+              items={licenses}
+              category="license"
+              placeholder="Any license"
             />
             <DropdownSection
               title="Years of Work Experience"
