@@ -179,18 +179,55 @@ const BrowseCandidates: React.FC = () => {
     );
   }, [searchQuery, allCandidates]);
 
-  const handleLikeCandidate = async (candidateId: string) => {
-    if (!employerId || !selectedJobId) return;
-    // ... same like/unlike logic ...
+  // ✅ Apply filters
+  const applyFilters = (filters: any) => {
+    let filtered = [...allCandidates];
+
+    if (filters.preferredState) {
+      filtered = filtered.filter((c) =>
+        c.preferredLocations.some((loc) =>
+          loc.toLowerCase().includes(filters.preferredState.toLowerCase())
+        )
+      );
+    }
+
+    if (filters.preferredCity) {
+      filtered = filtered.filter((c) =>
+        c.preferredLocations.some((loc) =>
+          loc.toLowerCase().includes(filters.preferredCity.toLowerCase())
+        )
+      );
+    }
+
+    if (filters.preferredPostcode) {
+      filtered = filtered.filter((c) =>
+        c.preferredLocations.some((loc) =>
+          loc.includes(filters.preferredPostcode)
+        )
+      );
+    }
+
+    if (filters.candidateIndustry) {
+      filtered = filtered.filter((c) =>
+        c.industries.some(
+          (ind) => ind.toLowerCase() === filters.candidateIndustry.toLowerCase()
+        )
+      );
+    }
+
+    if (filters.candidateExperience) {
+      filtered = filtered.filter((c) =>
+        c.experiences.toLowerCase().includes(filters.candidateExperience.toLowerCase())
+      );
+    }
+
+    setCandidates(filtered);
+    setSelectedFilters(filters);
   };
 
-  const removeFilter = (filterValue: string) => {
-    const newFilters = { ...selectedFilters };
-    Object.keys(newFilters).forEach((key) => {
-      if (newFilters[key] === filterValue) delete newFilters[key];
-    });
-    setSelectedFilters(newFilters);
-    // reapply filters if needed
+  const handleLikeCandidate = async (candidateId: string) => {
+    if (!employerId || !selectedJobId) return;
+    // ... like/unlike logic ...
   };
 
   if (showFilters) {
@@ -198,7 +235,7 @@ const BrowseCandidates: React.FC = () => {
       <FilterPage
         onClose={() => setShowFilters(false)}
         onApplyFilters={(filters) => {
-          setSelectedFilters(filters);
+          applyFilters(filters);
           setShowFilters(false);
         }}
       />
@@ -240,7 +277,7 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search + Filter */}
+            {/* Search + Filter + Active Filters */}
             {selectedJobId && (
               <div className="px-6 mb-4">
                 <div className="relative mb-3">
@@ -261,20 +298,25 @@ const BrowseCandidates: React.FC = () => {
 
                 {/* Active Filters */}
                 <div className="flex flex-wrap gap-2">
-                  {Object.values(selectedFilters).map((filter, i) => (
-                    <div
-                      key={`filter-${i}`}
-                      className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
-                    >
-                      <span className="text-sm text-gray-700">{String(filter)}</span>
-                      <button
-                        onClick={() => removeFilter(String(filter))}
-                        className="text-gray-500 hover:text-gray-700"
+                  {Object.entries(selectedFilters)
+                    .filter(([_, value]) => value && value !== "")
+                    .map(([key, value]) => (
+                      <div
+                        key={`filter-${key}`}
+                        className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
                       >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                        <span className="text-sm text-gray-700">{String(value)}</span>
+                        <button
+                          onClick={() => {
+                            const newFilters = { ...selectedFilters, [key]: "" };
+                            applyFilters(newFilters);
+                          }}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
