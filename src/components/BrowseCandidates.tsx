@@ -15,26 +15,37 @@ interface Candidate {
   licenses: string[];
 }
 
-const BrowseCandidates: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+interface BrowseCandidatesProps {
+  onClose?: () => void;
+}
+
+const BrowseCandidates: React.FC<BrowseCandidatesProps> = ({ onClose }) => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [showFilter, setShowFilter] = useState(false);
-  const [filters, setFilters] = useState<any>(null);
+
+  // Helper: bucket years into categories
+  const bucketYears = (years: number): string => {
+    if (years < 1) return "<1 yr";
+    if (years < 3) return "1–2 yrs";
+    if (years < 5) return "3–4 yrs";
+    if (years < 8) return "5–7 yrs";
+    if (years < 11) return "8–10 yrs";
+    return "10+ yrs";
+  };
 
   // ✅ Fetch candidates from backend function
-  const fetchCandidates = async (appliedFilters: any = null) => {
-    const { data: ids, error } = await supabase.rpc(
+  const fetchCandidates = async (filters: any = null) => {
+    const { data: ids, error } = await (supabase as any).rpc(
       "filter_maker_for_employer",
       {
-        p_filter_state: appliedFilters?.state || null,
-        p_filter_suburb_city_postcode:
-          appliedFilters?.citySuburbPostcode || null,
-        p_filter_work_industry_id: appliedFilters?.industryId
-          ? Number(appliedFilters.industryId)
+        p_filter_state: filters?.state || null,
+        p_filter_suburb_city_postcode: filters?.citySuburbPostcode || null,
+        p_filter_work_industry_id: filters?.industryId
+          ? Number(filters.industryId)
           : null,
-        p_filter_work_years_experience:
-          appliedFilters?.yearsExperience || null,
-        p_filter_license_ids: appliedFilters?.licenseId
-          ? [Number(appliedFilters.licenseId)]
+        p_filter_work_years_experience: filters?.yearsExperience || null,
+        p_filter_license_ids: filters?.licenseId
+          ? [Number(filters.licenseId)]
           : null,
       }
     );
@@ -49,89 +60,88 @@ const BrowseCandidates: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       return;
     }
 
-    // Fetch details for candidates we got IDs for
-    const { data: details, error: detailsError } = await supabase
+    const candidateIds = ids.map((row: any) => row.maker_id);
+
+    // Fetch whv_maker basic info
+    const { data: makers } = await supabase
       .from("whv_maker")
-      .select(
-        `
-        user_id,
-        given_name,
-        family_name,
-        state,
-        suburb_city,
-        postcode
-      `
-      )
-      .in(
-        "user_id",
-        ids.map((row: any) => row.maker_id)
-      );
+      .select("user_id, given_name, family_name, state")
+      .in("user_id", candidateIds);
 
-    if (detailsError) {
-      console.error("Error fetching candidate details:", detailsError);
-      return;
-    }
+    // Fetch preferred locations
+    const { data: prefLocs } = await supabase
+      .from("maker_pref_location")
+      .select("user_id, state, suburb_city, postcode")
+      .in("user_id", candidateIds);
 
-    // Fetch industries
+    // Fetch industries + experience dates
     const { data: industriesData } = await supabase
       .from("maker_work_experience")
-      .select(
-        `
-        user_id,
-        industry_id,
-        start_date,
-        end_date,
-        industry:industry(name)
-      `
-      );
+      .select("user_id, industry_id, start_date, end_date, industry(name)")
+      .in("user_id", candidateIds);
 
     // Fetch licenses
     const { data: licensesData } = await supabase
       .from("maker_license")
-      .select(
-        `
-        user_id,
-        license_id,
-        license:license(name)
-      `
-      );
+      .select("user_id, license_id, license(name)")
+      .in("user_id", candidateIds);
 
-    // ✅ Merge all candidate data
-    const merged = details.map((d) => {
-      const candidateIndustries =
-        industriesData
-          ?.filter((i) => i.user_id === d.user_id)
-          .map((i) => i.industry?.name) || [];
+    // ✅ Merge into candidate objects
+    const merged =
+      makers?.map((m) => {
+        const candidateIndustries =
+          industriesData
+            ?.filter((i) => i.user_id === m.user_id)
+            .map((i) => i.industry?.name) || [];
 
-      const candidateLicenses =
-        licensesData
-          ?.filter((l) => l.user_id === d.user_id)
-          .map((l) => l.license?.name) || [];
+        const candidateLicenses =
+          licensesData
+            ?.filter((l) => l.user_id === m.user_id)
+            .map((l) => l.license?.name) || [];
 
-      return {
-        user_id: d.user_id,
-        name: [d.given_name, d.family_name].filter(Boolean).join(" "),
-        state: d.state,
-        suburb_city_postcode: [
-          `${d.suburb_city || ""} (${d.postcode || ""})`,
-        ],
-        industries: candidateIndustries,
-        years_experience: "—", // could be enhanced if needed
-        licenses: candidateLicenses,
-      };
-    });
+        const candidateLocs =
+          prefLocs
+            ?.filter((loc) => loc.user_id === m.user_id)
+            .map((loc) => `${loc.suburb_city} (${loc.postcode})`) || [];
+
+        // 🔑 Work experience calculation
+        const candidateExps =
+          industriesData?.filter((i) => i.user_id === m.user_id) || [];
+        let totalYears = 0;
+        candidateExps.forEach((exp) => {
+          const start = exp.start_date ? new Date(exp.start_date) : null;
+          const end = exp.end_date ? new Date(exp.end_date) : new Date();
+          if (start) {
+            const years =
+              (end.getTime() - start.getTime()) /
+              (1000 * 60 * 60 * 24 * 365.25);
+            totalYears += years;
+          }
+        });
+        const expCategory =
+          totalYears > 0 ? bucketYears(totalYears) : "No experience";
+
+        return {
+          user_id: m.user_id,
+          name: [m.given_name, m.family_name].filter(Boolean).join(" "),
+          state: m.state,
+          suburb_city_postcode: candidateLocs,
+          industries: candidateIndustries,
+          years_experience: expCategory,
+          licenses: candidateLicenses,
+        };
+      }) || [];
 
     setCandidates(merged);
   };
 
-  // Load all candidates by default
   useEffect(() => {
     fetchCandidates();
   }, []);
 
   const handleApplyFilters = (appliedFilters: any) => {
-    setFilters(appliedFilters);
     fetchCandidates(appliedFilters);
+    setShowFilter(false);
   };
 
   return (
@@ -145,9 +155,11 @@ const BrowseCandidates: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <>
           {/* Header */}
           <div className="flex items-center gap-3 p-4 border-b bg-white">
-            <button onClick={onClose}>
-              <ArrowLeft size={24} className="text-gray-600" />
-            </button>
+            {onClose && (
+              <button onClick={onClose}>
+                <ArrowLeft size={24} className="text-gray-600" />
+              </button>
+            )}
             <h1 className="text-lg font-medium text-gray-900">
               Browse Candidates
             </h1>
@@ -177,7 +189,8 @@ const BrowseCandidates: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   >
                     <h2 className="font-semibold text-lg">{c.name}</h2>
                     <p className="text-sm text-gray-600">
-                      {c.suburb_city_postcode.join(", ")} • {c.state}
+                      {c.suburb_city_postcode.join(", ") || "No locations"} •{" "}
+                      {c.state}
                     </p>
                     <p className="text-sm mt-1">
                       <span className="font-medium">Industries:</span>{" "}
@@ -186,10 +199,12 @@ const BrowseCandidates: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         : "—"}
                     </p>
                     <p className="text-sm">
+                      <span className="font-medium">Experience:</span>{" "}
+                      {c.years_experience}
+                    </p>
+                    <p className="text-sm">
                       <span className="font-medium">Licenses:</span>{" "}
-                      {c.licenses.length > 0
-                        ? c.licenses.join(", ")
-                        : "—"}
+                      {c.licenses.length > 0 ? c.licenses.join(", ") : "—"}
                     </p>
                   </div>
                 ))}
