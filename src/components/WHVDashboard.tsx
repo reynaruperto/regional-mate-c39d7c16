@@ -125,13 +125,14 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* View Profile Button */}
+              {/* View Profile Button (same design, renamed) */}
               <div className="flex justify-center mb-8">
                 <button 
                   onClick={() => navigate('/whv/view-profile')} 
-                  className="flex items-center border border-orange-500 text-orange-500 px-5 py-2 rounded-xl text-sm hover:bg-orange-50 transition-colors"
+                  className="flex items-center bg-gray-200 px-6 py-3 rounded-2xl hover:bg-gray-300 transition-colors"
                 >
-                  <span className="font-medium">View Profile</span>
+                  <Edit size={16} className="mr-2 text-gray-700" />
+                  <span className="text-gray-700 font-medium">View Profile</span>
                 </button>
               </div>
 
