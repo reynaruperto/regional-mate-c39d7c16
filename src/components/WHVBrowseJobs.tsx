@@ -50,15 +50,28 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs with job_status = active
+  // ✅ Fetch jobs with job_status = active + industry role join
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: jobsData, error } = await supabase
         .from("job")
-        .select("*")
-        .filter("job_status", "eq", "active"); // ✅ enum-safe filter
+        .select(`
+          job_id,
+          state,
+          suburb_city,
+          postcode,
+          salary_range,
+          employment_type,
+          start_date,
+          description,
+          industry_role (
+            role,
+            industry ( name )
+          )
+        `)
+        .filter("job_status", "eq", "active");
 
-      console.log("DEBUG jobsData:", jobsData, "error:", error);
+      console.log("DEBUG jobsData with roles:", jobsData, "error:", error);
 
       if (error) {
         console.error("Error fetching jobs:", error);
@@ -66,13 +79,13 @@ const WHVBrowseJobs: React.FC = () => {
       }
       if (!jobsData) return;
 
-      // Minimal mapping
+      // ✅ Map with real roles/industries
       const mapped: JobCard[] = jobsData.map((job: any) => ({
         job_id: job.job_id,
         company_name: "Unknown Employer", // placeholder
         profile_photo: "/placeholder.png",
-        role: "Unknown Role",
-        industry: "Unknown Industry",
+        role: job.industry_role?.role || "Unknown Role",
+        industry: job.industry_role?.industry?.name || "Unknown Industry",
         state: job.state,
         suburb_city: job.suburb_city,
         postcode: job.postcode,
