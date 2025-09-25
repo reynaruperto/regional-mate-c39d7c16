@@ -244,6 +244,9 @@ const EditBusinessProfile: React.FC = () => {
                     <Label>ABN *</Label>
                     <Input {...register('abn')} disabled className="h-12 rounded-xl bg-gray-100" />
                     {errors.abn && <p className="text-red-500 text-sm">{errors.abn.message}</p>}
+                    <p className="text-xs text-gray-500 mt-1">
+                      ABN cannot be changed. Please contact the RegionalMate team if you need to update it.
+                    </p>
                   </div>
                   {/* Website */}
                   <div>
