@@ -20,6 +20,7 @@ interface BrowseCandidatesProps {
 }
 
 const BrowseCandidates: React.FC<BrowseCandidatesProps> = ({ onClose }) => {
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [showFilter, setShowFilter] = useState(false);
 
@@ -33,114 +34,127 @@ const BrowseCandidates: React.FC<BrowseCandidatesProps> = ({ onClose }) => {
     return "10+ yrs";
   };
 
-  // ✅ Fetch candidates from backend function
-  const fetchCandidates = async (filters: any = null) => {
-    const { data: ids, error } = await (supabase as any).rpc(
-      "filter_maker_for_employer",
-      {
-        p_filter_state: filters?.state || null,
-        p_filter_suburb_city_postcode: filters?.citySuburbPostcode || null,
-        p_filter_work_industry_id: filters?.industryId
-          ? Number(filters.industryId)
-          : null,
-        p_filter_work_years_experience: filters?.yearsExperience || null,
-        p_filter_license_ids: filters?.licenseId
-          ? [Number(filters.licenseId)]
-          : null,
-      }
-    );
+  // ✅ Fetch all visible candidates once
+  const fetchAllCandidates = async () => {
+    const { data: makers, error } = await supabase
+      .from("whv_maker")
+      .select("user_id, given_name, family_name, state, is_profile_visible")
+      .eq("is_profile_visible", true);
 
     if (error) {
       console.error("Error fetching candidates:", error);
       return;
     }
+    if (!makers) return;
 
-    if (!ids || ids.length === 0) {
-      setCandidates([]);
-      return;
-    }
+    const candidateIds = makers.map((m) => m.user_id);
 
-    const candidateIds = ids.map((row: any) => row.maker_id);
-
-    // Fetch whv_maker basic info
-    const { data: makers } = await supabase
-      .from("whv_maker")
-      .select("user_id, given_name, family_name, state")
-      .in("user_id", candidateIds);
-
-    // Fetch preferred locations
+    // Preferred locations
     const { data: prefLocs } = await supabase
       .from("maker_pref_location")
       .select("user_id, state, suburb_city, postcode")
       .in("user_id", candidateIds);
 
-    // Fetch industries + experience dates
+    // Work experience
     const { data: industriesData } = await supabase
       .from("maker_work_experience")
-      .select("user_id, industry_id, start_date, end_date, industry(name)")
+      .select("user_id, start_date, end_date, industry(name)")
       .in("user_id", candidateIds);
 
-    // Fetch licenses
+    // Licenses
     const { data: licensesData } = await supabase
       .from("maker_license")
-      .select("user_id, license_id, license(name)")
+      .select("user_id, license(name)")
       .in("user_id", candidateIds);
 
     // ✅ Merge into candidate objects
-    const merged =
-      makers?.map((m) => {
-        const candidateIndustries =
-          industriesData
-            ?.filter((i) => i.user_id === m.user_id)
-            .map((i) => i.industry?.name) || [];
+    const merged: Candidate[] = makers.map((m) => {
+      const candidateIndustries =
+        industriesData
+          ?.filter((i) => i.user_id === m.user_id)
+          .map((i) => i.industry?.name) || [];
 
-        const candidateLicenses =
-          licensesData
-            ?.filter((l) => l.user_id === m.user_id)
-            .map((l) => l.license?.name) || [];
+      const candidateLicenses =
+        licensesData
+          ?.filter((l) => l.user_id === m.user_id)
+          .map((l) => l.license?.name) || [];
 
-        const candidateLocs =
-          prefLocs
-            ?.filter((loc) => loc.user_id === m.user_id)
-            .map((loc) => `${loc.suburb_city} (${loc.postcode})`) || [];
+      const candidateLocs =
+        prefLocs
+          ?.filter((loc) => loc.user_id === m.user_id)
+          .map((loc) => `${loc.suburb_city} (${loc.postcode})`) || [];
 
-        // 🔑 Work experience calculation
-        const candidateExps =
-          industriesData?.filter((i) => i.user_id === m.user_id) || [];
-        let totalYears = 0;
-        candidateExps.forEach((exp) => {
-          const start = exp.start_date ? new Date(exp.start_date) : null;
-          const end = exp.end_date ? new Date(exp.end_date) : new Date();
-          if (start) {
-            const years =
-              (end.getTime() - start.getTime()) /
-              (1000 * 60 * 60 * 24 * 365.25);
-            totalYears += years;
-          }
-        });
-        const expCategory =
-          totalYears > 0 ? bucketYears(totalYears) : "No experience";
+      // Work experience calc
+      const candidateExps =
+        industriesData?.filter((i) => i.user_id === m.user_id) || [];
+      let totalYears = 0;
+      candidateExps.forEach((exp) => {
+        const start = exp.start_date ? new Date(exp.start_date) : null;
+        const end = exp.end_date ? new Date(exp.end_date) : new Date();
+        if (start) {
+          const years =
+            (end.getTime() - start.getTime()) /
+            (1000 * 60 * 60 * 24 * 365.25);
+          totalYears += years;
+        }
+      });
+      const expCategory =
+        totalYears > 0 ? bucketYears(totalYears) : "No experience";
 
-        return {
-          user_id: m.user_id,
-          name: [m.given_name, m.family_name].filter(Boolean).join(" "),
-          state: m.state,
-          suburb_city_postcode: candidateLocs,
-          industries: candidateIndustries,
-          years_experience: expCategory,
-          licenses: candidateLicenses,
-        };
-      }) || [];
+      return {
+        user_id: m.user_id,
+        name: [m.given_name, m.family_name].filter(Boolean).join(" "),
+        state: m.state,
+        suburb_city_postcode: candidateLocs,
+        industries: candidateIndustries,
+        years_experience: expCategory,
+        licenses: candidateLicenses,
+      };
+    });
 
+    setAllCandidates(merged);
     setCandidates(merged);
   };
 
   useEffect(() => {
-    fetchCandidates();
+    fetchAllCandidates();
   }, []);
 
-  const handleApplyFilters = (appliedFilters: any) => {
-    fetchCandidates(appliedFilters);
+  // ✅ Apply filters on frontend only
+  const handleApplyFilters = (filters: any) => {
+    let filtered = [...allCandidates];
+
+    if (filters.state) {
+      filtered = filtered.filter((c) => c.state === filters.state);
+    }
+
+    if (filters.citySuburbPostcode) {
+      filtered = filtered.filter((c) =>
+        c.suburb_city_postcode.some((loc) =>
+          loc.toLowerCase().includes(filters.citySuburbPostcode.toLowerCase())
+        )
+      );
+    }
+
+    if (filters.industryId) {
+      filtered = filtered.filter((c) =>
+        c.industries.includes(filters.industryName) // match by name for now
+      );
+    }
+
+    if (filters.yearsExperience) {
+      filtered = filtered.filter(
+        (c) => c.years_experience === filters.yearsExperience
+      );
+    }
+
+    if (filters.licenseId) {
+      filtered = filtered.filter((c) =>
+        c.licenses.includes(filters.licenseName)
+      );
+    }
+
+    setCandidates(filtered);
     setShowFilter(false);
   };
 
