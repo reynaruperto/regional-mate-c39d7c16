@@ -94,7 +94,7 @@ const WHVBrowseJobs: React.FC = () => {
       }
 
       // 4️⃣ Fetch jobs only from eligible industries
-      const { data: jobsData, error } = await supabase
+      const { data: jobsData, error } = await (supabase as any)
         .from("job")
         .select(`
           job_id,
@@ -114,9 +114,9 @@ const WHVBrowseJobs: React.FC = () => {
             company_name,
             profile_photo
           )
-        ` as any)
+        `)
         .eq("job_status", "active")
-        .in("industry_role.industry_id", eligibleIds as any);
+        .in("industry_role.industry_id", eligibleIds);
 
       if (error) {
         console.error("Error fetching jobs:", error);
@@ -135,9 +135,7 @@ const WHVBrowseJobs: React.FC = () => {
 
       const mapped: JobCard[] = jobsData.map((job: any) => {
         const photoUrl = job.employer?.profile_photo
-          ? supabase.storage
-              .from("profile_photo")
-              .getPublicUrl(job.employer.profile_photo).data.publicUrl
+          ? supabase.storage.from("profile_photo").getPublicUrl(job.employer.profile_photo).data.publicUrl
           : "/placeholder.png";
 
         return {
