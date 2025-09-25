@@ -20,6 +20,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   const [industryPrefs, setIndustryPrefs] = useState<string[]>([]);
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
+  const [workExperiences, setWorkExperiences] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [employerId, setEmployerId] = useState<string | null>(null);
@@ -70,6 +71,15 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
         });
         setLocationPreferences(Object.entries(grouped));
       }
+
+      // Work Experiences
+      const { data: expRows } = await supabase
+        .from("maker_work_experience")
+        .select("position, company, industry(name), location, start_date, end_date, job_description")
+        .eq("user_id", candidateId)
+        .order("start_date", { ascending: false });
+
+      setWorkExperiences(expRows || []);
 
       // Licenses
       const { data: licenseRows } = await supabase
@@ -151,6 +161,10 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       </div>
     );
   }
+
+  // Helper: format date to "MMM YYYY"
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -246,6 +260,49 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
                   <p className="text-sm text-gray-500">
                     No location preferences set
                   </p>
+                )}
+              </div>
+
+              {/* Work Experience */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Briefcase size={16} className="text-orange-500 mr-2" />
+                  Work Experience
+                </h3>
+                {workExperiences.length > 0 ? (
+                  <ul className="space-y-3 text-sm text-gray-700">
+                    {workExperiences.map((exp, i) => {
+                      const start = new Date(exp.start_date);
+                      const end = exp.end_date ? new Date(exp.end_date) : new Date();
+                      const years =
+                        (end.getTime() - start.getTime()) /
+                        (1000 * 60 * 60 * 24 * 365);
+
+                      let yearsCategory = "";
+                      if (years < 1) yearsCategory = "<1 yr";
+                      else if (years < 3) yearsCategory = "1–2 yrs";
+                      else if (years < 5) yearsCategory = "3–4 yrs";
+                      else if (years < 8) yearsCategory = "5–7 yrs";
+                      else if (years < 11) yearsCategory = "8–10 yrs";
+                      else yearsCategory = "10+ yrs";
+
+                      return (
+                        <li key={i} className="border-b last:border-0 pb-2">
+                          <div>
+                            <span className="font-medium">{exp.position}</span>{" "}
+                            in {exp.industry?.name || "N/A"} at {exp.company || "N/A"} —{" "}
+                            <span className="text-gray-500">{yearsCategory}</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {formatDate(start)} –{" "}
+                            {exp.end_date ? formatDate(end) : "Present"}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No work experience added</p>
                 )}
               </div>
 
