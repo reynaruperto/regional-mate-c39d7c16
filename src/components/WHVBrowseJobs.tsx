@@ -83,22 +83,35 @@ const WHVBrowseJobs: React.FC = () => {
 
       setVisaStage(visa?.visa_stage?.stage || "");
 
-      // 3️⃣ Get eligible industry IDs
-      const { data: eligibility } = await supabase
+      console.log("➡️ WHV Nationality:", maker.nationality);
+      console.log("➡️ Visa Stage ID:", visa?.stage_id);
+      console.log("➡️ Visa Stage Label:", visa?.visa_stage?.stage);
+
+      // 3️⃣ Get eligible industry IDs (match country + stage_id)
+      const { data: eligibility, error: eligError } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id")
-        .eq("visa_country", maker.nationality)
-        .eq("visa_stage", visa?.visa_stage?.stage);
+        .select("industry_id, industry")
+        .eq("country", maker.nationality)
+        .eq("stage_id", visa?.stage_id);
+
+      if (eligError) {
+        console.error("❌ Error fetching eligibility:", eligError);
+      }
+
+      console.log("➡️ Eligibility Results:", eligibility);
 
       const eligibleIds = eligibility?.map((e) => e.industry_id) || [];
       if (eligibleIds.length === 0) {
+        console.warn("⚠️ No eligible industries for:", maker.nationality, visa?.stage_id);
         setJobs([]);
         setAllJobs([]);
         return;
       }
 
+      console.log("✅ Eligible Industry IDs:", eligibleIds);
+
       // 4️⃣ Fetch jobs in eligible industries
-      const { data: jobsData } = await supabase
+      const { data: jobsData, error: jobsError } = await supabase
         .from("job")
         .select(`
           job_id,
@@ -122,11 +135,15 @@ const WHVBrowseJobs: React.FC = () => {
         .filter("job_status", "eq", "active")
         .in("industry_role.industry_id", eligibleIds);
 
+      if (jobsError) {
+        console.error("❌ Error fetching jobs:", jobsError);
+      }
+
+      console.log("➡️ Jobs fetched from DB:", jobsData);
+
       const mapped: JobCard[] = (jobsData || []).map((job: any) => {
         const photoUrl = job.employer?.profile_photo
-          ? supabase.storage
-              .from("profile_photo")
-              .getPublicUrl(job.employer.profile_photo).data.publicUrl
+          ? supabase.storage.from("profile_photo").getPublicUrl(job.employer.profile_photo).data.publicUrl
           : "/placeholder.png";
 
         return {
@@ -146,6 +163,8 @@ const WHVBrowseJobs: React.FC = () => {
           isLiked: false,
         };
       });
+
+      console.log("✅ Jobs mapped to frontend:", mapped);
 
       setJobs(mapped);
       setAllJobs(mapped);
