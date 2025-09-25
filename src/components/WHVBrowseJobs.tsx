@@ -50,13 +50,13 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Debug: Fetch only jobs table (no joins yet)
+  // ✅ Fetch jobs with job_status = active
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: jobsData, error } = await supabase
         .from("job")
         .select("*")
-        .eq("job_status", "active");
+        .filter("job_status", "eq", "active"); // ✅ enum-safe filter
 
       console.log("DEBUG jobsData:", jobsData, "error:", error);
 
