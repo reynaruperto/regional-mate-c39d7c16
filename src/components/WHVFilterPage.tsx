@@ -21,33 +21,40 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
     state: "",
     citySuburbPostcode: "",
     industry: "",
-    yearsExperience: "",
-    license: "",
+    industryRole: "",
+    startDate: "",
+    payRange: "",
+    facilities: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
-  const [yearsExperienceOptions, setYearsExperienceOptions] = useState<string[]>([]);
+  const [industryRoles, setIndustryRoles] = useState<string[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
+
+  // Hardcoded options
+  const startDateOptions = ["Within 2 weeks", "Within 4 weeks", "Within 8 weeks", "12+ weeks"];
+  const payRangeOptions = ["< $20/hr", "$20–$30/hr", "$30–$40/hr", "$40+/hr"];
+  const facilitiesOptions = ["Housing", "Transport", "Meals", "Training"];
 
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        // Fetch states
+        // States
         const { data: stateData } = await supabase.rpc("get_enum_values", { enum_name: "state" });
         setStates(stateData || []);
 
-        // Fetch industries
+        // Industries
         const { data: industryData } = await supabase.from("industry").select("name");
-        setIndustries(industryData?.map(i => i.name) || []);
+        setIndustries(industryData?.map((i) => i.name) || []);
 
-        // Fetch years experience options
-        const { data: yearsData } = await supabase.rpc("get_years_experience_enum");
-        setYearsExperienceOptions(yearsData || []);
+        // Industry roles
+        const { data: roleData } = await supabase.from("industry_role").select("role");
+        setIndustryRoles(roleData?.map((r) => r.role) || []);
 
-        // Fetch licenses
+        // Licenses (not requested but leaving for future)
         const { data: licenseData } = await supabase.from("license").select("name");
-        setLicenses(licenseData?.map(l => l.name) || []);
+        setLicenses(licenseData?.map((l) => l.name) || []);
       } catch (error) {
         console.error("Error fetching filter options:", error);
       }
@@ -57,7 +64,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
   }, []);
 
   const handleFilterChange = (key: string, value: string) => {
-    setSelectedFilters(prev => ({ ...prev, [key]: value }));
+    setSelectedFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleApplyFilters = () => {
@@ -69,8 +76,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
       state: "",
       citySuburbPostcode: "",
       industry: "",
-      yearsExperience: "",
-      license: "",
+      industryRole: "",
+      startDate: "",
+      payRange: "",
+      facilities: "",
     };
     setSelectedFilters(clearedFilters);
     onApplyFilters(clearedFilters);
@@ -84,23 +93,21 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4">
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                  onClick={onClose}
-                >
-                  <ArrowLeft className="w-6 h-6 text-gray-700" />
-                </Button>
-                <h1 className="text-lg font-semibold text-gray-900">Filter Jobs</h1>
-              </div>
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={onClose}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">Filter Jobs</h1>
             </div>
 
-            {/* Filter Content */}
+            {/* Filters */}
             <div className="flex-1 px-6 overflow-y-auto space-y-6">
-              {/* State Filter */}
+              {/* State */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                 <Select value={selectedFilters.state} onValueChange={(value) => handleFilterChange("state", value)}>
@@ -117,7 +124,19 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
                 </Select>
               </div>
 
-              {/* Industry Filter */}
+              {/* City / Suburb / Postcode */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">City / Suburb / Postcode</label>
+                <input
+                  type="text"
+                  value={selectedFilters.citySuburbPostcode}
+                  onChange={(e) => handleFilterChange("citySuburbPostcode", e.target.value)}
+                  placeholder="Enter city, suburb, or postcode"
+                  className="w-full h-12 rounded-xl border border-gray-300 px-3"
+                />
+              </div>
+
+              {/* Industry */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
                 <Select value={selectedFilters.industry} onValueChange={(value) => handleFilterChange("industry", value)}>
@@ -134,34 +153,68 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
                 </Select>
               </div>
 
-              {/* Years Experience Filter */}
+              {/* Industry Role */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Years of Experience</label>
-                <Select value={selectedFilters.yearsExperience} onValueChange={(value) => handleFilterChange("yearsExperience", value)}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                <Select value={selectedFilters.industryRole} onValueChange={(value) => handleFilterChange("industryRole", value)}>
                   <SelectTrigger className="w-full h-12 rounded-xl">
-                    <SelectValue placeholder="Select experience level" />
+                    <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {yearsExperienceOptions.map((years) => (
-                      <SelectItem key={years} value={years}>
-                        {years}
+                    {industryRoles.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* License Filter */}
+              {/* Start Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">License</label>
-                <Select value={selectedFilters.license} onValueChange={(value) => handleFilterChange("license", value)}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                <Select value={selectedFilters.startDate} onValueChange={(value) => handleFilterChange("startDate", value)}>
                   <SelectTrigger className="w-full h-12 rounded-xl">
-                    <SelectValue placeholder="Select license" />
+                    <SelectValue placeholder="Select availability" />
                   </SelectTrigger>
                   <SelectContent>
-                    {licenses.map((license) => (
-                      <SelectItem key={license} value={license}>
-                        {license}
+                    {startDateOptions.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Pay Range */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Pay Range</label>
+                <Select value={selectedFilters.payRange} onValueChange={(value) => handleFilterChange("payRange", value)}>
+                  <SelectTrigger className="w-full h-12 rounded-xl">
+                    <SelectValue placeholder="Select pay range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {payRangeOptions.map((range) => (
+                      <SelectItem key={range} value={range}>
+                        {range}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Facilities */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Employer Facilities</label>
+                <Select value={selectedFilters.facilities} onValueChange={(value) => handleFilterChange("facilities", value)}>
+                  <SelectTrigger className="w-full h-12 rounded-xl">
+                    <SelectValue placeholder="Select facility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {facilitiesOptions.map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {f}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -171,17 +224,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
 
             {/* Actions */}
             <div className="px-6 pb-8 space-y-3">
-              <Button
-                onClick={handleApplyFilters}
-                className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl"
-              >
+              <Button onClick={handleApplyFilters} className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl">
                 Apply Filters
               </Button>
-              <Button
-                onClick={handleClearFilters}
-                variant="outline"
-                className="w-full h-12 rounded-xl"
-              >
+              <Button onClick={handleClearFilters} variant="outline" className="w-full h-12 rounded-xl">
                 Clear All Filters
               </Button>
             </div>
