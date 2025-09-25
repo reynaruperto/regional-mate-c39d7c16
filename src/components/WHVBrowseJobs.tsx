@@ -1,6 +1,7 @@
 // src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,12 +88,29 @@ const WHVBrowseJobs: React.FC = () => {
       console.log("➡️ Visa Stage ID:", visa?.stage_id);
       console.log("➡️ Visa Stage Label:", visa?.visa_stage?.stage);
 
-      // 3️⃣ Get eligible industry IDs (match country + stage_id)
-      const { data: eligibility, error: eligError } = await supabase
-        .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id")
-        .eq("country", maker.nationality)
-        .eq("stage_id", visa?.stage_id);
+      // 3️⃣ Get eligible industry IDs (match country + stage_id)  
+      if (!visa?.stage_id) {
+        console.warn("⚠️ No visa stage found");
+        setJobs([]);
+        setAllJobs([]);
+        return;
+      }
+
+      // Bypass TypeScript issues with manual query
+      let eligibility: any = null;
+      let eligError: any = null;
+      
+      try {
+        const { data, error } = await (supabase as any)
+          .from("mvw_eligibility_visa_country_stage_industry")
+          .select("industry_id")
+          .eq("country", maker.nationality)
+          .eq("stage_id", visa.stage_id);
+        eligibility = data;
+        eligError = error;
+      } catch (err) {
+        eligError = err;
+      }
 
       if (eligError) {
         console.error("❌ Error fetching eligibility:", eligError);
@@ -100,9 +118,9 @@ const WHVBrowseJobs: React.FC = () => {
 
       console.log("➡️ Eligibility Results:", eligibility);
 
-      const eligibleIds = eligibility?.map((e) => e.industry_id) || [];
+      const eligibleIds: number[] = eligibility?.map((e) => e.industry_id) || [];
       if (eligibleIds.length === 0) {
-        console.warn("⚠️ No eligible industries for:", maker.nationality, visa?.stage_id);
+        console.warn("⚠️ No eligible industries for:", maker.nationality, visa.stage_id);
         setJobs([]);
         setAllJobs([]);
         return;
@@ -110,11 +128,10 @@ const WHVBrowseJobs: React.FC = () => {
 
       console.log("✅ Eligible Industry IDs:", eligibleIds);
 
-      // 4️⃣ Fetch jobs in eligible industries (cast select as any to avoid TS2589)
+      // 4️⃣ Fetch jobs in eligible industries
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select(
-          `
+        .select(`
           job_id,
           state,
           suburb_city,
@@ -132,10 +149,9 @@ const WHVBrowseJobs: React.FC = () => {
             company_name,
             profile_photo
           )
-        ` as any
-        )
-        .filter("job_status", "eq", "active")
-        .in("industry_role.industry_id", eligibleIds as any);
+        `)
+        .eq("job_status", "active")
+        .in("industry_role.industry_id", eligibleIds);
 
       if (jobsError) {
         console.error("❌ Error fetching jobs:", jobsError);
