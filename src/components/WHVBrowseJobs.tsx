@@ -1,6 +1,5 @@
 // src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,10 @@ interface JobCard {
 }
 
 const WHVBrowseJobs: React.FC = () => {
-  const navigate = useNavigate();
+  // ✅ Safe navigation without Router
+  const navigate = (url: string) => {
+    window.location.href = url;
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
