@@ -17,7 +17,7 @@ interface JobCard {
   industry: string;
   state: string;
   suburb_city: string;
-  postcode: string;
+  postcode: string | number;
   salary_range: string;
   employment_type: string;
   start_date?: string;
@@ -46,7 +46,7 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs + likes + facilities
+  // ✅ Fetch jobs always (likes only if logged in)
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: jobsData, error: jobsError } = await supabase
@@ -84,7 +84,7 @@ const WHVBrowseJobs: React.FC = () => {
       }
       if (!jobsData) return;
 
-      // ✅ Fetch likes for this WHV
+      // ✅ Fetch likes for this WHV (optional)
       let likedIds: number[] = [];
       if (whvId) {
         const { data: likes } = await supabase
@@ -127,10 +127,10 @@ const WHVBrowseJobs: React.FC = () => {
       setAllJobs(mapped);
     };
 
-    if (whvId) fetchJobs();
+    fetchJobs();
   }, [whvId]);
 
-  // 🔎 Search filter
+  // 🔎 Search + Filters
   useEffect(() => {
     let list = [...allJobs];
 
@@ -147,7 +147,6 @@ const WHVBrowseJobs: React.FC = () => {
       );
     }
 
-    // ✅ Apply filters
     if (filters.state) {
       list = list.filter((j) => j.state?.toLowerCase() === filters.state.toLowerCase());
     }
@@ -207,7 +206,7 @@ const WHVBrowseJobs: React.FC = () => {
     setJobs(list);
   }, [searchQuery, filters, allJobs]);
 
-  // ✅ Like/unlike
+  // ✅ Like/unlike logic unchanged
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -281,6 +280,26 @@ const WHVBrowseJobs: React.FC = () => {
               >
                 <Filter className="text-gray-400" size={20} />
               </button>
+            </div>
+
+            {/* Active Filter Tags */}
+            <div className="flex flex-wrap gap-2 mb-4 px-6">
+              {Object.entries(filters)
+                .filter(([_, value]) => value && value !== "")
+                .map(([key, value]) => (
+                  <div
+                    key={`filter-${key}`}
+                    className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
+                  >
+                    <span className="text-sm text-gray-700">{String(value)}</span>
+                    <button
+                      onClick={() => setFilters({ ...filters, [key]: "" })}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
             </div>
 
             {/* Jobs List */}
