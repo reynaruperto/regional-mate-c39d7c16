@@ -28,7 +28,6 @@ interface JobCard {
 }
 
 const WHVBrowseJobs: React.FC = () => {
-  // ✅ Safe navigation without Router
   const navigate = (url: string) => {
     window.location.href = url;
   };
@@ -51,78 +50,39 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch all active jobs + facilities
+  // ✅ Debug: Fetch only jobs table (no joins yet)
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data: jobsData, error: jobsError } = await supabase
+      const { data: jobsData, error } = await supabase
         .from("job")
-        .select(`
-          job_id,
-          user_id,
-          job_status,
-          state,
-          suburb_city,
-          postcode,
-          salary_range,
-          employment_type,
-          start_date,
-          description,
-          industry_role ( role, industry ( name ) ),
-          employer (
-            company_name,
-            profile_photo,
-            employer_facility (
-              facility_id,
-              facility ( name )
-            )
-          )
-        `)
+        .select("*")
         .eq("job_status", "active");
 
-      if (jobsError) {
-        console.error("Error fetching jobs:", jobsError);
+      console.log("DEBUG jobsData:", jobsData, "error:", error);
+
+      if (error) {
+        console.error("Error fetching jobs:", error);
         return;
       }
       if (!jobsData) return;
 
-      // ✅ Fetch likes for this WHV
-      let likedIds: number[] = [];
-      if (whvId) {
-        const { data: likes } = await supabase
-          .from("likes")
-          .select("liked_job_post_id")
-          .eq("liker_id", whvId)
-          .eq("liker_type", "whv");
-
-        likedIds = likes?.map((l) => l.liked_job_post_id) || [];
-      }
-
-      // ✅ Map jobs safely (with facilities grouped)
-      const mapped: JobCard[] = jobsData.map((job: any) => {
-        const facilities =
-          job.employer?.employer_facility?.map((ef: any) => ef.facility?.name) || [];
-
-        const photoUrl = job.employer?.profile_photo
-          ? supabase.storage.from("profile_photo").getPublicUrl(job.employer.profile_photo).data.publicUrl
-          : "/placeholder.png";
-
-        return {
-          job_id: job.job_id,
-          company_name: job.employer?.company_name || "Unknown Employer",
-          profile_photo: photoUrl,
-          role: job.industry_role?.role || "Unknown Role",
-          industry: job.industry_role?.industry?.name || "Unknown Industry",
-          state: job.state,
-          suburb_city: job.suburb_city,
-          postcode: job.postcode,
-          salary_range: job.salary_range || "Rate not specified",
-          employment_type: job.employment_type || "N/A",
-          start_date: job.start_date,
-          description: job.description || "",
-          facilities,
-          isLiked: likedIds.includes(job.job_id),
-        };
-      });
+      // Minimal mapping
+      const mapped: JobCard[] = jobsData.map((job: any) => ({
+        job_id: job.job_id,
+        company_name: "Unknown Employer", // placeholder
+        profile_photo: "/placeholder.png",
+        role: "Unknown Role",
+        industry: "Unknown Industry",
+        state: job.state,
+        suburb_city: job.suburb_city,
+        postcode: job.postcode,
+        salary_range: job.salary_range || "Rate not specified",
+        employment_type: job.employment_type || "N/A",
+        start_date: job.start_date,
+        description: job.description || "",
+        facilities: [],
+        isLiked: false,
+      }));
 
       setJobs(mapped);
       setAllJobs(mapped);
@@ -161,7 +121,7 @@ const WHVBrowseJobs: React.FC = () => {
     setJobs(list);
   }, [searchQuery, filters, allJobs]);
 
-  // ✅ Like/unlike (same as before)
+  // ✅ Like/unlike (kept but won’t run until we add likes back)
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -260,11 +220,6 @@ const WHVBrowseJobs: React.FC = () => {
                           <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                             💰 {job.salary_range}
                           </span>
-                          {job.facilities.map((f) => (
-                            <span key={f} className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded-full">
-                              {f}
-                            </span>
-                          ))}
                         </div>
 
                         <p className="text-sm text-gray-700 mt-2 line-clamp-2">
