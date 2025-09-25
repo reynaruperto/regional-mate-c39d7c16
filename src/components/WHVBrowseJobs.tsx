@@ -50,7 +50,7 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs with job_status = active + industry role join
+  // ✅ Fetch jobs with employer join
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: jobsData, error } = await supabase
@@ -67,11 +67,15 @@ const WHVBrowseJobs: React.FC = () => {
           industry_role (
             role,
             industry ( name )
+          ),
+          employer (
+            company_name,
+            profile_photo
           )
         `)
         .filter("job_status", "eq", "active");
 
-      console.log("DEBUG jobsData with roles:", jobsData, "error:", error);
+      console.log("DEBUG jobsData with employer:", jobsData, "error:", error);
 
       if (error) {
         console.error("Error fetching jobs:", error);
@@ -79,23 +83,30 @@ const WHVBrowseJobs: React.FC = () => {
       }
       if (!jobsData) return;
 
-      // ✅ Map with real roles/industries
-      const mapped: JobCard[] = jobsData.map((job: any) => ({
-        job_id: job.job_id,
-        company_name: "Unknown Employer", // placeholder
-        profile_photo: "/placeholder.png",
-        role: job.industry_role?.role || "Unknown Role",
-        industry: job.industry_role?.industry?.name || "Unknown Industry",
-        state: job.state,
-        suburb_city: job.suburb_city,
-        postcode: job.postcode,
-        salary_range: job.salary_range || "Rate not specified",
-        employment_type: job.employment_type || "N/A",
-        start_date: job.start_date,
-        description: job.description || "",
-        facilities: [],
-        isLiked: false,
-      }));
+      const mapped: JobCard[] = jobsData.map((job: any) => {
+        const photoUrl = job.employer?.profile_photo
+          ? supabase.storage
+              .from("profile_photo")
+              .getPublicUrl(job.employer.profile_photo).data.publicUrl
+          : "/placeholder.png";
+
+        return {
+          job_id: job.job_id,
+          company_name: job.employer?.company_name || "Unknown Employer",
+          profile_photo: photoUrl,
+          role: job.industry_role?.role || "Unknown Role",
+          industry: job.industry_role?.industry?.name || "Unknown Industry",
+          state: job.state,
+          suburb_city: job.suburb_city,
+          postcode: job.postcode,
+          salary_range: job.salary_range || "Rate not specified",
+          employment_type: job.employment_type || "N/A",
+          start_date: job.start_date,
+          description: job.description || "",
+          facilities: [],
+          isLiked: false,
+        };
+      });
 
       setJobs(mapped);
       setAllJobs(mapped);
