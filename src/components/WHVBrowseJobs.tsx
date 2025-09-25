@@ -1,13 +1,5 @@
 // src/pages/WHV/WHVBrowseJobs.tsx
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import BottomNavigation from "@/components/BottomNavigation";
-import WHVFilterPage from "@/components/WHVFilterPage";
-import LikeConfirmationModal from "@/components/LikeConfirmationModal";
-import { supabase } from "@/integrations/supabase/client";
+// ...imports stay the same
 
 interface JobCard {
   job_id: number;
@@ -22,6 +14,7 @@ interface JobCard {
   employment_type: string;
   start_date?: string;
   description?: string;
+  facilities: string[];
   isLiked?: boolean;
 }
 
@@ -45,7 +38,7 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch all active jobs
+  // ✅ Fetch all active jobs + facilities
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: jobsData, error: jobsError } = await supabase
@@ -62,7 +55,14 @@ const WHVBrowseJobs: React.FC = () => {
           start_date,
           description,
           industry_role ( role, industry ( name ) ),
-          employer ( company_name, profile_photo )
+          employer (
+            company_name,
+            profile_photo,
+            employer_facility (
+              facility_id,
+              facility ( name )
+            )
+          )
         `)
         .eq("job_status", "active");
 
@@ -84,8 +84,11 @@ const WHVBrowseJobs: React.FC = () => {
         likedIds = likes?.map((l) => l.liked_job_post_id) || [];
       }
 
-      // ✅ Map jobs safely (with fallbacks)
+      // ✅ Map jobs safely (with facilities grouped)
       const mapped: JobCard[] = jobsData.map((job: any) => {
+        const facilities =
+          job.employer?.employer_facility?.map((ef: any) => ef.facility?.name) || [];
+
         const photoUrl = job.employer?.profile_photo
           ? supabase.storage.from("profile_photo").getPublicUrl(job.employer.profile_photo).data.publicUrl
           : "/placeholder.png";
@@ -103,6 +106,7 @@ const WHVBrowseJobs: React.FC = () => {
           employment_type: job.employment_type || "N/A",
           start_date: job.start_date,
           description: job.description || "",
+          facilities,
           isLiked: likedIds.includes(job.job_id),
         };
       });
@@ -131,15 +135,20 @@ const WHVBrowseJobs: React.FC = () => {
       );
     }
 
-    // Filters (optional to extend later)
     if (filters.state) {
       list = list.filter((j) => j.state?.toLowerCase() === filters.state.toLowerCase());
+    }
+
+    if (filters.facility) {
+      list = list.filter((j) =>
+        j.facilities?.some((f) => f.toLowerCase() === filters.facility.toLowerCase())
+      );
     }
 
     setJobs(list);
   }, [searchQuery, filters, allJobs]);
 
-  // ✅ Like/unlike
+  // ✅ Like/unlike (same as before)
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -238,6 +247,11 @@ const WHVBrowseJobs: React.FC = () => {
                           <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                             💰 {job.salary_range}
                           </span>
+                          {job.facilities.map((f) => (
+                            <span key={f} className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded-full">
+                              {f}
+                            </span>
+                          ))}
                         </div>
 
                         <p className="text-sm text-gray-700 mt-2 line-clamp-2">
