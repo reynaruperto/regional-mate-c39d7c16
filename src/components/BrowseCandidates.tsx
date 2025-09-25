@@ -402,12 +402,12 @@ const BrowseCandidates: React.FC = () => {
                             View Profile
                           </Button>
                           <button
-                            onClick={() => console.log('Like candidate:', candidate.user_id)}
+                            onClick={() => handleLikeCandidate(candidate.user_id)}
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
                               size={20}
-                              className="text-orange-500"
+                              className={candidate.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         </div>

@@ -39,7 +39,7 @@ import WHVWorkExperience from "./pages/WHVWorkExperience";
 import WHVPhotoUpload from "./pages/WHVPhotoUpload";
 import WHVAccountConfirmation from "./pages/WHVAccountConfirmation";
 import WHVDashboard from "./pages/WHVDashboard";
-import WHVViewProfile from "./pages/WHVViewProfile";
+import WHVEditProfile from "./pages/WHVEditProfile";
 import WHVProfilePreview from "./pages/WHVProfilePreview";
 import WHVMatches from "./pages/WHVMatches";
 import WHVMessages from "./components/WHVMessages";
@@ -125,7 +125,7 @@ const App = () => (
           <Route path="/whv/photo-upload" element={<WHVPhotoUpload />} />
           <Route path="/whv/account-confirmation" element={<WHVAccountConfirmation />} />
           <Route path="/whv/dashboard" element={<WHVDashboard />} />
-          <Route path="/whv/view-profile" element={<WHVViewProfile />} />
+          <Route path="/whv/edit-profile" element={<WHVEditProfile />} />
           <Route path="/whv/profile-preview" element={<WHVProfilePreview />} />
           <Route path="/whv/matches" element={<WHVMatches />} />
           <Route path="/whv/messages" element={<WHVMessages />} />
