@@ -81,7 +81,7 @@ const WHVBrowseJobs: React.FC = () => {
         .limit(1)
         .single();
 
-      setVisaStage(visa?.visa_stage?.stage || "");
+      setVisaStage(String(visa?.visa_stage?.stage || "")); // ✅ force string
 
       console.log("➡️ WHV Nationality:", maker.nationality);
       console.log("➡️ Visa Stage ID:", visa?.stage_id);
@@ -90,7 +90,7 @@ const WHVBrowseJobs: React.FC = () => {
       // 3️⃣ Get eligible industry IDs (match country + stage_id)
       const { data: eligibility, error: eligError } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id, industry")
+        .select("industry_id") // ✅ only industry_id
         .eq("country", maker.nationality)
         .eq("stage_id", visa?.stage_id);
 
