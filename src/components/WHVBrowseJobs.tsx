@@ -18,6 +18,7 @@ interface JobCard {
   location: string;
   salary: string;
   employment_type: string;
+  description?: string;
   isLiked?: boolean;
 }
 
@@ -28,6 +29,7 @@ const WHVBrowseJobs: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobTitle, setLikedJobTitle] = useState("");
   const [jobs, setJobs] = useState<JobCard[]>([]);
+  const [allJobs, setAllJobs] = useState<JobCard[]>([]);
   const [whvId, setWhvId] = useState<string | null>(null);
 
   // ✅ Get logged-in WHV ID
@@ -44,7 +46,9 @@ const WHVBrowseJobs: React.FC = () => {
     const fetchJobs = async () => {
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select("job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode, salary_range, employment_type")
+        .select(
+          "job_id, user_id, industry_role_id, job_status, state, suburb_city, postcode, salary_range, employment_type, description"
+        )
         .eq("job_status", "active");
 
       if (jobsError) {
@@ -100,15 +104,36 @@ const WHVBrowseJobs: React.FC = () => {
           location,
           salary: job.salary_range || "Rate not specified",
           employment_type: job.employment_type || "N/A",
+          description: job.description || "",
           isLiked: likedIds.includes(job.job_id),
         };
       });
 
       setJobs(mapped);
+      setAllJobs(mapped);
     };
 
     if (whvId) fetchJobs();
   }, [whvId]);
+
+  // 🔎 Search filter
+  useEffect(() => {
+    if (!searchQuery) {
+      setJobs(allJobs);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = allJobs.filter(
+      (job) =>
+        job.role.toLowerCase().includes(query) ||
+        job.industry.toLowerCase().includes(query) ||
+        job.company_name.toLowerCase().includes(query) ||
+        job.location.toLowerCase().includes(query)
+    );
+
+    setJobs(filtered);
+  }, [searchQuery, allJobs]);
 
   // ✅ Toggle Like (persistent)
   const handleLikeJob = async (jobId: number) => {
@@ -132,6 +157,11 @@ const WHVBrowseJobs: React.FC = () => {
             j.job_id === jobId ? { ...j, isLiked: false } : j
           )
         );
+        setAllJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: false } : j
+          )
+        );
       } else {
         // ❤️ Like
         await supabase.from("likes").upsert(
@@ -144,6 +174,11 @@ const WHVBrowseJobs: React.FC = () => {
         );
 
         setJobs((prev) =>
+          prev.map((j) =>
+            j.job_id === jobId ? { ...j, isLiked: true } : j
+          )
+        );
+        setAllJobs((prev) =>
           prev.map((j) =>
             j.job_id === jobId ? { ...j, isLiked: true } : j
           )
@@ -198,115 +233,100 @@ const WHVBrowseJobs: React.FC = () => {
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4">
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                  onClick={() => navigate("/whv/dashboard")}
-                >
-                  <ArrowLeft className="w-6 h-6 text-gray-700" />
-                </Button>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  Browse Jobs
-                </h1>
-              </div>
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={() => navigate("/whv/dashboard")}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-              {/* Search Bar */}
-              <div className="relative mb-4">
-                <Search
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  size={20}
-                />
-                <Input
-                  placeholder="Search for jobs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white"
-                />
-                <button
-                  onClick={() => setShowFilters(true)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                >
-                  <Filter className="text-gray-400" size={20} />
-                </button>
-              </div>
+            {/* Search Bar */}
+            <div className="relative mb-4 px-6">
+              <Search className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Input
+                placeholder="Search jobs by role, company, or location..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
+              />
+              <button
+                onClick={() => setShowFilters(true)}
+                className="absolute right-9 top-1/2 transform -translate-y-1/2"
+              >
+                <Filter className="text-gray-400" size={20} />
+              </button>
+            </div>
 
-              {/* Jobs List */}
-              <div className="space-y-4">
-                {jobs.map((job) => (
+            {/* Jobs List */}
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+              {jobs.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No jobs found. Try adjusting your search or filters.</p>
+                </div>
+              ) : (
+                jobs.map((job) => (
                   <div
                     key={job.job_id}
-                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
                   >
                     <div className="flex items-start gap-4">
                       <img
                         src={job.profile_photo}
                         alt={job.company_name}
-                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 text-lg mb-1 truncate">
-                              {job.company_name}
-                            </h3>
-                            <p className="text-sm text-gray-600 mb-1 truncate">
-                              {job.role} • {job.industry}
-                            </p>
-                            <p className="text-sm text-gray-600 truncate">
-                              {job.location}
-                            </p>
+                        <h2 className="text-xl font-bold text-gray-900">{job.role}</h2>
+                        <p className="text-sm text-gray-600">{job.company_name} • {job.industry}</p>
+                        <p className="text-sm text-gray-500">{job.location}</p>
 
-                            {/* Badges */}
-                            <div className="flex items-center gap-2 mt-2">
-                              <span
-                                className={`px-2 py-1 text-xs font-medium rounded-full ${getJobTypeColor(
-                                  job.employment_type
-                                )}`}
-                              >
-                                {job.employment_type}
-                              </span>
-                              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                                💰 {job.salary}
-                              </span>
-                            </div>
-                          </div>
+                        {/* Badges */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getJobTypeColor(job.employment_type)}`}>
+                            {job.employment_type}
+                          </span>
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                            💰 {job.salary}
+                          </span>
                         </div>
 
+                        {/* Description preview */}
+                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">
+                          {job.description || "No description provided"}
+                        </p>
+
+                        {/* Actions */}
                         <div className="flex items-center gap-3 mt-4">
                           <Button
                             onClick={() => handleViewJob(job.job_id)}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
                           >
-                            View Job
+                            View Details
                           </Button>
                           <button
                             onClick={() => handleLikeJob(job.job_id)}
-                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-slate-300 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all duration-200"
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
                               size={20}
-                              className={
-                                job.isLiked
-                                  ? "text-slate-800 fill-slate-800"
-                                  : "text-slate-800"
-                              }
+                              className={job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           </div>
 
+          {/* Bottom Navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
