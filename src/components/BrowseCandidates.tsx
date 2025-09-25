@@ -21,12 +21,13 @@ interface Candidate {
   name: string;
   state: string;
   profileImage: string;
-  industries: string[];
+  industries: string[];          // Preferences
+  workExpIndustries: string[];   // ✅ Actual work experience industries
   experiences: string;
   licenses: string[];
   preferredLocations: string[];
   isLiked?: boolean;
-  totalExperienceMonths: number; // ✅ new numeric field
+  totalExperienceMonths: number;
 }
 
 const BrowseCandidates: React.FC = () => {
@@ -77,7 +78,6 @@ const BrowseCandidates: React.FC = () => {
     const fetchCandidates = async () => {
       if (!employerId || !selectedJobId) return;
 
-      // 1️⃣ Basic WHV profiles
       const { data: makers, error: makersError } = await supabase
         .from("whv_maker")
         .select("user_id, given_name, family_name, state, profile_photo, is_profile_visible");
@@ -89,28 +89,22 @@ const BrowseCandidates: React.FC = () => {
 
       const visibleMakers = makers?.filter((m) => m.is_profile_visible) || [];
 
-      // 2️⃣ Industry Preferences
       const { data: industries } = (await supabase
         .from("maker_pref_industry")
         .select("user_id, industry ( name )")) as any;
 
-      // 3️⃣ Work Experiences
       const { data: experiences } = (await supabase
         .from("maker_work_experience")
         .select("user_id, position, start_date, end_date, industry ( name )")) as any;
 
-      // 4️⃣ Location Preferences
       const { data: locations } = (await supabase
         .from("maker_pref_location")
         .select("user_id, state, suburb_city, postcode")) as any;
 
-      // 5️⃣ Licenses
       const { data: licenses } = (await supabase
         .from("maker_license")
         .select("user_id, license ( name )")) as any;
 
-      // 6️⃣ Likes for this job
-      let likedIds: string[] = [];
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_whv_id")
@@ -118,13 +112,12 @@ const BrowseCandidates: React.FC = () => {
         .eq("liker_type", "employer")
         .eq("liked_job_post_id", selectedJobId);
 
-      likedIds = likes?.map((l) => l.liked_whv_id) || [];
+      const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-      // 7️⃣ Merge everything
       const mapped: Candidate[] = visibleMakers.map((m) => {
         const userId = m.user_id;
 
-        // Industries
+        // Preferences
         const userIndustries: string[] =
           (industries as any[])
             ?.filter((ind) => ind.user_id === userId)
@@ -135,6 +128,7 @@ const BrowseCandidates: React.FC = () => {
         const userExps = (experiences as any[])?.filter((e) => e.user_id === userId) || [];
         const expSummaries: string[] = [];
         let totalMonths = 0;
+        const workExpIndustries: string[] = [];
 
         userExps.forEach((exp) => {
           if (!exp.start_date) return;
@@ -142,6 +136,10 @@ const BrowseCandidates: React.FC = () => {
           const end = exp.end_date ? new Date(exp.end_date) : new Date();
           const diffMonths = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30);
           totalMonths += Math.round(diffMonths);
+
+          if (exp.industry?.name && !workExpIndustries.includes(exp.industry.name)) {
+            workExpIndustries.push(exp.industry.name);
+          }
 
           const diffYears = diffMonths / 12;
           const duration =
@@ -170,7 +168,6 @@ const BrowseCandidates: React.FC = () => {
             .map((loc) => `${loc.suburb_city}, ${loc.state} ${loc.postcode || ""}`)
             .filter((n): n is string => Boolean(n)) || [];
 
-        // Profile photo
         const photoUrl = m.profile_photo
           ? supabase.storage.from("profile_photo").getPublicUrl(m.profile_photo).data.publicUrl
           : "/default-avatar.png";
@@ -180,12 +177,13 @@ const BrowseCandidates: React.FC = () => {
           name: `${m.given_name} ${m.family_name}`,
           state: m.state,
           profileImage: photoUrl,
-          industries: userIndustries,
+          industries: userIndustries, // Preferences
+          workExpIndustries,          // ✅ Actual work experience industries
           experiences: condensedExperience || "No work experience added",
           licenses: userLicenses,
           preferredLocations: userLocations,
           isLiked: likedIds.includes(userId),
-          totalExperienceMonths: totalMonths, // ✅ numeric field
+          totalExperienceMonths: totalMonths,
         };
       });
 
@@ -196,7 +194,7 @@ const BrowseCandidates: React.FC = () => {
     fetchCandidates();
   }, [employerId, selectedJobId]);
 
-  // 🔎 Live search filter
+  // 🔎 Search filter
   useEffect(() => {
     if (!searchQuery) {
       setCandidates(allCandidates);
@@ -207,92 +205,40 @@ const BrowseCandidates: React.FC = () => {
     const filtered = allCandidates.filter(
       (c) =>
         c.name.toLowerCase().includes(query) ||
-        c.industries.some((ind) => ind.toLowerCase().includes(query)) ||
+        c.workExpIndustries.some((ind) => ind.toLowerCase().includes(query)) ||
         c.preferredLocations.some((loc) => loc.toLowerCase().includes(query))
     );
 
     setCandidates(filtered);
   }, [searchQuery, allCandidates]);
 
-  // ✅ Like toggle
-  const handleLikeCandidate = async (candidateId: string) => {
-    if (!employerId || !selectedJobId) {
-      alert("Please select a job post first.");
-      return;
-    }
-
-    const candidate = candidates.find((c) => c.user_id === candidateId);
-    if (!candidate) return;
-
-    try {
-      if (candidate.isLiked) {
-        await supabase
-          .from("likes")
-          .delete()
-          .eq("liker_id", employerId)
-          .eq("liked_whv_id", candidateId)
-          .eq("liker_type", "employer")
-          .eq("liked_job_post_id", selectedJobId);
-
-        setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
-        );
-      } else {
-        await supabase.from("likes").upsert(
-          {
-            liker_id: employerId,
-            liker_type: "employer",
-            liked_whv_id: candidateId,
-            liked_job_post_id: selectedJobId,
-          },
-          { onConflict: "liker_id,liked_whv_id,liker_type,liked_job_post_id" }
-        );
-
-        setLikedCandidateName(candidate.name);
-        setShowLikeModal(true);
-
-        setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-        );
-      }
-    } catch (err) {
-      console.error("Error toggling like:", err);
-    }
-  };
-
   // ✅ Apply filters
   const applyFilters = (f: any) => {
     let list = [...allCandidates];
 
-    if (f.preferredState) {
+    if (f.workExpIndustry) {
       list = list.filter((c) =>
-        c.preferredLocations.some((loc) =>
-          loc.toLowerCase().includes(f.preferredState.toLowerCase())
+        c.workExpIndustries.some(
+          (ind) => ind.toLowerCase() === f.workExpIndustry.toLowerCase()
         )
       );
     }
 
-    if (f.preferredCity) {
+    if (f.state) {
+      list = list.filter((c) => c.state.toLowerCase() === f.state.toLowerCase());
+    }
+
+    if (f.suburbPostcode) {
       list = list.filter((c) =>
         c.preferredLocations.some((loc) =>
-          loc.toLowerCase().includes(f.preferredCity.toLowerCase())
+          loc.toLowerCase().includes(f.suburbPostcode.toLowerCase())
         )
       );
     }
 
-    if (f.preferredPostcode) {
+    if (f.license) {
       list = list.filter((c) =>
-        c.preferredLocations.some((loc) =>
-          loc.includes(f.preferredPostcode)
-        )
-      );
-    }
-
-    if (f.candidateIndustry) {
-      list = list.filter((c) =>
-        c.industries.some(
-          (ind) => ind.toLowerCase() === f.candidateIndustry.toLowerCase()
-        )
+        c.licenses.some((lic) => lic.toLowerCase() === f.license.toLowerCase())
       );
     }
 
@@ -431,8 +377,8 @@ const BrowseCandidates: React.FC = () => {
                           {candidate.name}
                         </h3>
                         <p className="text-sm text-gray-600 mb-1">
-                          <strong>Preferred Industries:</strong>{" "}
-                          {candidate.industries.join(", ") || "No preferences"}
+                          <strong>Work Experience Industries:</strong>{" "}
+                          {candidate.workExpIndustries.join(", ") || "None"}
                         </p>
                         <p className="text-sm text-gray-600 mb-1">
                           <strong>Work Experience:</strong> {candidate.experiences}
@@ -448,7 +394,9 @@ const BrowseCandidates: React.FC = () => {
 
                         <div className="flex items-center gap-3 mt-4">
                           <Button
-                            onClick={() => navigate(`/short-candidate-profile/${candidate.user_id}?from=browse-candidates`)}
+                            onClick={() =>
+                              navigate(`/short-candidate-profile/${candidate.user_id}?from=browse-candidates`)
+                            }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
                           >
                             View Profile
