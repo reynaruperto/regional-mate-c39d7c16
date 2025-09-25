@@ -90,7 +90,7 @@ const WHVBrowseJobs: React.FC = () => {
       // 3️⃣ Get eligible industry IDs (match country + stage_id)
       const { data: eligibility, error: eligError } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
-        .select("industry_id") // ✅ only industry_id
+        .select("industry_id")
         .eq("country", maker.nationality)
         .eq("stage_id", visa?.stage_id);
 
@@ -110,10 +110,11 @@ const WHVBrowseJobs: React.FC = () => {
 
       console.log("✅ Eligible Industry IDs:", eligibleIds);
 
-      // 4️⃣ Fetch jobs in eligible industries
+      // 4️⃣ Fetch jobs in eligible industries (cast select as any to avoid TS2589)
       const { data: jobsData, error: jobsError } = await supabase
         .from("job")
-        .select(`
+        .select(
+          `
           job_id,
           state,
           suburb_city,
@@ -131,9 +132,10 @@ const WHVBrowseJobs: React.FC = () => {
             company_name,
             profile_photo
           )
-        `)
+        ` as any
+        )
         .filter("job_status", "eq", "active")
-        .in("industry_role.industry_id", eligibleIds);
+        .in("industry_role.industry_id", eligibleIds as any);
 
       if (jobsError) {
         console.error("❌ Error fetching jobs:", jobsError);
