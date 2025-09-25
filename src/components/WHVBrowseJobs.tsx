@@ -68,23 +68,27 @@ const WHVBrowseJobs: React.FC = () => {
       if (!maker) return;
       setNationality(maker.nationality);
 
-      // 2️⃣ Get latest visa_stage from maker_visa
+      // 2️⃣ Get latest visa_stage via maker_visa → visa_stage join
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("visa_stage, created_at")
+        .select(`
+          stage_id,
+          created_at,
+          visa_stage:visa_stage(stage)
+        `)
         .eq("user_id", whvId)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
 
-      setVisaStage(visa?.visa_stage || "");
+      setVisaStage(visa?.visa_stage?.stage || "");
 
       // 3️⃣ Get eligible industry IDs
       const { data: eligibility } = await supabase
         .from("mvw_eligibility_visa_country_stage_industry")
         .select("industry_id")
         .eq("visa_country", maker.nationality)
-        .eq("visa_stage", visa?.visa_stage);
+        .eq("visa_stage", visa?.visa_stage?.stage);
 
       const eligibleIds = eligibility?.map((e) => e.industry_id) || [];
       if (eligibleIds.length === 0) {
@@ -243,7 +247,7 @@ const WHVBrowseJobs: React.FC = () => {
               {nationality && visaStage && (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 text-sm text-orange-800">
                   <p>
-                    <strong>{nationality}</strong> • {visaStage} Year WHV
+                    <strong>{nationality}</strong> • {visaStage} WHV
                   </p>
                   <p className="text-xs text-orange-700">
                     Only jobs eligible for your visa will appear here.
