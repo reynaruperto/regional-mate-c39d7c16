@@ -24,37 +24,36 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
     industryRole: "",
     startDate: "",
     payRange: "",
-    facilities: "",
+    facility: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [industryRoles, setIndustryRoles] = useState<string[]>([]);
-  const [licenses, setLicenses] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [industryRoles, setIndustryRoles] = useState<{ id: number; role: string; industry_id: number }[]>([]);
+  const [facilities, setFacilities] = useState<string[]>([]);
 
   // Hardcoded options
   const startDateOptions = ["Within 2 weeks", "Within 4 weeks", "Within 8 weeks", "12+ weeks"];
   const payRangeOptions = ["< $20/hr", "$20–$30/hr", "$30–$40/hr", "$40+/hr"];
-  const facilitiesOptions = ["Housing", "Transport", "Meals", "Training"];
 
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        // States
+        // States (enum)
         const { data: stateData } = await supabase.rpc("get_enum_values", { enum_name: "state" });
         setStates(stateData || []);
 
         // Industries
-        const { data: industryData } = await supabase.from("industry").select("name");
-        setIndustries(industryData?.map((i) => i.name) || []);
+        const { data: industryData } = await supabase.from("industry").select("industry_id, name");
+        setIndustries(industryData || []);
 
-        // Industry roles
-        const { data: roleData } = await supabase.from("industry_role").select("role");
-        setIndustryRoles(roleData?.map((r) => r.role) || []);
+        // Roles
+        const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role, industry_id");
+        setIndustryRoles(roleData || []);
 
-        // Licenses (not requested but leaving for future)
-        const { data: licenseData } = await supabase.from("license").select("name");
-        setLicenses(licenseData?.map((l) => l.name) || []);
+        // Facilities
+        const { data: facilityData } = await supabase.from("facility").select("name");
+        setFacilities(facilityData?.map((f) => f.name) || []);
       } catch (error) {
         console.error("Error fetching filter options:", error);
       }
@@ -72,17 +71,17 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
   };
 
   const handleClearFilters = () => {
-    const clearedFilters = {
+    const cleared = {
       state: "",
       citySuburbPostcode: "",
       industry: "",
       industryRole: "",
       startDate: "",
       payRange: "",
-      facilities: "",
+      facility: "",
     };
-    setSelectedFilters(clearedFilters);
-    onApplyFilters(clearedFilters);
+    setSelectedFilters(cleared);
+    onApplyFilters(cleared);
   };
 
   return (
@@ -111,7 +110,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                 <Select value={selectedFilters.state} onValueChange={(value) => handleFilterChange("state", value)}>
-                  <SelectTrigger className="w-full h-12 rounded-xl">
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-white border border-gray-300">
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>
@@ -140,32 +139,41 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
                 <Select value={selectedFilters.industry} onValueChange={(value) => handleFilterChange("industry", value)}>
-                  <SelectTrigger className="w-full h-12 rounded-xl">
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-white border border-gray-300">
                     <SelectValue placeholder="Select industry" />
                   </SelectTrigger>
                   <SelectContent>
-                    {industries.map((industry) => (
-                      <SelectItem key={industry} value={industry}>
-                        {industry}
+                    {industries.map((ind) => (
+                      <SelectItem key={ind.id} value={ind.name}>
+                        {ind.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Industry Role */}
+              {/* Role (depends on industry) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                <Select value={selectedFilters.industryRole} onValueChange={(value) => handleFilterChange("industryRole", value)}>
-                  <SelectTrigger className="w-full h-12 rounded-xl">
+                <Select
+                  value={selectedFilters.industryRole}
+                  onValueChange={(value) => handleFilterChange("industryRole", value)}
+                >
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-white border border-gray-300">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {industryRoles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
-                    ))}
+                    {industryRoles
+                      .filter((r) =>
+                        selectedFilters.industry
+                          ? industries.find((i) => i.name === selectedFilters.industry)?.id === r.industry_id
+                          : true
+                      )
+                      .map((role) => (
+                        <SelectItem key={role.id} value={role.role}>
+                          {role.role}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -174,7 +182,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                 <Select value={selectedFilters.startDate} onValueChange={(value) => handleFilterChange("startDate", value)}>
-                  <SelectTrigger className="w-full h-12 rounded-xl">
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-white border border-gray-300">
                     <SelectValue placeholder="Select availability" />
                   </SelectTrigger>
                   <SelectContent>
@@ -191,7 +199,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Pay Range</label>
                 <Select value={selectedFilters.payRange} onValueChange={(value) => handleFilterChange("payRange", value)}>
-                  <SelectTrigger className="w-full h-12 rounded-xl">
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-white border border-gray-300">
                     <SelectValue placeholder="Select pay range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -207,12 +215,12 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
               {/* Facilities */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Employer Facilities</label>
-                <Select value={selectedFilters.facilities} onValueChange={(value) => handleFilterChange("facilities", value)}>
-                  <SelectTrigger className="w-full h-12 rounded-xl">
+                <Select value={selectedFilters.facility} onValueChange={(value) => handleFilterChange("facility", value)}>
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-white border border-gray-300">
                     <SelectValue placeholder="Select facility" />
                   </SelectTrigger>
                   <SelectContent>
-                    {facilitiesOptions.map((f) => (
+                    {facilities.map((f) => (
                       <SelectItem key={f} value={f}>
                         {f}
                       </SelectItem>
@@ -225,7 +233,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }
             {/* Actions */}
             <div className="px-6 pb-8 space-y-3">
               <Button onClick={handleApplyFilters} className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl">
-                Apply Filters
+                Find Jobs
               </Button>
               <Button onClick={handleClearFilters} variant="outline" className="w-full h-12 rounded-xl">
                 Clear All Filters
