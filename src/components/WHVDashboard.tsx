@@ -21,8 +21,6 @@ const Dashboard: React.FC = () => {
         return;
       }
 
-      console.log("Auth user id:", user.id);
-
       const { data: profileRow, error: profileError } = await supabase
         .from('profile')
         .select('user_id')
@@ -33,8 +31,6 @@ const Dashboard: React.FC = () => {
         console.error('Profile not found for auth user:', profileError);
         return;
       }
-
-      console.log("Matched profile row:", profileRow);
 
       const { data: whv, error: whvError } = await supabase
         .from('whv_maker')
@@ -48,21 +44,15 @@ const Dashboard: React.FC = () => {
       }
 
       if (whv && isMounted) {
-        console.log("Fetched WHV data:", whv);
-
         const nameParts = [whv.given_name, whv.middle_name, whv.family_name].filter(Boolean);
         if (nameParts.length > 0) setFullName(nameParts.join(' '));
         if (whv.tagline) setProfileTagline(whv.tagline);
 
         if (whv.profile_photo) {
-          console.log("Raw profile_photo from DB:", whv.profile_photo);
-
           let photoPath = whv.profile_photo;
           if (photoPath.includes('/profile_photo/')) {
             photoPath = photoPath.split('/profile_photo/')[1];
           }
-
-          console.log("Normalized photo path:", photoPath);
 
           const { data, error } = await supabase
             .storage
@@ -72,12 +62,9 @@ const Dashboard: React.FC = () => {
           if (error) {
             console.error("Error creating signed URL:", error);
           } else if (data?.signedUrl) {
-            console.log("Final signed URL:", data.signedUrl);
             setProfilePhoto(data.signedUrl);
           }
         }
-      } else {
-        console.warn("WHV fetch returned null — ignoring");
       }
     };
 
@@ -87,7 +74,7 @@ const Dashboard: React.FC = () => {
   }, [navigate]);
 
   const settingsItems = [
-    { icon: FileText, label: 'Edit WHV Profile', color: 'text-gray-600' },
+    { icon: FileText, label: 'Edit Profile', color: 'text-gray-600' },
     { icon: Shield, label: 'Security', color: 'text-gray-600' },
     { icon: Bell, label: 'Notifications', color: 'text-gray-600' },
     { icon: Lock, label: 'Privacy', color: 'text-gray-600' },
@@ -138,14 +125,13 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Edit Profile Button (General) */}
+              {/* View Profile Button */}
               <div className="flex justify-center mb-8">
                 <button 
-                  onClick={() => navigate('/edit-profile')} 
-                  className="flex items-center bg-gray-200 px-6 py-3 rounded-2xl hover:bg-gray-300 transition-colors"
+                  onClick={() => navigate('/whv/view-profile')} 
+                  className="flex items-center border border-orange-500 text-orange-500 px-5 py-2 rounded-xl text-sm hover:bg-orange-50 transition-colors"
                 >
-                  <Edit size={16} className="mr-2 text-gray-700" />
-                  <span className="text-gray-700 font-medium">Edit Profile</span>
+                  <span className="font-medium">View Profile</span>
                 </button>
               </div>
 
@@ -160,7 +146,7 @@ const Dashboard: React.FC = () => {
                       <button
                         key={index}
                         onClick={() => {
-                          if (item.label === 'Edit WHV Profile') navigate('/whv/edit-profile');
+                          if (item.label === 'Edit Profile') navigate('/whv/edit-profile');
                           else if (item.label === 'Security') navigate('/security');
                           else if (item.label === 'Notifications') navigate('/notifications');
                           else if (item.label === 'Privacy') navigate('/privacy');
