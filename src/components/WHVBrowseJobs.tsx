@@ -1,5 +1,15 @@
-// src/pages/WHV/WHVBrowseJobs.tsx
-// ...imports stay the same
+// src/components/WHVBrowseJobs.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import BottomNavigation from "@/components/BottomNavigation";
+import WHVFilterPage from "@/components/WHVFilterPage";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
+
+import { supabase } from "@/integrations/supabase/client";
 
 interface JobCard {
   job_id: number;
