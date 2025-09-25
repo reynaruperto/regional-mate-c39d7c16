@@ -10,7 +10,6 @@ import {
   Heart,
   Image,
   Award,
-  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
@@ -29,12 +28,12 @@ interface JobDetails {
   start_date: string;
   job_status: string;
   role: string;
+  industry: string;
   company_name: string;
   tagline: string;
   company_photo: string | null;
   facilities: string[];
   licenses: string[];
-  website: string;
 }
 
 const EmployerJobPreview: React.FC = () => {
@@ -49,7 +48,6 @@ const EmployerJobPreview: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1️⃣ Get job & role
         const { data: job, error: jobError } = await supabase
           .from("job")
           .select(
@@ -64,7 +62,7 @@ const EmployerJobPreview: React.FC = () => {
             postcode,
             start_date,
             job_status,
-            industry_role ( role ),
+            industry_role ( role, industry(name) ),
             user_id
           `
           )
@@ -76,10 +74,9 @@ const EmployerJobPreview: React.FC = () => {
           return;
         }
 
-        // 2️⃣ Get employer details
         const { data: employer } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, website")
+          .select("company_name, tagline, profile_photo")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
@@ -95,7 +92,6 @@ const EmployerJobPreview: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // 3️⃣ Get facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility ( name )")
@@ -104,7 +100,6 @@ const EmployerJobPreview: React.FC = () => {
         const facilities =
           facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // 4️⃣ Get licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license ( name )")
@@ -113,7 +108,6 @@ const EmployerJobPreview: React.FC = () => {
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        // 5️⃣ Merge into state
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -126,12 +120,12 @@ const EmployerJobPreview: React.FC = () => {
           start_date: job.start_date || new Date().toISOString(),
           job_status: job.job_status || "draft",
           role: job.industry_role?.role || "Unknown Role",
+          industry: job.industry_role?.industry?.name || "Unknown Industry",
           company_name: employer?.company_name || "Unknown Company",
           tagline: employer?.tagline || "No tagline provided",
           company_photo: companyPhoto,
           facilities,
           licenses,
-          website: employer?.website || "Not applicable",
         });
       } catch (err) {
         console.error("Error fetching job preview:", err);
@@ -144,11 +138,7 @@ const EmployerJobPreview: React.FC = () => {
   }, [jobId, toast]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
   if (!jobDetails) {
@@ -166,12 +156,8 @@ const EmployerJobPreview: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
           {/* Header */}
           <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
             <Button
@@ -186,10 +172,9 @@ const EmployerJobPreview: React.FC = () => {
             <div className="w-10"></div>
           </div>
 
-          {/* Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-              {/* Company Header */}
+              {/* Company */}
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
@@ -210,11 +195,12 @@ const EmployerJobPreview: React.FC = () => {
                 <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
               </div>
 
-              {/* Job Info */}
+              {/* Role + Industry */}
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                <h3 className="text-2xl font-bold text-gray-900 mb-1">
                   {jobDetails.role}
                 </h3>
+                <p className="text-sm text-gray-600 mb-2">{jobDetails.industry}</p>
                 <span
                   className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
                     jobDetails.job_status === "active"
@@ -226,7 +212,19 @@ const EmployerJobPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Job Details Grid */}
+              {/* Description right under role */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">
+                  Job Description
+                </h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-gray-700 leading-relaxed">
+                    {jobDetails.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Details Grid */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-2">
@@ -260,7 +258,7 @@ const EmployerJobPreview: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-gray-900 font-semibold">
-                    {jobDetails.req_experience} years
+                    {jobDetails.req_experience}
                   </p>
                 </div>
 
@@ -277,7 +275,7 @@ const EmployerJobPreview: React.FC = () => {
                 </div>
               </div>
 
-              {/* License Required */}
+              {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
                 <div className="flex items-center mb-2">
                   <Award className="w-5 h-5 text-[#1E293B] mr-2" />
@@ -310,8 +308,7 @@ const EmployerJobPreview: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                  {jobDetails.postcode}
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
                 </p>
               </div>
 
@@ -331,41 +328,17 @@ const EmployerJobPreview: React.FC = () => {
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No facilities listed
-                    </p>
+                    <p className="text-sm text-gray-500">No facilities listed</p>
                   )}
                 </div>
               </div>
 
-              {/* Website */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <Globe className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Website
-                  </span>
-                </div>
-                <p className="text-gray-900 font-semibold">
-                  {jobDetails.website}
-                </p>
-              </div>
-
-              {/* Description */}
-              <div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                  Job Description
-                </h4>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <p className="text-gray-700 leading-relaxed">
-                    {jobDetails.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Heart Button */}
-              <Button className="w-full bg-[#1E293B] hover:bg-[#111827] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
-                <Heart size={18} className="fill-white" /> Heart to Match
+              {/* Disabled Heart Button */}
+              <Button
+                disabled
+                className="w-full bg-gray-300 text-gray-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md cursor-not-allowed"
+              >
+                <Heart size={18} className="text-gray-500" /> Heart to Match
               </Button>
             </div>
           </div>
