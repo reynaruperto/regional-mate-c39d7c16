@@ -9,6 +9,30 @@ import WHVFilterPage from "@/components/WHVFilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/client";
+
+// Interface for the nested Supabase query result
+interface JobQueryResult {
+  job_id: number;
+  state: Database["public"]["Enums"]["state"];
+  suburb_city: string;
+  postcode: string | null;
+  salary_range: Database["public"]["Enums"]["pay_range"];
+  employment_type: Database["public"]["Enums"]["job_type_enum"];
+  start_date: string;
+  description: string;
+  industry_role: {
+    industry_id: number | null;
+    role: string;
+    industry: {
+      name: string;
+    } | null;
+  } | null;
+  employer: {
+    company_name: string;
+    profile_photo: string | null;
+  } | null;
+}
 
 interface JobCard {
   job_id: number;
@@ -80,7 +104,7 @@ const WHVBrowseJobs: React.FC = () => {
       setVisaStageLabel(visa?.visa_stage?.label || "");
 
       // 3️⃣ Get eligible industry IDs
-      const { data: eligibility } = await supabase
+      const { data: eligibility } = await (supabase as any)
         .from("mvw_eligibility_visa_country_stage_industry")
         .select("industry_id")
         .eq("country", maker.nationality)
@@ -94,7 +118,7 @@ const WHVBrowseJobs: React.FC = () => {
       }
 
       // 4️⃣ Fetch jobs only from eligible industries
-      const { data: jobsData, error } = await (supabase as any)
+      const { data: jobsData, error } = await supabase
         .from("job")
         .select(`
           job_id,
@@ -116,7 +140,7 @@ const WHVBrowseJobs: React.FC = () => {
           )
         `)
         .eq("job_status", "active")
-        .in("industry_role.industry_id", eligibleIds);
+        .in("industry_role.industry_id", eligibleIds) as { data: JobQueryResult[] | null; error: any };
 
       if (error) {
         console.error("Error fetching jobs:", error);
