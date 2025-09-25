@@ -1479,7 +1479,63 @@ export type Database = {
       };
     };
     Functions: {
-      [_ in never]: never;
+      filter_maker_for_employer: {
+        Args: {
+          p_filter_state?: string | null;
+        };
+        Returns: {
+          user_id: string;
+        }[];
+      };
+      filter_candidates: {
+        Args: {
+          p_employer_id?: string | null;
+          p_filter_state?: string | null;
+        };
+        Returns: {
+          user_id: string;
+        }[];
+      };
+      filter_employers: {
+        Args: {
+          p_filter_state?: string | null;
+        };
+        Returns: {
+          user_id: string;
+        }[];
+      };
+      filter_employer_for_maker: {
+        Args: {
+          p_filter_state?: string | null;
+        };
+        Returns: {
+          user_id: string;
+          job_id: number;
+        }[];
+      };
+      calculate_match_score: {
+        Args: {
+          p_whv_user_id: string;
+          p_job_post_id: number;
+        };
+        Returns: {
+          match_score: number;
+          work_experience_score: number;
+          license_score: number;
+          location_score: number;
+          industry_score: number;
+        }[];
+      };
+      get_enum_values: {
+        Args: {
+          enum_name: string;
+        };
+        Returns: string[];
+      };
+      get_years_experience_enum: {
+        Args: {};
+        Returns: string[];
+      };
     };
     Enums: {
       business_tenure:
