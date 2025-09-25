@@ -1,295 +1,320 @@
-import React, { useState, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+// src/pages/BrowseCandidates.tsx
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import BottomNavigation from "@/components/BottomNavigation";
+import FilterPage from "@/components/FilterPage";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 
-interface Industry {
-  id: number;
+interface Candidate {
+  user_id: string;
   name: string;
+  state: string;
+  profileImage: string;
+  industries: string[];
+  experiences: string;
+  licenses: string[];
+  preferredLocations: string[];
+  isLiked?: boolean;
 }
 
-interface Role {
-  id: number;
-  name: string;
-  industryId: number;
-}
+const BrowseCandidates: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [showLikeModal, setShowLikeModal] = useState(false);
+  const [likedCandidateName, setLikedCandidateName] = useState("");
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
+  const [employerId, setEmployerId] = useState<string | null>(null);
 
-interface WHVFilterPageProps {
-  onClose: () => void;
-  onApplyFilters: (filters: any) => void;
-}
+  const [jobPosts, setJobPosts] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
-const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onApplyFilters }) => {
-  const [selectedFilters, setSelectedFilters] = useState({
-    state: "",
-    citySuburb: "",
-    postcode: "",
-    interestedIndustry: "",
-    interestedRole: "",
-    lookingForJobType: "",
-    minPayRate: "",
-    maxPayRate: "",
-    needsAccommodation: false,
-    needsMeals: false,
-    needsTransport: false,
-    needsTraining: false,
-    hasEquipment: false,
-  });
-
-  // 🔑 Enums + lookup tables
-  const [states, setStates] = useState<string[]>([]);
-  const [jobTypes, setJobTypes] = useState<string[]>([]);
-  const [payRanges, setPayRanges] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<Industry[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-
-  // Fetch enums & lookups from Supabase
+  // ✅ Get employer ID
   useEffect(() => {
-    const fetchEnumsAndLookups = async () => {
-      try {
-        // Hardcoded values due to type issues with get_enum_values
-        const stateData = ["Queensland", "New South Wales", "Victoria", "Western Australia", "South Australia", "Tasmania", "Northern Territory", "Australian Capital Territory"];
-        const jobTypeData = ["Full-time", "Part-time", "Casual", "Contract"];
-        const payRangeData = ["$18-$25", "$25-$30", "$30-$35", "$35-$40", "$40+"];
-
-        if (stateData) setStates(stateData);
-        if (jobTypeData) setJobTypes(jobTypeData);
-        if (payRangeData) setPayRanges(payRangeData);
-
-        // Industries
-        const { data: indRes } = await supabase.from("industry").select("industry_id, name");
-        if (indRes) {
-          setIndustries(indRes.map((i) => ({ id: i.industry_id, name: i.name })));
-        }
-
-        // Roles
-        const { data: roleRes } = await supabase
-          .from("industry_role")
-          .select("industry_role_id, role, industry_id");
-        if (roleRes) {
-          setRoles(
-            roleRes.map((r) => ({
-              id: r.industry_role_id,
-              name: r.role,
-              industryId: r.industry_id,
-            }))
-          );
-        }
-      } catch (err) {
-        console.error("Error fetching enums/lookups:", err);
-      }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setEmployerId(user.id);
     };
-    fetchEnumsAndLookups();
+    getUser();
   }, []);
 
-  const handleSelectChange = (category: string, value: string) => {
-    setSelectedFilters((prev) => ({
-      ...prev,
-      [category]: value,
-    }));
+  // ✅ Fetch employer job posts
+  useEffect(() => {
+    const fetchJobs = async () => {
+      if (!employerId) return;
+      const { data, error } = await supabase
+        .from("job")
+        .select("job_id, description, job_status")
+        .eq("user_id", employerId)
+        .eq("job_status", "active");
+
+      if (error) {
+        console.error("Error fetching jobs:", error);
+      } else {
+        setJobPosts(data || []);
+        if (data && data.length > 0) setSelectedJobId(data[0].job_id);
+      }
+    };
+    fetchJobs();
+  }, [employerId]);
+
+  // ✅ Initial fetch of all candidates (unfiltered)
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      if (!employerId || !selectedJobId) return;
+
+      // Assume we also have a backend function to fetch all visible candidates
+      const { data, error } = await supabase.rpc("search_candidates", {
+        job_id: selectedJobId,
+        state: null,
+        city_suburb: null,
+        postcode: null,
+        industry: null,
+        years_experience: null,
+        license: null,
+      });
+
+      if (error) {
+        console.error("Error fetching candidates:", error);
+        return;
+      }
+
+      setAllCandidates(data || []);
+      setCandidates(data || []);
+    };
+
+    fetchCandidates();
+  }, [employerId, selectedJobId]);
+
+  // 🔎 Live search filter
+  useEffect(() => {
+    if (!searchQuery) {
+      setCandidates(allCandidates);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = allCandidates.filter(
+      (c) =>
+        c.name.toLowerCase().includes(query) ||
+        c.industries.some((ind) => ind.toLowerCase().includes(query)) ||
+        c.preferredLocations.some((loc) => loc.toLowerCase().includes(query))
+    );
+
+    setCandidates(filtered);
+  }, [searchQuery, allCandidates]);
+
+  // ✅ Like toggle
+  const handleLikeCandidate = async (candidateId: string) => {
+    if (!employerId || !selectedJobId) {
+      alert("Please select a job post first.");
+      return;
+    }
+
+    const candidate = candidates.find((c) => c.user_id === candidateId);
+    if (!candidate) return;
+
+    try {
+      if (candidate.isLiked) {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", employerId)
+          .eq("liked_whv_id", candidateId)
+          .eq("liker_type", "employer")
+          .eq("liked_job_post_id", selectedJobId);
+
+        setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
+      } else {
+        await supabase.from("likes").upsert(
+          {
+            liker_id: employerId,
+            liker_type: "employer",
+            liked_whv_id: candidateId,
+            liked_job_post_id: selectedJobId,
+          },
+          { onConflict: "liker_id,liked_whv_id,liker_type,liked_job_post_id" }
+        );
+
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+
+        setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
   };
 
-  const handleBooleanFilterChange = (category: string, checked: boolean) => {
-    setSelectedFilters((prev) => ({
-      ...prev,
-      [category]: checked,
-    }));
+  // ✅ Apply filters via backend function
+  const handleApplyFilters = async (filters: any) => {
+    if (!selectedJobId) {
+      alert("Please select a job post first.");
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("search_candidates", {
+      job_id: selectedJobId,
+      state: filters.state || null,
+      city_suburb: filters.citySuburb || null,
+      postcode: filters.citySuburb ? filters.citySuburb.split(", ")[1] : null,
+      industry: filters.industry || null,
+      years_experience: filters.yearsExperience || null,
+      license: filters.license || null,
+    });
+
+    if (error) {
+      console.error("Error fetching filtered candidates:", error);
+      return;
+    }
+
+    setCandidates(data || []);
+    setAllCandidates(data || []);
+    setShowFilters(false);
   };
 
-  const applyFilters = () => {
-    onApplyFilters(selectedFilters);
-    onClose();
-  };
-
-  // 🔽 Dropdown wrapper
-  const DropdownSection = ({
-    title,
-    items,
-    category,
-    placeholder,
-  }: {
-    title: string;
-    items: string[];
-    category: string;
-    placeholder: string;
-  }) => (
-    <div className="mb-6">
-      <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
-      <Select
-        value={selectedFilters[category as keyof typeof selectedFilters] as string}
-        onValueChange={(value) => handleSelectChange(category, value)}
-      >
-        <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
-          {items.map((item) => (
-            <SelectItem key={item} value={item} className="hover:bg-gray-100">
-              {item}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
+  if (showFilters) {
+    return <FilterPage onClose={() => setShowFilters(false)} onApplyFilters={handleApplyFilters} />;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Header */}
-          <div className="px-4 py-3 border-b bg-white flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <button onClick={onClose}>
-                <ArrowLeft size={24} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">Job Filters</h1>
-            </div>
-          </div>
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 px-4 py-4 overflow-y-auto">
-            {/* Location */}
-            <DropdownSection
-              title="Preferred State"
-              items={states}
-              category="state"
-              placeholder="Select state"
-            />
-
-            <div className="mb-3">
-              <Label className="text-sm text-gray-600 mb-2 block">Preferred City or Area</Label>
-              <Input
-                type="text"
-                placeholder="e.g., Brisbane, Tamworth, Mildura..."
-                value={selectedFilters.citySuburb}
-                onChange={(e) => handleSelectChange("citySuburb", e.target.value)}
-                className="w-full bg-white border border-gray-300"
-              />
-            </div>
-
-            <div className="mb-6">
-              <Label className="text-sm text-gray-600 mb-2 block">Preferred Postcode</Label>
-              <Input
-                type="text"
-                placeholder="e.g., 4000, 2000, 3000..."
-                value={selectedFilters.postcode}
-                onChange={(e) => handleSelectChange("postcode", e.target.value)}
-                className="w-full bg-white border border-gray-300"
-              />
-            </div>
-
-            {/* Industry */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Industry</h3>
-              <Select
-                value={selectedFilters.interestedIndustry}
-                onValueChange={(val) => handleSelectChange("interestedIndustry", val)}
-              >
-                <SelectTrigger className="w-full bg-white border border-gray-300">
-                  <SelectValue placeholder="Select industry" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-300 shadow-lg max-h-60 overflow-y-auto">
-                  {industries.map((ind) => (
-                    <SelectItem key={ind.id} value={String(ind.id)}>
-                      {ind.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Role */}
-            {selectedFilters.interestedIndustry && (
-              <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 mb-3">Role</h3>
-                <Select
-                  value={selectedFilters.interestedRole}
-                  onValueChange={(val) => handleSelectChange("interestedRole", val)}
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4">
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                  onClick={() => navigate("/employer/dashboard")}
                 >
-                  <SelectTrigger className="w-full bg-white border border-gray-300">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-300 shadow-lg max-h-60 overflow-y-auto">
-                    {roles
-                      .filter((r) => r.industryId === Number(selectedFilters.interestedIndustry))
-                      .map((r) => (
-                        <SelectItem key={r.id} value={String(r.id)}>
-                          {r.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                  <ArrowLeft className="w-6 h-6 text-gray-700" />
+                </Button>
+                <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
               </div>
-            )}
+            </div>
 
-            {/* Job Type */}
-            <DropdownSection
-              title="Job Type"
-              items={jobTypes}
-              category="lookingForJobType"
-              placeholder="Select job type"
-            />
+            {/* Job Post Selector */}
+            <div className="px-6 mb-4">
+              <select
+                value={selectedJobId ?? ""}
+                onChange={(e) => setSelectedJobId(Number(e.target.value))}
+                className="w-full h-12 border border-gray-300 rounded-xl px-3"
+              >
+                <option value="" disabled>
+                  Select job post
+                </option>
+                {jobPosts.map((job) => (
+                  <option key={job.job_id} value={job.job_id}>
+                    {job.description || `Job #${job.job_id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {/* Pay Range */}
-            <DropdownSection
-              title="Pay Range"
-              items={payRanges}
-              category="minPayRate"
-              placeholder="Select pay range"
-            />
+            {/* Content */}
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+              {/* Search Bar */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Input
+                  placeholder="Search for candidates..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white"
+                />
+                <button
+                  onClick={() => setShowFilters(true)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                >
+                  <Filter className="text-gray-400" size={20} />
+                </button>
+              </div>
 
-            {/* Employer Benefits */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">What I Need from Employer</h3>
-              <div className="space-y-2">
-                {[
-                  { key: "needsAccommodation", label: "I Need Accommodation" },
-                  { key: "needsMeals", label: "I Need Meals Provided" },
-                  { key: "needsTransport", label: "I Need Transport Provided" },
-                  { key: "needsTraining", label: "I Need Training Provided" },
-                  { key: "hasEquipment", label: "I Have My Own Equipment/Tools" },
-                ].map((item) => (
-                  <div key={item.key} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={item.key}
-                      checked={selectedFilters[item.key as keyof typeof selectedFilters] as boolean}
-                      onCheckedChange={(checked) =>
-                        handleBooleanFilterChange(item.key, checked as boolean)
-                      }
-                    />
-                    <Label htmlFor={item.key} className="text-sm text-gray-700">
-                      {item.label}
-                    </Label>
+              {/* Candidates List */}
+              <div className="space-y-4">
+                {candidates.map((candidate) => (
+                  <div
+                    key={candidate.user_id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                  >
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={candidate.profileImage}
+                        alt={candidate.name}
+                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1">
+                              {candidate.name}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-1">
+                              {candidate.industries.join(", ") || "No industries set"}
+                            </p>
+                            <p className="text-sm text-gray-600 mb-1">
+                              {candidate.experiences}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Preferred Locations:{" "}
+                              {candidate.preferredLocations.join(", ") || "No preferences"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-4">
+                          <Button
+                            onClick={() => handleViewProfile(candidate.user_id)}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                          >
+                            View Profile
+                          </Button>
+                          <button
+                            onClick={() => handleLikeCandidate(candidate.user_id)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={20}
+                              className={candidate.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Fixed Bottom Button */}
-          <div className="bg-white border-t p-4 flex-shrink-0 rounded-b-[48px]">
-            <Button
-              onClick={applyFilters}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-            >
-              Find Jobs
-            </Button>
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
+            <BottomNavigation />
           </div>
+
+          <LikeConfirmationModal
+            candidateName={likedCandidateName}
+            onClose={() => setShowLikeModal(false)}
+            isVisible={showLikeModal}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-export default WHVFilterPage;
+export default BrowseCandidates;
