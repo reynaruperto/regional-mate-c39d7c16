@@ -4,6 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import BottomNavigation from "@/components/BottomNavigation";
 import FilterPage from "@/components/FilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
@@ -50,7 +57,7 @@ const BrowseCandidates: React.FC = () => {
       if (!employerId) return;
       const { data, error } = await supabase
         .from("job")
-        .select("job_id, description, job_status")
+        .select("job_id, description, job_status, industry_role(role)")
         .eq("user_id", employerId)
         .eq("job_status", "active");
 
@@ -58,7 +65,8 @@ const BrowseCandidates: React.FC = () => {
         console.error("Error fetching jobs:", error);
       } else {
         setJobPosts(data || []);
-        if (data && data.length > 0) setSelectedJobId(data[0].job_id);
+        // 🚫 Do not auto-select first job
+        setSelectedJobId(null);
       }
     };
     fetchJobs();
@@ -116,14 +124,12 @@ const BrowseCandidates: React.FC = () => {
       const mapped: Candidate[] = visibleMakers.map((m) => {
         const userId = m.user_id;
 
-        // Industries
         const userIndustries: string[] =
           (industries as any[])
             ?.filter((ind) => ind.user_id === userId)
             .map((ind) => ind.industry?.name as string | undefined)
             .filter((n): n is string => Boolean(n)) || [];
 
-        // Work Experiences
         const userExps = (experiences as any[])?.filter((e) => e.user_id === userId) || [];
         const expSummaries: string[] = userExps
           .map((exp) => {
@@ -143,14 +149,12 @@ const BrowseCandidates: React.FC = () => {
           condensedExperience = expSummaries.join(", ");
         }
 
-        // Licenses
         const userLicenses: string[] =
           (licenses as any[])
             ?.filter((l) => l.user_id === userId)
             .map((l) => l.license?.name as string | undefined)
             .filter((n): n is string => Boolean(n)) || [];
 
-        // Locations
         const userLocations: string[] =
           (locations as any[])
             ?.filter((loc) => loc.user_id === userId)
@@ -160,7 +164,6 @@ const BrowseCandidates: React.FC = () => {
             )
             .filter((n): n is string => Boolean(n)) || [];
 
-        // Profile photo
         const photoUrl = m.profile_photo
           ? supabase.storage.from("profile_photo").getPublicUrl(m.profile_photo).data.publicUrl
           : "/default-avatar.png";
@@ -191,24 +194,20 @@ const BrowseCandidates: React.FC = () => {
       setCandidates(allCandidates);
       return;
     }
-
     const query = searchQuery.toLowerCase();
-    const filtered = allCandidates.filter(
-      (c) =>
-        c.name.toLowerCase().includes(query) ||
-        c.industries.some((ind) => ind.toLowerCase().includes(query)) ||
-        c.preferredLocations.some((loc) => loc.toLowerCase().includes(query))
+    setCandidates(
+      allCandidates.filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          c.industries.some((ind) => ind.toLowerCase().includes(query)) ||
+          c.preferredLocations.some((loc) => loc.toLowerCase().includes(query))
+      )
     );
-
-    setCandidates(filtered);
   }, [searchQuery, allCandidates]);
 
   // ✅ Like toggle
   const handleLikeCandidate = async (candidateId: string) => {
-    if (!employerId || !selectedJobId) {
-      alert("Please select a job post first.");
-      return;
-    }
+    if (!employerId || !selectedJobId) return;
 
     const candidate = candidates.find((c) => c.user_id === candidateId);
     if (!candidate) return;
@@ -249,7 +248,6 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // Filters
   const removeFilter = (filterValue: string) => {
     const newFilters = { ...selectedFilters };
     Object.keys(newFilters).forEach((key) => {
@@ -258,55 +256,8 @@ const BrowseCandidates: React.FC = () => {
       }
     });
     setSelectedFilters(newFilters);
-    applyFilters(newFilters);
+    // reapply filters...
   };
-
-  const handleViewProfile = (candidateId: string) => {
-    navigate(`/short-candidate-profile/${candidateId}?from=browse-candidates`);
-  };
-
-  const handleCloseLikeModal = () => {
-    setShowLikeModal(false);
-    setLikedCandidateName("");
-  };
-
-  const applyFilters = (filters: any) => {
-    let filtered = [...allCandidates];
-
-    if (filters.preferredLocation) {
-      filtered = filtered.filter((c) =>
-        c.preferredLocations.some((loc) =>
-          loc.toLowerCase().includes(filters.preferredLocation.toLowerCase())
-        )
-      );
-    }
-
-    if (filters.preferredIndustry) {
-      filtered = filtered.filter((c) => c.industries.includes(filters.preferredIndustry));
-    }
-
-    if (filters.experienceIndustry) {
-      filtered = filtered.filter((c) =>
-        c.experiences.toLowerCase().includes(filters.experienceIndustry.toLowerCase())
-      );
-    }
-
-    if (filters.licenseRequired) {
-      filtered = filtered.filter((c) => c.licenses.includes(filters.licenseRequired));
-    }
-
-    setCandidates(filtered);
-    setSelectedFilters(filters);
-  };
-
-  const handleApplyFilters = (filters: any) => {
-    applyFilters(filters);
-    setShowFilters(false);
-  };
-
-  if (showFilters) {
-    return <FilterPage onClose={() => setShowFilters(false)} onApplyFilters={handleApplyFilters} />;
-  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -318,12 +269,7 @@ const BrowseCandidates: React.FC = () => {
             {/* Header */}
             <div className="px-6 pt-16 pb-4">
               <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                  onClick={() => navigate("/employer/dashboard")}
-                >
+                <Button variant="ghost" size="icon" className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4" onClick={() => navigate("/employer/dashboard")}>
                   <ArrowLeft className="w-6 h-6 text-gray-700" />
                 </Button>
                 <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
@@ -332,121 +278,56 @@ const BrowseCandidates: React.FC = () => {
 
             {/* Job Post Selector */}
             <div className="px-6 mb-4">
-              <select
-                value={selectedJobId ?? ""}
-                onChange={(e) => setSelectedJobId(Number(e.target.value))}
-                className="w-full h-12 border border-gray-300 rounded-xl px-3"
+              <Select
+                onValueChange={(value) => setSelectedJobId(Number(value))}
+                value={selectedJobId ? String(selectedJobId) : ""}
               >
-                <option value="" disabled>
-                  Select job post
-                </option>
-                {jobPosts.map((job) => (
-                  <option key={job.job_id} value={job.job_id}>
-                    {job.description || `Job #${job.job_id}`}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+                  <SelectValue placeholder="Select an active job post" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobPosts.map((job) => (
+                    <SelectItem key={job.job_id} value={String(job.job_id)}>
+                      {job.industry_role?.role || "Unknown Role"} –{" "}
+                      {job.description || `Job #${job.job_id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Content */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-              {/* Search Bar */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <Input
-                  placeholder="Search for candidates..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white"
-                />
-                <button
-                  onClick={() => setShowFilters(true)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                >
-                  <Filter className="text-gray-400" size={20} />
-                </button>
-              </div>
-
-              {/* Active Filters */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {Object.values(selectedFilters).map((filter, index) => (
-                  <div
-                    key={`filter-${index}`}
-                    className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-2"
-                  >
-                    <span className="text-sm text-gray-700">{String(filter)}</span>
-                    <button
-                      onClick={() => removeFilter(String(filter))}
-                      className="text-gray-500 hover:text-gray-700 text-lg"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Candidates List */}
-              <div className="space-y-4">
-                {candidates.map((candidate) => (
-                  <div
-                    key={candidate.user_id}
-                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
-                  >
+              {!selectedJobId ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>Please select a job post above to view matching candidates.</p>
+                </div>
+              ) : candidates.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No candidates match this job yet.</p>
+                </div>
+              ) : (
+                candidates.map((candidate) => (
+                  <div key={candidate.user_id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                     <div className="flex items-start gap-4">
-                      <img
-                        src={candidate.profileImage}
-                        alt={candidate.name}
-                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
-                      />
+                      <img src={candidate.profileImage} alt={candidate.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 text-lg mb-1">
-                              {candidate.name}
-                            </h3>
-
-                            {/* Preferences */}
-                            <p className="text-sm text-gray-600 mb-1">
-                              <span className="font-medium">Preferred Industries:</span>{" "}
-                              {candidate.industries.length > 0
-                                ? candidate.industries.join(", ")
-                                : "No preferences"}
-                            </p>
-
-                            {/* Work Experience */}
-                            <p className="text-sm text-gray-600 mb-1">
-                              <span className="font-medium">Work Experience:</span>{" "}
-                              {candidate.experiences || "No work experience added"}
-                            </p>
-
-                            {/* Licenses */}
-                            {candidate.licenses.length > 0 && (
-                              <p className="text-sm text-gray-600 mb-1">
-                                <span className="font-medium">Licenses:</span>{" "}
-                                {candidate.licenses.join(", ")}
-                              </p>
-                            )}
-
-                            {/* Locations */}
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Preferred Locations:</span>{" "}
-                              {candidate.preferredLocations.length > 0
-                                ? candidate.preferredLocations.join(", ")
-                                : "No preferences"}
-                            </p>
-                          </div>
-                        </div>
+                        <h3 className="font-semibold text-gray-900 text-lg mb-1">{candidate.name}</h3>
+                        <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Preferred Industries:</span> {candidate.industries.length > 0 ? candidate.industries.join(", ") : "No preferences"}</p>
+                        <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Work Experience:</span> {candidate.experiences}</p>
+                        {candidate.licenses.length > 0 && <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Licenses:</span> {candidate.licenses.join(", ")}</p>}
+                        <p className="text-sm text-gray-600"><span className="font-medium">Preferred Locations:</span> {candidate.preferredLocations.length > 0 ? candidate.preferredLocations.join(", ") : "No preferences"}</p>
 
                         <div className="flex items-center gap-3 mt-4">
-                          <Button
-                            onClick={() => handleViewProfile(candidate.user_id)}
-                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                          >
-                            View Profile
-                          </Button>
+                          <Button onClick={() => navigate(`/short-candidate-profile/${candidate.user_id}`)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl">View Profile</Button>
                           <button
+                            disabled={!selectedJobId}
                             onClick={() => handleLikeCandidate(candidate.user_id)}
-                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            className={`h-11 w-11 flex-shrink-0 border-2 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                              !selectedJobId
+                                ? "bg-gray-100 border-gray-200 cursor-not-allowed"
+                                : "bg-white border-orange-200 hover:bg-orange-50"
+                            }`}
                           >
                             <Heart
                               size={20}
@@ -461,8 +342,8 @@ const BrowseCandidates: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -470,11 +351,7 @@ const BrowseCandidates: React.FC = () => {
             <BottomNavigation />
           </div>
 
-          <LikeConfirmationModal
-            candidateName={likedCandidateName}
-            onClose={handleCloseLikeModal}
-            isVisible={showLikeModal}
-          />
+          <LikeConfirmationModal candidateName={likedCandidateName} onClose={() => setShowLikeModal(false)} isVisible={showLikeModal} />
         </div>
       </div>
     </div>
