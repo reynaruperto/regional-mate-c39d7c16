@@ -15,7 +15,6 @@ interface Candidate {
   state: string;
   profileImage: string;
   industries: string[];
-  roles: string[];
   experiences: string;
   licenses: string[];
   preferredLocations: string[];
@@ -82,15 +81,15 @@ const BrowseCandidates: React.FC = () => {
 
       const visibleMakers = makers?.filter((m) => m.is_profile_visible) || [];
 
-      // 2️⃣ Industry + Role preferences
-      const { data: preferences } = (await supabase
-        .from("maker_pref_industry_role")
-        .select("user_id, industry_role ( industry_role, industry ( name ) )")) as any;
+      // 2️⃣ Industry Preferences
+      const { data: industries } = (await supabase
+        .from("maker_pref_industry")
+        .select("user_id, industry ( name )")) as any;
 
       // 3️⃣ Work Experiences
       const { data: experiences } = (await supabase
         .from("maker_work_experience")
-        .select("user_id, position, start_date, end_date, industry_id, industry ( name )")) as any;
+        .select("user_id, position, start_date, end_date, industry ( name )")) as any;
 
       // 4️⃣ Location Preferences
       const { data: locations } = (await supabase
@@ -117,24 +116,14 @@ const BrowseCandidates: React.FC = () => {
       const mapped: Candidate[] = visibleMakers.map((m) => {
         const userId = m.user_id;
 
-        // Industries & Roles
-        const userPrefs = (preferences as any[])?.filter((p) => p.user_id === userId) || [];
-        const industries: string[] = [
-          ...new Set(
-            userPrefs
-              .map((p) => p.industry_role?.industry?.name as string | undefined)
-              .filter((n): n is string => Boolean(n))
-          ),
-        ];
-        const roles: string[] = [
-          ...new Set(
-            userPrefs
-              .map((p) => p.industry_role?.industry_role as string | undefined)
-              .filter((r): r is string => Boolean(r))
-          ),
-        ];
+        // Industries
+        const userIndustries: string[] =
+          (industries as any[])
+            ?.filter((ind) => ind.user_id === userId)
+            .map((ind) => ind.industry?.name as string | undefined)
+            .filter((n): n is string => Boolean(n)) || [];
 
-        // Work Experiences (summarized string)
+        // Work Experiences
         const userExps = (experiences as any[])?.filter((e) => e.user_id === userId) || [];
         const expSummaries: string[] = userExps
           .map((exp) => {
@@ -181,8 +170,7 @@ const BrowseCandidates: React.FC = () => {
           name: `${m.given_name} ${m.family_name}`,
           state: m.state,
           profileImage: photoUrl,
-          industries,
-          roles,
+          industries: userIndustries,
           experiences: condensedExperience || "No work experience added",
           licenses: userLicenses,
           preferredLocations: userLocations,
@@ -196,6 +184,24 @@ const BrowseCandidates: React.FC = () => {
 
     fetchCandidates();
   }, [employerId, selectedJobId]);
+
+  // 🔎 Live search filter
+  useEffect(() => {
+    if (!searchQuery) {
+      setCandidates(allCandidates);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = allCandidates.filter(
+      (c) =>
+        c.name.toLowerCase().includes(query) ||
+        c.industries.some((ind) => ind.toLowerCase().includes(query)) ||
+        c.preferredLocations.some((loc) => loc.toLowerCase().includes(query))
+    );
+
+    setCandidates(filtered);
+  }, [searchQuery, allCandidates]);
 
   // ✅ Like toggle
   const handleLikeCandidate = async (candidateId: string) => {
@@ -277,10 +283,6 @@ const BrowseCandidates: React.FC = () => {
 
     if (filters.preferredIndustry) {
       filtered = filtered.filter((c) => c.industries.includes(filters.preferredIndustry));
-    }
-
-    if (filters.preferredRole) {
-      filtered = filtered.filter((c) => c.roles.includes(filters.preferredRole));
     }
 
     if (filters.experienceIndustry) {
@@ -409,7 +411,8 @@ const BrowseCandidates: React.FC = () => {
                               {candidate.experiences}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Preferred State: {candidate.state}
+                              Preferred Locations:{" "}
+                              {candidate.preferredLocations.join(", ") || "No preferences"}
                             </p>
                           </div>
                         </div>
