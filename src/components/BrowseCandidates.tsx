@@ -148,7 +148,7 @@ const BrowseCandidates: React.FC = () => {
             .map((l) => l.license?.name as string | undefined)
             .filter((n): n is string => Boolean(n)) || [];
 
-        // Locations
+        // Locations (state only)
         const userLocations: string[] =
           (locations as any[])
             ?.filter((loc) => loc.user_id === userId)
@@ -166,7 +166,7 @@ const BrowseCandidates: React.FC = () => {
           profileImage: photoUrl,
           industries: userIndustries,
           workExpIndustries,
-          experiences: "", // condensed details removed from preview
+          experiences: "",
           licenses: userLicenses,
           preferredLocations: userLocations,
           isLiked: likedIds.includes(userId),
@@ -362,20 +362,48 @@ const BrowseCandidates: React.FC = () => {
             <div className="flex flex-wrap gap-2 mb-6 px-6">
               {Object.entries(selectedFilters)
                 .filter(([_, value]) => value && value !== "")
-                .map(([key, value]) => (
-                  <div
-                    key={`filter-${key}`}
-                    className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
-                  >
-                    <span className="text-sm text-gray-700">{String(value)}</span>
-                    <button
-                      onClick={() => applyFilters({ ...selectedFilters, [key]: "" })}
-                      className="text-gray-500 hover:text-gray-700"
+                .map(([key, value]) => {
+                  let label = "";
+                  switch (key) {
+                    case "workExpIndustry":
+                      label = `Work Experience Industry: ${value}`;
+                      break;
+                    case "state":
+                      label = `Preferred Work Location: ${value}`;
+                      break;
+                    case "suburbPostcode":
+                      label = `Location: ${value}`;
+                      break;
+                    case "license":
+                      label = `License: ${value}`;
+                      break;
+                    case "candidateExperience":
+                      label = `Candidate Experience: ${value}`;
+                      break;
+                    case "industries":
+                      label = `Preferred Work Industries: ${value}`;
+                      break;
+                    default:
+                      label = String(value);
+                  }
+
+                  return (
+                    <div
+                      key={`filter-${key}`}
+                      className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
                     >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                      <span className="text-sm text-gray-700">{label}</span>
+                      <button
+                        onClick={() =>
+                          applyFilters({ ...selectedFilters, [key]: "" })
+                        }
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
 
             {/* Candidates List */}
@@ -396,9 +424,9 @@ const BrowseCandidates: React.FC = () => {
                   // Truncate preferred industries
                   const industriesPreview =
                     candidate.industries.length > 2
-                      ? `${candidate.industries.slice(0, 2).join(", ")} +${
-                          candidate.industries.length - 2
-                        } more`
+                      ? `${candidate.industries
+                          .slice(0, 2)
+                          .join(", ")} +${candidate.industries.length - 2} more`
                       : candidate.industries.join(", ") || "No preferences";
 
                   return (
@@ -422,24 +450,27 @@ const BrowseCandidates: React.FC = () => {
 
                           {/* Work Exp Industry + Years */}
                           <p className="text-sm text-gray-600">
-                            <strong>Experience:</strong>{" "}
-                            {candidate.workExpIndustries.join(", ") || "None"} •{" "}
+                            <strong>Work Experience Industry:</strong>{" "}
+                            {candidate.workExpIndustries.join(", ") ||
+                              "No industry experience listed"}{" "}
+                            •{" "}
                             {candidate.totalExperienceMonths >= 12
                               ? `${Math.floor(
                                   candidate.totalExperienceMonths / 12
-                                )} yrs`
-                              : `${candidate.totalExperienceMonths} mos`}
+                                )} years`
+                              : `${candidate.totalExperienceMonths} months`}
                           </p>
 
                           {/* Preferred Location (State only) */}
                           <p className="text-sm text-gray-600">
-                            <strong>Location:</strong>{" "}
+                            <strong>Preferred Work Location:</strong>{" "}
                             {candidate.state || "Not specified"}
                           </p>
 
-                          {/* Preferred Industries */}
+                          {/* Preferred Work Industries */}
                           <p className="text-sm text-gray-600">
-                            <strong>Preferred:</strong> {industriesPreview}
+                            <strong>Preferred Work Industries:</strong>{" "}
+                            {industriesPreview}
                           </p>
 
                           {/* Actions */}
