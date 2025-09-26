@@ -421,7 +421,6 @@ const BrowseCandidates: React.FC = () => {
                 </div>
               ) : (
                 candidates.map((candidate) => {
-                  // Truncate preferred industries
                   const industriesPreview =
                     candidate.industries.length > 2
                       ? `${candidate.industries
@@ -434,12 +433,12 @@ const BrowseCandidates: React.FC = () => {
                       key={candidate.user_id}
                       className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
                     >
-                      <div className="flex items-center gap-4">
-                        {/* Profile photo */}
+                      <div className="flex gap-3 items-start">
+                        {/* Profile photo top-left */}
                         <img
                           src={candidate.profileImage}
                           alt={candidate.name}
-                          className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
                         />
 
                         {/* Candidate info */}
@@ -448,7 +447,6 @@ const BrowseCandidates: React.FC = () => {
                             {candidate.name}
                           </h3>
 
-                          {/* Work Exp Industry + Years */}
                           <p className="text-sm text-gray-600">
                             <strong>Work Experience Industry:</strong>{" "}
                             {candidate.workExpIndustries.join(", ") ||
@@ -461,13 +459,11 @@ const BrowseCandidates: React.FC = () => {
                               : `${candidate.totalExperienceMonths} months`}
                           </p>
 
-                          {/* Preferred Location (State only) */}
                           <p className="text-sm text-gray-600">
                             <strong>Preferred Work Location:</strong>{" "}
                             {candidate.state || "Not specified"}
                           </p>
 
-                          {/* Preferred Work Industries */}
                           <p className="text-sm text-gray-600">
                             <strong>Preferred Work Industries:</strong>{" "}
                             {industriesPreview}
