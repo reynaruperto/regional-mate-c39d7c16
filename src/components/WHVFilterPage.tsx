@@ -11,138 +11,162 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 
-interface EligibilityRule {
-  industry_id: number;
-  states: string[];
-  postcodes: string[];
-}
-
 interface WHVFilterPageProps {
   onClose: () => void;
-  onResults: (jobs: any[]) => void; // parent gets filtered jobs
-  userId: string; // logged-in WHV user
+  onResults: (jobs: any[]) => void;
+  user: {
+    id: string;
+    subClass: string; // 417 or 462
+    countryId: number;
+    stage: number; // visa stage 1/2/3
+  };
 }
 
-const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userId }) => {
+const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     industry: "",
+    role: "",
     state: "",
-    postcode: "",
+    suburbCityPostcode: "",
     jobType: "",
     payRange: "",
-    facilities: "",
-    startDate: "",
+    facility: "",
   });
 
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; role: string }[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [suburbs, setSuburbs] = useState<{ suburb_city: string; postcode: string }[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [payRanges, setPayRanges] = useState<string[]>([]);
-  const [eligibility, setEligibility] = useState<EligibilityRule[]>([]);
 
-  const [filteredStates, setFilteredStates] = useState<string[]>([]);
-  const [filteredPostcodes, setFilteredPostcodes] = useState<string[]>([]);
-
+  // Load industries (filtered by eligibility)
   useEffect(() => {
-    const fetchOptionsAndEligibility = async () => {
-      try {
-        // Industries (full list so we can map IDs to names)
-        const { data: industryData } = await supabase.from("industry").select("id, name");
-        setIndustries(industryData || []);
+    const fetchIndustries = async () => {
+      const { data, error } = await supabase
+        .from("mvw_eligibility_visa_country_stage_industry")
+        .select("industry_id, industry")
+        .eq("sub_class", user.subClass)
+        .eq("country_id", user.countryId)
+        .eq("stage", user.stage);
 
-        // Facilities
-        const { data: facilityData } = await supabase.from("facility").select("id, name");
-        setFacilities(facilityData || []);
-
-        // Job Types
-        const { data: jobTypesData } = await supabase.rpc("get_enum_values", { enum_name: "job_type_enum" });
-        setJobTypes(jobTypesData || []);
-
-        // Pay Ranges
-        const { data: payRangesData } = await supabase.rpc("get_enum_values", { enum_name: "pay_range" });
-        setPayRanges(payRangesData || []);
-
-        // Eligibility rules for this user
-        const { data: eligData } = await supabase
-          .from("work_preference_onboarding")
-          .select("eligibility_json")
-          .eq("user_id", userId)
-          .single();
-
-        if (eligData?.eligibility_json) {
-          setEligibility(eligData.eligibility_json as EligibilityRule[]);
-        }
-      } catch (error) {
-        console.error("Error fetching filter options:", error);
+      if (!error && data) {
+        setIndustries(
+          data.map((d) => ({
+            id: d.industry_id,
+            name: d.industry,
+          }))
+        );
       }
     };
 
-    fetchOptionsAndEligibility();
-  }, [userId]);
+    const fetchFacilitiesAndEnums = async () => {
+      const { data: facilityData } = await supabase.from("facility").select("id, name");
+      setFacilities(facilityData || []);
 
-  const handleIndustryChange = (industryId: string) => {
-    setSelectedFilters((prev) => ({
-      ...prev,
+      const { data: jobTypesData } = await supabase.rpc("get_enum_values", {
+        enum_name: "job_type_enum",
+      });
+      setJobTypes(jobTypesData || []);
+
+      const { data: payRangesData } = await supabase.rpc("get_enum_values", {
+        enum_name: "pay_range",
+      });
+      setPayRanges(payRangesData || []);
+    };
+
+    fetchIndustries();
+    fetchFacilitiesAndEnums();
+  }, [user]);
+
+  // Load roles when industry changes
+  const handleIndustryChange = async (industryId: string) => {
+    setSelectedFilters({
+      ...selectedFilters,
       industry: industryId,
+      role: "",
       state: "",
-      postcode: "",
-    }));
+      suburbCityPostcode: "",
+    });
 
-    const elig = eligibility.find((e) => e.industry_id === parseInt(industryId));
-    setFilteredStates(elig?.states || []);
-    setFilteredPostcodes([]); // reset until state is chosen
+    const { data, error } = await supabase
+      .from("industry_role")
+      .select("id, role")
+      .eq("industry_id", parseInt(industryId));
+
+    if (!error && data) {
+      setRoles(data);
+    }
+
+    setStates([]);
+    setSuburbs([]);
   };
 
-  const handleStateChange = (state: string) => {
-    setSelectedFilters((prev) => ({
-      ...prev,
+  // Load states when role is chosen
+  const handleRoleChange = async (roleId: string) => {
+    setSelectedFilters({
+      ...selectedFilters,
+      role: roleId,
+      state: "",
+      suburbCityPostcode: "",
+    });
+
+    const { data, error } = await supabase
+      .from("regional_rules")
+      .select("state")
+      .eq("industry_id", parseInt(selectedFilters.industry));
+
+    if (!error && data) {
+      const uniqueStates = [...new Set(data.map((d) => d.state))];
+      setStates(uniqueStates);
+    }
+
+    setSuburbs([]);
+  };
+
+  // Load suburbs/postcodes when state is chosen
+  const handleStateChange = async (state: string) => {
+    setSelectedFilters({
+      ...selectedFilters,
       state,
-      postcode: "",
-    }));
+      suburbCityPostcode: "",
+    });
 
-    const elig = eligibility.find((e) => e.industry_id === parseInt(selectedFilters.industry));
-    const statePostcodes = elig?.postcodes.filter((pc) => pc.startsWith(state)) || [];
-    setFilteredPostcodes(statePostcodes);
-  };
+    const { data, error } = await supabase
+      .from("regional_rules")
+      .select("suburb_city, postcode")
+      .eq("industry_id", parseInt(selectedFilters.industry))
+      .eq("state", state);
 
-  const handleFindJobs = async () => {
-    try {
-      const { data, error } = await supabase.rpc("filter_employer_for_maker", {
-        p_filter_state: selectedFilters.state || null,
-        p_filter_suburb_city_postcode: selectedFilters.postcode || null,
-        p_filter_industry_ids: selectedFilters.industry ? [parseInt(selectedFilters.industry)] : null,
-        p_filter_job_type: selectedFilters.jobType || null,
-        p_filter_pay_range: selectedFilters.payRange || null,
-        p_filter_facility_ids: selectedFilters.facilities ? [parseInt(selectedFilters.facilities)] : null,
-        p_filter_start_date_range: selectedFilters.startDate || null,
-      });
-
-      if (error) {
-        console.error("Error fetching filtered jobs:", error);
-        return;
-      }
-
-      // Already constrained by eligibility in dropdowns,
-      // but still double-check before sending back.
-      const eligibleJobs = (data || []).filter((job) => {
-        const elig = eligibility.find((e) => e.industry_id === job.industry_id);
-        return (
-          elig &&
-          elig.states.includes(job.state) &&
-          (elig.postcodes.length === 0 || elig.postcodes.includes(job.postcode))
-        );
-      });
-
-      onResults(eligibleJobs);
-    } catch (err) {
-      console.error("Unexpected error:", err);
+    if (!error && data) {
+      setSuburbs(data);
     }
   };
 
-  // Build dropdown-ready list of eligible industries
-  const eligibleIndustries = industries.filter((i) =>
-    eligibility.some((e) => e.industry_id === i.id)
-  );
+  // Apply filters
+  const handleFindJobs = async () => {
+    const { data, error } = await supabase.rpc("filter_employer_for_maker", {
+      p_filter_state: selectedFilters.state || null,
+      p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
+      p_filter_industry_ids: selectedFilters.industry
+        ? [parseInt(selectedFilters.industry)]
+        : null,
+      p_filter_job_type: selectedFilters.jobType || null,
+      p_filter_pay_range: selectedFilters.payRange || null,
+      p_filter_facility_ids: selectedFilters.facility
+        ? [parseInt(selectedFilters.facility)]
+        : null,
+      p_filter_start_date_range: null,
+    });
+
+    if (error) {
+      console.error("Error filtering jobs:", error);
+      return;
+    }
+
+    onResults(data || []);
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -177,7 +201,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                     <SelectValue placeholder="Select industry" />
                   </SelectTrigger>
                   <SelectContent>
-                    {eligibleIndustries.map((i) => (
+                    {industries.map((i) => (
                       <SelectItem key={i.id} value={i.id.toString()}>
                         {i.name}
                       </SelectItem>
@@ -186,8 +210,30 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                 </Select>
               </div>
 
+              {/* Role */}
+              {roles.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  <Select
+                    value={selectedFilters.role}
+                    onValueChange={handleRoleChange}
+                  >
+                    <SelectTrigger className="w-full h-12 rounded-xl">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((r) => (
+                        <SelectItem key={r.id} value={r.id.toString()}>
+                          {r.role}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* State */}
-              {filteredStates.length > 0 && (
+              {states.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                   <Select
@@ -198,7 +244,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
                     <SelectContent>
-                      {filteredStates.map((s) => (
+                      {states.map((s) => (
                         <SelectItem key={s} value={s}>
                           {s}
                         </SelectItem>
@@ -208,21 +254,26 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                 </div>
               )}
 
-              {/* Postcode */}
-              {filteredPostcodes.length > 0 && (
+              {/* Suburb/Postcode */}
+              {suburbs.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Postcode</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Suburb / Postcode</label>
                   <Select
-                    value={selectedFilters.postcode}
-                    onValueChange={(v) => setSelectedFilters((prev) => ({ ...prev, postcode: v }))}
+                    value={selectedFilters.suburbCityPostcode}
+                    onValueChange={(v) =>
+                      setSelectedFilters((prev) => ({
+                        ...prev,
+                        suburbCityPostcode: v,
+                      }))
+                    }
                   >
                     <SelectTrigger className="w-full h-12 rounded-xl">
-                      <SelectValue placeholder="Select postcode" />
+                      <SelectValue placeholder="Select suburb or postcode" />
                     </SelectTrigger>
                     <SelectContent>
-                      {filteredPostcodes.map((pc) => (
-                        <SelectItem key={pc} value={pc}>
-                          {pc}
+                      {suburbs.map((s) => (
+                        <SelectItem key={s.postcode} value={s.postcode}>
+                          {s.suburb_city} ({s.postcode})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -235,7 +286,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                 <label className="block text-sm font-medium text-gray-700 mb-2">Job Type</label>
                 <Select
                   value={selectedFilters.jobType}
-                  onValueChange={(v) => setSelectedFilters((prev) => ({ ...prev, jobType: v }))}
+                  onValueChange={(v) =>
+                    setSelectedFilters((prev) => ({ ...prev, jobType: v }))
+                  }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
                     <SelectValue placeholder="Select job type" />
@@ -255,7 +308,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                 <label className="block text-sm font-medium text-gray-700 mb-2">Pay Range</label>
                 <Select
                   value={selectedFilters.payRange}
-                  onValueChange={(v) => setSelectedFilters((prev) => ({ ...prev, payRange: v }))}
+                  onValueChange={(v) =>
+                    setSelectedFilters((prev) => ({ ...prev, payRange: v }))
+                  }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
                     <SelectValue placeholder="Select pay range" />
@@ -270,12 +325,14 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
                 </Select>
               </div>
 
-              {/* Facilities */}
+              {/* Facility */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Employer Facilities</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Employer Facility</label>
                 <Select
-                  value={selectedFilters.facilities}
-                  onValueChange={(v) => setSelectedFilters((prev) => ({ ...prev, facilities: v }))}
+                  value={selectedFilters.facility}
+                  onValueChange={(v) =>
+                    setSelectedFilters((prev) => ({ ...prev, facility: v }))
+                  }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
                     <SelectValue placeholder="Select facility" />
@@ -291,7 +348,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, userI
               </div>
             </div>
 
-            {/* Action */}
+            {/* Find Jobs Button */}
             <div className="px-6 pb-8">
               <Button
                 onClick={handleFindJobs}
