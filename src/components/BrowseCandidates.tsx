@@ -73,38 +73,22 @@ const BrowseCandidates: React.FC = () => {
     fetchJobs();
   }, [employerId]);
 
-  // ✅ Fetch candidates scoped to job
+  // ✅ Fetch candidates using DB function
   useEffect(() => {
     const fetchCandidates = async () => {
       if (!employerId || !selectedJobId) return;
 
-      const { data: makers, error: makersError } = await supabase
-        .from("whv_maker")
-        .select("user_id, given_name, family_name, state, profile_photo, is_profile_visible");
+      const { data, error } = await supabase.rpc(
+        "filter_maker_for_employer",
+        { p_emp_id: employerId, p_job_id: selectedJobId }
+      );
 
-      if (makersError) {
-        console.error("Error fetching whv_maker:", makersError);
+      if (error) {
+        console.error("Error fetching candidates:", error);
         return;
       }
 
-      const visibleMakers = makers?.filter((m) => m.is_profile_visible) || [];
-
-      const { data: industries } = (await supabase
-        .from("maker_pref_industry")
-        .select("user_id, industry ( name )")) as any;
-
-      const { data: experiences } = (await supabase
-        .from("maker_work_experience")
-        .select("user_id, position, start_date, end_date, industry ( name )")) as any;
-
-      const { data: locations } = (await supabase
-        .from("maker_pref_location")
-        .select("user_id, state, suburb_city, postcode")) as any;
-
-      const { data: licenses } = (await supabase
-        .from("maker_license")
-        .select("user_id, license ( name )")) as any;
-
+      // Fetch likes separately to mark liked candidates
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_whv_id")
@@ -114,63 +98,27 @@ const BrowseCandidates: React.FC = () => {
 
       const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-      const mapped: Candidate[] = visibleMakers.map((m) => {
-        const userId = m.user_id;
-
-        // Preferences
-        const userIndustries: string[] =
-          (industries as any[])
-            ?.filter((ind) => ind.user_id === userId)
-            .map((ind) => ind.industry?.name as string | undefined)
-            .filter((n): n is string => Boolean(n)) || [];
-
-        // Work Experiences
-        const userExps = (experiences as any[])?.filter((e) => e.user_id === userId) || [];
-        let totalMonths = 0;
-        const workExpIndustries: string[] = [];
-
-        userExps.forEach((exp) => {
-          if (!exp.start_date) return;
-          const start = new Date(exp.start_date);
-          const end = exp.end_date ? new Date(exp.end_date) : new Date();
-          const diffMonths = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30);
-          totalMonths += Math.round(diffMonths);
-
-          if (exp.industry?.name && !workExpIndustries.includes(exp.industry.name)) {
-            workExpIndustries.push(exp.industry.name);
-          }
-        });
-
-        // Licenses
-        const userLicenses: string[] =
-          (licenses as any[])
-            ?.filter((l) => l.user_id === userId)
-            .map((l) => l.license?.name as string | undefined)
-            .filter((n): n is string => Boolean(n)) || [];
-
-        // Locations (state only)
-        const userLocations: string[] =
-          (locations as any[])
-            ?.filter((loc) => loc.user_id === userId)
-            .map((loc) => `${loc.state}`)
-            .filter((n): n is string => Boolean(n)) || [];
-
-        const photoUrl = m.profile_photo
-          ? supabase.storage.from("profile_photo").getPublicUrl(m.profile_photo).data.publicUrl
+      const mapped: Candidate[] = (data || []).map((row: any) => {
+        const photoUrl = row.profile_photo
+          ? supabase.storage.from("profile_photo").getPublicUrl(row.profile_photo).data.publicUrl
           : "/default-avatar.png";
 
+        const years = row.total_years_work_experience_industry
+          ? parseInt(row.total_years_work_experience_industry)
+          : 0;
+
         return {
-          user_id: userId,
-          name: `${m.given_name} ${m.family_name}`,
-          state: m.state,
+          user_id: row.maker_id,
+          name: row.given_name, // DB fn only returns given_name
+          state: row.maker_states?.[0] || "Not specified",
           profileImage: photoUrl,
-          industries: userIndustries,
-          workExpIndustries,
-          experiences: "",
-          licenses: userLicenses,
-          preferredLocations: userLocations,
-          isLiked: likedIds.includes(userId),
-          totalExperienceMonths: totalMonths,
+          industries: row.pref_industries || [],
+          workExpIndustries: row.industry ? [row.industry] : [],
+          experiences: row.total_years_work_experience_industry || "",
+          licenses: [], // extend function later if needed
+          preferredLocations: row.maker_states || [],
+          isLiked: likedIds.includes(row.maker_id),
+          totalExperienceMonths: years * 12,
         };
       });
 
@@ -231,7 +179,7 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ✅ Apply filters
+  // ✅ Apply filters (same as before, works on client side)
   const applyFilters = (f: any) => {
     let list = [...allCandidates];
 
@@ -380,9 +328,6 @@ const BrowseCandidates: React.FC = () => {
                     case "candidateExperience":
                       label = `Candidate Experience: ${value}`;
                       break;
-                    case "industries":
-                      label = `Preferred Work Industries: ${value}`;
-                      break;
                     default:
                       label = String(value);
                   }
@@ -451,12 +396,7 @@ const BrowseCandidates: React.FC = () => {
                             <strong>Work Experience Industry:</strong>{" "}
                             {candidate.workExpIndustries.join(", ") ||
                               "No industry experience listed"}{" "}
-                            •{" "}
-                            {candidate.totalExperienceMonths >= 12
-                              ? `${Math.floor(
-                                  candidate.totalExperienceMonths / 12
-                                )} years`
-                              : `${candidate.totalExperienceMonths} months`}
+                            • {candidate.experiences}
                           </p>
 
                           <p className="text-sm text-gray-600">
