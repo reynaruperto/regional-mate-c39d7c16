@@ -18,17 +18,17 @@ interface FilterPageProps {
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    workExpIndustry: "",
-    state: "",
-    suburbPostcode: "",
-    license: "",
-    candidateExperience: "",
+    p_filter_state: "",
+    p_filter_suburb_city_postcode: "",
+    p_filter_work_industry_id: "",
+    p_filter_work_years_experience: "",
+    p_filter_license_ids: "",
   });
 
   const [states, setStates] = useState<string[]>([]);
   const [suburbPostcodes, setSuburbPostcodes] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [licenses, setLicenses] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
   // ✅ Fetch distinct states & suburb+postcode
@@ -62,12 +62,12 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchLocations();
   }, []);
 
-  // ✅ Fetch industries from maker_work_experience
+  // ✅ Fetch industries (with IDs)
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase
-        .from("maker_work_experience")
-        .select("industry ( name )");
+        .from("industry")
+        .select("industry_id, name");
 
       if (error) {
         console.error("Error fetching industries:", error);
@@ -75,26 +75,22 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       }
 
       if (data) {
-        setIndustries([
-          ...new Set(
-            data.map((row) => row.industry?.name).filter(Boolean) as string[]
-          ),
-        ]);
+        setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
       }
     };
     fetchIndustries();
   }, []);
 
-  // ✅ Fetch licenses
+  // ✅ Fetch licenses (with IDs)
   useEffect(() => {
     const fetchLicenses = async () => {
-      const { data, error } = await supabase.from("license").select("name");
+      const { data, error } = await supabase.from("license").select("license_id, name");
       if (error) {
         console.error("Error fetching licenses:", error);
         return;
       }
       if (data) {
-        setLicenses(data.map((row) => row.name));
+        setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
       }
     };
     fetchLicenses();
@@ -119,7 +115,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   const applyFilters = () => {
     const cleaned = Object.fromEntries(
-      Object.entries(selectedFilters).filter(([_, v]) => v && v.trim() !== "")
+      Object.entries(selectedFilters).filter(([_, v]) => v && v.toString().trim() !== "")
     );
     onApplyFilters(cleaned);
     onClose();
@@ -130,11 +126,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     items,
     category,
     placeholder,
+    isObject = false,
   }: {
     title: string;
-    items: string[];
+    items: any[];
     category: string;
     placeholder: string;
+    isObject?: boolean;
   }) => (
     <div className="mb-6">
       <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
@@ -147,11 +145,17 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         </SelectTrigger>
         <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
           {items.length > 0 ? (
-            items.map((item) => (
-              <SelectItem key={item} value={item} className="hover:bg-gray-100">
-                {item}
-              </SelectItem>
-            ))
+            items.map((item) =>
+              isObject ? (
+                <SelectItem key={item.id} value={String(item.id)} className="hover:bg-gray-100">
+                  {item.name}
+                </SelectItem>
+              ) : (
+                <SelectItem key={item} value={item} className="hover:bg-gray-100">
+                  {item}
+                </SelectItem>
+              )
+            )
           ) : (
             <SelectItem value="none" disabled>
               No options available
@@ -187,31 +191,33 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
             <DropdownSection
               title="Industry of Work Experience"
               items={industries}
-              category="workExpIndustry"
+              category="p_filter_work_industry_id"
               placeholder="Any industry"
+              isObject={true}
             />
             <DropdownSection
               title="Candidate State"
               items={states}
-              category="state"
+              category="p_filter_state"
               placeholder="Any state"
             />
             <DropdownSection
               title="Candidate Suburb & Postcode"
               items={suburbPostcodes}
-              category="suburbPostcode"
+              category="p_filter_suburb_city_postcode"
               placeholder="Any suburb & postcode"
             />
             <DropdownSection
               title="Candidate License"
               items={licenses}
-              category="license"
+              category="p_filter_license_ids"
               placeholder="Any license"
+              isObject={true}
             />
             <DropdownSection
               title="Years of Work Experience"
               items={experienceLevels}
-              category="candidateExperience"
+              category="p_filter_work_years_experience"
               placeholder="Any experience level"
             />
           </div>
