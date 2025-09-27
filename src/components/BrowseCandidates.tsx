@@ -79,7 +79,7 @@ const BrowseCandidates: React.FC = () => {
       if (!employerId || !selectedJobId) return;
 
       const { data, error } = await supabase.rpc(
-        "filter_maker_for_employer",
+        "view_all_eligible_makers",
         { p_emp_id: employerId, p_job_id: selectedJobId }
       );
 
@@ -88,7 +88,7 @@ const BrowseCandidates: React.FC = () => {
         return;
       }
 
-      // Fetch likes separately to mark liked candidates
+      // Fetch likes separately
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_whv_id")
@@ -103,22 +103,25 @@ const BrowseCandidates: React.FC = () => {
           ? supabase.storage.from("profile_photo").getPublicUrl(row.profile_photo).data.publicUrl
           : "/default-avatar.png";
 
-        const years = row.total_years_work_experience_industry
-          ? parseInt(row.total_years_work_experience_industry)
+        // parse numeric years (strip " years"/" year")
+        const yearsInt = row.years_work_experience_industry
+          ? parseInt(row.years_work_experience_industry)
           : 0;
 
         return {
           user_id: row.maker_id,
-          name: row.given_name, // DB fn only returns given_name
-          state: row.maker_states?.[0] || "Not specified",
+          name: row.given_name,
+          state: row.state_pref?.[0] || "Not specified",
           profileImage: photoUrl,
-          industries: row.pref_industries || [],
-          workExpIndustries: row.industry ? [row.industry] : [],
-          experiences: row.total_years_work_experience_industry || "",
-          licenses: [], // extend function later if needed
-          preferredLocations: row.maker_states || [],
+          industries: row.industry_pref || [],
+          workExpIndustries: row.work_experience_industry
+            ? [row.work_experience_industry]
+            : [],
+          experiences: row.years_work_experience_industry || "",
+          licenses: [], // not returned yet
+          preferredLocations: row.state_pref || [],
           isLiked: likedIds.includes(row.maker_id),
-          totalExperienceMonths: years * 12,
+          totalExperienceMonths: yearsInt * 12,
         };
       });
 
@@ -179,7 +182,7 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ✅ Apply filters (same as before, works on client side)
+  // ✅ Apply filters (same as before)
   const applyFilters = (f: any) => {
     let list = [...allCandidates];
 
@@ -306,56 +309,8 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
-            {/* Active Filters */}
-            <div className="flex flex-wrap gap-2 mb-6 px-6">
-              {Object.entries(selectedFilters)
-                .filter(([_, value]) => value && value !== "")
-                .map(([key, value]) => {
-                  let label = "";
-                  switch (key) {
-                    case "workExpIndustry":
-                      label = `Work Experience Industry: ${value}`;
-                      break;
-                    case "state":
-                      label = `Preferred Work Location: ${value}`;
-                      break;
-                    case "suburbPostcode":
-                      label = `Location: ${value}`;
-                      break;
-                    case "license":
-                      label = `License: ${value}`;
-                      break;
-                    case "candidateExperience":
-                      label = `Candidate Experience: ${value}`;
-                      break;
-                    default:
-                      label = String(value);
-                  }
-
-                  return (
-                    <div
-                      key={`filter-${key}`}
-                      className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
-                    >
-                      <span className="text-sm text-gray-700">{label}</span>
-                      <button
-                        onClick={() =>
-                          applyFilters({ ...selectedFilters, [key]: "" })
-                        }
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-
             {/* Candidates List */}
-            <div
-              className="flex-1 px-6 overflow-y-auto"
-              style={{ paddingBottom: "100px" }}
-            >
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
                   <p>Please select a job post above to view matching candidates.</p>
@@ -368,9 +323,7 @@ const BrowseCandidates: React.FC = () => {
                 candidates.map((candidate) => {
                   const industriesPreview =
                     candidate.industries.length > 2
-                      ? `${candidate.industries
-                          .slice(0, 2)
-                          .join(", ")} +${candidate.industries.length - 2} more`
+                      ? `${candidate.industries.slice(0, 2).join(", ")} +${candidate.industries.length - 2} more`
                       : candidate.industries.join(", ") || "No preferences";
 
                   return (
@@ -394,8 +347,7 @@ const BrowseCandidates: React.FC = () => {
 
                           <p className="text-sm text-gray-600">
                             <strong>Work Experience Industry:</strong>{" "}
-                            {candidate.workExpIndustries.join(", ") ||
-                              "No industry experience listed"}{" "}
+                            {candidate.workExpIndustries.join(", ") || "No industry experience listed"}{" "}
                             • {candidate.experiences}
                           </p>
 
@@ -413,9 +365,7 @@ const BrowseCandidates: React.FC = () => {
                           <div className="flex items-center gap-3 mt-3">
                             <Button
                               onClick={() =>
-                                navigate(
-                                  `/short-candidate-profile/${candidate.user_id}?from=browse-candidates`
-                                )
+                                navigate(`/short-candidate-profile/${candidate.user_id}?from=browse-candidates`)
                               }
                               className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                             >
