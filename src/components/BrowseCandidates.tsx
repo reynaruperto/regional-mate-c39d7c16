@@ -72,7 +72,7 @@ const BrowseCandidates: React.FC = () => {
     fetchJobs();
   }, [employerId]);
 
-  // ✅ Fetch candidates using ONLY the DB function
+  // ✅ Fetch candidates using DB function (eligibility)
   useEffect(() => {
     const fetchCandidates = async () => {
       if (!employerId || !selectedJobId) return;
@@ -86,16 +86,6 @@ const BrowseCandidates: React.FC = () => {
         console.error("Error fetching candidates:", error);
         return;
       }
-
-      // Likes overlay
-      const { data: likes } = await supabase
-        .from("likes")
-        .select("liked_whv_id")
-        .eq("liker_id", employerId)
-        .eq("liker_type", "employer")
-        .eq("liked_job_post_id", selectedJobId);
-
-      const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
       const mapped: Candidate[] = (data || []).map((row: any) => {
         const photoUrl = row.profile_photo
@@ -117,7 +107,7 @@ const BrowseCandidates: React.FC = () => {
             : [],
           experiences: row.years_work_experience_industry || "",
           preferredLocations: row.state_pref || [],
-          isLiked: likedIds.includes(row.maker_id),
+          isLiked: false,
           totalExperienceMonths: yearsInt * 12,
         };
       });
@@ -129,7 +119,7 @@ const BrowseCandidates: React.FC = () => {
     fetchCandidates();
   }, [employerId, selectedJobId]);
 
-  // 🔎 Search filter
+  // 🔎 Search filter (still local)
   useEffect(() => {
     if (!searchQuery) {
       setCandidates(allCandidates);
@@ -147,7 +137,7 @@ const BrowseCandidates: React.FC = () => {
     setCandidates(filtered);
   }, [searchQuery, allCandidates]);
 
-  // ✅ Like handler
+  // ✅ Handle liking a candidate
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
 
@@ -176,14 +166,68 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
+  // ✅ Apply filters via DB function
+  const handleApplyFilters = async (filters: any) => {
+    if (!employerId) return;
+
+    try {
+      const { data, error } = await supabase.rpc(
+        "filter_candidate_for_employer",
+        {
+          p_filter_state: filters.p_filter_state || null,
+          p_filter_suburb_city_postcode: filters.p_filter_suburb_city_postcode || null,
+          p_filter_work_industry_id: filters.p_filter_work_industry_id
+            ? Number(filters.p_filter_work_industry_id)
+            : null,
+          p_filter_work_years_experience: filters.p_filter_work_years_experience || null,
+          p_filter_license_ids: filters.p_filter_license_ids
+            ? [Number(filters.p_filter_license_ids)]
+            : null,
+        }
+      );
+
+      if (error) {
+        console.error("Error applying filters:", error);
+        return;
+      }
+
+      const mapped: Candidate[] = (data || []).map((row: any) => {
+        const photoUrl = row.profile_photo
+          ? supabase.storage.from("profile_photo").getPublicUrl(row.profile_photo).data.publicUrl
+          : "/default-avatar.png";
+
+        return {
+          user_id: row.maker_id,
+          name: row.given_name,
+          state: row.state_pref?.[0] || "Not specified",
+          profileImage: photoUrl,
+          industries: row.industry_pref || [],
+          workExpIndustries: row.work_experience?.map((we: any) => we.industry) || [],
+          experiences:
+            row.work_experience
+              ?.map((we: any) => `${we.industry}: ${we.years}`)
+              .join(", ") || "",
+          preferredLocations: row.state_pref || [],
+          isLiked: false,
+          totalExperienceMonths: 0,
+        };
+      });
+
+      setCandidates(mapped);
+      setAllCandidates(mapped);
+      setSelectedFilters(filters);
+    } catch (err) {
+      console.error("Filter RPC failed:", err);
+    }
+
+    setShowFilters(false);
+  };
+
   if (showFilters) {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
-        onApplyFilters={(f) => {
-          setSelectedFilters(f);
-          setShowFilters(false);
-        }}
+        onApplyFilters={handleApplyFilters}
       />
     );
   }
