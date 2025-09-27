@@ -24,7 +24,6 @@ interface Candidate {
   industries: string[];
   workExpIndustries: string[];
   experiences: string;
-  licenses: string[];
   preferredLocations: string[];
   isLiked?: boolean;
   totalExperienceMonths: number;
@@ -73,7 +72,7 @@ const BrowseCandidates: React.FC = () => {
     fetchJobs();
   }, [employerId]);
 
-  // ✅ Fetch candidates using DB function
+  // ✅ Fetch candidates using ONLY the DB function
   useEffect(() => {
     const fetchCandidates = async () => {
       if (!employerId || !selectedJobId) return;
@@ -88,7 +87,7 @@ const BrowseCandidates: React.FC = () => {
         return;
       }
 
-      // Fetch likes separately
+      // Likes overlay
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_whv_id")
@@ -103,7 +102,6 @@ const BrowseCandidates: React.FC = () => {
           ? supabase.storage.from("profile_photo").getPublicUrl(row.profile_photo).data.publicUrl
           : "/default-avatar.png";
 
-        // parse numeric years (strip " years"/" year")
         const yearsInt = row.years_work_experience_industry
           ? parseInt(row.years_work_experience_industry)
           : 0;
@@ -118,7 +116,6 @@ const BrowseCandidates: React.FC = () => {
             ? [row.work_experience_industry]
             : [],
           experiences: row.years_work_experience_industry || "",
-          licenses: [], // not returned yet
           preferredLocations: row.state_pref || [],
           isLiked: likedIds.includes(row.maker_id),
           totalExperienceMonths: yearsInt * 12,
@@ -150,7 +147,7 @@ const BrowseCandidates: React.FC = () => {
     setCandidates(filtered);
   }, [searchQuery, allCandidates]);
 
-  // ✅ Handle liking a candidate
+  // ✅ Like handler
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
 
@@ -162,15 +159,12 @@ const BrowseCandidates: React.FC = () => {
         liked_job_post_id: selectedJobId,
       });
 
-      const updatedCandidates = candidates.map((c) =>
-        c.user_id === candidateId ? { ...c, isLiked: true } : c
+      setCandidates((prev) =>
+        prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
       );
-      setCandidates(updatedCandidates);
-
-      const updatedAllCandidates = allCandidates.map((c) =>
-        c.user_id === candidateId ? { ...c, isLiked: true } : c
+      setAllCandidates((prev) =>
+        prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
       );
-      setAllCandidates(updatedAllCandidates);
 
       const candidate = candidates.find((c) => c.user_id === candidateId);
       if (candidate) {
@@ -182,68 +176,14 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ✅ Apply filters (same as before)
-  const applyFilters = (f: any) => {
-    let list = [...allCandidates];
-
-    if (f.workExpIndustry) {
-      list = list.filter((c) =>
-        c.workExpIndustries.some(
-          (ind) => ind.toLowerCase() === f.workExpIndustry.toLowerCase()
-        )
-      );
-    }
-
-    if (f.state) {
-      list = list.filter((c) => c.state.toLowerCase() === f.state.toLowerCase());
-    }
-
-    if (f.suburbPostcode) {
-      list = list.filter((c) =>
-        c.preferredLocations.some((loc) =>
-          loc.toLowerCase().includes(f.suburbPostcode.toLowerCase())
-        )
-      );
-    }
-
-    if (f.license) {
-      list = list.filter((c) =>
-        c.licenses.some((lic) => lic.toLowerCase() === f.license.toLowerCase())
-      );
-    }
-
-    if (f.candidateExperience) {
-      list = list.filter((c) => {
-        const months = c.totalExperienceMonths || 0;
-        switch (f.candidateExperience) {
-          case "Less than 1 Year":
-            return months < 12;
-          case "1-2 Years":
-            return months >= 12 && months < 36;
-          case "3-5 Years":
-            return months >= 36 && months <= 60;
-          case "5+ Years":
-            return months > 60;
-          default:
-            return true;
-        }
-      });
-    }
-
-    setCandidates(list);
-    setSelectedFilters(f);
-  };
-
-  const handleApplyFilters = (filters: any) => {
-    applyFilters(filters);
-    setShowFilters(false);
-  };
-
   if (showFilters) {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
-        onApplyFilters={handleApplyFilters}
+        onApplyFilters={(f) => {
+          setSelectedFilters(f);
+          setShowFilters(false);
+        }}
       />
     );
   }
@@ -320,76 +260,69 @@ const BrowseCandidates: React.FC = () => {
                   <p>No candidates match this job yet.</p>
                 </div>
               ) : (
-                candidates.map((candidate) => {
-                  const industriesPreview =
-                    candidate.industries.length > 2
-                      ? `${candidate.industries.slice(0, 2).join(", ")} +${candidate.industries.length - 2} more`
-                      : candidate.industries.join(", ") || "No preferences";
+                candidates.map((candidate) => (
+                  <div
+                    key={candidate.user_id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
+                  >
+                    <div className="flex gap-3 items-start">
+                      {/* Profile photo */}
+                      <img
+                        src={candidate.profileImage}
+                        alt={candidate.name}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
+                      />
 
-                  return (
-                    <div
-                      key={candidate.user_id}
-                      className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
-                    >
-                      <div className="flex gap-3 items-start">
-                        {/* Profile photo top-left */}
-                        <img
-                          src={candidate.profileImage}
-                          alt={candidate.name}
-                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
-                        />
+                      {/* Candidate info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">
+                          {candidate.name}
+                        </h3>
 
-                        {/* Candidate info */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 text-lg truncate">
-                            {candidate.name}
-                          </h3>
+                        <p className="text-sm text-gray-600">
+                          <strong>Work Experience Industry:</strong>{" "}
+                          {candidate.workExpIndustries.join(", ") || "No industry experience listed"}{" "}
+                          • {candidate.experiences}
+                        </p>
 
-                          <p className="text-sm text-gray-600">
-                            <strong>Work Experience Industry:</strong>{" "}
-                            {candidate.workExpIndustries.join(", ") || "No industry experience listed"}{" "}
-                            • {candidate.experiences}
-                          </p>
+                        <p className="text-sm text-gray-600">
+                          <strong>Preferred Work Location:</strong>{" "}
+                          {candidate.state || "Not specified"}
+                        </p>
 
-                          <p className="text-sm text-gray-600">
-                            <strong>Preferred Work Location:</strong>{" "}
-                            {candidate.state || "Not specified"}
-                          </p>
+                        <p className="text-sm text-gray-600">
+                          <strong>Preferred Work Industries:</strong>{" "}
+                          {candidate.industries.join(", ") || "No preferences"}
+                        </p>
 
-                          <p className="text-sm text-gray-600">
-                            <strong>Preferred Work Industries:</strong>{" "}
-                            {industriesPreview}
-                          </p>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-3 mt-3">
-                            <Button
-                              onClick={() =>
-                                navigate(`/short-candidate-profile/${candidate.user_id}?from=browse-candidates`)
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 mt-3">
+                          <Button
+                            onClick={() =>
+                              navigate(`/short-candidate-profile/${candidate.user_id}?from=browse-candidates`)
+                            }
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
+                          >
+                            View Profile
+                          </Button>
+                          <button
+                            onClick={() => handleLikeCandidate(candidate.user_id)}
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={18}
+                              className={
+                                candidate.isLiked
+                                  ? "text-orange-500 fill-orange-500"
+                                  : "text-orange-500"
                               }
-                              className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
-                            >
-                              View Profile
-                            </Button>
-                            <button
-                              onClick={() => handleLikeCandidate(candidate.user_id)}
-                              className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
-                            >
-                              <Heart
-                                size={18}
-                                className={
-                                  candidate.isLiked
-                                    ? "text-orange-500 fill-orange-500"
-                                    : "text-orange-500"
-                                }
-                              />
-                            </button>
-                          </div>
+                            />
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })
+                  </div>
+                ))
               )}
             </div>
           </div>
