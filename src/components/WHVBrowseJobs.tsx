@@ -1,3 +1,4 @@
+// src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Search, Filter, Heart, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,15 @@ interface JobCard {
   isLiked?: boolean;
 }
 
+const PROFILE_BUCKET = "profile_photo"; // ✅ match your existing bucket
+
+const toPublicUrl = (path: string | null): string | null => {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path; // already a URL
+  const { data } = supabase.storage.from(PROFILE_BUCKET).getPublicUrl(path);
+  return data.publicUrl || null;
+};
+
 const WHVBrowseJobs: React.FC = () => {
   const navigate = (url: string) => {
     window.location.href = url;
@@ -37,19 +47,22 @@ const WHVBrowseJobs: React.FC = () => {
   const [likedJobTitle, setLikedJobTitle] = useState("");
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [allJobs, setAllJobs] = useState<JobCard[]>([]);
-  const [filters, setFilters] = useState<any>({});
   const [whvId, setWhvId] = useState<string | null>(null);
 
   // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error("Error fetching user:", error);
+        return;
+      }
       if (user) setWhvId(user.id);
     };
     getUser();
   }, []);
 
-  // ✅ Fetch jobs (eligible only)
+  // ✅ Fetch ONLY eligible jobs from RPC
   useEffect(() => {
     if (!whvId) return;
 
@@ -64,26 +77,18 @@ const WHVBrowseJobs: React.FC = () => {
       }
       if (!data) return;
 
-      const mapped: JobCard[] = data.map((job: any) => {
-        const photoUrl = job.profile_photo
-          ? supabase.storage
-              .from("profile-photos")
-              .getPublicUrl(job.profile_photo).data.publicUrl
-          : "/placeholder.png";
-
-        return {
-          job_id: job.job_id,
-          company: job.company,
-          profile_photo: photoUrl,
-          role: job.role,
-          industry: job.industry,
-          location: job.location,
-          salary_range: job.salary_range || "Rate not specified",
-          employment_type: job.job_type || "N/A",
-          description: job.job_description || "",
-          isLiked: false,
-        };
-      });
+      const mapped: JobCard[] = (data as any[]).map((j) => ({
+        job_id: j.job_id,
+        company: j.company,
+        profile_photo: toPublicUrl(j.profile_photo) ?? "/placeholder.png",
+        role: j.role,
+        industry: j.industry,
+        location: j.location, // already "Suburb, State Postcode"
+        salary_range: j.salary_range || "Rate not specified",
+        employment_type: j.job_type || "N/A",
+        description: j.job_description || "",
+        isLiked: false,
+      }));
 
       setJobs(mapped);
       setAllJobs(mapped);
@@ -92,23 +97,25 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  // 🔎 Search + Filters
+  // 🔎 Search (client-side)
   useEffect(() => {
-    let list = [...allJobs];
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      list = list.filter(
-        (j) =>
-          j.role.toLowerCase().includes(query) ||
-          j.industry.toLowerCase().includes(query) ||
-          j.company.toLowerCase().includes(query) ||
-          j.location.toLowerCase().includes(query)
-      );
+    if (!searchQuery) {
+      setJobs(allJobs);
+      return;
     }
-    setJobs(list);
+    const q = searchQuery.toLowerCase();
+    setJobs(
+      allJobs.filter(
+        (j) =>
+          j.role.toLowerCase().includes(q) ||
+          j.industry.toLowerCase().includes(q) ||
+          j.company.toLowerCase().includes(q) ||
+          j.location.toLowerCase().includes(q)
+      )
+    );
   }, [searchQuery, allJobs]);
 
-  // ✅ Like/unlike
+  // ❤️ Like/unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -168,6 +175,7 @@ const WHVBrowseJobs: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
@@ -183,13 +191,19 @@ const WHVBrowseJobs: React.FC = () => {
               </Button>
               <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
 
-              {/* Tooltip */}
-              <TooltipProvider>
+              {/* ✅ Tooltip (wrap trigger in a button) */}
+              <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="w-5 h-5 ml-2 text-gray-500 cursor-pointer" />
+                    <button
+                      type="button"
+                      aria-label="Eligibility info"
+                      className="ml-2 p-1 rounded hover:bg-gray-100"
+                    >
+                      <Info className="w-5 h-5 text-gray-500" />
+                    </button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-xs text-sm">
+                  <TooltipContent side="bottom" className="max-w-xs text-sm">
                     Only jobs you are eligible for will show here, based on your visa type and stage.
                   </TooltipContent>
                 </Tooltip>
@@ -233,6 +247,9 @@ const WHVBrowseJobs: React.FC = () => {
                         src={job.profile_photo || "/placeholder.png"}
                         alt={job.company}
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = "/placeholder.png";
+                        }}
                       />
                       <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-bold text-gray-900">{job.role}</h2>
@@ -280,10 +297,10 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
+          {/* Bottom Nav + Modal */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
-
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
