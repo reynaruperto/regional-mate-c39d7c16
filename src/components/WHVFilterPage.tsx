@@ -1,4 +1,3 @@
-// src/components/WHVFilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,16 +38,14 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load industries & locations via eligibility functions
+  // ✅ Load eligibility-driven filters
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
-      const { data: industriesData, error: indErr } = await supabase.rpc(
-        "view_eligible_industries",
-        { p_maker_id: user.id }
-      );
-      if (!indErr && industriesData) {
-        // Expect: [{ industry_id, industry_options }]
+      const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries", {
+        p_maker_id: user.id,
+      });
+      if (industriesData) {
         setIndustries(
           industriesData.map((d: any) => ({
             id: d.industry_id,
@@ -57,28 +54,29 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         );
       }
 
-      // Locations (states + suburb/postcode)
-      const { data: locData, error: locErr } = await supabase.rpc(
-        "view_eligible_locations",
-        { p_maker_id: user.id }
-      );
-      if (!locErr && locData) {
+      // Locations
+      const { data: locData } = await (supabase as any).rpc("view_eligible_locations", {
+        p_maker_id: user.id,
+      });
+      if (locData) {
         setStates([...new Set(locData.map((l: any) => l.state_options))]);
         setSuburbs(locData.map((l: any) => l.location));
       }
 
       // Facilities
-      const { data: facilityData } = await supabase.from("facility").select("id, name");
-      setFacilities(facilityData || []);
+      const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
+      setFacilities(
+        facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []
+      );
 
       // Job Types
-      const { data: jobTypesData } = await supabase.rpc("get_enum_values", {
+      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
         enum_name: "job_type_enum",
       });
       setJobTypes(jobTypesData || []);
 
       // Salary Ranges
-      const { data: salaryRangesData } = await supabase.rpc("get_enum_values", {
+      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
         enum_name: "pay_range",
       });
       setSalaryRanges(salaryRangesData || []);
@@ -89,7 +87,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await supabase.rpc("filter_employer_for_maker", {
+    const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
       p_filter_industry_ids: selectedFilters.industry
