@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Search, Filter } from "lucide-react";
+import { ArrowLeft, Search, Filter, Heart, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
 import WHVFilterPage from "@/components/WHVFilterPage";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Job {
   job_id: number;
@@ -61,7 +67,10 @@ const WHVBrowseJobs: React.FC = () => {
         job_type: j.job_type,
         salary_range: j.salary_range,
         job_description: j.job_description,
-        profile_photo: j.profile_photo ?? null,
+        // ✅ Ensure photo works with Supabase public URL
+        profile_photo: j.profile_photo
+          ? supabase.storage.from("profile-photos").getPublicUrl(j.profile_photo).data.publicUrl
+          : null,
       }));
 
       setJobs(mapped);
@@ -124,6 +133,18 @@ const WHVBrowseJobs: React.FC = () => {
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
               <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+
+              {/* Tooltip about eligibility */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-5 h-5 ml-2 text-gray-500 cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-sm">
+                    Only jobs you are eligible for will show here, based on your visa type and stage.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Search Bar */}
@@ -177,6 +198,26 @@ const WHVBrowseJobs: React.FC = () => {
                           {job.job_type} • {job.salary_range}
                         </p>
                         <p className="text-sm text-gray-600 mt-2">{job.job_description}</p>
+
+                        {/* ✅ Actions: View Profile + Heart */}
+                        <div className="flex justify-between items-center mt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              (window.location.href = `/job/${job.job_id}`)
+                            }
+                          >
+                            View Profile
+                          </Button>
+
+                          <button
+                            className="p-2 rounded-full hover:bg-gray-100"
+                            onClick={() => console.log("Like job", job.job_id)}
+                          >
+                            <Heart className="w-6 h-6 text-gray-500" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
