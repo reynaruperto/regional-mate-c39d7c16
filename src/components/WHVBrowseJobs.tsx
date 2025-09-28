@@ -23,12 +23,25 @@ const WHVBrowseJobs: React.FC = () => {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [makerId, setMakerId] = useState<string | null>(null);
 
-  // TODO: wire this to Supabase auth
-  const makerId = "REPLACE_WITH_LOGGED_IN_USER_ID";
-
-  // ✅ Baseline load: use view_all_eligible_jobs
+  // ✅ Get logged-in user
   useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error("Error fetching user:", error);
+        return;
+      }
+      setMakerId(user?.id || null);
+    };
+    fetchUser();
+  }, []);
+
+  // ✅ Fetch jobs when we have a user
+  useEffect(() => {
+    if (!makerId) return;
+
     const fetchJobs = async () => {
       const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
         p_maker_id: makerId,
@@ -77,7 +90,7 @@ const WHVBrowseJobs: React.FC = () => {
     );
   }, [searchQuery, allJobs]);
 
-  if (showFilters) {
+  if (showFilters && makerId) {
     return (
       <WHVFilterPage
         onClose={() => setShowFilters(false)}
