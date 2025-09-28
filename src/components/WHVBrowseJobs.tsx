@@ -1,114 +1,181 @@
-// src/pages/BrowseJobs.tsx
+// src/components/BrowseCandidates.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Filter } from "lucide-react";
+import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
-import WHVFilterPage from "@/components/WHVFilterPage";
+import FilterPage from "@/components/FilterPage";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-interface Job {
-  job_id: number;
-  emp_id?: string;
-  role?: string;
-  company?: string;
-  industry?: string;
-  location?: string;
-  job_type?: string;
-  salary_range?: string;
-  job_description?: string;
-  profile_photo?: string;
+interface Candidate {
+  user_id: string;
+  name: string;
+  state: string;
+  profileImage: string;
+  industries: string[];
+  workExpIndustries: string[];
+  licenses: string[];
+  preferredLocations: string[];
+  isLiked?: boolean;
+  totalExperienceMonths: number;
 }
 
-const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
+const BrowseCandidates: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [showLikeModal, setShowLikeModal] = useState(false);
+  const [likedCandidateName, setLikedCandidateName] = useState("");
+  const [selectedFilters, setSelectedFilters] = useState<any>({});
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
+  const [employerId, setEmployerId] = useState<string | null>(null);
 
-  // ✅ Load baseline: eligible jobs for this WHV user
+  const [jobPosts, setJobPosts] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
+  // ✅ Get employer ID
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setEmployerId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // ✅ Fetch employer job posts
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
-        p_maker_id: user.id,
-      });
+      if (!employerId) return;
+      const { data, error } = await supabase
+        .from("job")
+        .select("job_id, description, job_status, industry_role(role)")
+        .eq("user_id", employerId)
+        .eq("job_status", "active");
 
       if (error) {
         console.error("Error fetching jobs:", error);
-        return;
+      } else {
+        setJobPosts(data || []);
+        setSelectedJobId(null);
       }
-
-      setJobs(data || []);
-      setAllJobs(data || []);
     };
-
     fetchJobs();
-  }, [user.id]);
+  }, [employerId]);
 
-  // 🔎 Local search (title, company, industry, location)
+  // ✅ Baseline: fetch eligible candidates for selected job
   useEffect(() => {
-    if (!searchQuery) {
-      setJobs(allJobs);
-      return;
-    }
+    const fetchCandidates = async () => {
+      if (!employerId || !selectedJobId) return;
 
-    const q = searchQuery.toLowerCase();
-    setJobs(
-      allJobs.filter(
-        (j) =>
-          j.role?.toLowerCase().includes(q) ||
-          j.company?.toLowerCase().includes(q) ||
-          j.industry?.toLowerCase().includes(q) ||
-          j.location?.toLowerCase().includes(q)
-      )
-    );
-  }, [searchQuery, allJobs]);
-
-  // ✅ Apply filters via DB function, scoped to eligibility baseline
-  const handleApplyFilters = async (filters: any) => {
-    try {
-      const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
-        p_filter_state: filters.state || null,
-        p_filter_suburb_city_postcode: filters.suburbCityPostcode || null,
-        p_filter_industry_ids: filters.industry ? [parseInt(filters.industry)] : null,
-        p_filter_job_type: filters.jobType || null,
-        p_filter_salary_range: filters.salaryRange || null,
-        p_filter_facility_ids: filters.facility ? [parseInt(filters.facility)] : null,
-        p_filter_start_date_range: null,
+      const { data, error } = await (supabase as any).rpc("view_all_eligible_makers", {
+        p_emp_id: employerId,
+        p_job_id: selectedJobId,
       });
 
       if (error) {
-        console.error("Error applying filters:", error);
+        console.error("Error fetching candidates:", error);
         return;
       }
 
-      if (data && data.length > 0) {
-        const eligibleJobIds = new Set(allJobs.map((j) => j.job_id));
-        const filtered = data.filter((job: any) => eligibleJobIds.has(job.job_id));
-        setJobs(filtered as Job[]);
-      } else {
-        setJobs(allJobs);
-      }
-    } catch (err) {
-      console.error("Filter RPC failed:", err);
+      setAllCandidates(data || []);
+      setCandidates(data || []);
+    };
+
+    fetchCandidates();
+  }, [employerId, selectedJobId]);
+
+  // 🔎 Search filter
+  useEffect(() => {
+    if (!searchQuery) {
+      setCandidates(allCandidates);
+      return;
     }
 
+    const query = searchQuery.toLowerCase();
+    setCandidates(
+      allCandidates.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(query) ||
+          c.workExpIndustries?.some((ind) => ind.toLowerCase().includes(query)) ||
+          c.preferredLocations?.some((loc) => loc.toLowerCase().includes(query))
+      )
+    );
+  }, [searchQuery, allCandidates]);
+
+  // ✅ Handle liking a candidate
+  const handleLikeCandidate = async (candidateId: string) => {
+    if (!employerId || !selectedJobId) return;
+
+    try {
+      await supabase.from("likes").insert({
+        liker_id: employerId,
+        liker_type: "employer",
+        liked_whv_id: candidateId,
+        liked_job_post_id: selectedJobId,
+      });
+
+      const updated = candidates.map((c) =>
+        c.user_id === candidateId ? { ...c, isLiked: true } : c
+      );
+      setCandidates(updated);
+
+      const candidate = candidates.find((c) => c.user_id === candidateId);
+      if (candidate) {
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+      }
+    } catch (error) {
+      console.error("Error liking candidate:", error);
+    }
+  };
+
+  // ✅ Apply filters
+  const handleApplyFilters = async (filters: any) => {
+    if (!employerId || !selectedJobId) return;
+
+    const { data, error } = await (supabase as any).rpc("filter_candidate_for_employer", {
+      p_filter_state: filters.state || null,
+      p_filter_suburb_city_postcode: filters.suburbPostcode || null,
+      p_filter_work_industry_id: filters.workExpIndustry
+        ? parseInt(filters.workExpIndustry)
+        : null,
+      p_filter_work_years_experience: filters.candidateExperience || null,
+      p_filter_license_ids: filters.license ? [parseInt(filters.license)] : null,
+    });
+
+    if (error) {
+      console.error("Error filtering candidates:", error);
+      return;
+    }
+
+    // ✅ Intersect with baseline eligible candidates
+    if (data && data.length > 0) {
+      const eligibleIds = new Set(allCandidates.map((c) => c.user_id));
+      const filtered = data.filter((cand: any) => eligibleIds.has(cand.user_id));
+      setCandidates(filtered);
+    } else {
+      setCandidates(allCandidates);
+    }
+
+    setSelectedFilters(filters);
     setShowFilters(false);
   };
 
   if (showFilters) {
     return (
-      <WHVFilterPage
+      <FilterPage
         onClose={() => setShowFilters(false)}
-        onResults={handleApplyFilters}
-        user={{
-          id: user.id,
-          subClass: "417", // TODO: pass real subclass
-          countryId: 0, // TODO: pass real countryId
-          stage: 1, // TODO: pass real visa stage
-        }}
+        onApplyFilters={handleApplyFilters}
       />
     );
   }
@@ -127,11 +194,31 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
                 variant="ghost"
                 size="icon"
                 className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={() => navigate("/whv/dashboard")}
+                onClick={() => navigate("/employer/dashboard")}
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
+            </div>
+
+            {/* Job Post Selector */}
+            <div className="px-6 mb-4">
+              <Select
+                onValueChange={(value) => setSelectedJobId(Number(value))}
+                value={selectedJobId ? String(selectedJobId) : ""}
+              >
+                <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+                  <SelectValue placeholder="Select an active job post" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobPosts.map((job) => (
+                    <SelectItem key={job.job_id} value={String(job.job_id)}>
+                      {job.industry_role?.role || "Unknown Role"} –{" "}
+                      {job.description || `Job #${job.job_id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Search Bar */}
@@ -141,7 +228,7 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
                 size={20}
               />
               <Input
-                placeholder="Search jobs..."
+                placeholder="Search for candidates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
@@ -154,62 +241,64 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
               </button>
             </div>
 
-            {/* Job List */}
+            {/* Candidates List */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-              {jobs.length === 0 ? (
+              {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>No jobs available right now.</p>
+                  <p>Please select a job post above to view candidates.</p>
+                </div>
+              ) : candidates.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No candidates match this job yet.</p>
                 </div>
               ) : (
-                jobs.map((job) => (
+                candidates.map((candidate) => (
                   <div
-                    key={job.job_id}
+                    key={candidate.user_id}
                     className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
                   >
                     <div className="flex gap-3 items-start">
-                      {/* Employer photo */}
                       <img
-                        src={
-                          job.profile_photo
-                            ? supabase.storage
-                                .from("profile_photo")
-                                .getPublicUrl(job.profile_photo).data.publicUrl
-                            : "/default-avatar.png"
-                        }
-                        alt={job.company}
+                        src={candidate.profileImage || "/default-avatar.png"}
+                        alt={candidate.name}
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
                       />
-
-                      {/* Job info */}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900 text-lg truncate">
-                          {job.role}
+                          {candidate.name}
                         </h3>
-                        <p className="text-sm text-gray-600">{job.company}</p>
                         <p className="text-sm text-gray-600">
-                          <strong>Industry:</strong> {job.industry}
+                          <strong>Work Experience:</strong>{" "}
+                          {candidate.workExpIndustries.join(", ") || "No industry experience"} (
+                          {Math.floor(candidate.totalExperienceMonths / 12)} yrs)
                         </p>
                         <p className="text-sm text-gray-600">
-                          <strong>Location:</strong> {job.location}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          <strong>Type:</strong> {job.job_type} •{" "}
-                          <strong>Pay:</strong> {job.salary_range}
-                        </p>
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {job.job_description}
+                          <strong>Preferred Location:</strong>{" "}
+                          {candidate.state || "Not specified"}
                         </p>
 
-                        {/* Actions */}
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
-                              navigate(`/job-preview/${job.job_id}`)
+                              navigate(`/short-candidate-profile/${candidate.user_id}`)
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >
-                            View Job
+                            View Profile
                           </Button>
+                          <button
+                            onClick={() => handleLikeCandidate(candidate.user_id)}
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={18}
+                              className={
+                                candidate.isLiked
+                                  ? "text-orange-500 fill-orange-500"
+                                  : "text-orange-500"
+                              }
+                            />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -223,10 +312,16 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
+
+          <LikeConfirmationModal
+            candidateName={likedCandidateName}
+            onClose={() => setShowLikeModal(false)}
+            isVisible={showLikeModal}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-export default BrowseJobs;
+export default BrowseCandidates;
