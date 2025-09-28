@@ -77,7 +77,7 @@ const BrowseCandidates: React.FC = () => {
     const fetchCandidates = async () => {
       if (!employerId || !selectedJobId) return;
 
-      const { data, error } = await supabase.rpc(
+      const { data, error } = await (supabase as any).rpc(
         "view_all_eligible_makers",
         { p_emp_id: employerId, p_job_id: selectedJobId }
       );
@@ -171,7 +171,7 @@ const BrowseCandidates: React.FC = () => {
     if (!employerId) return;
 
     try {
-      const { data, error } = await supabase.rpc(
+      const { data, error } = await (supabase as any).rpc(
         "filter_candidate_for_employer",
         {
           p_filter_state: filters.p_filter_state || null,

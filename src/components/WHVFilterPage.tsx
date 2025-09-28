@@ -54,8 +54,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         p_maker_id: user.id,
       });
       if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state_options as string))]);
-        setSuburbs(locData.map((l: any) => l.location_options as string));
+        setStates([...new Set(locData.map((l: any) => l.state_options as string))] as string[]);
+        setSuburbs(locData.map((l: any) => l.location_options as string) as string[]);
       }
 
       // Facilities
