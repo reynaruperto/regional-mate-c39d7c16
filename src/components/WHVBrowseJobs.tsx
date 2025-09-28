@@ -10,14 +10,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Job {
   job_id: number;
-  emp_id: string;
-  role: string;
-  company: string;
-  industry: string;
-  location: string;
-  job_type: string;
-  salary_range: string;
-  job_description: string;
+  emp_id?: string;
+  role?: string;
+  company?: string;
+  industry?: string;
+  location?: string;
+  job_type?: string;
+  salary_range?: string;
+  job_description?: string;
   profile_photo?: string;
 }
 
@@ -31,7 +31,7 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
   // ✅ Load baseline: eligible jobs for this WHV user
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data, error } = await supabase.rpc("view_all_eligible_jobs", {
+      const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
         p_maker_id: user.id,
       });
 
@@ -58,18 +58,18 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
     setJobs(
       allJobs.filter(
         (j) =>
-          j.role.toLowerCase().includes(q) ||
-          j.company.toLowerCase().includes(q) ||
-          j.industry.toLowerCase().includes(q) ||
-          j.location.toLowerCase().includes(q)
+          j.role?.toLowerCase().includes(q) ||
+          j.company?.toLowerCase().includes(q) ||
+          j.industry?.toLowerCase().includes(q) ||
+          j.location?.toLowerCase().includes(q)
       )
     );
   }, [searchQuery, allJobs]);
 
-  // ✅ Apply filters via DB function
+  // ✅ Apply filters via DB function, scoped to eligibility baseline
   const handleApplyFilters = async (filters: any) => {
     try {
-      const { data, error } = await supabase.rpc("filter_employer_for_maker", {
+      const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
         p_filter_state: filters.state || null,
         p_filter_suburb_city_postcode: filters.suburbCityPostcode || null,
         p_filter_industry_ids: filters.industry ? [parseInt(filters.industry)] : null,
@@ -84,11 +84,12 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
         return;
       }
 
-      // If no filters applied → fall back to baseline
-      if (!data || data.length === 0) {
-        setJobs(allJobs);
+      if (data && data.length > 0) {
+        const eligibleJobIds = new Set(allJobs.map((j) => j.job_id));
+        const filtered = data.filter((job: any) => eligibleJobIds.has(job.job_id));
+        setJobs(filtered as Job[]);
       } else {
-        setJobs(data);
+        setJobs(allJobs);
       }
     } catch (err) {
       console.error("Filter RPC failed:", err);
@@ -102,7 +103,12 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
       <WHVFilterPage
         onClose={() => setShowFilters(false)}
         onResults={handleApplyFilters}
-        user={user}
+        user={{
+          id: user.id,
+          subClass: "417", // TODO: pass real subclass
+          countryId: 0, // TODO: pass real countryId
+          stage: 1, // TODO: pass real visa stage
+        }}
       />
     );
   }
@@ -165,7 +171,9 @@ const BrowseJobs: React.FC<{ user: { id: string } }> = ({ user }) => {
                       <img
                         src={
                           job.profile_photo
-                            ? supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl
+                            ? supabase.storage
+                                .from("profile_photo")
+                                .getPublicUrl(job.profile_photo).data.publicUrl
                             : "/default-avatar.png"
                         }
                         alt={job.company}
