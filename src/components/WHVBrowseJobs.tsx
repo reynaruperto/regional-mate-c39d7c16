@@ -35,7 +35,7 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ✅ Guard to avoid runtime crash
+  // ✅ Guard for user
   if (!user?.id) {
     return <p className="text-center mt-10">Loading user data...</p>;
   }
@@ -78,7 +78,7 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
     );
   }, [searchQuery, allJobs]);
 
-  // ✅ Handle applied filters
+  // ✅ Apply filters (via WHVFilterPage)
   const handleApplyFilters = async (filters: any) => {
     const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
       p_filter_state: filters.state || null,
