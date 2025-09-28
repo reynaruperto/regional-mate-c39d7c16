@@ -21,7 +21,7 @@ interface Job {
 }
 
 interface WHVBrowseJobsProps {
-  user: {
+  user?: {
     id: string;
     subClass: string; // "417" or "462"
     countryId: number;
@@ -35,12 +35,12 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ✅ Guard for user
+  // ✅ Guard if no user passed in
   if (!user?.id) {
-    return <p className="text-center mt-10">Loading user data...</p>;
+    return <p className="text-center mt-10">Please log in to view jobs.</p>;
   }
 
-  // ✅ Baseline load: all eligible jobs for WHV user
+  // ✅ Baseline load: fetch all eligible jobs for WHV maker
   useEffect(() => {
     const fetchJobs = async () => {
       const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
@@ -59,7 +59,7 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
     fetchJobs();
   }, [user]);
 
-  // 🔎 Apply search filter
+  // 🔎 Search filter
   useEffect(() => {
     if (!searchQuery) {
       setJobs(allJobs);
@@ -78,7 +78,7 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
     );
   }, [searchQuery, allJobs]);
 
-  // ✅ Apply filters (via WHVFilterPage)
+  // ✅ Apply filters
   const handleApplyFilters = async (filters: any) => {
     const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
       p_filter_state: filters.state || null,
