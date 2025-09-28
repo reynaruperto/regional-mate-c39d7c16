@@ -23,9 +23,9 @@ interface Job {
 interface WHVBrowseJobsProps {
   user?: {
     id: string;
-    subClass: string; // "417" or "462"
+    subClass: string;
     countryId: number;
-    stage: number; // visa stage 1/2/3
+    stage: number;
   };
 }
 
@@ -35,12 +35,12 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ✅ Guard if no user passed in
+  // ✅ Guard: don’t crash if user is missing
   if (!user?.id) {
     return <p className="text-center mt-10">Please log in to view jobs.</p>;
   }
 
-  // ✅ Baseline load: fetch all eligible jobs for WHV maker
+  // ✅ Fetch eligible jobs
   useEffect(() => {
     const fetchJobs = async () => {
       const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
@@ -59,7 +59,7 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
     fetchJobs();
   }, [user]);
 
-  // 🔎 Search filter
+  // 🔎 Search
   useEffect(() => {
     if (!searchQuery) {
       setJobs(allJobs);
@@ -120,7 +120,6 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
@@ -137,7 +136,7 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
             </div>
 
-            {/* Search Bar */}
+            {/* Search */}
             <div className="relative mb-4 px-6">
               <Search
                 className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400"
@@ -198,7 +197,6 @@ const WHVBrowseJobs: React.FC<WHVBrowseJobsProps> = ({ user }) => {
             </div>
           </div>
 
-          {/* Bottom Navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
