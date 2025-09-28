@@ -31,7 +31,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     facility: "",
   });
 
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [suburbs, setSuburbs] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
@@ -41,17 +41,12 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   // ✅ Load eligibility-driven filters
   useEffect(() => {
     const fetchEligibility = async () => {
-      // Industries
+      // Industries (only text available)
       const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries", {
         p_maker_id: user.id,
       });
       if (industriesData) {
-        setIndustries(
-          industriesData.map((d: any) => ({
-            id: d.industry_id,
-            name: d.industry_options,
-          }))
-        );
+        setIndustries(industriesData.map((d: any) => d.industry_options as string));
       }
 
       // Locations
@@ -59,8 +54,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         p_maker_id: user.id,
       });
       if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state_options))]);
-        setSuburbs(locData.map((l: any) => l.location));
+        setStates([...new Set(locData.map((l: any) => l.state_options as string))]);
+        setSuburbs(locData.map((l: any) => l.location_options as string));
       }
 
       // Facilities
@@ -90,14 +85,22 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
-      p_filter_industry_ids: selectedFilters.industry
-        ? [parseInt(selectedFilters.industry)]
-        : null,
+
+      // Industry: try parse as int, else null
+      p_filter_industry_ids:
+        selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
+          ? [parseInt(selectedFilters.industry)]
+          : null,
+
       p_filter_job_type: selectedFilters.jobType || null,
       p_filter_salary_range: selectedFilters.salaryRange || null,
-      p_filter_facility_ids: selectedFilters.facility
-        ? [parseInt(selectedFilters.facility)]
-        : null,
+
+      // Facility: safe parse as int, else null
+      p_filter_facility_ids:
+        selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
+          ? [parseInt(selectedFilters.facility)]
+          : null,
+
       p_filter_start_date_range: null,
     });
 
@@ -144,9 +147,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     <SelectValue placeholder="Select industry" />
                   </SelectTrigger>
                   <SelectContent>
-                    {industries.map((i) => (
-                      <SelectItem key={i.id} value={i.id.toString()}>
-                        {i.name}
+                    {industries.map((i, idx) => (
+                      <SelectItem key={idx} value={i}>
+                        {i}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -180,7 +183,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
               {/* Suburb/Postcode */}
               {suburbs.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Suburb / Postcode</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Suburb / Postcode
+                  </label>
                   <Select
                     value={selectedFilters.suburbCityPostcode}
                     onValueChange={(v) =>
