@@ -1,23 +1,19 @@
 // src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Search, Filter, Heart, Info } from "lucide-react";
+import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
 import WHVFilterPage from "@/components/WHVFilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
+
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface JobCard {
   job_id: number;
   company: string;
-  profile_photo: string | null;
+  profile_photo: string;
   role: string;
   industry: string;
   location: string;
@@ -26,15 +22,6 @@ interface JobCard {
   description?: string;
   isLiked?: boolean;
 }
-
-const PROFILE_BUCKET = "profile_photo"; // ✅ match your existing bucket
-
-const toPublicUrl = (path: string | null): string | null => {
-  if (!path) return null;
-  if (/^https?:\/\//i.test(path)) return path; // already a URL
-  const { data } = supabase.storage.from(PROFILE_BUCKET).getPublicUrl(path);
-  return data.publicUrl || null;
-};
 
 const WHVBrowseJobs: React.FC = () => {
   const navigate = (url: string) => {
@@ -47,48 +34,75 @@ const WHVBrowseJobs: React.FC = () => {
   const [likedJobTitle, setLikedJobTitle] = useState("");
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [allJobs, setAllJobs] = useState<JobCard[]>([]);
+  const [filters, setFilters] = useState<any>({});
   const [whvId, setWhvId] = useState<string | null>(null);
+
+  const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
   // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) {
-        console.error("Error fetching user:", error);
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) setWhvId(user.id);
     };
     getUser();
   }, []);
 
-  // ✅ Fetch ONLY eligible jobs from RPC
+  // ✅ Fetch jobs (only eligible for WHV user, via RPC)
   useEffect(() => {
-    if (!whvId) return;
-
     const fetchJobs = async () => {
-      const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
+      if (!whvId) return;
+
+      // 1️⃣ Get latest visa stage label
+      const { data: visa } = await supabase
+        .from("maker_visa")
+        .select("stage_id, visa_stage(label)")
+        .eq("user_id", whvId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      setVisaStageLabel(visa?.visa_stage?.label || "");
+
+      // 2️⃣ Fetch jobs from RPC
+      const { data: jobsData, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
         p_maker_id: whvId,
       });
 
       if (error) {
-        console.error("Error fetching jobs:", error);
+        console.error("Error fetching eligible jobs:", error);
         return;
       }
-      if (!data) return;
+      if (!jobsData) return;
 
-      const mapped: JobCard[] = (data as any[]).map((j) => ({
-        job_id: j.job_id,
-        company: j.company,
-        profile_photo: toPublicUrl(j.profile_photo) ?? "/placeholder.png",
-        role: j.role,
-        industry: j.industry,
-        location: j.location, // already "Suburb, State Postcode"
-        salary_range: j.salary_range || "Rate not specified",
-        employment_type: j.job_type || "N/A",
-        description: j.job_description || "",
-        isLiked: false,
-      }));
+      // 3️⃣ Fetch likes for this WHV
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_job_post_id")
+        .eq("liker_id", whvId)
+        .eq("liker_type", "whv");
+
+      const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+      // 4️⃣ Map jobs
+      const mapped: JobCard[] = jobsData.map((job: any) => {
+        const photoUrl = job.profile_photo
+          ? supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl
+          : "/placeholder.png";
+
+        return {
+          job_id: job.job_id,
+          company: job.company_name || "Unknown Employer",
+          profile_photo: photoUrl,
+          role: job.position_title || "Unknown Role",
+          industry: job.industry || "Unknown Industry",
+          location: job.location || "Location not specified",
+          salary_range: job.salary_range || "Rate not specified",
+          employment_type: job.employment_type || "N/A",
+          description: job.description || "",
+          isLiked: likedIds.includes(job.job_id),
+        };
+      });
 
       setJobs(mapped);
       setAllJobs(mapped);
@@ -97,25 +111,35 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  // 🔎 Search (client-side)
+  // 🔎 Search + Filters
   useEffect(() => {
-    if (!searchQuery) {
-      setJobs(allJobs);
-      return;
-    }
-    const q = searchQuery.toLowerCase();
-    setJobs(
-      allJobs.filter(
-        (j) =>
-          j.role.toLowerCase().includes(q) ||
-          j.industry.toLowerCase().includes(q) ||
-          j.company.toLowerCase().includes(q) ||
-          j.location.toLowerCase().includes(q)
-      )
-    );
-  }, [searchQuery, allJobs]);
+    let list = [...allJobs];
 
-  // ❤️ Like/unlike
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      list = list.filter(
+        (j) =>
+          j.role.toLowerCase().includes(query) ||
+          j.industry.toLowerCase().includes(query) ||
+          j.company.toLowerCase().includes(query) ||
+          j.location.toLowerCase().includes(query)
+      );
+    }
+
+    if (filters.state) {
+      list = list.filter((j) => j.location.toLowerCase().includes(filters.state.toLowerCase()));
+    }
+
+    if (filters.facility) {
+      list = list.filter((j) =>
+        j.description?.toLowerCase().includes(filters.facility.toLowerCase())
+      );
+    }
+
+    setJobs(list);
+  }, [searchQuery, filters, allJobs]);
+
+  // ✅ Like/unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -127,31 +151,22 @@ const WHVBrowseJobs: React.FC = () => {
           .from("likes")
           .delete()
           .eq("liker_id", whvId)
-          .eq("liked_job_post_id", jobId)
-          .eq("liker_type", "whv");
+          .eq("liker_type", "whv")
+          .eq("liked_job_post_id", jobId);
 
-        setJobs((prev) =>
-          prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j))
-        );
-        setAllJobs((prev) =>
-          prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j))
-        );
+        setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
+        setAllJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
       } else {
-        await supabase.from("likes").upsert(
-          {
-            liker_id: whvId,
-            liker_type: "whv",
-            liked_job_post_id: jobId,
-          },
-          { onConflict: "liker_id,liked_job_post_id,liker_type" }
-        );
+        await supabase.from("likes").insert({
+          liker_id: whvId,
+          liker_type: "whv",
+          liked_job_post_id: jobId,
+          liked_whv_id: null,
+        });
 
-        setJobs((prev) =>
-          prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j))
-        );
-        setAllJobs((prev) =>
-          prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j))
-        );
+        setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
+        setAllJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
+
         setLikedJobTitle(job.role);
         setShowLikeModal(true);
       }
@@ -161,26 +176,16 @@ const WHVBrowseJobs: React.FC = () => {
   };
 
   return showFilters ? (
-    <WHVFilterPage
-      onClose={() => setShowFilters(false)}
-      onResults={(filtered) => setJobs(filtered)}
-      user={{
-        id: whvId || "",
-        subClass: "417",
-        countryId: 36,
-        stage: 1,
-      }}
-    />
+    <WHVFilterPage onClose={() => setShowFilters(false)} onApplyFilters={(f) => setFilters(f)} />
   ) : (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
-            <div className="px-6 pt-16 pb-4 flex items-center">
+            <div className="px-6 pt-16 pb-2 flex items-center">
               <Button
                 variant="ghost"
                 size="icon"
@@ -190,28 +195,20 @@ const WHVBrowseJobs: React.FC = () => {
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
               <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
+            </div>
 
-              {/* ✅ Tooltip (wrap trigger in a button) */}
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Eligibility info"
-                      className="ml-2 p-1 rounded hover:bg-gray-100"
-                    >
-                      <Info className="w-5 h-5 text-gray-500" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs text-sm">
-                    Only jobs you are eligible for will show here, based on your visa type and stage.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {/* Visa Info */}
+            <div className="bg-gray-100 px-6 py-2 text-sm text-gray-700 text-center">
+              <p>
+                Your visa: <strong>{visaStageLabel || "Unknown"}</strong>
+              </p>
+              <p className="text-xs text-gray-500">
+                Only jobs eligible for your visa will appear here.
+              </p>
             </div>
 
             {/* Search */}
-            <div className="relative mb-4 px-6">
+            <div className="relative mb-4 px-6 mt-2">
               <Search
                 className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400"
                 size={20}
@@ -244,7 +241,7 @@ const WHVBrowseJobs: React.FC = () => {
                   >
                     <div className="flex items-start gap-4">
                       <img
-                        src={job.profile_photo || "/placeholder.png"}
+                        src={job.profile_photo}
                         alt={job.company}
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
                         onError={(e) => {
@@ -257,6 +254,7 @@ const WHVBrowseJobs: React.FC = () => {
                           {job.company} • {job.industry}
                         </p>
                         <p className="text-sm text-gray-500">{job.location}</p>
+
                         <div className="flex flex-wrap gap-2 mt-2">
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
                             {job.employment_type}
@@ -265,9 +263,11 @@ const WHVBrowseJobs: React.FC = () => {
                             💰 {job.salary_range}
                           </span>
                         </div>
+
                         <p className="text-sm text-gray-700 mt-2 line-clamp-2">
                           {job.description || "No description provided"}
                         </p>
+
                         <div className="flex items-center gap-3 mt-4">
                           <Button
                             onClick={() => navigate(`/whv/job/${job.job_id}`)}
@@ -282,9 +282,7 @@ const WHVBrowseJobs: React.FC = () => {
                             <Heart
                               size={20}
                               className={
-                                job.isLiked
-                                  ? "text-orange-500 fill-orange-500"
-                                  : "text-orange-500"
+                                job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"
                               }
                             />
                           </button>
@@ -297,10 +295,10 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Nav + Modal */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
+
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
