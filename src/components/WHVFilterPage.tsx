@@ -41,7 +41,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   // ✅ Load eligibility-driven filters
   useEffect(() => {
     const fetchEligibility = async () => {
-      // Industries (only text available)
+      // Industries (string only from function)
       const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries", {
         p_maker_id: user.id,
       });
@@ -68,13 +68,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
         enum_name: "job_type_enum",
       });
-      setJobTypes(jobTypesData || []);
+      setJobTypes((jobTypesData as string[]) || []);
 
       // Salary Ranges
       const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
         enum_name: "pay_range",
       });
-      setSalaryRanges(salaryRangesData || []);
+      setSalaryRanges((salaryRangesData as string[]) || []);
     };
 
     fetchEligibility();
