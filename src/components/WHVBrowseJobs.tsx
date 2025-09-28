@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Job {
   job_id: number;
-  emp_id: string;
   role: string;
   company: string;
   industry: string;
@@ -25,40 +24,31 @@ const WHVBrowseJobs: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ✅ Baseline load: fetch all jobs
+  // TODO: wire this to Supabase auth
+  const makerId = "REPLACE_WITH_LOGGED_IN_USER_ID";
+
+  // ✅ Baseline load: use view_all_eligible_jobs
   useEffect(() => {
     const fetchJobs = async () => {
-      const { data, error } = await supabase.from("job").select(`
-        job_id,
-        user_id,
-        role,
-        company_name,
-        industry,
-        state,
-        suburb_city,
-        postcode,
-        employment_type,
-        salary_range,
-        description,
-        profile_photo
-      `);
+      const { data, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
+        p_maker_id: makerId,
+      });
 
       if (error) {
-        console.error("Error fetching jobs:", error);
+        console.error("Error fetching eligible jobs:", error);
         return;
       }
 
       const mapped = (data || []).map((j: any) => ({
         job_id: j.job_id,
-        emp_id: j.user_id,
         role: j.role,
-        company: j.company_name,
+        company: j.company,
         industry: j.industry,
-        location: `${j.suburb_city}, ${j.state} ${j.postcode}`,
-        job_type: j.employment_type,
+        location: j.location,
+        job_type: j.job_type,
         salary_range: j.salary_range,
-        job_description: j.description,
-        profile_photo: j.profile_photo,
+        job_description: j.job_description,
+        profile_photo: j.profile_photo ?? null,
       }));
 
       setJobs(mapped);
@@ -66,9 +56,9 @@ const WHVBrowseJobs: React.FC = () => {
     };
 
     fetchJobs();
-  }, []);
+  }, [makerId]);
 
-  // 🔎 Search filter
+  // 🔎 Local search filter
   useEffect(() => {
     if (!searchQuery) {
       setJobs(allJobs);
@@ -93,7 +83,7 @@ const WHVBrowseJobs: React.FC = () => {
         onClose={() => setShowFilters(false)}
         onResults={(filtered: Job[]) => setJobs(filtered)}
         user={{
-          id: "", // TODO: wire real user
+          id: makerId,
           subClass: "417",
           countryId: 36,
           stage: 1,
