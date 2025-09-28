@@ -47,9 +47,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
       if (industriesData) {
         setIndustries(
-          industriesData.map((d: any) => ({
-            id: d.industry_id ?? undefined, // fallback if not returned
-            name: d.industry_options,
+          (industriesData as any[]).map((d) => ({
+            id: (d as any).industry_id ?? undefined,
+            name: (d as any).industry_options as string,
           }))
         );
       }
@@ -59,8 +59,12 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         p_maker_id: user.id,
       });
       if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state_options as string))]);
-        setSuburbs(locData.map((l: any) => l.location_options as string)); // ✅ fixed
+        setStates(
+          [...new Set((locData as any[]).map((l) => (l as any).state_options as string))] as string[]
+        );
+        setSuburbs(
+          (locData as any[]).map((l) => (l as any).location_options as string) as string[]
+        );
       }
 
       // Facilities
@@ -155,7 +159,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     {industries.map((i, idx) => (
                       <SelectItem
                         key={idx}
-                        value={i.id ? i.id.toString() : i.name} // fallback to name if no id
+                        value={i.id ? i.id.toString() : i.name}
                       >
                         {i.name}
                       </SelectItem>
