@@ -31,9 +31,9 @@ interface Country {
 
 interface VisaStage {
   stage_id: number;
-  label: string;        // e.g. "417 (First Working Holiday Visa)" or "Student Visa (500)"
-  sub_class: string;    // allow any subclass, not just 417/462
-  stage: number | null; // WHV = 1/2/3, other visas = null
+  label: string;
+  sub_class: string;
+  stage: number | null;
 }
 
 interface CountryEligibility {
@@ -95,14 +95,16 @@ const WHVProfileSetup: React.FC = () => {
     const date = new Date(dob);
     const now = new Date();
     const birthYear = date.getFullYear();
-    
-    // Check for valid 4-digit year
+
     if (birthYear < 1000 || birthYear > 9999) return false;
-    
+
     const age = now.getFullYear() - birthYear;
     const monthDiff = now.getMonth() - date.getMonth();
-    const actualAge = monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate()) ? age - 1 : age;
-    
+    const actualAge =
+      monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())
+        ? age - 1
+        : age;
+
     return actualAge >= 18 && actualAge <= 35;
   };
 
@@ -110,11 +112,10 @@ const WHVProfileSetup: React.FC = () => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
     const expiryDate = new Date(date);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+    today.setHours(0, 0, 0, 0);
     return expiryDate > today;
   };
 
-  // Flexible visa stage mapping
   const getVisaEnumValue = (selectedStage: VisaStage): string => {
     if (selectedStage.sub_class === "417" || selectedStage.sub_class === "462") {
       const stageText =
@@ -127,8 +128,6 @@ const WHVProfileSetup: React.FC = () => {
         ? `${stageText} Working Holiday Visa (417)`
         : `${stageText} Work and Holiday Visa (462)`;
     }
-
-    // For other visas, just use the label directly
     return selectedStage.label;
   };
 
@@ -169,18 +168,16 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    const selectedCountry = countries.find(c => c.country_id === formData.countryId);
-    const selectedStage = visaStages.find(v => v.label === formData.visaType);
+    const selectedCountry = countries.find((c) => c.country_id === formData.countryId);
+    const selectedStage = visaStages.find((v) => v.label === formData.visaType);
 
     if (!selectedStage) {
-      console.error("No matching stage found for:", formData.visaType);
       alert("Invalid visa type selected");
       return;
     }
 
     const mappedVisaType = getVisaEnumValue(selectedStage);
 
-    // Save WHV profile
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -200,12 +197,10 @@ const WHVProfileSetup: React.FC = () => {
     );
 
     if (whvError) {
-      console.error("Failed to save WHV profile:", whvError);
       alert("Error saving profile. Please try again.");
       return;
     }
 
-    // Save visa details
     const { error: visaError } = await supabase.from("maker_visa").upsert(
       {
         user_id: user.id,
@@ -218,7 +213,6 @@ const WHVProfileSetup: React.FC = () => {
     );
 
     if (visaError) {
-      console.error("❌ Failed to save Visa:", visaError);
       alert(`Error saving visa info: ${visaError.message}`);
       return;
     }
@@ -226,11 +220,12 @@ const WHVProfileSetup: React.FC = () => {
     navigate("/whv/work-preferences");
   };
 
-  // Filter stages by country eligibility
   const filteredStages =
     formData.countryId !== null
       ? visaStages.filter((v) =>
-          eligibility.some((e) => e.country_id === formData.countryId && e.stage_id === v.stage_id)
+          eligibility.some(
+            (e) => e.country_id === formData.countryId && e.stage_id === v.stage_id
+          )
         )
       : [];
 
@@ -259,7 +254,9 @@ const WHVProfileSetup: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Name fields */}
               <div>
-                <Label>Given Name *</Label>
+                <Label>
+                  Given Name/s <span className="text-red-500">*</span>
+                </Label>
                 <Input name="givenName" value={formData.givenName} onChange={handleChange} />
                 {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
               </div>
@@ -268,14 +265,18 @@ const WHVProfileSetup: React.FC = () => {
                 <Input name="middleName" value={formData.middleName} onChange={handleChange} />
               </div>
               <div>
-                <Label>Family Name *</Label>
+                <Label>
+                  Family Name/s <span className="text-red-500">*</span>
+                </Label>
                 <Input name="familyName" value={formData.familyName} onChange={handleChange} />
                 {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
               </div>
 
               {/* Country */}
               <div>
-                <Label>Nationality *</Label>
+                <Label>
+                  Nationality <span className="text-red-500">*</span>
+                </Label>
                 <Select
                   value={formData.countryId?.toString() || ""}
                   onValueChange={(v) => handleSelect("countryId", parseInt(v))}
@@ -297,7 +298,9 @@ const WHVProfileSetup: React.FC = () => {
               {/* Visa */}
               {filteredStages.length > 0 && (
                 <div>
-                  <Label>Visa Type *</Label>
+                  <Label>
+                    Visa Type <span className="text-red-500">*</span>
+                  </Label>
                   <Select
                     value={formData.visaType}
                     onValueChange={(v) => handleSelect("visaType", v)}
@@ -319,7 +322,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* DOB */}
               <div>
-                <Label>Date of Birth *</Label>
+                <Label>
+                  Date of Birth <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="dateOfBirth"
                   type="date"
@@ -331,7 +336,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Visa expiry */}
               <div>
-                <Label>Visa Expiry *</Label>
+                <Label>
+                  Visa Expiry <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="visaExpiry"
                   type="date"
@@ -343,7 +350,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Phone */}
               <div>
-                <Label>Phone *</Label>
+                <Label>
+                  Phone <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="phone"
                   value={formData.phone}
@@ -355,7 +364,9 @@ const WHVProfileSetup: React.FC = () => {
 
               {/* Address */}
               <div>
-                <Label>Address Line 1 *</Label>
+                <Label>
+                  Address Line 1 <span className="text-red-500">*</span>
+                </Label>
                 <Input name="address1" value={formData.address1} onChange={handleChange} />
                 {errors.address1 && <p className="text-red-500">{errors.address1}</p>}
               </div>
@@ -364,12 +375,16 @@ const WHVProfileSetup: React.FC = () => {
                 <Input name="address2" value={formData.address2} onChange={handleChange} />
               </div>
               <div>
-                <Label>Suburb *</Label>
+                <Label>
+                  Suburb <span className="text-red-500">*</span>
+                </Label>
                 <Input name="suburb" value={formData.suburb} onChange={handleChange} />
                 {errors.suburb && <p className="text-red-500">{errors.suburb}</p>}
               </div>
               <div>
-                <Label>State *</Label>
+                <Label>
+                  State <span className="text-red-500">*</span>
+                </Label>
                 <Select
                   value={formData.state}
                   onValueChange={(v) => handleSelect("state", v)}
@@ -388,7 +403,9 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.state && <p className="text-red-500">{errors.state}</p>}
               </div>
               <div>
-                <Label>Postcode *</Label>
+                <Label>
+                  Postcode <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   name="postcode"
                   value={formData.postcode}
@@ -413,8 +430,3 @@ const WHVProfileSetup: React.FC = () => {
 };
 
 export default WHVProfileSetup;
-
-
-
-
-
