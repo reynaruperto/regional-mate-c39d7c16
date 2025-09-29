@@ -25,6 +25,19 @@ interface Region {
   postcode: string;
 }
 
+interface EligibleIndustry {
+  industry_id: number;
+  industry: string;
+}
+
+interface WorkLocationRule {
+  rule_id: number;
+  industry_id: number;
+  state: string;
+  suburb_city: string;
+  postcode: string;
+}
+
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
@@ -59,24 +72,34 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load nationality + tagline
+      // --- Get tagline ---
       const { data: profile } = await supabase
         .from("whv_maker")
-        .select("nationality, tagline, date_available")
+        .select("tagline")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (profile?.tagline) setTagline(profile.tagline);
-      if (profile?.date_available) setDateAvailable(profile.date_available);
 
-      // Get visa details
+      // --- Get availability ---
+      const { data: availability } = await supabase
+        .from("maker_pref_availability")
+        .select("available_from")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (availability?.available_from) {
+        setDateAvailable(availability.available_from);
+      }
+
+      // --- Get visa ---
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
           `
           stage_id,
-          visa_stage:visa_stage(label, sub_class, stage),
-          country:country(country_id, name)
+          visa_stage:visa_stage(stage, sub_class, label),
+          country:country(name, country_id)
         `
         )
         .eq("user_id", user.id)
@@ -88,15 +111,15 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // Fetch eligible industries from new view
-      const { data: eligibleIndustries, error: indError } = await supabase
-        .from("vw_eligibility_visa_country_stage_industry" as any)
+      // --- Fetch eligible industries using new schema ---
+      const { data: eligibleIndustries, error: indError } = await (supabase as any)
+        .from("vw_eligibility_visa_country_stage_industry")
         .select("industry_id, industry")
-        .eq("country_id", visa.country.country_id)
-        .eq("stage_id", visa.stage_id);
+        .eq("stage_id", visa.stage_id)
+        .eq("country_id", visa.country.country_id);
 
       if (indError) {
-        console.error("Eligibility query error:", indError);
+        console.error("Industry fetch error:", indError);
         return;
       }
 
@@ -105,19 +128,20 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      setIndustries(
-        eligibleIndustries.map((i: any) => ({
-          id: i.industry_id,
-          name: i.industry,
-        }))
+      const uniqueIndustries: Industry[] = eligibleIndustries.map(
+        (item: EligibleIndustry) => ({
+          id: item.industry_id,
+          name: item.industry,
+        })
       );
 
-      // ===== Load saved prefs =====
+      setIndustries(uniqueIndustries);
+
+      // --- Load saved prefs ---
       const { data: savedIndustries } = await supabase
         .from("maker_pref_industry")
         .select("industry_id")
         .eq("user_id", user.id);
-
       if (savedIndustries) {
         setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
       }
@@ -126,7 +150,6 @@ const WHVWorkPreferences: React.FC = () => {
         .from("maker_pref_industry_role")
         .select("industry_role_id")
         .eq("user_id", user.id);
-
       if (savedRoles) {
         setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
       }
@@ -135,7 +158,6 @@ const WHVWorkPreferences: React.FC = () => {
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
         .eq("user_id", user.id);
-
       if (savedLocations) {
         setPreferredStates([...new Set(savedLocations.map((l) => l.state))]);
         setPreferredAreas(
@@ -186,22 +208,40 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      const { data: regionData } = await supabase
-        .from("visa_work_location_rules" as any)
+      // Get user's visa stage for filtering
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: visa } = await supabase
+        .from("maker_visa")
+        .select("stage_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!visa) return;
+
+      const { data: regionData, error: regionError } = await (supabase as any)
+        .from("visa_work_location_rules")
         .select("rule_id, industry_id, state, suburb_city, postcode")
+        .eq("stage_id", visa.stage_id)
         .in("industry_id", selectedIndustries);
 
-      if (regionData) {
-        setRegions(
-          regionData.map((r: any) => ({
-            id: r.rule_id,
-            industry_id: r.industry_id,
-            state: r.state,
-            suburb_city: r.suburb_city,
-            postcode: r.postcode,
-          }))
-        );
+      if (regionError) {
+        console.error("Region fetch error:", regionError);
+        return;
       }
+
+      setRegions(
+        (regionData || []).map((r: WorkLocationRule) => ({
+          id: r.rule_id,
+          industry_id: r.industry_id,
+          state: r.state,
+          suburb_city: r.suburb_city,
+          postcode: r.postcode,
+        }))
+      );
     };
 
     fetchRegions();
@@ -216,15 +256,27 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Update tagline
     await supabase
       .from("whv_maker")
       .update({
         tagline: tagline.trim(),
-        date_available: dateAvailable,
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", user.id);
 
+    // Update availability
+    await supabase.from("maker_pref_availability").delete().eq("user_id", user.id);
+    if (dateAvailable) {
+      await supabase.from("maker_pref_availability").insert([
+        {
+          user_id: user.id,
+          available_from: dateAvailable,
+        },
+      ]);
+    }
+
+    // Update preferences
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
@@ -253,7 +305,15 @@ const WHVWorkPreferences: React.FC = () => {
           const [suburb_city, postcode] = locKey.split("::");
           return {
             user_id: user.id,
-            state: preferredStates[0] || "",
+            state: (preferredStates[0] || "Queensland") as
+              | "Australian Capital Territory"
+              | "New South Wales"
+              | "Northern Territory"
+              | "Queensland"
+              | "South Australia"
+              | "Tasmania"
+              | "Victoria"
+              | "Western Australia",
             suburb_city,
             postcode,
           };
@@ -308,7 +368,6 @@ const WHVWorkPreferences: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          {/* Header */}
           <div className="px-4 py-4 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
               <button
@@ -329,7 +388,6 @@ const WHVWorkPreferences: React.FC = () => {
             )}
           </div>
 
-          {/* Body */}
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
             {/* Tagline + Date Available */}
             <div className="border rounded-lg">
@@ -512,91 +570,4 @@ const WHVWorkPreferences: React.FC = () => {
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">4. Review</span>
-                {expandedSections.summary ? (
-                  <ChevronDown size={20} />
-                ) : (
-                  <ChevronRight size={20} />
-                )}
-              </button>
-              {expandedSections.summary && (
-                <div className="px-4 pb-4 border-t space-y-4">
-                  <p>
-                    <strong>Visa:</strong> {visaLabel}
-                  </p>
-                  <p>
-                    <strong>Tagline:</strong> {tagline}
-                  </p>
-                  <p>
-                    <strong>Date Available:</strong> {dateAvailable}
-                  </p>
-                  <p>
-                    <strong>Industries:</strong>{" "}
-                    {selectedIndustries
-                      .map((id) => industries.find((i) => i.id)?.name)
-                      .join(", ")}
-                  </p>
-                  <p>
-                    <strong>Roles:</strong>{" "}
-                    {selectedRoles
-                      .map((id) => roles.find((r) => r.id)?.name)
-                      .join(", ")}
-                  </p>
-                  <p>
-                    <strong>States:</strong> {preferredStates.join(", ")}
-                  </p>
-                  <p>
-                    <strong>Suburbs:</strong>{" "}
-                    {preferredAreas
-                      .map((locKey) => {
-                        const [suburb_city, postcode] = locKey.split("::");
-                        return `${suburb_city} (${postcode})`;
-                      })
-                      .join(", ")}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Continue */}
-            <div className="pt-4">
-              <Button
-                type="button"
-                onClick={handleContinue}
-                disabled={
-                  !tagline.trim() ||
-                  !dateAvailable ||
-                  selectedIndustries.length === 0 ||
-                  preferredStates.length === 0 ||
-                  preferredAreas.length === 0
-                }
-                className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
-              >
-                Continue →
-              </Button>
-            </div>
-          </div>
-
-          {/* Popup */}
-          {showPopup && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
-                <h2 className="text-lg font-semibold mb-3">Not Eligible</h2>
-                <p className="text-sm text-gray-600 mb-4">
-                  Your country and visa stage are not eligible for any industries.
-                </p>
-                <Button
-                  onClick={() => setShowPopup(false)}
-                  className="w-full bg-slate-800 text-white rounded-lg"
-                >
-                  OK
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default WHVWorkPreferences;
+                {expandedSections
