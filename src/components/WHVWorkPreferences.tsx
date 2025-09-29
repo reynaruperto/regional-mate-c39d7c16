@@ -199,7 +199,7 @@ const WHVWorkPreferences: React.FC = () => {
   }, [selectedIndustries]);
 
   // ==========================
-  // Fetch locations when industry selected
+  // Fetch locations with pagination
   // ==========================
   useEffect(() => {
     const fetchRegions = async () => {
@@ -208,7 +208,6 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      // Get user's visa stage for filtering
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -222,19 +221,34 @@ const WHVWorkPreferences: React.FC = () => {
 
       if (!visa) return;
 
-      const { data: regionData, error: regionError } = await (supabase as any)
-        .from("visa_work_location_rules")
-        .select("rule_id, industry_id, state, suburb_city, postcode")
-        .eq("stage_id", visa.stage_id)
-        .in("industry_id", selectedIndustries);
+      let allRegions: Region[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (regionError) {
-        console.error("Region fetch error:", regionError);
-        return;
+      while (hasMore) {
+        const { data: regionPage, error } = await (supabase as any)
+          .from("visa_work_location_rules")
+          .select("rule_id, industry_id, state, suburb_city, postcode")
+          .eq("stage_id", visa.stage_id)
+          .in("industry_id", selectedIndustries)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+          console.error("Region fetch error:", error);
+          break;
+        }
+
+        if (regionPage && regionPage.length > 0) {
+          allRegions = [...allRegions, ...regionPage];
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
 
       setRegions(
-        (regionData || []).map((r: WorkLocationRule) => ({
+        allRegions.map((r: WorkLocationRule) => ({
           id: r.rule_id,
           industry_id: r.industry_id,
           state: r.state,
@@ -242,6 +256,8 @@ const WHVWorkPreferences: React.FC = () => {
           postcode: r.postcode,
         }))
       );
+
+      console.log(`✅ Total regions fetched: ${allRegions.length}`);
     };
 
     fetchRegions();
@@ -542,7 +558,7 @@ const WHVWorkPreferences: React.FC = () => {
                                   className="flex items-center space-x-2 py-1"
                                 >
                                   <input
-                                    type="checkbox"
+                                                                        type="checkbox"
                                     checked={preferredAreas.includes(locKey)}
                                     onChange={() => togglePreferredArea(locKey)}
                                   />
@@ -570,4 +586,92 @@ const WHVWorkPreferences: React.FC = () => {
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <span className="text-lg font-medium">4. Review</span>
-                {expandedSections
+                {expandedSections.summary ? (
+                  <ChevronDown size={20} />
+                ) : (
+                  <ChevronRight size={20} />
+                )}
+              </button>
+              {expandedSections.summary && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  <p>
+                    <strong>Visa:</strong> {visaLabel}
+                  </p>
+                  <p>
+                    <strong>Tagline:</strong> {tagline}
+                  </p>
+                  <p>
+                    <strong>Date Available:</strong> {dateAvailable}
+                  </p>
+                  <p>
+                    <strong>Industries:</strong>{" "}
+                    {selectedIndustries
+                      .map((id) => industries.find((i) => i.id)?.name)
+                      .join(", ")}
+                  </p>
+                  <p>
+                    <strong>Roles:</strong>{" "}
+                    {selectedRoles
+                      .map((id) => roles.find((r) => r.id)?.name)
+                      .join(", ")}
+                  </p>
+                  <p>
+                    <strong>States:</strong> {preferredStates.join(", ")}
+                  </p>
+                  <p>
+                    <strong>Suburbs:</strong>{" "}
+                    {preferredAreas
+                      .map((locKey) => {
+                        const [suburb_city, postcode] = locKey.split("::");
+                        return `${suburb_city} (${postcode})`;
+                      })
+                      .join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Continue */}
+            <div className="pt-4">
+              <Button
+                type="button"
+                onClick={handleContinue}
+                disabled={
+                  !tagline.trim() ||
+                  !dateAvailable ||
+                  selectedIndustries.length === 0 ||
+                  preferredStates.length === 0 ||
+                  preferredAreas.length === 0
+                }
+                className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
+              >
+                Continue →
+              </Button>
+            </div>
+          </div>
+
+          {/* Popup for ineligible */}
+          {showPopup && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
+                <h2 className="text-lg font-semibold mb-3">Not Eligible</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your country/visa stage is not eligible for any work industries.
+                </p>
+                <Button
+                  onClick={() => setShowPopup(false)}
+                  className="w-full bg-slate-800 text-white rounded-lg"
+                >
+                  OK
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default WHVWorkPreferences;
+
