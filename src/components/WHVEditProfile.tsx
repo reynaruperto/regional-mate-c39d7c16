@@ -445,11 +445,11 @@ const WHVEditProfile: React.FC = () => {
       // ✅ Preferred availability (load)
       const { data: availability } = await supabase
         .from("maker_pref_availability")
-        .select("availability")
+        .select("available_from")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (availability) setAvailableFrom(availability.availability);
+      if (availability) setAvailableFrom(availability.available_from);
 
       setLoading(false);
     };
@@ -754,7 +754,7 @@ const WHVEditProfile: React.FC = () => {
       await supabase.from("maker_pref_availability").delete().eq("user_id", user.id);
       if (availableFrom) {
         await supabase.from("maker_pref_availability").insert([
-          { user_id: user.id, availability: availableFrom }
+          { user_id: user.id, available_from: availableFrom }
         ]);
       }
 

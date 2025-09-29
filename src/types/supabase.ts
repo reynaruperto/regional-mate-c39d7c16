@@ -433,17 +433,17 @@ export type Database = {
       maker_pref_availability: {
         Row: {
           user_id: string;
-          availability: string;
+          available_from: string;
           created_at: string | null;
         };
         Insert: {
           user_id: string;
-          availability: string;
+          available_from: string;
           created_at?: string | null;
         };
         Update: {
           user_id?: string;
-          availability?: string;
+          available_from?: string;
           created_at?: string | null;
         };
         Relationships: [];
@@ -1020,6 +1020,43 @@ export type Database = {
         };
         Relationships: [];
       };
+
+      visa_work_location_rules: {
+        Row: {
+          rule_id: number;
+          stage_id: number | null;
+          industry_id: number | null;
+          state: Database["public"]["Enums"]["state"];
+          area: string;
+          suburb_city: string;
+          postcode: string | null;
+          work_location_eligibility: string;
+          created_at: string | null;
+        };
+        Insert: {
+          rule_id?: number;
+          stage_id?: number | null;
+          industry_id?: number | null;
+          state: Database["public"]["Enums"]["state"];
+          area: string;
+          suburb_city: string;
+          postcode?: string | null;
+          work_location_eligibility: string;
+          created_at?: string | null;
+        };
+        Update: {
+          rule_id?: number;
+          stage_id?: number | null;
+          industry_id?: number | null;
+          state?: Database["public"]["Enums"]["state"];
+          area?: string;
+          suburb_city?: string;
+          postcode?: string | null;
+          work_location_eligibility?: string;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       // ==========================
@@ -1053,30 +1090,30 @@ export type Database = {
         Relationships: [];
       };
 
-      mvw_eligibility_visa_country_stage_industry: {
+      vw_eligibility_visa_country_stage_industry: {
         Row: {
           country_id: number | null;
-          country_name: string | null;
+          country: string | null;
           stage_id: number | null;
-          stage_label: string | null;
+          visa_label: string | null;
           industry_id: number | null;
-          industry_name: string | null;
+          industry: string | null;
         };
         Insert: {
           country_id?: never;
-          country_name?: never;
+          country?: never;
           stage_id?: never;
-          stage_label?: never;
+          visa_label?: never;
           industry_id?: never;
-          industry_name?: never;
+          industry?: never;
         };
         Update: {
           country_id?: never;
-          country_name?: never;
+          country?: never;
           stage_id?: never;
-          stage_label?: never;
+          visa_label?: never;
           industry_id?: never;
-          industry_name?: never;
+          industry?: never;
         };
         Relationships: [];
       };
