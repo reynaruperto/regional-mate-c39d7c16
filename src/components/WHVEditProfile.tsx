@@ -281,8 +281,7 @@ const WHVEditProfile: React.FC = () => {
           await supabase
             .from("vw_eligibility_visa_country_stage_industry" as any)
             .select("industry_id, industry")
-            .eq("sub_class", visa.visa_stage.sub_class)
-            .eq("stage", visa.visa_stage.stage)
+            .eq("stage_id", visa.stage_id)
             .eq("country", visa.country.name);
 
         if (eligibilityError) {
@@ -354,31 +353,32 @@ const WHVEditProfile: React.FC = () => {
         }
       }
 
-      // Preferences
+      // Load saved preferences first
       const { data: savedInd } = await supabase
         .from("maker_pref_industry")
         .select("industry_id")
         .eq("user_id", user.id);
-      if (savedInd?.length) {
-        setSelectedIndustries(savedInd.map((i) => i.industry_id));
-      }
+      
+      const savedIndustryIds = savedInd?.map((i) => i.industry_id) || [];
+      setSelectedIndustries(savedIndustryIds);
 
       const { data: savedRoles } = await supabase
         .from("maker_pref_industry_role")
         .select("industry_role_id")
         .eq("user_id", user.id);
-      if (savedRoles?.length) {
-        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
-      }
+      
+      const savedRoleIds = savedRoles?.map((r) => r.industry_role_id) || [];
+      setSelectedRoles(savedRoleIds);
 
       const { data: savedLocs } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
         .eq("user_id", user.id);
+      
       if (savedLocs?.length) {
         setPreferredStates([...new Set(savedLocs.map((l) => l.state))]);
         setPreferredAreas(
-          savedLocs.map((l) => `${l.suburb_city}::${l.postcode}`)
+          savedLocs.map((l) => `${l.suburb_city} (${l.postcode})`)
         );
       }
 
@@ -451,37 +451,7 @@ const WHVEditProfile: React.FC = () => {
 
       if (availability) setAvailableFrom(availability.available_from);
 
-      // ✅ Load saved preferred industries
-      const { data: savedIndustries } = await supabase
-        .from("maker_pref_industry")
-        .select("industry_id")
-        .eq("user_id", user.id);
-      
-      if (savedIndustries && savedIndustries.length > 0) {
-        const industryIds = savedIndustries.map(si => si.industry_id);
-        setSelectedIndustries(industryIds);
-
-        // ✅ Load saved preferred roles for selected industries
-        const { data: savedRoles } = await supabase
-          .from("maker_pref_industry_role")
-          .select("industry_role_id")
-          .eq("user_id", user.id);
-        
-        if (savedRoles && savedRoles.length > 0) {
-          setSelectedRoles(savedRoles.map(sr => sr.industry_role_id));
-        }
-      }
-
-      // ✅ Load saved preferred locations
-      const { data: savedLocations } = await supabase
-        .from("maker_pref_location")
-        .select("*")
-        .eq("user_id", user.id);
-      
-      if (savedLocations && savedLocations.length > 0) {
-        setPreferredStates(savedLocations.map(sl => sl.state));
-        setPreferredAreas(savedLocations.map(sl => `${sl.suburb_city} (${sl.postcode})`));
-      }
+      // Already loaded preferences above - no need to duplicate
 
       setLoading(false);
     };
