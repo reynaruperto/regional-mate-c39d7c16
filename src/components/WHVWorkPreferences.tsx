@@ -25,6 +25,19 @@ interface Region {
   postcode: string;
 }
 
+interface EligibleIndustry {
+  industry_id: number;
+  industry: string;
+}
+
+interface WorkLocationRule {
+  rule_id: number;
+  industry_id: number;
+  state: string;
+  suburb_city: string;
+  postcode: string;
+}
+
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
@@ -82,38 +95,27 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // --- Confirm eligibility ---
-      const { data: eligible } = await supabase
-        .from("vw_stage_eligible_countries")
-        .select("*")
+      // --- Fetch eligible industries using new schema ---
+      const { data: eligibleIndustries, error: indError } = await (supabase as any)
+        .from("vw_eligibility_visa_country_stage_industry")
+        .select("industry_id, industry")
         .eq("stage_id", visa.stage_id)
         .eq("country_id", visa.country.country_id);
-
-      if (!eligible?.length) {
-        setShowPopup(true);
-        return;
-      }
-
-      // --- Fetch industries ---
-      const { data: industryRules, error: indError } = await supabase
-        .from("visa_work_location_rules")
-        .select("industry_id, industry:industry(name)")
-        .eq("stage_id", visa.stage_id);
 
       if (indError) {
         console.error("Industry fetch error:", indError);
         return;
       }
 
-      const uniqueIndustries =
-        industryRules
-          ?.filter((r) => r.industry)
-          .reduce((acc: Industry[], cur: any) => {
-            if (!acc.find((i) => i.id === cur.industry_id)) {
-              acc.push({ id: cur.industry_id, name: cur.industry.name });
-            }
-            return acc;
-          }, []) || [];
+      if (!eligibleIndustries?.length) {
+        setShowPopup(true);
+        return;
+      }
+
+      const uniqueIndustries: Industry[] = eligibleIndustries.map((item: EligibleIndustry) => ({
+        id: item.industry_id,
+        name: item.industry,
+      }));
 
       setIndustries(uniqueIndustries);
 
@@ -184,9 +186,22 @@ const WHVWorkPreferences: React.FC = () => {
         return;
       }
 
-      const { data: regionData, error: regionError } = await supabase
+      // Get user's visa stage for filtering
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: visa } = await supabase
+        .from("maker_visa")
+        .select("stage_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!visa) return;
+
+      const { data: regionData, error: regionError } = await (supabase as any)
         .from("visa_work_location_rules")
         .select("rule_id, industry_id, state, suburb_city, postcode")
+        .eq("stage_id", visa.stage_id)
         .in("industry_id", selectedIndustries);
 
       if (regionError) {
@@ -195,7 +210,7 @@ const WHVWorkPreferences: React.FC = () => {
       }
 
       setRegions(
-        (regionData || []).map((r) => ({
+        (regionData || []).map((r: WorkLocationRule) => ({
           id: r.rule_id,
           industry_id: r.industry_id,
           state: r.state,
