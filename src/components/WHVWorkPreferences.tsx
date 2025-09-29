@@ -1,3 +1,4 @@
+// src/components/WHVWorkPreferences.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,14 +33,6 @@ interface EligibleIndustry {
 
 interface WorkLocationRule {
   rule_id: number;
-  industry_id: number;
-  state: string;
-  suburb_city: string;
-  postcode: string;
-}
-
-interface Region {
-  id: number;
   industry_id: number;
   state: string;
   suburb_city: string;
@@ -92,12 +85,12 @@ const WHVWorkPreferences: React.FC = () => {
       // --- Get availability ---
       const { data: availability } = await (supabase as any)
         .from("maker_pref_availability")
-        .select("availability")
+        .select("available_from")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (availability?.availability) {
-        setDateAvailable(availability.availability);
+      if (availability?.available_from) {
+        setDateAvailable(availability.available_from);
       }
 
       // --- Get visa ---
@@ -119,7 +112,7 @@ const WHVWorkPreferences: React.FC = () => {
         `${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`
       );
 
-      // --- Fetch eligible industries using new schema ---
+      // --- Fetch eligible industries ---
       const { data: eligibleIndustries, error: indError } = await (supabase as any)
         .from("vw_eligibility_visa_country_stage_industry")
         .select("industry_id, industry")
@@ -262,10 +255,8 @@ const WHVWorkPreferences: React.FC = () => {
         suburb_city: r.suburb_city,
         postcode: r.postcode,
       }));
-      
-      setRegions(mappedRegions);
 
-      console.log(`✅ Total regions fetched: ${allRegions.length}`);
+      setRegions(mappedRegions);
     };
 
     fetchRegions();
@@ -290,12 +281,15 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
 
     // Update availability
-    await (supabase as any).from("maker_pref_availability").delete().eq("user_id", user.id);
+    await (supabase as any)
+      .from("maker_pref_availability")
+      .delete()
+      .eq("user_id", user.id);
     if (dateAvailable) {
       await (supabase as any).from("maker_pref_availability").insert([
         {
           user_id: user.id,
-          availability: dateAvailable,
+          available_from: dateAvailable,
         },
       ]);
     }
@@ -392,7 +386,8 @@ const WHVWorkPreferences: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          <div className="px-4 py-4 border-b bg-white flex-shrink-0">
+          {/* Header */}
+          <div className="px-6 pt-8 pb-6 border-b bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
               <button
                 onClick={() => navigate("/whv/profile-setup")}
@@ -400,7 +395,7 @@ const WHVWorkPreferences: React.FC = () => {
               >
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">
+              <h1 className="text-lg font-semibold text-gray-900">
                 Work Preferences
               </h1>
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
@@ -408,11 +403,11 @@ const WHVWorkPreferences: React.FC = () => {
               </div>
             </div>
             {visaLabel && (
-              <p className="mt-2 text-sm text-gray-500">Visa: {visaLabel}</p>
+              <p className="mt-3 text-sm text-gray-500">Visa: {visaLabel}</p>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8">
             {/* Tagline + Date Available */}
             <div className="border rounded-lg">
               <button
@@ -566,7 +561,7 @@ const WHVWorkPreferences: React.FC = () => {
                                   className="flex items-center space-x-2 py-1"
                                 >
                                   <input
-                                                                        type="checkbox"
+                                    type="checkbox"
                                     checked={preferredAreas.includes(locKey)}
                                     onChange={() => togglePreferredArea(locKey)}
                                   />
@@ -640,7 +635,7 @@ const WHVWorkPreferences: React.FC = () => {
             </div>
 
             {/* Continue */}
-            <div className="pt-4">
+            <div className="pt-6 pb-8">
               <Button
                 type="button"
                 onClick={handleContinue}
@@ -651,7 +646,7 @@ const WHVWorkPreferences: React.FC = () => {
                   preferredStates.length === 0 ||
                   preferredAreas.length === 0
                 }
-                className="w-full h-14 text-lg rounded-xl bg-orange-500 text-white"
+                className="w-full h-16 text-lg rounded-xl bg-orange-500 text-white"
               >
                 Continue →
               </Button>
@@ -682,4 +677,3 @@ const WHVWorkPreferences: React.FC = () => {
 };
 
 export default WHVWorkPreferences;
-
