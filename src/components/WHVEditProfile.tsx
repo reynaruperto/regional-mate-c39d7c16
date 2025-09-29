@@ -114,6 +114,19 @@ interface JobReference {
   role: string;
 }
 
+interface EligibleIndustry {
+  industry_id: number;
+  industry: string;
+}
+
+interface WorkLocationRule {
+  rule_id: number;
+  industry_id: number;
+  state: string;
+  suburb_city: string;
+  postcode: string;
+}
+
 // ============= Component =============
 const WHVEditProfile: React.FC = () => {
   const navigate = useNavigate();
@@ -150,6 +163,7 @@ const WHVEditProfile: React.FC = () => {
   const [preferredStates, setPreferredStates] = useState<string[]>([]);
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
   const [visaLabel, setVisaLabel] = useState<string>("");
+  const [availableDate, setAvailableDate] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     tagline: true,
     industries: false,
@@ -272,14 +286,13 @@ const WHVEditProfile: React.FC = () => {
         );
         setCountryId(visa.country_id);
 
-        // ✅ Fetch eligible industries from materialized view (matching onboarding)
+        // ✅ Fetch eligible industries from view (updated table name)
         const { data: eligibleIndustries, error: eligibilityError } =
           await supabase
-            .from("mvw_eligibility_visa_country_stage_industry" as any)
+            .from("vw_eligibility_visa_country_stage_industry" as any)
             .select("industry_id, industry")
-            .eq("sub_class", visa.visa_stage.sub_class)
-            .eq("stage", visa.visa_stage.stage)
-            .eq("country", visa.country.name);
+            .eq("country_id", visa.country_id)
+            .eq("stage_id", visa.stage_id);
 
         if (eligibilityError) {
           console.error("Eligibility query error:", eligibilityError);
@@ -313,7 +326,7 @@ const WHVEditProfile: React.FC = () => {
             );
           }
 
-          // Regions - Auto-pagination to fetch ALL rows (matching onboarding)
+          // Regions - Auto-pagination to fetch ALL rows from visa_work_location_rules
           let allRegions: Region[] = [];
           let page = 0;
           const pageSize = 1000;
@@ -321,8 +334,8 @@ const WHVEditProfile: React.FC = () => {
 
           while (hasMore) {
             const { data: regionPage, error: regionError } = await supabase
-              .from("regional_rules")
-              .select("id, industry_id, state, suburb_city, postcode")
+              .from("visa_work_location_rules" as any)
+              .select("rule_id, industry_id, state, suburb_city, postcode")
               .in("industry_id", industryIds.map(Number))
               .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -332,7 +345,14 @@ const WHVEditProfile: React.FC = () => {
             }
 
             if (regionPage && regionPage.length > 0) {
-              allRegions = [...allRegions, ...regionPage];
+              const mappedRegions = (regionPage as any[]).map((r: any) => ({
+                id: r.rule_id,
+                industry_id: r.industry_id,
+                state: r.state,
+                suburb_city: r.suburb_city,
+                postcode: r.postcode,
+              }));
+              allRegions = [...allRegions, ...mappedRegions];
               console.log(`Fetched ${regionPage.length} regions on page ${page}`);
               page++;
             } else {
@@ -438,6 +458,17 @@ const WHVEditProfile: React.FC = () => {
         setLicenses(makerLic.map((l) => l.license_id));
         const other = makerLic.find((l) => l.other)?.other;
         if (other) setOtherLicense(other);
+      }
+
+      // Load availability date
+      const { data: availability } = await supabase
+        .from("maker_pref_availability" as any)
+        .select("availability")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      if (availability) {
+        setAvailableDate((availability as any).availability);
       }
 
       setLoading(false);
@@ -736,6 +767,15 @@ const WHVEditProfile: React.FC = () => {
         await supabase.from("maker_license").insert(licRows);
       }
 
+      // Save availability date
+      if (availableDate) {
+        await supabase.from("maker_pref_availability" as any).delete().eq("user_id", user.id);
+        await supabase.from("maker_pref_availability" as any).insert({
+          user_id: user.id,
+          availability: availableDate,
+        });
+      }
+
       toast({
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
@@ -942,6 +982,19 @@ const WHVEditProfile: React.FC = () => {
                         onChange={(e) => setTagline(e.target.value)}
                         placeholder="e.g. Backpacker ready for farm work"
                       />
+                      
+                      {/* Availability Date */}
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">
+                          Date Available to Start Work
+                        </Label>
+                        <Input
+                          type="date"
+                          value={availableDate}
+                          onChange={(e) => setAvailableDate(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
