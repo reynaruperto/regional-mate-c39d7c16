@@ -64,7 +64,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         // 1. WHV maker
         const { data: whvMaker } = await supabase
           .from('whv_maker')
-          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num, available_date')
+          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -88,14 +88,20 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // ✅ Clean up redundant visa type display
         let visaType = "Not specified";
         if (visa?.visa_stage) {
           const { sub_class, label } = visa.visa_stage;
           visaType = label.includes(sub_class) ? label : `${sub_class} (${label})`;
         }
 
-        // 4. Work Preferences
+        // 4. Availability
+        const { data: availability } = await supabase
+          .from('maker_pref_availability')
+          .select('available_from')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // 5. Work Preferences
         const { data: workPrefsData } = await supabase
           .from('maker_pref_industry_role')
           .select(`
@@ -112,7 +118,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         }));
         setWorkPreferences(formattedWorkPrefs);
 
-        // 5. Location Preferences
+        // 6. Location Preferences
         const { data: locationPrefsData } = await supabase
           .from('maker_pref_location')
           .select('state, suburb_city, postcode')
@@ -124,7 +130,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         }));
         setLocationPreferences(formattedLocationPrefs);
 
-        // 6. Work experience
+        // 7. Work experience
         const { data: experiences } = await supabase
           .from('maker_work_experience' as any)
           .select('position, company, industry_id, location, start_date, end_date, job_description')
@@ -149,7 +155,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         });
         setWorkExperiences(formattedExperiences);
 
-        // 7. Licenses
+        // 8. Licenses
         const { data: licenseRows } = await supabase
           .from('maker_license')
           .select('license(name)')
@@ -158,7 +164,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         const formattedLicenses: string[] = (licenseRows || []).map((l: any) => l.license?.name || 'Unknown License');
         setLicenses(formattedLicenses);
 
-        // 8. References
+        // 9. References
         const { data: referenceRows } = await supabase
           .from('maker_reference')
           .select('name, business_name, email, mobile_num')
@@ -166,7 +172,7 @@ const WHVPreviewMatchCard: React.FC = () => {
 
         setReferences(referenceRows || []);
 
-        // 9. Profile photo
+        // 10. Profile photo
         let signedPhoto: string | null = null;
         if (whvMaker?.profile_photo) {
           let photoPath = whvMaker.profile_photo;
@@ -187,7 +193,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           nationality: whvMaker?.nationality || 'Not specified',
           visaType,
           visaExpiry: visa?.expiry_date || 'Not specified',
-          availableDate: whvMaker?.available_date || 'Not specified', // ✅ Added
+          availableDate: availability?.available_from || 'Not specified',
           phone: whvMaker?.mobile_num || '',
           email: profile?.email || '',
         });
@@ -206,7 +212,6 @@ const WHVPreviewMatchCard: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // Helpers
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
@@ -214,7 +219,6 @@ const WHVPreviewMatchCard: React.FC = () => {
     const startDate = new Date(start);
     const endDate = end ? new Date(end) : new Date();
     const years = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
-
     if (years < 1) return "<1 yr";
     if (years < 3) return "1–2 yrs";
     if (years < 5) return "3–4 yrs";
@@ -223,7 +227,6 @@ const WHVPreviewMatchCard: React.FC = () => {
     return "10+ yrs";
   };
 
-  // Group prefs
   const groupedWorkPrefs = workPreferences.reduce((acc: any, pref) => {
     if (!pref.industry || !pref.role) return acc;
     if (!acc[pref.industry]) acc[pref.industry] = new Set();
@@ -270,12 +273,24 @@ const WHVPreviewMatchCard: React.FC = () => {
                   </div>
                   <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
                   <p className="text-sm text-gray-600">{profileData?.tagline}</p>
-                  <p className="text-xs text-gray-500">
-                    {profileData?.nationality} — {profileData?.visaType}, Expires {profileData?.visaExpiry}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Available From: {profileData?.availableDate}
-                  </p>
+
+                  {profileData?.nationality !== "Not specified" && (
+                    <p className="text-xs text-gray-500">{profileData.nationality}</p>
+                  )}
+                  {profileData?.visaType !== "Not specified" && (
+                    <p className="text-xs text-gray-500">{profileData.visaType}</p>
+                  )}
+                  {profileData?.visaExpiry !== "Not specified" && (
+                    <p className="text-xs text-gray-500">
+                      Expires {formatDate(profileData.visaExpiry)}
+                    </p>
+                  )}
+                  {profileData?.availableDate !== "Not specified" && (
+                    <p className="text-xs text-gray-500">
+                      Available From: {formatDate(profileData.availableDate)}
+                    </p>
+                  )}
+
                   {profileData?.phone && (
                     <p className="text-sm text-gray-700 flex items-center mt-1">
                       <Phone size={14} className="mr-1 text-orange-500" /> {profileData.phone}
