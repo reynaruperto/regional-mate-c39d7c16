@@ -21,6 +21,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
+  const [availableFrom, setAvailableFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [employerId, setEmployerId] = useState<string | null>(null);
@@ -46,6 +47,14 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
         .select("given_name, middle_name, family_name, tagline, profile_photo, state")
         .eq("user_id", candidateId)
         .maybeSingle();
+
+      // Availability
+      const { data: availabilityRow } = await supabase
+        .from("maker_pref_availability")
+        .select("available_from")
+        .eq("user_id", candidateId)
+        .maybeSingle();
+      if (availabilityRow) setAvailableFrom(availabilityRow.available_from);
 
       // Industry Preferences
       const { data: industryRows } = await supabase
@@ -213,6 +222,19 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
                 <p className="text-sm text-gray-600 mt-1">
                   {profileData?.tagline}
                 </p>
+
+                {availableFrom && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Available from:{" "}
+                    <span className="font-medium text-gray-900">
+                      {new Date(availableFrom).toLocaleDateString("en-US", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* Industry Preferences */}
