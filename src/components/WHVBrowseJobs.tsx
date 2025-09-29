@@ -176,7 +176,20 @@ const WHVBrowseJobs: React.FC = () => {
   };
 
   return showFilters ? (
-    <WHVFilterPage onClose={() => setShowFilters(false)} onApplyFilters={(f) => setFilters(f)} />
+    <WHVFilterPage 
+      onClose={() => setShowFilters(false)} 
+      onResults={(jobs) => {
+        setJobs(jobs);
+        setAllJobs(jobs);
+        setShowFilters(false);
+      }}
+      user={{
+        id: whvId || "",
+        subClass: "417", // Default value, should be from user data
+        countryId: 1, // Default value, should be from user data  
+        stage: 1 // Default value, should be from user data
+      }}
+    />
   ) : (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
