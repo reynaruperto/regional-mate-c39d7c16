@@ -92,12 +92,12 @@ const WHVWorkPreferences: React.FC = () => {
       // --- Get availability ---
       const { data: availability } = await (supabase as any)
         .from("maker_pref_availability")
-        .select("available_from")
+        .select("availability")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (availability?.available_from) {
-        setDateAvailable(availability.available_from);
+      if (availability?.availability) {
+        setDateAvailable(availability.availability);
       }
 
       // --- Get visa ---
@@ -295,7 +295,7 @@ const WHVWorkPreferences: React.FC = () => {
       await (supabase as any).from("maker_pref_availability").insert([
         {
           user_id: user.id,
-          available_from: dateAvailable,
+          availability: dateAvailable,
         },
       ]);
     }
