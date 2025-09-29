@@ -38,6 +38,14 @@ interface WorkLocationRule {
   postcode: string;
 }
 
+interface Region {
+  id: number;
+  industry_id: number;
+  state: string;
+  suburb_city: string;
+  postcode: string;
+}
+
 const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
@@ -82,7 +90,7 @@ const WHVWorkPreferences: React.FC = () => {
       if (profile?.tagline) setTagline(profile.tagline);
 
       // --- Get availability ---
-      const { data: availability } = await supabase
+      const { data: availability } = await (supabase as any)
         .from("maker_pref_availability")
         .select("available_from")
         .eq("user_id", user.id)
@@ -247,15 +255,15 @@ const WHVWorkPreferences: React.FC = () => {
         }
       }
 
-      setRegions(
-        allRegions.map((r: WorkLocationRule) => ({
-          id: r.rule_id,
-          industry_id: r.industry_id,
-          state: r.state,
-          suburb_city: r.suburb_city,
-          postcode: r.postcode,
-        }))
-      );
+      const mappedRegions: Region[] = allRegions.map((r: any) => ({
+        id: r.rule_id,
+        industry_id: r.industry_id,
+        state: r.state,
+        suburb_city: r.suburb_city,
+        postcode: r.postcode,
+      }));
+      
+      setRegions(mappedRegions);
 
       console.log(`✅ Total regions fetched: ${allRegions.length}`);
     };
@@ -282,9 +290,9 @@ const WHVWorkPreferences: React.FC = () => {
       .eq("user_id", user.id);
 
     // Update availability
-    await supabase.from("maker_pref_availability").delete().eq("user_id", user.id);
+    await (supabase as any).from("maker_pref_availability").delete().eq("user_id", user.id);
     if (dateAvailable) {
-      await supabase.from("maker_pref_availability").insert([
+      await (supabase as any).from("maker_pref_availability").insert([
         {
           user_id: user.id,
           available_from: dateAvailable,
