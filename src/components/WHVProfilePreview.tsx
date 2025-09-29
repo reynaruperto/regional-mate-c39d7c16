@@ -15,6 +15,7 @@ const WHVProfilePreview: React.FC = () => {
   const [locationPreferences, setLocationPreferences] = useState<any[]>([]);
   const [workExperiences, setWorkExperiences] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
+  const [availableFrom, setAvailableFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,6 +34,14 @@ const WHVProfilePreview: React.FC = () => {
         .select("given_name, middle_name, family_name, tagline, profile_photo")
         .eq("user_id", user.id)
         .maybeSingle();
+
+      // Availability
+      const { data: availabilityRow } = await supabase
+        .from("maker_pref_availability")
+        .select("available_from")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (availabilityRow) setAvailableFrom(availabilityRow.available_from);
 
       // All industries (for joining with work_experience)
       const { data: industryData } = await supabase
@@ -73,7 +82,9 @@ const WHVProfilePreview: React.FC = () => {
       // Work Experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience" as any)
-        .select("position, company, industry_id, location, start_date, end_date, job_description")
+        .select(
+          "position, company, industry_id, location, start_date, end_date, job_description"
+        )
         .eq("user_id", user.id)
         .order("start_date", { ascending: false });
 
@@ -177,6 +188,19 @@ const WHVProfilePreview: React.FC = () => {
                 <p className="text-sm text-gray-600 mt-1">
                   {profileData?.tagline}
                 </p>
+
+                {availableFrom && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Available from:{" "}
+                    <span className="font-medium text-gray-900">
+                      {new Date(availableFrom).toLocaleDateString("en-US", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* Industry Preferences */}
@@ -249,12 +273,13 @@ const WHVProfilePreview: React.FC = () => {
                           )?.name || "N/A";
 
                         const start = new Date(exp.start_date);
-                        const end = exp.end_date ? new Date(exp.end_date) : new Date();
+                        const end = exp.end_date
+                          ? new Date(exp.end_date)
+                          : new Date();
                         const years =
                           (end.getTime() - start.getTime()) /
                           (1000 * 60 * 60 * 24 * 365);
 
-                        // Map years into your categories
                         let yearsCategory = "";
                         if (years < 1) yearsCategory = "<1 yr";
                         else if (years < 3) yearsCategory = "1–2 yrs";
