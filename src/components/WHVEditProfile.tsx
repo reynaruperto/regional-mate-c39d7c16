@@ -73,16 +73,8 @@ interface Role {
   industryId: number;
 }
 
-interface RegionRuleRow {
-  id: number;
-  industry_id: number;
-  state: string;
-  suburb_city: string;
-  postcode: string;
-}
-
 interface Region {
-  id: number;
+  rule_id: number;
   industry_id: number;
   state: string;
   suburb_city: string;
@@ -286,7 +278,7 @@ const WHVEditProfile: React.FC = () => {
         );
         setCountryId(visa.country_id);
 
-        // ✅ Fetch eligible industries from view (updated table name)
+        // ✅ Fetch eligible industries from view (updated table name)  
         const { data: eligibleIndustries, error: eligibilityError } =
           await supabase
             .from("vw_eligibility_visa_country_stage_industry" as any)
@@ -346,7 +338,7 @@ const WHVEditProfile: React.FC = () => {
 
             if (regionPage && regionPage.length > 0) {
               const mappedRegions = (regionPage as any[]).map((r: any) => ({
-                id: r.rule_id,
+                rule_id: r.rule_id,
                 industry_id: r.industry_id,
                 state: r.state,
                 suburb_city: r.suburb_city,
@@ -462,13 +454,13 @@ const WHVEditProfile: React.FC = () => {
 
       // Load availability date
       const { data: availability } = await supabase
-        .from("maker_pref_availability" as any)
+        .from("maker_pref_availability")
         .select("availability")
         .eq("user_id", user.id)
         .maybeSingle();
       
       if (availability) {
-        setAvailableDate((availability as any).availability);
+        setAvailableDate(availability.availability);
       }
 
       setLoading(false);
@@ -768,8 +760,8 @@ const WHVEditProfile: React.FC = () => {
       }
 
       // Save availability date
+      await supabase.from("maker_pref_availability" as any).delete().eq("user_id", user.id);
       if (availableDate) {
-        await supabase.from("maker_pref_availability" as any).delete().eq("user_id", user.id);
         await supabase.from("maker_pref_availability" as any).insert({
           user_id: user.id,
           availability: availableDate,
