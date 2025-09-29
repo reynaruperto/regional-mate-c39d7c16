@@ -87,6 +87,13 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
+        // ✅ Clean up redundant visa type display
+        let visaType = "Not specified";
+        if (visa?.visa_stage) {
+          const { sub_class, label } = visa.visa_stage;
+          visaType = label.includes(sub_class) ? label : `${sub_class} (${label})`;
+        }
+
         // 4. Work Preferences
         const { data: workPrefsData } = await supabase
           .from('maker_pref_industry_role')
@@ -123,7 +130,6 @@ const WHVPreviewMatchCard: React.FC = () => {
           .eq('user_id', user.id)
           .order('start_date', { ascending: false });
 
-        // Get industry data to match with work experiences
         const { data: industryData } = await supabase
           .from('industry')
           .select('industry_id, name');
@@ -178,7 +184,7 @@ const WHVPreviewMatchCard: React.FC = () => {
           profilePhoto: signedPhoto,
           currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified',
           nationality: whvMaker?.nationality || 'Not specified',
-          visaType: visa?.visa_stage ? `${visa.visa_stage.sub_class} (${visa.visa_stage.label})` : 'Not specified',
+          visaType, // ✅ cleaned up version
           visaExpiry: visa?.expiry_date || 'Not specified',
           phone: whvMaker?.mobile_num || '',
           email: profile?.email || '',
