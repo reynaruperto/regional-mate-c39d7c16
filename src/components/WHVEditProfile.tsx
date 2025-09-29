@@ -279,7 +279,7 @@ const WHVEditProfile: React.FC = () => {
         // ✅ Fetch eligible industries from new view
         const { data: eligibleIndustries, error: eligibilityError } =
           await supabase
-            .from("vw_eligibility_visa_country_stage_industry")
+            .from("vw_eligibility_visa_country_stage_industry" as any)
             .select("industry_id, industry")
             .eq("sub_class", visa.visa_stage.sub_class)
             .eq("stage", visa.visa_stage.stage)
@@ -323,7 +323,7 @@ const WHVEditProfile: React.FC = () => {
 
           while (hasMore) {
             const { data: regionPage, error: regionError } = await supabase
-              .from("visa_work_location_rules")
+              .from("visa_work_location_rules" as any)
               .select("rule_id, industry_id, state, suburb_city, postcode")
               .in("industry_id", industryIds.map(Number))
               .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -334,7 +334,7 @@ const WHVEditProfile: React.FC = () => {
             }
 
             if (regionPage && regionPage.length > 0) {
-              allRegions = [...allRegions, ...regionPage];
+              allRegions = [...allRegions, ...(regionPage as unknown as Region[])];
               console.log(`Fetched ${regionPage.length} regions on page ${page}`);
               page++;
             } else {
@@ -450,6 +450,38 @@ const WHVEditProfile: React.FC = () => {
         .maybeSingle();
 
       if (availability) setAvailableFrom(availability.available_from);
+
+      // ✅ Load saved preferred industries
+      const { data: savedIndustries } = await supabase
+        .from("maker_pref_industry")
+        .select("industry_id")
+        .eq("user_id", user.id);
+      
+      if (savedIndustries && savedIndustries.length > 0) {
+        const industryIds = savedIndustries.map(si => si.industry_id);
+        setSelectedIndustries(industryIds);
+
+        // ✅ Load saved preferred roles for selected industries
+        const { data: savedRoles } = await supabase
+          .from("maker_pref_industry_role")
+          .select("industry_role_id")
+          .eq("user_id", user.id);
+        
+        if (savedRoles && savedRoles.length > 0) {
+          setSelectedRoles(savedRoles.map(sr => sr.industry_role_id));
+        }
+      }
+
+      // ✅ Load saved preferred locations
+      const { data: savedLocations } = await supabase
+        .from("maker_pref_location")
+        .select("*")
+        .eq("user_id", user.id);
+      
+      if (savedLocations && savedLocations.length > 0) {
+        setPreferredStates(savedLocations.map(sl => sl.state));
+        setPreferredAreas(savedLocations.map(sl => `${sl.suburb_city} (${sl.postcode})`));
+      }
 
       setLoading(false);
     };
