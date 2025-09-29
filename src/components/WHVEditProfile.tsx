@@ -1121,6 +1121,17 @@ const WHVEditProfile: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Available From Date */}
+                <div>
+                  <Label>Available From *</Label>
+                  <Input
+                    type="date"
+                    value={availableDate}
+                    onChange={(e) => setAvailableDate(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
               </div>
             )}
 
