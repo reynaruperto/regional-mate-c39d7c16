@@ -1,6 +1,6 @@
 // src/components/WHVPreviewMatchCard.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Award, User, FileText, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, User, FileText, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,7 @@ interface WHVProfileData {
   nationality: string;
   visaType: string;
   visaExpiry: string;
+  availableDate: string;
   phone?: string;
   email?: string;
 }
@@ -63,7 +64,7 @@ const WHVPreviewMatchCard: React.FC = () => {
         // 1. WHV maker
         const { data: whvMaker } = await supabase
           .from('whv_maker')
-          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num')
+          .select('given_name, middle_name, family_name, tagline, nationality, profile_photo, suburb, state, mobile_num, available_date')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -184,8 +185,9 @@ const WHVPreviewMatchCard: React.FC = () => {
           profilePhoto: signedPhoto,
           currentLocation: whvMaker ? `${whvMaker.suburb}, ${whvMaker.state}` : 'Not specified',
           nationality: whvMaker?.nationality || 'Not specified',
-          visaType, // ✅ cleaned up version
+          visaType,
           visaExpiry: visa?.expiry_date || 'Not specified',
+          availableDate: whvMaker?.available_date || 'Not specified', // ✅ Added
           phone: whvMaker?.mobile_num || '',
           email: profile?.email || '',
         });
@@ -204,11 +206,10 @@ const WHVPreviewMatchCard: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // Helper: format dates
+  // Helpers
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
-  // Helper: categorize years
   const categorizeYears = (start: string, end: string | null) => {
     const startDate = new Date(start);
     const endDate = end ? new Date(end) : new Date();
@@ -222,7 +223,7 @@ const WHVPreviewMatchCard: React.FC = () => {
     return "10+ yrs";
   };
 
-  // Group work preferences by industry
+  // Group prefs
   const groupedWorkPrefs = workPreferences.reduce((acc: any, pref) => {
     if (!pref.industry || !pref.role) return acc;
     if (!acc[pref.industry]) acc[pref.industry] = new Set();
@@ -230,7 +231,6 @@ const WHVPreviewMatchCard: React.FC = () => {
     return acc;
   }, {});
 
-  // Group location preferences by state
   const groupedLocationPrefs = locationPreferences.reduce((acc: any, pref) => {
     if (!pref.state || !pref.area) return acc;
     if (!acc[pref.state]) acc[pref.state] = new Set();
@@ -272,6 +272,9 @@ const WHVPreviewMatchCard: React.FC = () => {
                   <p className="text-sm text-gray-600">{profileData?.tagline}</p>
                   <p className="text-xs text-gray-500">
                     {profileData?.nationality} — {profileData?.visaType}, Expires {profileData?.visaExpiry}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Available From: {profileData?.availableDate}
                   </p>
                   {profileData?.phone && (
                     <p className="text-sm text-gray-700 flex items-center mt-1">
