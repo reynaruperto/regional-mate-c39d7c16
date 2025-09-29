@@ -1092,28 +1092,28 @@ const WHVEditProfile: React.FC = () => {
                             state === "Queensland" &&
                             selectedIndustries.length > 0 && (
                               <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
-                                {getAreasForState(state).map((locKey) => {
-                                  const [suburb_city, postcode] = locKey.split("::");
-                                  return (
-                                    <label
-                                      key={locKey}
-                                      className="flex items-center space-x-2 py-1"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={preferredAreas.includes(locKey)}
-                                        onChange={() => togglePreferredArea(locKey)}
-                                        disabled={
-                                          preferredAreas.length >= 3 &&
-                                          !preferredAreas.includes(locKey)
-                                        }
-                                      />
-                                      <span>
-                                        {suburb_city} ({postcode})
-                                      </span>
-                                    </label>
-                                  );
-                                })}
+                                 {getAreasForState(state).map((locKey, index) => {
+                                   const [suburb_city, postcode] = locKey.split("::");
+                                   return (
+                                     <label
+                                       key={`${state}-${locKey}-${index}`}
+                                       className="flex items-center space-x-2 py-1"
+                                     >
+                                       <input
+                                         type="checkbox"
+                                         checked={preferredAreas.includes(locKey)}
+                                         onChange={() => togglePreferredArea(locKey)}
+                                         disabled={
+                                           preferredAreas.length >= 3 &&
+                                           !preferredAreas.includes(locKey)
+                                         }
+                                       />
+                                       <span>
+                                         {suburb_city} ({postcode})
+                                       </span>
+                                     </label>
+                                   );
+                                 })}
                               </div>
                             )}
                         </div>
