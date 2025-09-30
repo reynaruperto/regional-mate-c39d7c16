@@ -84,7 +84,7 @@ const WHVBrowseJobs: React.FC = () => {
 
       const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
 
-      // 4️⃣ Map jobs
+      // 4️⃣ Map jobs (frontend controls display design)
       const mapped: JobCard[] = jobsData.map((job: any) => {
         const photoUrl = job.profile_photo
           ? supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl
@@ -92,14 +92,14 @@ const WHVBrowseJobs: React.FC = () => {
 
         return {
           job_id: job.job_id,
-          company: job.company_name || "Unknown Employer",
+          company: job.company_name?.trim() || "Employer not listed",
           profile_photo: photoUrl,
-          role: job.position_title || "Unknown Role",
-          industry: job.industry || "Unknown Industry",
-          location: job.location || "Location not specified",
-          salary_range: job.salary_range || "Rate not specified",
-          employment_type: job.employment_type || "N/A",
-          description: job.description || "",
+          role: job.position_title?.trim() || "Role not specified",
+          industry: job.industry?.trim() || "General",
+          location: job.location?.trim() || "Location not specified",
+          salary_range: job.salary_range ? `💰 ${job.salary_range}` : "Pay not disclosed",
+          employment_type: job.employment_type || "Employment type not specified",
+          description: job.description?.trim() || "No description provided",
           isLiked: likedIds.includes(job.job_id),
         };
       });
@@ -262,25 +262,33 @@ const WHVBrowseJobs: React.FC = () => {
                         }}
                       />
                       <div className="flex-1 min-w-0">
+                        {/* Job Title */}
                         <h2 className="text-xl font-bold text-gray-900">{job.role}</h2>
+                        
+                        {/* Employer + Industry */}
                         <p className="text-sm text-gray-600">
-                          {job.company} • {job.industry}
+                          🏢 {job.company} • {job.industry}
                         </p>
-                        <p className="text-sm text-gray-500">{job.location}</p>
+                        
+                        {/* Location */}
+                        <p className="text-sm text-gray-500">📍 {job.location}</p>
 
+                        {/* Tags */}
                         <div className="flex flex-wrap gap-2 mt-2">
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
                             {job.employment_type}
                           </span>
                           <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                            💰 {job.salary_range}
+                            {job.salary_range}
                           </span>
                         </div>
 
+                        {/* Description */}
                         <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                          {job.description || "No description provided"}
+                          {job.description}
                         </p>
 
+                        {/* Buttons */}
                         <div className="flex items-center gap-3 mt-4">
                           <Button
                             onClick={() => navigate(`/whv/job/${job.job_id}`)}
@@ -294,9 +302,7 @@ const WHVBrowseJobs: React.FC = () => {
                           >
                             <Heart
                               size={20}
-                              className={
-                                job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"
-                              }
+                              className={job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         </div>
