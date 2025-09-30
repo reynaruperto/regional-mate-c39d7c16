@@ -84,7 +84,7 @@ const WHVBrowseJobs: React.FC = () => {
 
       const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
 
-      // 4️⃣ Map jobs (frontend controls display design)
+      // 4️⃣ Map jobs (frontend handles display defaults)
       const mapped: JobCard[] = jobsData.map((job: any) => {
         const photoUrl = job.profile_photo
           ? supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl
@@ -92,14 +92,14 @@ const WHVBrowseJobs: React.FC = () => {
 
         return {
           job_id: job.job_id,
-          company: job.company_name?.trim() || "Employer not listed",
+          company: job.company_name || job.companyname || "Employer not listed",
           profile_photo: photoUrl,
-          role: job.position_title?.trim() || "Role not specified",
-          industry: job.industry?.trim() || "General",
-          location: job.location?.trim() || "Location not specified",
-          salary_range: job.salary_range ? `💰 ${job.salary_range}` : "Pay not disclosed",
+          role: job.position_title || job.positiontitle || "Role not specified",
+          industry: job.industry || "General",
+          location: job.location || "Location not specified",
+          salary_range: job.salary_range || "Pay not disclosed",
           employment_type: job.employment_type || "Employment type not specified",
-          description: job.description?.trim() || "No description provided",
+          description: job.description || "No description provided",
           isLiked: likedIds.includes(job.job_id),
         };
       });
@@ -267,11 +267,11 @@ const WHVBrowseJobs: React.FC = () => {
                         
                         {/* Employer + Industry */}
                         <p className="text-sm text-gray-600">
-                          🏢 {job.company} • {job.industry}
+                          {job.company} • {job.industry}
                         </p>
                         
                         {/* Location */}
-                        <p className="text-sm text-gray-500">📍 {job.location}</p>
+                        <p className="text-sm text-gray-500">{job.location}</p>
 
                         {/* Tags */}
                         <div className="flex flex-wrap gap-2 mt-2">
