@@ -75,16 +75,107 @@ const WHVBrowseJobs: React.FC = () => {
       }
       if (!jobsData) return;
 
-      // 🛠 Debug: log & alert first job object
-      console.log("Jobs data sample:", jobsData[0]);
-      alert(JSON.stringify(jobsData[0], null, 2));
+      // 3️⃣ Fetch likes for this WHV
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_job_post_id")
+        .eq("liker_id", whvId)
+        .eq("liker_type", "whv");
 
-      setJobs(jobsData);
-      setAllJobs(jobsData);
+      const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+      // 4️⃣ Map jobs to correct keys
+      const mapped: JobCard[] = jobsData.map((job: any) => {
+        const photoUrl = job.profile_photo
+          ? (job.profile_photo.startsWith("http")
+              ? job.profile_photo
+              : supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl)
+          : "/placeholder.png";
+
+        return {
+          job_id: job.job_id,
+          company: job.company || "Employer not listed",
+          profile_photo: photoUrl,
+          role: job.role || "Role not specified",
+          industry: job.industry || "General",
+          location: job.location || "Location not specified",
+          salary_range: job.salary_range || "Pay not disclosed",
+          employment_type: job.job_type || "Employment type not specified",
+          description: job.job_description || "No description provided",
+          isLiked: likedIds.includes(job.job_id),
+        };
+      });
+
+      setJobs(mapped);
+      setAllJobs(mapped);
     };
 
     fetchJobs();
   }, [whvId]);
+
+  // 🔎 Search + Filters
+  useEffect(() => {
+    let list = [...allJobs];
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      list = list.filter(
+        (j) =>
+          j.role.toLowerCase().includes(query) ||
+          j.industry.toLowerCase().includes(query) ||
+          j.company.toLowerCase().includes(query) ||
+          j.location.toLowerCase().includes(query)
+      );
+    }
+
+    if (filters.state) {
+      list = list.filter((j) => j.location.toLowerCase().includes(filters.state.toLowerCase()));
+    }
+
+    if (filters.facility) {
+      list = list.filter((j) =>
+        j.description?.toLowerCase().includes(filters.facility.toLowerCase())
+      );
+    }
+
+    setJobs(list);
+  }, [searchQuery, filters, allJobs]);
+
+  // ✅ Like/unlike
+  const handleLikeJob = async (jobId: number) => {
+    if (!whvId) return;
+    const job = jobs.find((j) => j.job_id === jobId);
+    if (!job) return;
+
+    try {
+      if (job.isLiked) {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", whvId)
+          .eq("liker_type", "whv")
+          .eq("liked_job_post_id", jobId);
+
+        setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
+        setAllJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
+      } else {
+        await supabase.from("likes").insert({
+          liker_id: whvId,
+          liker_type: "whv",
+          liked_job_post_id: jobId,
+          liked_whv_id: null,
+        });
+
+        setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
+        setAllJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
+
+        setLikedJobTitle(job.role);
+        setShowLikeModal(true);
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
+  };
 
   return showFilters ? (
     <WHVFilterPage 
@@ -118,7 +209,7 @@ const WHVBrowseJobs: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Browse Jobs (Debug Mode)</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Browse Jobs</h1>
             </div>
 
             {/* Visa Info */}
@@ -131,11 +222,97 @@ const WHVBrowseJobs: React.FC = () => {
               </p>
             </div>
 
-            {/* Jobs JSON Debug Dump */}
+            {/* Search */}
+            <div className="relative mb-4 px-6 mt-2">
+              <Search
+                className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={20}
+              />
+              <Input
+                placeholder="Search jobs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
+              />
+              <button
+                onClick={() => setShowFilters(true)}
+                className="absolute right-9 top-1/2 transform -translate-y-1/2"
+              >
+                <Filter className="text-gray-400" size={20} />
+              </button>
+            </div>
+
+            {/* Jobs List */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-              <pre className="text-xs bg-gray-200 p-4 rounded-lg overflow-x-auto">
-                {JSON.stringify(jobs, null, 2)}
-              </pre>
+              {jobs.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No jobs found. Try adjusting your search or filters.</p>
+                </div>
+              ) : (
+                jobs.map((job) => (
+                  <div
+                    key={job.job_id}
+                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                  >
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={job.profile_photo}
+                        alt={job.company}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = "/placeholder.png";
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        {/* Job Title */}
+                        <h2 className="text-xl font-bold text-gray-900">{job.role}</h2>
+                        
+                        {/* Employer + Industry */}
+                        <p className="text-sm text-gray-600">
+                          {job.company} • {job.industry}
+                        </p>
+                        
+                        {/* Location */}
+                        <p className="text-sm text-gray-500">{job.location}</p>
+
+                        {/* Tags */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            {job.employment_type}
+                          </span>
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                            {job.salary_range}
+                          </span>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">
+                          {job.description}
+                        </p>
+
+                        {/* Buttons */}
+                        <div className="flex items-center gap-3 mt-4">
+                          <Button
+                            onClick={() => navigate(`/whv/job/${job.job_id}`)}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                          >
+                            View Details
+                          </Button>
+                          <button
+                            onClick={() => handleLikeJob(job.job_id)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={20}
+                              className={job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
