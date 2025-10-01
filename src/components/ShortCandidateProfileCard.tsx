@@ -27,18 +27,16 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   const [employerId, setEmployerId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  //  Get logged-in employer ID
+  // ✅ Get logged-in employer ID
   useEffect(() => {
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
     };
     getUser();
   }, []);
 
-  //  Load candidate profile
+  // ✅ Load candidate profile
   useEffect(() => {
     const fetchCandidate = async () => {
       setLoading(true);
@@ -46,9 +44,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       // Candidate profile
       const { data: whv } = await supabase
         .from("whv_maker")
-        .select(
-          "given_name, middle_name, family_name, tagline, profile_photo, state"
-        )
+        .select("given_name, middle_name, family_name, tagline, profile_photo, state")
         .eq("user_id", candidateId)
         .maybeSingle();
 
@@ -93,9 +89,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       // Work Experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience")
-        .select(
-          "position, company, industry(name), location, start_date, end_date, job_description"
-        )
+        .select("position, company, industry(name), location, start_date, end_date, job_description")
         .eq("user_id", candidateId)
         .order("start_date", { ascending: false });
 
@@ -138,7 +132,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     fetchCandidate();
   }, [candidateId]);
 
-  //  Like candidate (job-specific)
+  // ✅ Like candidate (job-specific)
   const handleLikeCandidate = async () => {
     if (!employerId || !selectedJobId) {
       alert("Please select a job post first.");
@@ -160,7 +154,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
 
   const handleCloseLikeModal = () => setShowLikeModal(false);
 
-  // Back button logic
+  // ✅ Back button logic
   const handleBack = () => {
     const fromPage = searchParams.get("from");
     const tab = searchParams.get("tab");
@@ -234,7 +228,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
                   {profileData?.tagline}
                 </p>
 
-                {/*  Availability with fallback */}
+                {/* ✅ Availability with fallback */}
                 {availableFrom ? (
                   <p className="text-sm text-gray-600 mt-1">
                     Available from:{" "}
@@ -253,7 +247,118 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
                 )}
               </div>
 
-              {/* ... rest of content stays unchanged ... */}
+              {/* Industry Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Briefcase size={16} className="text-orange-500 mr-2" />
+                  Industry Preferences
+                </h3>
+                {industryPrefs.length > 0 ? (
+                  <ul className="list-disc list-inside text-sm text-gray-700">
+                    {industryPrefs.map((ind, i) => (
+                      <li key={i}>{ind}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No industries set</p>
+                )}
+              </div>
+
+              {/* Location Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <MapPin size={16} className="text-orange-500 mr-2" />
+                  Location Preferences
+                </h3>
+                {locationPreferences.length > 0 ? (
+                  <div className="space-y-3">
+                    {locationPreferences.map(([state, suburbs]) => (
+                      <div key={state}>
+                        <p className="font-medium text-gray-800">{state}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(suburbs as string[]).map((s, i) => (
+                            <span
+                              key={i}
+                              className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No location preferences set
+                  </p>
+                )}
+              </div>
+
+              {/* Work Experience */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Briefcase size={16} className="text-orange-500 mr-2" />
+                  Work Experience
+                </h3>
+                {workExperiences.length > 0 ? (
+                  <ul className="space-y-3 text-sm text-gray-700">
+                    {workExperiences.map((exp, i) => {
+                      const start = new Date(exp.start_date);
+                      const end = exp.end_date ? new Date(exp.end_date) : new Date();
+                      const years =
+                        (end.getTime() - start.getTime()) /
+                        (1000 * 60 * 60 * 24 * 365);
+
+                      let yearsCategory = "";
+                      if (years < 1) yearsCategory = "<1 yr";
+                      else if (years < 3) yearsCategory = "1–2 yrs";
+                      else if (years < 5) yearsCategory = "3–4 yrs";
+                      else if (years < 8) yearsCategory = "5–7 yrs";
+                      else if (years < 11) yearsCategory = "8–10 yrs";
+                      else yearsCategory = "10+ yrs";
+
+                      return (
+                        <li key={i} className="border-b last:border-0 pb-2">
+                          <div>
+                            <span className="font-medium">{exp.position}</span>{" "}
+                            in {exp.industry?.name || "N/A"} at {exp.company || "N/A"} —{" "}
+                            <span className="text-gray-500">{yearsCategory}</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {formatDate(start)} –{" "}
+                            {exp.end_date ? formatDate(end) : "Present"}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No work experience added</p>
+                )}
+              </div>
+
+              {/* Licenses */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Award size={16} className="text-orange-500 mr-2" />
+                  Licenses & Certifications
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {licenses.length > 0 ? (
+                    licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses added</p>
+                  )}
+                </div>
+              </div>
 
               {/* Heart to Match */}
               <Button
