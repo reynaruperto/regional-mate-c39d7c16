@@ -1,3 +1,4 @@
+// src/components/WHVFilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,132 +32,106 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     facility: "",
   });
 
-  const [industries, setIndustries] = useState<{ id: number | null; name: string }[]>([]);
+  const [industries, setIndustries] = useState<{ id?: number; name: string }[]>([]);
   const [states, setStates] = useState<string[]>([]);
-  const [allSuburbs, setAllSuburbs] = useState<{ state: string; location: string }[]>([]);
   const [suburbs, setSuburbs] = useState<string[]>([]);
-  const [facilities, setFacilities] = useState<{ id: number | null; name: string }[]>([]);
+  const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load industries, facilities, job types, salary ranges
+  // ✅ Load eligibility-driven filters
   useEffect(() => {
     const fetchEligibility = async () => {
-      // Industries
-      const { data: industriesData } = await (supabase as any).rpc(
-        "view_eligible_industries_for_maker",
-        { p_maker_id: user.id }
-      );
-      if (industriesData) {
-        setIndustries(
-          industriesData.map((d: any, idx: number) => ({
-            id: d.industry_id ?? null,
-            name: d.industry ?? `Industry ${idx + 1}`,
-          }))
+      try {
+        // Industries
+        const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries_for_maker", {
+          p_maker_id: user.id,
+        });
+        if (industriesData) {
+          setIndustries(
+            (industriesData as any[]).map((d, idx) => ({
+              id: d.industry_id ?? idx,
+              name: d.industry,
+            }))
+          );
+        }
+
+        // Locations
+        const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
+          p_maker_id: user.id,
+          p_industry_id: selectedFilters.industry
+            ? parseInt(selectedFilters.industry)
+            : null,
+        });
+        if (locData) {
+          setStates(
+            [...new Set((locData as any[]).map((l) => (l.state as string)))] as string[]
+          );
+          setSuburbs(
+            (locData as any[]).map((l) => l.location as string) as string[]
+          );
+        }
+
+        // Facilities
+        const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
+        setFacilities(
+          facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []
         );
+
+        // Job Types
+        const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
+          enum_name: "job_type_enum",
+        });
+        setJobTypes((jobTypesData as string[]) || []);
+
+        // Salary Ranges
+        const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
+          enum_name: "pay_range",
+        });
+        setSalaryRanges((salaryRangesData as string[]) || []);
+      } catch (err) {
+        console.error("Error fetching filter data:", err);
       }
-
-      // Facilities
-      const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
-      setFacilities(
-        facilityData?.map((f, idx) => ({
-          id: f.facility_id ?? null,
-          name: f.name ?? `Facility ${idx + 1}`,
-        })) || []
-      );
-
-      // Job Types
-      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
-        enum_name: "job_type_enum",
-      });
-      setJobTypes((jobTypesData as string[]) || []);
-
-      // Salary Ranges
-      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
-        enum_name: "pay_range",
-      });
-      setSalaryRanges((salaryRangesData as string[]) || []);
     };
 
     fetchEligibility();
-  }, [user.id]);
-
-  // ✅ Load locations whenever industry changes
-  useEffect(() => {
-    const fetchLocations = async () => {
-      const industryId =
-        selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
-          ? parseInt(selectedFilters.industry)
-          : null;
-
-      const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
-        p_maker_id: user.id,
-        p_industry_id: industryId,
-      });
-
-      if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state ?? "Unknown"))]);
-        setAllSuburbs(
-          locData.map((l: any, idx: number) => ({
-            state: l.state ?? "Unknown",
-            location: l.location ?? `Location ${idx + 1}`,
-          }))
-        );
-      } else {
-        setStates([]);
-        setAllSuburbs([]);
-      }
-      setSuburbs([]); // reset suburbs when industry changes
-    };
-
-    fetchLocations();
   }, [user.id, selectedFilters.industry]);
 
-  // ✅ Update suburbs when state changes
-  useEffect(() => {
-    if (!selectedFilters.state) {
-      setSuburbs([]);
-      return;
-    }
-
-    const filtered = allSuburbs
-      .filter((s) => s.state === selectedFilters.state)
-      .map((s) => s.location);
-
-    setSuburbs(filtered.length > 0 ? filtered : []);
-  }, [selectedFilters.state, allSuburbs]);
-
-  // ✅ Apply filters
+  // ✅ Apply filters (now using filter_jobs_for_maker)
   const handleFindJobs = async () => {
-    const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
-      p_filter_state: selectedFilters.state || null,
-      p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
+    try {
+      const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
+        p_maker_id: user.id,
+        p_filter_state: selectedFilters.state || null,
+        p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
 
-      p_filter_industry_ids:
-        selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
-          ? [parseInt(selectedFilters.industry)]
-          : null,
+        p_filter_industry_ids:
+          selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
+            ? [parseInt(selectedFilters.industry)]
+            : null,
 
-      p_filter_job_type: selectedFilters.jobType || null,
-      p_filter_salary_range: selectedFilters.salaryRange || null,
+        p_filter_job_type: selectedFilters.jobType || null,
+        p_filter_salary_range: selectedFilters.salaryRange || null,
 
-      p_filter_facility_ids:
-        selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
-          ? [parseInt(selectedFilters.facility)]
-          : null,
+        p_filter_facility_ids:
+          selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
+            ? [parseInt(selectedFilters.facility)]
+            : null,
+      });
 
-      p_filter_start_date_range: null,
-    });
+      if (error) {
+        console.error("Error filtering jobs:", error.message, error.details, error.hint);
+        alert(`Error fetching jobs: ${error.message}`);
+        return;
+      }
 
-    if (error) {
-      console.error("Error filtering jobs:", error);
-      alert("Could not fetch jobs. Please try again.");
-      return;
+      console.log("Filter results:", data);
+      onResults(data || []);
+      onClose();
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      alert("Something went wrong while fetching jobs.");
     }
-
-    console.log("Filter results:", data);
-    onResults(data || []);
-    onClose(); // ✅ close filter modal after applying
   };
 
   return (
@@ -187,12 +162,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 <Select
                   value={selectedFilters.industry}
                   onValueChange={(v) =>
-                    setSelectedFilters((prev) => ({
-                      ...prev,
-                      industry: v,
-                      state: "",
-                      suburbCityPostcode: "",
-                    }))
+                    setSelectedFilters((prev) => ({ ...prev, industry: v }))
                   }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
@@ -200,7 +170,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                   </SelectTrigger>
                   <SelectContent>
                     {industries.map((i, idx) => (
-                      <SelectItem key={i.id ?? idx} value={(i.id ?? idx).toString()}>
+                      <SelectItem
+                        key={i.id ?? idx}
+                        value={(i.id ?? idx).toString()}
+                      >
                         {i.name}
                       </SelectItem>
                     ))}
@@ -215,11 +188,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                   <Select
                     value={selectedFilters.state}
                     onValueChange={(v) =>
-                      setSelectedFilters((prev) => ({
-                        ...prev,
-                        state: v,
-                        suburbCityPostcode: "",
-                      }))
+                      setSelectedFilters((prev) => ({ ...prev, state: v }))
                     }
                   >
                     <SelectTrigger className="w-full h-12 rounded-xl">
@@ -237,7 +206,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
               )}
 
               {/* Suburb/Postcode */}
-              {selectedFilters.state && (
+              {suburbs.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Suburb / Postcode
@@ -252,17 +221,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                       <SelectValue placeholder="Select suburb or postcode" />
                     </SelectTrigger>
                     <SelectContent>
-                      {suburbs.length > 0 ? (
-                        suburbs.map((s, idx) => (
-                          <SelectItem key={idx} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="none" disabled>
-                          No suburbs available
+                      {suburbs.map((s, idx) => (
+                        <SelectItem key={idx} value={s}>
+                          {s}
                         </SelectItem>
-                      )}
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -326,7 +289,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                   </SelectTrigger>
                   <SelectContent>
                     {facilities.map((f, idx) => (
-                      <SelectItem key={f.id ?? idx} value={(f.id ?? idx).toString()}>
+                      <SelectItem key={idx} value={f.id?.toString() ?? idx.toString()}>
                         {f.name}
                       </SelectItem>
                     ))}
