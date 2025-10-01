@@ -26,8 +26,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, user }) => 
     state: "",
     suburbCityPostcode: "",
     workYearsExperience: "",
-    preferredIndustries: [] as number[],
-    licenses: [] as number[],
+    preferredIndustries: [] as string[],
+    licenses: [] as string[],
   });
 
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
@@ -49,10 +49,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, user }) => 
         setLicenses(licenseData.map((l) => ({ id: l.license_id, name: l.name })));
       }
 
-      // States
-      const { data: stateData } = await supabase.from("state").select("name");
+      // States - fetch from maker_pref_location
+      const { data: stateData } = await supabase
+        .from("maker_pref_location")
+        .select("state");
       if (stateData) {
-        setStates(stateData.map((s) => s.name));
+        const uniqueStates = Array.from(new Set(stateData.map((l) => l.state as string)));
+        setStates(uniqueStates);
       }
     };
 
@@ -71,8 +74,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, user }) => 
         : null,
       p_filter_work_years_experience: selectedFilters.workYearsExperience || null,
       p_filter_industry_ids:
-        selectedFilters.preferredIndustries.length > 0 ? selectedFilters.preferredIndustries : null,
-      p_filter_license_ids: selectedFilters.licenses.length > 0 ? selectedFilters.licenses : null,
+        selectedFilters.preferredIndustries.length > 0 
+          ? selectedFilters.preferredIndustries.map(id => parseInt(id)) 
+          : null,
+      p_filter_license_ids: 
+        selectedFilters.licenses.length > 0 
+          ? selectedFilters.licenses.map(id => parseInt(id)) 
+          : null,
     });
 
     if (error) {
@@ -101,8 +109,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, user }) => 
       state: "",
       suburbCityPostcode: "",
       workYearsExperience: "",
-      preferredIndustries: [],
-      licenses: [],
+      preferredIndustries: [] as string[],
+      licenses: [] as string[],
     });
   };
 
@@ -195,16 +203,16 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, user }) => 
                   Candidate Licenses (multi-select)
                 </label>
                 <Select
-                  value={selectedFilters.licenses.map(String)}
+                  value={selectedFilters.licenses.length > 0 ? selectedFilters.licenses[0] : ""}
                   onValueChange={(v) =>
                     setSelectedFilters((prev) => ({
                       ...prev,
-                      licenses: [parseInt(v)],
+                      licenses: v ? [v] : [],
                     }))
                   }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
-                    <SelectValue placeholder="0 selected" />
+                    <SelectValue placeholder="Any license" />
                   </SelectTrigger>
                   <SelectContent>
                     {licenses.map((l) => (
@@ -222,16 +230,16 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, user }) => 
                   Preferred Industries (multi-select)
                 </label>
                 <Select
-                  value={selectedFilters.preferredIndustries.map(String)}
+                  value={selectedFilters.preferredIndustries.length > 0 ? selectedFilters.preferredIndustries[0] : ""}
                   onValueChange={(v) =>
                     setSelectedFilters((prev) => ({
                       ...prev,
-                      preferredIndustries: [parseInt(v)],
+                      preferredIndustries: v ? [v] : [],
                     }))
                   }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
-                    <SelectValue placeholder="0 selected" />
+                    <SelectValue placeholder="Any industry" />
                   </SelectTrigger>
                   <SelectContent>
                     {industries.map((i) => (

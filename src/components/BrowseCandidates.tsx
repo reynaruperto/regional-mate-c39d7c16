@@ -74,8 +74,8 @@ const BrowseCandidates: React.FC = () => {
         name: c.given_name,
         profilePhoto: c.profile_photo || "/placeholder.png",
         workExperience: c.work_experience || [],
-        preferredLocations: c.state_pref || [],
-        preferredIndustries: c.industry_pref || [],
+        preferredLocations: Array.isArray(c.state_pref) ? c.state_pref : [],
+        preferredIndustries: Array.isArray(c.industry_pref) ? c.industry_pref : [],
       }));
 
       setCandidates(mapped);
@@ -149,8 +149,11 @@ const BrowseCandidates: React.FC = () => {
   const removeFilter = (key: keyof ActiveFilters, value?: string) => {
     const updatedFilters = { ...activeFilters };
 
-    if (Array.isArray(updatedFilters[key])) {
-      updatedFilters[key] = (updatedFilters[key] as string[]).filter((v) => v !== value);
+    if (key === 'preferredIndustries' || key === 'licenses') {
+      const currentValue = updatedFilters[key];
+      if (Array.isArray(currentValue)) {
+        updatedFilters[key] = currentValue.filter((v) => v !== value);
+      }
     } else {
       updatedFilters[key] = undefined;
     }
