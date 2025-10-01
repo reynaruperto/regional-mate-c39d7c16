@@ -31,47 +31,34 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     facility: "",
   });
 
-  const [industries, setIndustries] = useState<{ id?: number; name: string }[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [suburbs, setSuburbs] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load eligibility-driven filters
+  // ✅ Load initial industries + job types + salary ranges + facilities
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
-      const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries", {
-        p_maker_id: user.id,
-      });
+      const { data: industriesData, error: indErr } = await (supabase as any).rpc(
+        "view_eligible_industries_for_maker",
+        { p_maker_id: user.id }
+      );
+      if (indErr) console.error("Industry fetch error:", indErr);
       if (industriesData) {
         setIndustries(
-          (industriesData as any[]).map((d) => ({
-            id: (d as any).industry_id ?? undefined,
-            name: (d as any).industry_options as string,
+          industriesData.map((d: any) => ({
+            id: d.industry_id,
+            name: d.industry,
           }))
-        );
-      }
-
-      // Locations
-      const { data: locData } = await (supabase as any).rpc("view_eligible_locations", {
-        p_maker_id: user.id,
-      });
-      if (locData) {
-        setStates(
-          [...new Set((locData as any[]).map((l) => (l as any).state_options as string))] as string[]
-        );
-        setSuburbs(
-          (locData as any[]).map((l) => (l as any).location_options as string) as string[]
         );
       }
 
       // Facilities
       const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
-      setFacilities(
-        facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []
-      );
+      setFacilities(facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []);
 
       // Job Types
       const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
@@ -89,13 +76,39 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     fetchEligibility();
   }, [user.id]);
 
+  // ✅ Load locations dynamically whenever industry changes
+  useEffect(() => {
+    const fetchLocations = async () => {
+      const industryId =
+        selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
+          ? parseInt(selectedFilters.industry)
+          : null;
+
+      const { data: locData, error: locErr } = await (supabase as any).rpc(
+        "view_eligible_locations_for_maker",
+        { p_maker_id: user.id, p_industry_id: industryId }
+      );
+
+      if (locErr) {
+        console.error("Location fetch error:", locErr);
+        return;
+      }
+
+      if (locData) {
+        setStates([...new Set(locData.map((l: any) => l.state))]);
+        setSuburbs(locData.map((l: any) => l.location));
+      }
+    };
+
+    fetchLocations();
+  }, [user.id, selectedFilters.industry]);
+
   // ✅ Apply filters
   const handleFindJobs = async () => {
     const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
 
-      // Industry: only send if numeric
       p_filter_industry_ids:
         selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
           ? [parseInt(selectedFilters.industry)]
@@ -104,7 +117,6 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       p_filter_job_type: selectedFilters.jobType || null,
       p_filter_salary_range: selectedFilters.salaryRange || null,
 
-      // Facility: safe parse as int
       p_filter_facility_ids:
         selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
           ? [parseInt(selectedFilters.facility)]
@@ -149,18 +161,15 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 <Select
                   value={selectedFilters.industry}
                   onValueChange={(v) =>
-                    setSelectedFilters((prev) => ({ ...prev, industry: v }))
+                    setSelectedFilters((prev) => ({ ...prev, industry: v, state: "", suburbCityPostcode: "" }))
                   }
                 >
                   <SelectTrigger className="w-full h-12 rounded-xl">
                     <SelectValue placeholder="Select industry" />
                   </SelectTrigger>
                   <SelectContent>
-                    {industries.map((i, idx) => (
-                      <SelectItem
-                        key={idx}
-                        value={i.id ? i.id.toString() : i.name}
-                      >
+                    {industries.map((i) => (
+                      <SelectItem key={i.id} value={i.id.toString()}>
                         {i.name}
                       </SelectItem>
                     ))}
