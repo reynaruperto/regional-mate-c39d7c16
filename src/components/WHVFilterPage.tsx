@@ -129,18 +129,15 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   // ✅ Apply filters
   const handleFindJobs = async () => {
     const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
-      p_maker_id: user.id,
+      p_maker_id: user.id, // ✅ must include maker_id
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
-
       p_filter_industry_ids:
         selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
           ? [parseInt(selectedFilters.industry)]
           : null,
-
       p_filter_job_type: selectedFilters.jobType || null,
       p_filter_salary_range: selectedFilters.salaryRange || null,
-
       p_filter_facility_ids:
         selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
           ? [parseInt(selectedFilters.facility)]
