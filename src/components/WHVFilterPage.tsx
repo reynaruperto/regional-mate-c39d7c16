@@ -39,10 +39,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Fetch data (with dummy fallback)
+  // ✅ Fetch industries, facilities, enums
   useEffect(() => {
     const fetchEligibility = async () => {
       try {
+        // Industries
         const { data: industriesData } = await (supabase as any).rpc(
           "view_eligible_industries_for_maker",
           { p_maker_id: user.id }
@@ -53,13 +54,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 id: d.industry_id ?? idx,
                 name: d.industry ?? `Industry ${idx + 1}`,
               }))
-            : [
-                { id: 1, name: "Agriculture" },
-                { id: 2, name: "Aged Care" },
-                { id: 3, name: "Hospitality" },
-              ]
+            : []
         );
 
+        // Facilities
         const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
         setFacilities(
           facilityData?.length
@@ -67,22 +65,20 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 id: f.facility_id ?? idx,
                 name: f.name ?? `Facility ${idx + 1}`,
               }))
-            : [
-                { id: 1, name: "Farm" },
-                { id: 2, name: "Hospital" },
-                { id: 3, name: "Hotel" },
-              ]
+            : []
         );
 
+        // Job Types
         const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
           enum_name: "job_type_enum",
         });
-        setJobTypes((jobTypesData as string[]) || ["Full-time", "Part-time", "Casual"]);
+        setJobTypes(Array.isArray(jobTypesData) ? (jobTypesData as string[]) : []);
 
+        // Salary Ranges
         const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
           enum_name: "pay_range",
         });
-        setSalaryRanges((salaryRangesData as string[]) || ["$20-25/hr", "$25-30/hr", "$30+/hr"]);
+        setSalaryRanges(Array.isArray(salaryRangesData) ? (salaryRangesData as string[]) : []);
       } catch (err) {
         console.error("fetchEligibility failed:", err);
       }
@@ -113,12 +109,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
             }))
           );
         } else {
-          setStates(["NSW", "QLD", "VIC"]);
-          setAllSuburbs([
-            { state: "NSW", location: "Sydney 2000" },
-            { state: "QLD", location: "Brisbane 4000" },
-            { state: "VIC", location: "Melbourne 3000" },
-          ]);
+          setStates([]);
+          setAllSuburbs([]);
         }
         setSuburbs([]);
       } catch (err) {
@@ -163,8 +155,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         return;
       }
 
-      console.log("Filter results:", data);
-      onResults(data || [], selectedFilters);
+      // ✅ Only return non-empty filters for chips
+      const appliedFilters = Object.fromEntries(
+        Object.entries(selectedFilters).filter(([_, v]) => v && v !== "")
+      );
+
+      console.log("Filter results:", data, "Applied Filters:", appliedFilters);
+      onResults(data || [], appliedFilters);
       onClose();
     } catch (err) {
       console.error("handleFindJobs failed:", err);
