@@ -39,39 +39,53 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load eligibility-driven filters
+  // ✅ Fetch industries on load
   useEffect(() => {
-    const fetchEligibility = async () => {
+    const fetchIndustries = async () => {
+      const { data, error } = await (supabase as any).rpc("view_eligible_industries_for_maker", {
+        p_maker_id: user.id,
+      });
+      if (error) {
+        console.error("Error fetching industries:", error);
+        return;
+      }
+      if (data) {
+        setIndustries(
+          data.map((d: any, idx: number) => ({
+            id: d.industry_id ?? idx,
+            name: d.industry,
+          }))
+        );
+      }
+    };
+    fetchIndustries();
+  }, [user.id]);
+
+  // ✅ Fetch locations when industry changes
+  useEffect(() => {
+    const fetchLocations = async () => {
+      const { data, error } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
+        p_maker_id: user.id,
+        p_industry_id: selectedFilters.industry
+          ? parseInt(selectedFilters.industry)
+          : null,
+      });
+      if (error) {
+        console.error("Error fetching locations:", error);
+        return;
+      }
+      if (data) {
+        setStates([...new Set(data.map((l: any) => l.state))]);
+        setSuburbs(data.map((l: any) => l.location));
+      }
+    };
+    fetchLocations();
+  }, [user.id, selectedFilters.industry]);
+
+  // ✅ Fetch other enums (job types, salary ranges, facilities)
+  useEffect(() => {
+    const fetchOtherFilters = async () => {
       try {
-        // Industries
-        const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries_for_maker", {
-          p_maker_id: user.id,
-        });
-        if (industriesData) {
-          setIndustries(
-            (industriesData as any[]).map((d, idx) => ({
-              id: d.industry_id ?? idx,
-              name: d.industry,
-            }))
-          );
-        }
-
-        // Locations
-        const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
-          p_maker_id: user.id,
-          p_industry_id: selectedFilters.industry
-            ? parseInt(selectedFilters.industry)
-            : null,
-        });
-        if (locData) {
-          setStates(
-            [...new Set((locData as any[]).map((l) => (l.state as string)))] as string[]
-          );
-          setSuburbs(
-            (locData as any[]).map((l) => l.location as string) as string[]
-          );
-        }
-
         // Facilities
         const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
         setFacilities(
@@ -90,29 +104,26 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         });
         setSalaryRanges((salaryRangesData as string[]) || []);
       } catch (err) {
-        console.error("Error fetching filter data:", err);
+        console.error("Error fetching enums:", err);
       }
     };
 
-    fetchEligibility();
-  }, [user.id, selectedFilters.industry]);
+    fetchOtherFilters();
+  }, []);
 
-  // ✅ Apply filters (now using filter_jobs_for_maker)
+  // ✅ Apply filters (jobs only)
   const handleFindJobs = async () => {
     try {
       const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
         p_maker_id: user.id,
         p_filter_state: selectedFilters.state || null,
         p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
-
         p_filter_industry_ids:
           selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
             ? [parseInt(selectedFilters.industry)]
             : null,
-
         p_filter_job_type: selectedFilters.jobType || null,
         p_filter_salary_range: selectedFilters.salaryRange || null,
-
         p_filter_facility_ids:
           selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
             ? [parseInt(selectedFilters.facility)]
