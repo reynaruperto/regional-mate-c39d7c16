@@ -32,89 +32,29 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
-  // ✅ Fetch distinct states & suburb+postcode
-  useEffect(() => {
-    const fetchLocations = async () => {
-      const { data, error } = await supabase
-        .from("maker_pref_location")
-        .select("state, suburb_city, postcode");
-
-      if (error) {
-        console.error("Error fetching locations:", error);
-        return;
-      }
-
-      if (data) {
-        setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
-        setSuburbPostcodes([
-          ...new Set(
-            data
-              .map((l) =>
-                l.suburb_city && l.postcode
-                  ? `${l.suburb_city} – ${l.postcode}`
-                  : null
-              )
-              .filter(Boolean)
-          ),
-        ]);
-      }
-    };
-
-    fetchLocations();
-  }, []);
-
-  // ✅ Fetch industries (with IDs)
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase
-        .from("industry")
-        .select("industry_id, name");
-
-      if (error) {
-        console.error("Error fetching industries:", error);
-        return;
-      }
-
-      if (data) {
-        setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
-      }
+      const { data } = await supabase.from("industry").select("industry_id, name");
+      if (data) setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
     };
     fetchIndustries();
-  }, []);
 
-  // ✅ Fetch licenses (with IDs)
-  useEffect(() => {
     const fetchLicenses = async () => {
-      const { data, error } = await supabase.from("license").select("license_id, name");
-      if (error) {
-        console.error("Error fetching licenses:", error);
-        return;
-      }
-      if (data) {
-        setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
-      }
+      const { data } = await supabase.from("license").select("license_id, name");
+      if (data) setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
     };
     fetchLicenses();
-  }, []);
 
-  // ✅ Experience Levels
-  useEffect(() => {
     setExperienceLevels([
-      "Less than 1 Year",
-      "1-2 Years",
-      "3-5 Years",
-      "5-7 Years",
-      "8-10 Years",
-      "10+ Years",
+      "None",
+      "<1",
+      "1-2",
+      "3-4",
+      "5-7",
+      "8-10",
+      "10+",
     ]);
   }, []);
-
-  const handleSelectChange = (category: string, value: string) => {
-    setSelectedFilters((prev) => ({
-      ...prev,
-      [category]: value,
-    }));
-  };
 
   const handleMultiSelectChange = (
     category: "p_filter_industry_ids" | "p_filter_license_ids",
@@ -122,11 +62,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   ) => {
     setSelectedFilters((prev) => {
       const current = new Set(prev[category]);
-      if (current.has(value)) {
-        current.delete(value); // toggle off
-      } else {
-        current.add(value); // toggle on
-      }
+      if (current.has(value)) current.delete(value);
+      else current.add(value);
       return { ...prev, [category]: Array.from(current) };
     });
   };
@@ -168,7 +105,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         onValueChange={(value) =>
           isMulti
             ? handleMultiSelectChange(category as any, value)
-            : handleSelectChange(category, value)
+            : setSelectedFilters((prev) => ({ ...prev, [category]: value }))
         }
       >
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
@@ -176,39 +113,23 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
             placeholder={
               isMulti
                 ? `${
-                    (selectedFilters[
-                      category as keyof typeof selectedFilters
-                    ] as string[]).length
+                    (selectedFilters[category as keyof typeof selectedFilters] as string[]).length
                   } selected`
                 : placeholder
             }
           />
         </SelectTrigger>
-        <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
-          {items.length > 0 ? (
-            items.map((item) =>
-              isObject ? (
-                <SelectItem
-                  key={item.id}
-                  value={String(item.id)}
-                  className="hover:bg-gray-100"
-                >
-                  {item.name}
-                </SelectItem>
-              ) : (
-                <SelectItem
-                  key={item}
-                  value={item}
-                  className="hover:bg-gray-100"
-                >
-                  {item}
-                </SelectItem>
-              )
+        <SelectContent>
+          {items.map((item: any, idx: number) =>
+            isObject ? (
+              <SelectItem key={item.id ?? idx} value={String(item.id)}>
+                {item.name}
+              </SelectItem>
+            ) : (
+              <SelectItem key={idx} value={String(item)}>
+                {item}
+              </SelectItem>
             )
-          ) : (
-            <SelectItem value="none" disabled>
-              No options available
-            </SelectItem>
           )}
         </SelectContent>
       </Select>
@@ -217,75 +138,27 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0"></div>
-
-          {/* Header */}
-          <div className="px-4 py-3 border-b bg-white flex-shrink-0">
+          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4"></div>
+          <div className="px-4 py-3 border-b bg-white">
             <div className="flex items-center gap-3">
               <button onClick={onClose}>
                 <ArrowLeft size={24} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Candidate Filters
-              </h1>
+              <h1 className="text-lg font-medium text-gray-900">Candidate Filters</h1>
             </div>
           </div>
-
-          {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            <DropdownSection
-              title="Industry of Work Experience"
-              items={industries}
-              category="p_filter_work_industry_id"
-              placeholder="Any industry"
-              isObject={true}
-            />
-            <DropdownSection
-              title="Candidate State"
-              items={states}
-              category="p_filter_state"
-              placeholder="Any state"
-            />
-            <DropdownSection
-              title="Candidate Suburb & Postcode"
-              items={suburbPostcodes}
-              category="p_filter_suburb_city_postcode"
-              placeholder="Any suburb & postcode"
-            />
-            <DropdownSection
-              title="Candidate License (Multi-Select)"
-              items={licenses}
-              category="p_filter_license_ids"
-              placeholder="Any license"
-              isObject={true}
-              isMulti={true}
-            />
-            <DropdownSection
-              title="Preferred Industries (Multi-Select)"
-              items={industries}
-              category="p_filter_industry_ids"
-              placeholder="Any preferred industry"
-              isObject={true}
-              isMulti={true}
-            />
-            <DropdownSection
-              title="Years of Work Experience"
-              items={experienceLevels}
-              category="p_filter_work_years_experience"
-              placeholder="Any experience level"
-            />
+            <DropdownSection title="Industry of Work Experience" items={industries} category="p_filter_work_industry_id" placeholder="Any industry" isObject />
+            <DropdownSection title="Candidate State" items={states} category="p_filter_state" placeholder="Any state" />
+            <DropdownSection title="Candidate Suburb & Postcode" items={suburbPostcodes} category="p_filter_suburb_city_postcode" placeholder="Any suburb & postcode" />
+            <DropdownSection title="Candidate Licenses" items={licenses} category="p_filter_license_ids" placeholder="Any license" isObject isMulti />
+            <DropdownSection title="Preferred Industries" items={industries} category="p_filter_industry_ids" placeholder="Any preferred industry" isObject isMulti />
+            <DropdownSection title="Years of Experience" items={experienceLevels} category="p_filter_work_years_experience" placeholder="Any experience" />
           </div>
-
-          {/* Apply Button */}
-          <div className="bg-white border-t p-4 flex-shrink-0 rounded-b-[48px]">
-            <Button
-              onClick={applyFilters}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white"
-            >
+          <div className="bg-white border-t p-4">
+            <Button onClick={applyFilters} className="w-full bg-slate-800 hover:bg-slate-700 text-white">
               Find Candidates
             </Button>
           </div>
