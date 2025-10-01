@@ -144,8 +144,6 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
           ? [parseInt(selectedFilters.facility)]
           : null,
-
-      p_filter_start_date_range: null,
     });
 
     if (error) {

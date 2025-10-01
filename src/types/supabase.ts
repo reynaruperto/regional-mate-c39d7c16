@@ -1563,6 +1563,25 @@ export type Database = {
           industry_score: number;
         }[];
       };
+      view_eligible_industries_for_maker: {
+        Args: {
+          p_maker_id: string;
+        };
+        Returns: {
+          industry_id: number;
+          industry: string;
+        }[];
+      };
+      view_eligible_locations_for_maker: {
+        Args: {
+          p_maker_id: string;
+          p_industry_id?: number | null;
+        };
+        Returns: {
+          state: string;
+          location: string;
+        }[];
+      };
       get_enum_values: {
         Args: {
           enum_name: string;
