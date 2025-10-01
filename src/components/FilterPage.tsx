@@ -1,5 +1,4 @@
-// src/components/FilterPage.tsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,126 +12,122 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface FilterPageProps {
   onClose: () => void;
-  onApplyFilters: (filters: any) => void;
+  onApplyFilters: (filters: {
+    p_filter_state?: string | null;
+    p_filter_suburb_city_postcode?: string | null;
+    p_filter_work_industry_id?: number | null;
+    p_filter_work_years_experience?: string | null;
+    p_filter_industry_ids?: number[] | null;
+    p_filter_license_ids?: number[] | null;
+  }) => void;
 }
 
 const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
-  const [selectedFilters, setSelectedFilters] = useState({
+  const [selected, setSelected] = useState({
     p_filter_state: "",
     p_filter_suburb_city_postcode: "",
     p_filter_work_industry_id: "",
     p_filter_work_years_experience: "",
-    p_filter_industry_ids: [] as string[],
-    p_filter_license_ids: [] as string[],
+    p_filter_industry_ids: [] as number[],
+    p_filter_license_ids: [] as number[],
   });
 
   const [states, setStates] = useState<string[]>([]);
   const [suburbPostcodes, setSuburbPostcodes] = useState<string[]>([]);
   const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
   const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
-  const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
+  const experienceLevels = ["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"];
 
+  // options
   useEffect(() => {
-    const fetchIndustries = async () => {
-      const { data } = await supabase.from("industry").select("industry_id, name");
-      if (data) setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
-    };
-    fetchIndustries();
+    (async () => {
+      // states & suburb/postcodes sourced from maker preferences
+      const { data: loc } = await supabase
+        .from("maker_pref_location")
+        .select("state, suburb_city, postcode");
+      if (loc) {
+        setStates([...new Set(loc.map((l) => l.state).filter(Boolean))]);
+        setSuburbPostcodes(
+          [
+            ...new Set(
+              loc
+                .map((l) =>
+                  l.suburb_city && l.postcode ? `${l.suburb_city} (${l.postcode})` : null
+                )
+                .filter(Boolean)
+            ),
+          ] as string[]
+        );
+      }
 
-    const fetchLicenses = async () => {
-      const { data } = await supabase.from("license").select("license_id, name");
-      if (data) setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
-    };
-    fetchLicenses();
+      // industries
+      const { data: inds } = await supabase.from("industry").select("industry_id, name");
+      if (inds) setIndustries(inds.map((r) => ({ id: r.industry_id, name: r.name })));
 
-    setExperienceLevels([
-      "None",
-      "<1",
-      "1-2",
-      "3-4",
-      "5-7",
-      "8-10",
-      "10+",
-    ]);
+      // licenses
+      const { data: lic } = await supabase.from("license").select("license_id, name");
+      if (lic) setLicenses(lic.map((r) => ({ id: r.license_id, name: r.name })));
+    })();
   }, []);
 
-  const handleMultiSelectChange = (
-    category: "p_filter_industry_ids" | "p_filter_license_ids",
-    value: string
+  // multi-select toggles (Select from shadcn closes after selection; we support toggle by reopening)
+  const toggleMulti = (
+    key: "p_filter_industry_ids" | "p_filter_license_ids",
+    value: number
   ) => {
-    setSelectedFilters((prev) => {
-      const current = new Set(prev[category]);
-      if (current.has(value)) current.delete(value);
-      else current.add(value);
-      return { ...prev, [category]: Array.from(current) };
+    setSelected((prev) => {
+      const set = new Set(prev[key]);
+      if (set.has(value)) set.delete(value);
+      else set.add(value);
+      return { ...prev, [key]: Array.from(set) as number[] };
     });
   };
 
-  const applyFilters = () => {
-    const cleaned = Object.fromEntries(
-      Object.entries(selectedFilters).filter(([_, v]) => {
-        if (Array.isArray(v)) return v.length > 0;
-        return v && v.toString().trim() !== "";
-      })
-    );
-    onApplyFilters(cleaned);
+  const apply = () => {
+    const payload = {
+      p_filter_state: selected.p_filter_state || null,
+      p_filter_suburb_city_postcode:
+        selected.p_filter_suburb_city_postcode || null,
+      p_filter_work_industry_id: selected.p_filter_work_industry_id
+        ? Number(selected.p_filter_work_industry_id)
+        : null,
+      p_filter_work_years_experience:
+        selected.p_filter_work_years_experience || null,
+      p_filter_industry_ids:
+        selected.p_filter_industry_ids.length > 0
+          ? selected.p_filter_industry_ids
+          : null,
+      p_filter_license_ids:
+        selected.p_filter_license_ids.length > 0
+          ? selected.p_filter_license_ids
+          : null,
+    };
+
+    onApplyFilters(payload);
     onClose();
   };
 
-  const DropdownSection = ({
+  const clearAll = () => {
+    setSelected({
+      p_filter_state: "",
+      p_filter_suburb_city_postcode: "",
+      p_filter_work_industry_id: "",
+      p_filter_work_years_experience: "",
+      p_filter_industry_ids: [],
+      p_filter_license_ids: [],
+    });
+  };
+
+  const Section = ({
     title,
-    items,
-    category,
-    placeholder,
-    isObject = false,
-    isMulti = false,
+    children,
   }: {
     title: string;
-    items: any[];
-    category: string;
-    placeholder: string;
-    isObject?: boolean;
-    isMulti?: boolean;
+    children: React.ReactNode;
   }) => (
     <div className="mb-6">
-      <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
-      <Select
-        value={
-          isMulti
-            ? undefined
-            : (selectedFilters[category as keyof typeof selectedFilters] as string)
-        }
-        onValueChange={(value) =>
-          isMulti
-            ? handleMultiSelectChange(category as any, value)
-            : setSelectedFilters((prev) => ({ ...prev, [category]: value }))
-        }
-      >
-        <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-          <SelectValue
-            placeholder={
-              isMulti
-                ? `${
-                    (selectedFilters[category as keyof typeof selectedFilters] as string[]).length
-                  } selected`
-                : placeholder
-            }
-          />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((item: any, idx: number) =>
-            isObject ? (
-              <SelectItem key={item.id ?? idx} value={String(item.id)}>
-                {item.name}
-              </SelectItem>
-            ) : (
-              <SelectItem key={idx} value={String(item)}>
-                {item}
-              </SelectItem>
-            )
-          )}
-        </SelectContent>
-      </Select>
+      <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
+      {children}
     </div>
   );
 
@@ -140,25 +135,183 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4"></div>
+          {/* Dynamic Island */}
+          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4" />
+
+          {/* Header */}
           <div className="px-4 py-3 border-b bg-white">
             <div className="flex items-center gap-3">
               <button onClick={onClose}>
                 <ArrowLeft size={24} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">Candidate Filters</h1>
+              <h1 className="text-lg font-medium text-gray-900">
+                Candidate Filters
+              </h1>
             </div>
           </div>
+
+          {/* Content */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
-            <DropdownSection title="Industry of Work Experience" items={industries} category="p_filter_work_industry_id" placeholder="Any industry" isObject />
-            <DropdownSection title="Candidate State" items={states} category="p_filter_state" placeholder="Any state" />
-            <DropdownSection title="Candidate Suburb & Postcode" items={suburbPostcodes} category="p_filter_suburb_city_postcode" placeholder="Any suburb & postcode" />
-            <DropdownSection title="Candidate Licenses" items={licenses} category="p_filter_license_ids" placeholder="Any license" isObject isMulti />
-            <DropdownSection title="Preferred Industries" items={industries} category="p_filter_industry_ids" placeholder="Any preferred industry" isObject isMulti />
-            <DropdownSection title="Years of Experience" items={experienceLevels} category="p_filter_work_years_experience" placeholder="Any experience" />
+            <Section title="Industry of Work Experience">
+              <Select
+                value={selected.p_filter_work_industry_id}
+                onValueChange={(v) =>
+                  setSelected((s) => ({ ...s, p_filter_work_industry_id: v }))
+                }
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue placeholder="Any industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  {industries.map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Section>
+
+            <Section title="Candidate State">
+              <Select
+                value={selected.p_filter_state}
+                onValueChange={(v) =>
+                  setSelected((s) => ({ ...s, p_filter_state: v }))
+                }
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue placeholder="Any state" />
+                </SelectTrigger>
+                <SelectContent>
+                  {states.map((s, idx) => (
+                    <SelectItem key={idx} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Section>
+
+            <Section title="Candidate Suburb & Postcode">
+              <Select
+                value={selected.p_filter_suburb_city_postcode}
+                onValueChange={(v) =>
+                  setSelected((s) => ({ ...s, p_filter_suburb_city_postcode: v }))
+                }
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue placeholder="Any suburb & postcode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suburbPostcodes.length > 0 ? (
+                    suburbPostcodes.map((s, idx) => (
+                      <SelectItem key={idx} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      No options available
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </Section>
+
+            <Section title="Candidate Licenses (multi-select)">
+              <Select
+                value="" // force placeholder; we handle toggling below
+                onValueChange={(v) => toggleMulti("p_filter_license_ids", Number(v))}
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue
+                    placeholder={`${selected.p_filter_license_ids.length} selected`}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {licenses.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selected.p_filter_license_ids.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selected.p_filter_license_ids.map((id) => (
+                    <span
+                      key={id}
+                      className="px-2 py-1 text-xs rounded-full bg-gray-100 border"
+                    >
+                      {licenses.find((l) => l.id === id)?.name ?? id}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section title="Preferred Industries (multi-select)">
+              <Select
+                value=""
+                onValueChange={(v) => toggleMulti("p_filter_industry_ids", Number(v))}
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue
+                    placeholder={`${selected.p_filter_industry_ids.length} selected`}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {industries.map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selected.p_filter_industry_ids.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selected.p_filter_industry_ids.map((id) => (
+                    <span
+                      key={id}
+                      className="px-2 py-1 text-xs rounded-full bg-gray-100 border"
+                    >
+                      {industries.find((i) => i.id === id)?.name ?? id}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section title="Years of Work Experience">
+              <Select
+                value={selected.p_filter_work_years_experience}
+                onValueChange={(v) =>
+                  setSelected((s) => ({
+                    ...s,
+                    p_filter_work_years_experience: v,
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full bg-white border border-gray-300">
+                  <SelectValue placeholder="Any experience level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {experienceLevels.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Section>
           </div>
-          <div className="bg-white border-t p-4">
-            <Button onClick={applyFilters} className="w-full bg-slate-800 hover:bg-slate-700 text-white">
+
+          {/* Actions */}
+          <div className="bg-white border-t p-4 flex gap-2">
+            <Button variant="outline" onClick={clearAll} className="flex-1">
+              Clear Filters
+            </Button>
+            <Button onClick={apply} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white">
               Find Candidates
             </Button>
           </div>
