@@ -1,6 +1,6 @@
 // src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Search, Filter, Heart } from "lucide-react";
+import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
@@ -16,16 +16,12 @@ interface JobCard {
   industry: string;
   location: string;
   salary_range: string;
-  employment_type: string;
+  job_type: string;
   description?: string;
   isLiked?: boolean;
 }
 
 const WHVBrowseJobs: React.FC = () => {
-  const navigate = (url: string) => {
-    window.location.href = url;
-  };
-
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
@@ -36,7 +32,7 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  // ✅ Get logged-in WHV ID
+  // ✅ Logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -45,12 +41,12 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs
+  // ✅ Fetch jobs from RPC
   useEffect(() => {
     const fetchJobs = async () => {
       if (!whvId) return;
 
-      // 1️⃣ Visa stage label
+      // Visa stage label
       const { data: visa } = await supabase
         .from("maker_visa")
         .select("stage_id, visa_stage(label)")
@@ -61,18 +57,17 @@ const WHVBrowseJobs: React.FC = () => {
 
       setVisaStageLabel(visa?.visa_stage?.label || "");
 
-      // 2️⃣ Eligible jobs RPC
-      const { data: jobsData, error } = await (supabase as any).rpc("view_all_eligible_jobs", {
+      // Eligible jobs
+      const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
         p_maker_id: whvId,
       });
-
       if (error) {
-        console.error("Error fetching eligible jobs:", error);
+        console.error("Error fetching jobs:", error);
         return;
       }
       if (!jobsData) return;
 
-      // 3️⃣ Likes
+      // Likes
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_job_post_id")
@@ -81,7 +76,6 @@ const WHVBrowseJobs: React.FC = () => {
 
       const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
 
-      // 4️⃣ Map jobs with safe fallbacks
       const mapped: JobCard[] = jobsData.map((job: any) => {
         const photoUrl = job.profile_photo
           ? (job.profile_photo.startsWith("http")
@@ -91,14 +85,14 @@ const WHVBrowseJobs: React.FC = () => {
 
         return {
           job_id: job.job_id,
-          company: job.company || job.company_name || "Employer not listed",
+          company: job.company || "Employer not listed",
           profile_photo: photoUrl,
-          role: job.role || job.title || "Role not specified",
+          role: job.role || "Role not specified",
           industry: job.industry || "General",
-          location: job.location || `${job.suburb_city || ""}, ${job.state || ""} ${job.postcode || ""}`,
-          salary_range: job.salary_range || job.pay_range || "Pay not disclosed",
-          employment_type: job.job_type || job.employment_type || "Employment type not specified",
-          description: job.description || job.job_description || "No description provided",
+          location: job.location || "Location not specified",
+          salary_range: job.salary_range || "Pay not disclosed",
+          job_type: job.job_type || "Employment type not specified",
+          description: job.description || "No description provided",
           isLiked: likedIds.includes(job.job_id),
         };
       });
@@ -110,7 +104,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  // 🔎 Apply search + filters
+  // 🔎 Search + Filters
   useEffect(() => {
     let list = [...allJobs];
 
@@ -128,11 +122,19 @@ const WHVBrowseJobs: React.FC = () => {
     if (filters.state) {
       list = list.filter((j) => j.location.toLowerCase().includes(filters.state.toLowerCase()));
     }
-
-    if (filters.facility) {
+    if (filters.facilityLabel) {
       list = list.filter((j) =>
-        j.description?.toLowerCase().includes(filters.facility.toLowerCase())
+        j.description?.toLowerCase().includes(filters.facilityLabel.toLowerCase())
       );
+    }
+    if (filters.jobType) {
+      list = list.filter((j) => j.job_type.toLowerCase() === filters.jobType.toLowerCase());
+    }
+    if (filters.salaryRange) {
+      list = list.filter((j) => j.salary_range.toLowerCase() === filters.salaryRange.toLowerCase());
+    }
+    if (filters.industryLabel) {
+      list = list.filter((j) => j.industry.toLowerCase() === filters.industryLabel.toLowerCase());
     }
 
     setJobs(list);
@@ -174,13 +176,33 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
+  // ✅ Remove single filter chip
+  const handleRemoveFilter = (key: string) => {
+    const updated = { ...filters, [key]: null };
+    setFilters(updated);
+  };
+
+  // ✅ Clear all filters
+  const handleClearFilters = () => {
+    setFilters({});
+    setJobs(allJobs);
+  };
+
+  // ✅ Build filter chips
+  const filterChips = Object.entries(filters)
+    .filter(([_, v]) => v)
+    .map(([key, value]) => ({
+      key,
+      label: key === "industryLabel" || key === "facilityLabel" ? value : `${key}: ${value}`,
+    }));
+
   return showFilters ? (
     <WHVFilterPage
       onClose={() => setShowFilters(false)}
       onResults={(jobs, appliedFilters) => {
         setJobs(jobs);
         setAllJobs(jobs);
-        setFilters(appliedFilters || {});
+        setFilters(appliedFilters);
         setShowFilters(false);
       }}
       user={{
@@ -194,16 +216,13 @@ const WHVBrowseJobs: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
+          <div className="flex flex-col h-full bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-2 flex items-center">
               <Button
                 variant="ghost"
                 size="icon"
                 className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={() => navigate("/whv/dashboard")}
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
@@ -221,7 +240,7 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
 
             {/* Search */}
-            <div className="relative mb-4 px-6 mt-2">
+            <div className="relative mb-2 px-6 mt-2">
               <Search
                 className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400"
                 size={20}
@@ -240,39 +259,35 @@ const WHVBrowseJobs: React.FC = () => {
               </button>
             </div>
 
-            {/* Active Filters Chips */}
-            {filters && Object.keys(filters).length > 0 && (
-              <div className="flex flex-wrap gap-2 px-6 mb-3">
-                {Object.entries(filters).map(([key, value]) => (
+            {/* Chips */}
+            {filterChips.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-6 mb-2">
+                {filterChips.map((chip) => (
                   <span
-                    key={key}
-                    className="flex items-center gap-1 bg-orange-100 text-orange-700 text-xs px-3 py-1 rounded-full"
+                    key={chip.key}
+                    className="flex items-center bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-xs"
                   >
-                    {key}: {String(value)}
+                    {chip.label}
                     <button
-                      onClick={() => {
-                        const updated = { ...(filters || {}) };
-                        delete updated[key];
-                        setFilters(updated);
-                      }}
-                      className="ml-1 text-gray-500 hover:text-gray-700"
+                      className="ml-2 text-orange-600 hover:text-orange-900"
+                      onClick={() => handleRemoveFilter(chip.key)}
                     >
-                      ✕
+                      <X size={12} />
                     </button>
                   </span>
                 ))}
-
-                {/* ✅ Clear All Filters Chip */}
-                <span
-                  onClick={() => setFilters({})}
-                  className="flex items-center gap-1 bg-gray-200 text-gray-700 text-xs px-3 py-1 rounded-full cursor-pointer hover:bg-gray-300"
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-gray-600 underline"
+                  onClick={handleClearFilters}
                 >
-                  Clear All ✕
-                </span>
+                  Clear All
+                </Button>
               </div>
             )}
 
-            {/* Jobs List */}
+            {/* Jobs */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {jobs.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -294,36 +309,27 @@ const WHVBrowseJobs: React.FC = () => {
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        {/* Job Title */}
                         <h2 className="text-xl font-bold text-gray-900">{job.role}</h2>
-
-                        {/* Employer + Industry */}
                         <p className="text-sm text-gray-600">
                           {job.company} • {job.industry}
                         </p>
-
-                        {/* Location */}
                         <p className="text-sm text-gray-500">{job.location}</p>
 
-                        {/* Tags */}
                         <div className="flex flex-wrap gap-2 mt-2">
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                            {job.employment_type}
+                            {job.job_type}
                           </span>
                           <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                             {job.salary_range}
                           </span>
                         </div>
 
-                        {/* Description */}
                         <p className="text-sm text-gray-700 mt-2 line-clamp-2">
                           {job.description}
                         </p>
 
-                        {/* Buttons */}
                         <div className="flex items-center gap-3 mt-4">
                           <Button
-                            onClick={() => navigate(`/whv/job/${job.job_id}`)}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
                           >
                             View Details
@@ -346,10 +352,12 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
+          {/* Bottom nav */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
+          {/* Like Modal */}
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
