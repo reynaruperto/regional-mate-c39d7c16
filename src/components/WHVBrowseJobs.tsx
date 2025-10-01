@@ -1,13 +1,10 @@
-// src/components/WHVBrowseJobs.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
 import WHVFilterPage from "@/components/WHVFilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface JobCard {
@@ -34,16 +31,19 @@ const WHVBrowseJobs: React.FC = () => {
   const [likedJobTitle, setLikedJobTitle] = useState("");
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [allJobs, setAllJobs] = useState<JobCard[]>([]);
-  const [filters, setFilters] = useState<any>({});
+  const [filters, setFilters] = useState<any>({}); // ✅ always an object
   const [whvId, setWhvId] = useState<string | null>(null);
-
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
   // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setWhvId(user.id);
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        console.warn("Supabase auth error:", error.message);
+        return;
+      }
+      if (data?.user) setWhvId(data.user.id);
     };
     getUser();
   }, []);
@@ -51,7 +51,10 @@ const WHVBrowseJobs: React.FC = () => {
   // ✅ Fetch jobs (only eligible for WHV user, via RPC)
   useEffect(() => {
     const fetchJobs = async () => {
-      if (!whvId) return;
+      if (!whvId) {
+        console.warn("No user logged in → skipping job fetch");
+        return;
+      }
 
       const { data: visa } = await supabase
         .from("maker_visa")
@@ -63,7 +66,6 @@ const WHVBrowseJobs: React.FC = () => {
 
       setVisaStageLabel(visa?.visa_stage?.label || "");
 
-      // Jobs from RPC
       const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
         p_maker_id: whvId,
       });
@@ -84,9 +86,9 @@ const WHVBrowseJobs: React.FC = () => {
 
       const mapped: JobCard[] = jobsData.map((job: any) => {
         const photoUrl = job.profile_photo
-          ? (job.profile_photo.startsWith("http")
-              ? job.profile_photo
-              : supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl)
+          ? job.profile_photo.startsWith("http")
+            ? job.profile_photo
+            : supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl
           : "/placeholder.png";
 
         return {
@@ -190,7 +192,7 @@ const WHVBrowseJobs: React.FC = () => {
 
   // ✅ Remove individual filter
   const handleRemoveFilter = (key: string) => {
-    const updated = { ...filters };
+    const updated = { ...(filters || {}) }; // fallback safety
     delete updated[key];
     setFilters(updated);
   };
@@ -201,7 +203,7 @@ const WHVBrowseJobs: React.FC = () => {
       onResults={(jobs, appliedFilters) => {
         setJobs(jobs);
         setAllJobs(jobs);
-        setFilters(appliedFilters); // ✅ save applied filters
+        setFilters(appliedFilters || {}); // ✅ always fallback to {}
         setShowFilters(false);
       }}
       user={{
@@ -262,14 +264,14 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
 
             {/* ✅ Active Filter Tags */}
-            {Object.keys(filters).length > 0 && (
+            {filters && Object.keys(filters).length > 0 && (
               <div className="flex flex-wrap gap-2 px-6 mb-3">
                 {Object.entries(filters).map(([key, value]) => (
                   <span
                     key={key}
                     className="flex items-center gap-1 bg-orange-100 text-orange-700 text-xs px-3 py-1 rounded-full"
                   >
-                    {key}: {value}
+                    {key}: {String(value)}
                     <X
                       size={14}
                       className="cursor-pointer hover:text-orange-900"
