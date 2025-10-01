@@ -22,8 +22,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     p_filter_suburb_city_postcode: "",
     p_filter_work_industry_id: "",
     p_filter_work_years_experience: "",
-    p_filter_industry_ids: [] as string[],   // array now
-    p_filter_license_ids: [] as string[],    // array now
+    p_filter_industry_ids: [] as string[],
+    p_filter_license_ids: [] as string[],
   });
 
   const [states, setStates] = useState<string[]>([]);
@@ -103,7 +103,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       "Less than 1 Year",
       "1-2 Years",
       "3-5 Years",
-      "5+ Years",
+      "5-7 Years",
       "8-10 Years",
       "10+ Years",
     ]);
@@ -116,7 +116,10 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     }));
   };
 
-  const handleMultiSelectChange = (category: "p_filter_industry_ids" | "p_filter_license_ids", value: string) => {
+  const handleMultiSelectChange = (
+    category: "p_filter_industry_ids" | "p_filter_license_ids",
+    value: string
+  ) => {
     setSelectedFilters((prev) => {
       const current = new Set(prev[category]);
       if (current.has(value)) {
@@ -131,7 +134,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const applyFilters = () => {
     const cleaned = Object.fromEntries(
       Object.entries(selectedFilters).filter(([_, v]) => {
-        if (Array.isArray(v)) return v.length > 0; // keep non-empty arrays
+        if (Array.isArray(v)) return v.length > 0;
         return v && v.toString().trim() !== "";
       })
     );
@@ -159,8 +162,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       <Select
         value={
           isMulti
-            ? undefined // for multi, we show placeholder instead
-            : selectedFilters[category as keyof typeof selectedFilters] as string
+            ? undefined
+            : (selectedFilters[category as keyof typeof selectedFilters] as string)
         }
         onValueChange={(value) =>
           isMulti
@@ -172,7 +175,11 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
           <SelectValue
             placeholder={
               isMulti
-                ? `${(selectedFilters[category as keyof typeof selectedFilters] as string[]).length} selected`
+                ? `${
+                    (selectedFilters[
+                      category as keyof typeof selectedFilters
+                    ] as string[]).length
+                  } selected`
                 : placeholder
             }
           />
