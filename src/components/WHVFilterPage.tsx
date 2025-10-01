@@ -1,3 +1,4 @@
+// src/components/WHVFilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,227 +16,199 @@ interface WHVFilterPageProps {
   onResults: (jobs: any[]) => void;
   user: {
     id: string;
-    subClass: string; // 417 or 462
+    subClass: string;
     countryId: number;
-    stage: number; // visa stage 1/2/3
+    stage: number;
   };
 }
 
-const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user }) => {
+const WHVFilterPage: React.FC<WHVFilterPageProps> = ({
+  onClose,
+  onResults,
+  user,
+}) => {
   const [selectedFilters, setSelectedFilters] = useState({
-    industry: "",
     state: "",
-    suburbCityPostcode: "",
+    citySuburbPostcode: "",
+    industry: "",
     jobType: "",
-    salaryRange: "",
-    facility: "",
+    payRange: "",
+    facilities: "",
   });
 
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
   const [states, setStates] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<{ id: number; name: string }[]>(
+    []
+  );
   const [suburbs, setSuburbs] = useState<string[]>([]);
-  const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
-  const [jobTypes, setJobTypes] = useState<string[]>([]);
-  const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load eligibility-driven filters
+  // ✅ Load industries
   useEffect(() => {
-    const fetchEligibility = async () => {
-      console.log("🔍 Fetching eligibility for maker:", user.id);
-
-      // Industries
-      const { data: industriesData, error: indErr } = await (supabase as any).rpc(
-        "view_eligible_industries_for_maker",
-        { p_maker_id: user.id }
-      );
-      if (indErr) console.error("❌ Industry fetch error:", indErr);
-
-      if (industriesData) {
-        const formatted = (industriesData as any[]).map((d, idx) => ({
-          id: (d as any).industry_id ?? idx,
-          name: (d as any).industry || "Unnamed Industry",
-        }));
-        console.log("✅ Industries from DB:", formatted);
-        setIndustries(formatted);
+    const fetchIndustries = async () => {
+      const { data, error } = await supabase.from("industry").select("industry_id, name");
+      if (!error && data) {
+        setIndustries(data.map((i) => ({ id: i.industry_id, name: i.name })));
       }
-
-      // Locations
-      const { data: locData, error: locErr } = await (supabase as any).rpc(
-        "view_eligible_locations_for_maker",
-        { p_maker_id: user.id, p_industry_id: null }
-      );
-      if (locErr) console.error("❌ Location fetch error:", locErr);
-
-      if (locData) {
-        const uniqueStates = Array.from(
-          new Set((locData as any[]).map((l) => (l as any).state as string))
-        ).filter(Boolean);
-        const allSuburbs = (locData as any[])
-          .map((l) => (l as any).location as string)
-          .filter(Boolean);
-
-        console.log("✅ States from DB:", uniqueStates);
-        console.log("✅ Suburbs from DB:", allSuburbs);
-
-        setStates(uniqueStates);
-        setSuburbs(allSuburbs);
-      }
-
-      // Facilities
-      const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
-      setFacilities(facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []);
-
-      // Job Types
-      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
-        enum_name: "job_type_enum",
-      });
-      setJobTypes((jobTypesData as string[]) || []);
-
-      // Salary Ranges
-      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
-        enum_name: "pay_range",
-      });
-      setSalaryRanges((salaryRangesData as string[]) || []);
     };
+    fetchIndustries();
+  }, []);
 
-    fetchEligibility();
-  }, [user.id]);
+  // ✅ Load suburbs (for demo we just grab distinct)
+  useEffect(() => {
+    const fetchSuburbs = async () => {
+      const { data, error } = await supabase
+        .from("job")
+        .select("suburb_city, postcode");
+      if (!error && data) {
+        const unique = Array.from(
+          new Set(data.map((j) => `${j.suburb_city} (${j.postcode})`))
+        );
+        setSuburbs(unique);
+        console.log("✅ Suburbs from DB:", unique);
+      }
+    };
+    fetchSuburbs();
+  }, []);
 
-  // ✅ Apply filters
   const handleFindJobs = async () => {
+    // ✅ Build payload with integer casting for industry/facilities
     const payload = {
       p_maker_id: user.id,
       p_filter_state: selectedFilters.state || null,
-      p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
-      p_filter_industry_ids:
-        selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
-          ? [parseInt(selectedFilters.industry)]
-          : null,
+      p_filter_suburb_city_postcode: selectedFilters.citySuburbPostcode || null,
+      p_filter_industry_ids: selectedFilters.industry
+        ? [parseInt(selectedFilters.industry, 10)]
+        : null,
       p_filter_job_type: selectedFilters.jobType || null,
-      p_filter_salary_range: selectedFilters.salaryRange || null,
-      p_filter_facility_ids:
-        selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
-          ? [parseInt(selectedFilters.facility)]
-          : null,
+      p_filter_salary_range: selectedFilters.payRange || null,
+      p_filter_facility_ids: selectedFilters.facilities
+        ? [parseInt(selectedFilters.facilities, 10)]
+        : null,
     };
 
-    console.log("🔍 Sending payload to filter_jobs_for_maker:", payload);
+    console.log("🔎 Sending payload to filter_jobs_for_maker:", payload);
 
-    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", payload);
+    const { data, error } = await supabase.rpc("filter_jobs_for_maker", payload);
 
     if (error) {
       console.error("❌ Error filtering jobs:", error);
       alert("Could not fetch jobs. Please try again.");
-      return;
+    } else {
+      console.log("✅ Filter results:", data);
+      onResults(data || []);
+      onClose();
     }
-
-    console.log("✅ Filter results:", data);
-    onResults(data || []);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header */}
-            <div className="px-6 pt-16 pb-4 flex items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={onClose}
-              >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Filter Jobs</h1>
-            </div>
-
-            {/* Filters */}
-            <div className="flex-1 px-6 overflow-y-auto space-y-6">
-              {/* Industry */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
-                <Select
-                  value={selectedFilters.industry}
-                  onValueChange={(v) => setSelectedFilters((prev) => ({ ...prev, industry: v }))}
-                >
-                  <SelectTrigger className="w-full h-12 rounded-xl">
-                    <SelectValue placeholder="Select industry" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {industries.map((i) => (
-                      <SelectItem key={i.id} value={i.id.toString()}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* State */}
-              {states.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
-                  <Select
-                    value={selectedFilters.state}
-                    onValueChange={(v) => setSelectedFilters((prev) => ({ ...prev, state: v }))}
-                  >
-                    <SelectTrigger className="w-full h-12 rounded-xl">
-                      <SelectValue placeholder="Select state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {states.map((s, idx) => (
-                        <SelectItem key={idx} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Suburb/Postcode */}
-              {suburbs.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Suburb / Postcode
-                  </label>
-                  <Select
-                    value={selectedFilters.suburbCityPostcode}
-                    onValueChange={(v) =>
-                      setSelectedFilters((prev) => ({ ...prev, suburbCityPostcode: v }))
-                    }
-                  >
-                    <SelectTrigger className="w-full h-12 rounded-xl">
-                      <SelectValue placeholder="Select suburb or postcode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suburbs.map((s, idx) => (
-                        <SelectItem key={idx} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {/* Find Jobs Button */}
-            <div className="px-6 pb-8">
-              <Button
-                onClick={handleFindJobs}
-                className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl"
-              >
-                Find Jobs
-              </Button>
-            </div>
-          </div>
-        </div>
+    <div className="p-4">
+      <div className="flex items-center mb-4">
+        <ArrowLeft onClick={onClose} className="cursor-pointer mr-2" />
+        <h2 className="text-lg font-semibold">Filter Jobs</h2>
       </div>
+
+      {/* Industry */}
+      <label className="block text-sm font-medium mb-1">Industry</label>
+      <Select
+        value={selectedFilters.industry}
+        onValueChange={(value) =>
+          setSelectedFilters((prev) => ({ ...prev, industry: value }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select industry" />
+        </SelectTrigger>
+        <SelectContent>
+          {industries.map((ind) => (
+            <SelectItem key={ind.id} value={ind.id.toString()}>
+              {ind.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* State */}
+      <label className="block text-sm font-medium mt-4 mb-1">State</label>
+      <Select
+        value={selectedFilters.state}
+        onValueChange={(value) =>
+          setSelectedFilters((prev) => ({ ...prev, state: value }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select state" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="Queensland">Queensland</SelectItem>
+          <SelectItem value="New South Wales">New South Wales</SelectItem>
+          <SelectItem value="Victoria">Victoria</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Suburb / Postcode */}
+      <label className="block text-sm font-medium mt-4 mb-1">
+        Suburb / Postcode
+      </label>
+      <Select
+        value={selectedFilters.citySuburbPostcode}
+        onValueChange={(value) =>
+          setSelectedFilters((prev) => ({
+            ...prev,
+            citySuburbPostcode: value,
+          }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select suburb/postcode" />
+        </SelectTrigger>
+        <SelectContent>
+          {suburbs.map((s) => (
+            <SelectItem key={s} value={s}>
+              {s}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Job Type */}
+      <label className="block text-sm font-medium mt-4 mb-1">Job Type</label>
+      <Select
+        value={selectedFilters.jobType}
+        onValueChange={(value) =>
+          setSelectedFilters((prev) => ({ ...prev, jobType: value }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select job type" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="Full-time">Full-time</SelectItem>
+          <SelectItem value="Part-time">Part-time</SelectItem>
+          <SelectItem value="Casual">Casual</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Salary */}
+      <label className="block text-sm font-medium mt-4 mb-1">Salary Range</label>
+      <Select
+        value={selectedFilters.payRange}
+        onValueChange={(value) =>
+          setSelectedFilters((prev) => ({ ...prev, payRange: value }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select salary range" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="$20-25/hour">$20-25/hour</SelectItem>
+          <SelectItem value="$25-30/hour">$25-30/hour</SelectItem>
+          <SelectItem value="$30-35/hour">$30-35/hour</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Button onClick={handleFindJobs} className="w-full mt-6">
+        Find Jobs
+      </Button>
     </div>
   );
 };
