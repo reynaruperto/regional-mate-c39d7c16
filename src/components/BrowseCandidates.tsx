@@ -1,4 +1,3 @@
-// src/pages/BrowseCandidates.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
@@ -20,8 +19,8 @@ interface Candidate {
   user_id: string;
   name: string;
   profileImage: string;
-  industries: string[];          // preferred industries
-  workExpIndustries: string[];   // work experience industries
+  industries: string[];
+  workExpIndustries: string[];
   experiences: string;
   preferredLocations: string[];
   isLiked?: boolean;
@@ -67,10 +66,10 @@ const BrowseCandidates: React.FC = () => {
         user_id: row.maker_id,
         name: row.given_name,
         profileImage: resolvePhoto(row.profile_photo),
-        industries: row.pref_industries || [],       // ✅ preferred industries from SQL
+        industries: (row.industry_pref as string[]) || [],
         workExpIndustries,
         experiences,
-        preferredLocations: row.states || [],
+        preferredLocations: (row.state_pref as string[]) || [],
         isLiked: Boolean(row.isLiked),
       };
     });
@@ -149,8 +148,7 @@ const BrowseCandidates: React.FC = () => {
         (c) =>
           c.name.toLowerCase().includes(q) ||
           (c.workExpIndustries as string[]).some((i) => i.toLowerCase().includes(q)) ||
-          (c.preferredLocations as string[]).some((l) => l.toLowerCase().includes(q)) ||
-          (c.industries as string[]).some((ind) => ind.toLowerCase().includes(q)) // ✅ preferred industry search
+          (c.preferredLocations as string[]).some((l) => l.toLowerCase().includes(q))
       )
     );
   }, [searchQuery, allCandidates]);
@@ -198,7 +196,7 @@ const BrowseCandidates: React.FC = () => {
       p_filter_work_years_experience: filters.p_filter_work_years_experience || null,
       p_filter_industry_ids: filters.p_filter_industry_ids
         ? [Number(filters.p_filter_industry_ids)]
-        : null, // ✅ preferred industry filter
+        : null,
       p_filter_license_ids: filters.p_filter_license_ids
         ? [Number(filters.p_filter_license_ids)]
         : null,
@@ -291,27 +289,6 @@ const BrowseCandidates: React.FC = () => {
                     <SelectItem key={job.job_id} value={String(job.job_id)}>
                       {job.industry_role?.role || "Unknown Role"} –{" "}
                       {job.description || `Job #${job.job_id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Preferred Industry Dropdown */}
-            <div className="px-6 mb-4">
-              <Select
-                onValueChange={(value) =>
-                  handleApplyFilters({ ...selectedFilters, p_filter_industry_ids: value })
-                }
-                value={selectedFilters.p_filter_industry_ids || ""}
-              >
-                <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
-                  <SelectValue placeholder="Filter by Preferred Industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(industriesMap).map(([id, name]) => (
-                    <SelectItem key={id} value={id}>
-                      {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
