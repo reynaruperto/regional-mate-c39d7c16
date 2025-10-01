@@ -1,4 +1,3 @@
-// src/components/WHVFilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,9 +15,9 @@ interface WHVFilterPageProps {
   onResults: (jobs: any[]) => void;
   user: {
     id: string;
-    subClass: string;
+    subClass: string; // 417 or 462
     countryId: number;
-    stage: number;
+    stage: number; // visa stage 1/2/3
   };
 }
 
@@ -32,56 +31,47 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     facility: "",
   });
 
-  const [industries, setIndustries] = useState<{ id: number; name: string }[]>([]);
+  const [industries, setIndustries] = useState<{ id?: number; name: string }[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [suburbs, setSuburbs] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load filters
+  // ✅ Load eligibility-driven filters
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
-      const { data: industriesData } = await (supabase as any).rpc(
-        "view_eligible_industries_for_maker",
-        { p_maker_id: user.id }
-      );
+      const { data: industriesData } = await (supabase as any).rpc("view_eligible_industries_for_maker", {
+        p_maker_id: user.id,
+      });
       if (industriesData) {
         setIndustries(
           (industriesData as any[]).map((d, idx) => ({
-            id: d.industry_id ?? idx,
-            name: d.industry || "Unnamed Industry",
+            id: (d as any).industry_id ?? idx, // fallback to index if no ID
+            name: (d as any).industry || "Unnamed Industry",
           }))
         );
       }
 
       // Locations
-      const { data: locData } = await (supabase as any).rpc(
-        "view_eligible_locations_for_maker",
-        {
-          p_maker_id: user.id,
-          p_industry_id: selectedFilters.industry
-            ? parseInt(selectedFilters.industry)
-            : null,
-        }
-      );
+      const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
+        p_maker_id: user.id,
+        p_industry_id: selectedFilters.industry ? parseInt(selectedFilters.industry, 10) : null,
+      });
       if (locData) {
         setStates(
-          [...new Set((locData as any[]).map((l) => l.state || "Unknown State"))] as string[]
+          [...new Set((locData as any[]).map((l) => (l as any).state as string))] as string[]
         );
-        setSuburbs((locData as any[]).map((l) => l.location || "Unknown Suburb") as string[]);
+        setSuburbs(
+          (locData as any[]).map((l) => (l as any).location as string) as string[]
+        );
       }
 
       // Facilities
-      const { data: facilityData } = await supabase
-        .from("facility")
-        .select("facility_id, name");
+      const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
       setFacilities(
-        facilityData?.map((f) => ({
-          id: f.facility_id,
-          name: f.name || "Unnamed Facility",
-        })) || []
+        facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []
       );
 
       // Job Types
@@ -102,19 +92,24 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
+    const payload = {
       p_maker_id: user.id,
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
       p_filter_industry_ids: selectedFilters.industry
-        ? [parseInt(selectedFilters.industry)]
+        ? [parseInt(selectedFilters.industry, 10)]
         : null,
       p_filter_job_type: selectedFilters.jobType || null,
       p_filter_salary_range: selectedFilters.salaryRange || null,
       p_filter_facility_ids: selectedFilters.facility
-        ? [parseInt(selectedFilters.facility)]
+        ? [parseInt(selectedFilters.facility, 10)]
         : null,
-    });
+    };
+
+    // 🔍 Debug: see what we're actually sending
+    console.log("🔍 Sending payload to filter_jobs_for_maker:", payload);
+
+    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", payload);
 
     if (error) {
       console.error("Error filtering jobs:", error);
@@ -198,7 +193,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 </div>
               )}
 
-              {/* Suburb */}
+              {/* Suburb/Postcode */}
               {suburbs.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -239,18 +234,16 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     <SelectValue placeholder="Select job type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobTypes
-                      .filter((jt) => jt && jt.trim() !== "")
-                      .map((jt, idx) => (
-                        <SelectItem key={idx} value={jt}>
-                          {jt}
-                        </SelectItem>
-                      ))}
+                    {jobTypes.map((jt) => (
+                      <SelectItem key={jt} value={jt}>
+                        {jt}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Salary */}
+              {/* Salary Range */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Salary Range</label>
                 <Select
@@ -263,13 +256,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     <SelectValue placeholder="Select salary range" />
                   </SelectTrigger>
                   <SelectContent>
-                    {salaryRanges
-                      .filter((sr) => sr && sr.trim() !== "")
-                      .map((sr, idx) => (
-                        <SelectItem key={idx} value={sr}>
-                          {sr}
-                        </SelectItem>
-                      ))}
+                    {salaryRanges.map((sr) => (
+                      <SelectItem key={sr} value={sr}>
+                        {sr}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -299,7 +290,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
               </div>
             </div>
 
-            {/* Submit */}
+            {/* Find Jobs Button */}
             <div className="px-6 pb-8">
               <Button
                 onClick={handleFindJobs}
