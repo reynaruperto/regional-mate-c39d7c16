@@ -37,7 +37,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
-    industryRoleId: editingJob?.industry_role_id || "",
+    industryRoleId: editingJob?.industry_role_id
+      ? String(editingJob.industry_role_id) // ✅ cast to string for Select
+      : "",
     description: editingJob?.description || "",
     employmentType: editingJob?.employment_type || "",
     salaryRange: editingJob?.salary_range || "",
@@ -49,15 +51,20 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     postcode: editingJob?.postcode || "",
     status: (editingJob?.job_status || "draft") as JobStatus,
     startDate: editingJob?.start_date || "",
+    licenses: editingJob?.licenses || [],
   });
 
   const [selectedLicenses, setSelectedLicenses] = useState<number[]>(
     editingJob?.licenses || []
   );
 
+  // ✅ handle with prev state (avoids stale autosave)
   const handle = (k: keyof typeof form, v: string) => {
-    setForm((p) => ({ ...p, [k]: v }));
-    autosave({ ...form, [k]: v });
+    setForm((prev) => {
+      const updated = { ...prev, [k]: v };
+      autosave(updated);
+      return updated;
+    });
   };
 
   // ✅ Autosave Draft Function
@@ -70,7 +77,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       user_id: uid,
       job_status: draft.status,
       industry_role_id: draft.industryRoleId
-        ? Number(draft.industryRoleId)
+        ? Number(draft.industryRoleId) // ✅ cast back to number
         : null,
       description: draft.description,
       employment_type: draft.employmentType,
@@ -92,7 +99,8 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .from("job")
         .update(payload)
         .eq("job_id", jobId);
-      if (error) console.error("Update job error:", error.message, error.details);
+      if (error)
+        console.error("Update job error:", error.message, error.details);
     } else {
       const { data, error } = await supabase
         .from("job")
@@ -110,14 +118,15 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     // ✅ Sync licenses
     if (jobId) {
       await supabase.from("job_license").delete().eq("job_id", jobId);
-      if (selectedLicenses.length) {
+      if (draft.licenses?.length) {
         const { error } = await supabase.from("job_license").insert(
-          selectedLicenses.map((lid) => ({
+          draft.licenses.map((lid: number) => ({
             job_id: jobId,
             license_id: lid,
           }))
         );
-        if (error) console.error("Insert job_license error:", error.message, error.details);
+        if (error)
+          console.error("Insert job_license error:", error.message, error.details);
       }
     }
   };
@@ -421,11 +430,22 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                     type="checkbox"
                     checked={selectedLicenses.includes(l.license_id)}
                     onChange={() => {
-                      const newLicenses = selectedLicenses.includes(l.license_id)
-                        ? selectedLicenses.filter((id) => id !== l.license_id)
-                        : [...selectedLicenses, l.license_id];
-                      setSelectedLicenses(newLicenses);
-                      autosave({ ...form, licenses: newLicenses });
+                      setSelectedLicenses((prev) => {
+                        const updatedLicenses = prev.includes(l.license_id)
+                          ? prev.filter((id) => id !== l.license_id)
+                          : [...prev, l.license_id];
+
+                        setForm((prevForm) => {
+                          const updated = {
+                            ...prevForm,
+                            licenses: updatedLicenses,
+                          };
+                          autosave(updated);
+                          return updated;
+                        });
+
+                        return updatedLicenses;
+                      });
                     }}
                   />
                   <span>{l.name}</span>
