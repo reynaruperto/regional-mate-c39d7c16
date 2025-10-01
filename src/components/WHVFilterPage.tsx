@@ -43,13 +43,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
-      const { data: industriesData } = await (supabase as any).rpc(
-        "view_eligible_industries_for_maker",
-        { p_maker_id: user.id }
-      );
+      const { data: industriesData } = await supabase.rpc<
+        { industry_id: number | null; industry: string }[]
+      >("view_eligible_industries_for_maker", { p_maker_id: user.id });
+
       if (industriesData) {
         setIndustries(
-          industriesData.map((d: any, idx: number) => ({
+          industriesData.map((d, idx) => ({
             id: d.industry_id ?? null,
             name: d.industry ?? `Industry ${idx + 1}`,
           }))
@@ -65,17 +65,17 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         })) || []
       );
 
-      // Job Types
-      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
+      // Job Types (⚡ FIXED with generic)
+      const { data: jobTypesData } = await supabase.rpc<string[]>("get_enum_values", {
         enum_name: "job_type_enum",
       });
-      setJobTypes((jobTypesData as string[]) || []);
+      setJobTypes(jobTypesData || []);
 
-      // Salary Ranges
-      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
+      // Salary Ranges (⚡ FIXED with generic)
+      const { data: salaryRangesData } = await supabase.rpc<string[]>("get_enum_values", {
         enum_name: "pay_range",
       });
-      setSalaryRanges((salaryRangesData as string[]) || []);
+      setSalaryRanges(salaryRangesData || []);
     };
 
     fetchEligibility();
@@ -89,16 +89,17 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
           ? parseInt(selectedFilters.industry)
           : null;
 
-      const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
+      const { data: locData } = await supabase.rpc<
+        { state: string; location: string }[]
+      >("view_eligible_locations_for_maker", {
         p_maker_id: user.id,
         p_industry_id: industryId,
       });
 
       if (locData) {
-        const stateValues: string[] = locData.map((l: any) => (l.state ?? "Unknown"));
-        setStates(Array.from(new Set(stateValues)));
+        setStates([...new Set(locData.map((l) => l.state ?? "Unknown"))]);
         setAllSuburbs(
-          locData.map((l: any, idx: number) => ({
+          locData.map((l, idx) => ({
             state: l.state ?? "Unknown",
             location: l.location ?? `Location ${idx + 1}`,
           }))
@@ -129,7 +130,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
+    const { data, error } = await supabase.rpc("filter_jobs_for_maker", {
       p_maker_id: user.id, // ✅ must include maker_id
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
