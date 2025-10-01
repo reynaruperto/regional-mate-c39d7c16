@@ -1,3 +1,4 @@
+// src/components/FilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     p_filter_suburb_city_postcode: "",
     p_filter_work_industry_id: "",
     p_filter_work_years_experience: "",
-    p_filter_industry_ids: "",
+    p_filter_industry_ids: "",   //  Preferred Industry
     p_filter_license_ids: "",
   });
 
@@ -31,7 +32,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
-  // ✅ Load locations
+  //  Load locations
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
@@ -62,7 +63,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchLocations();
   }, []);
 
-  // ✅ Load industries
+  //  Load industries (for both work exp & preferred industry)
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase
@@ -81,7 +82,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchIndustries();
   }, []);
 
-  // ✅ Load licenses
+  //  Load licenses
   useEffect(() => {
     const fetchLicenses = async () => {
       const { data, error } = await supabase.from("license").select("license_id, name");
@@ -96,7 +97,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchLicenses();
   }, []);
 
-  // ✅ Experience Levels
+  //  Experience Levels
   useEffect(() => {
     setExperienceLevels([
       "None",
@@ -206,6 +207,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               items={industries}
               category="p_filter_work_industry_id"
               placeholder="Any industry"
+              isObject={true}
+            />
+            <DropdownSection
+              title="Preferred Industry"    //  Added Preferred Industry filter
+              items={industries}
+              category="p_filter_industry_ids"
+              placeholder="Any preferred industry"
               isObject={true}
             />
             <DropdownSection
