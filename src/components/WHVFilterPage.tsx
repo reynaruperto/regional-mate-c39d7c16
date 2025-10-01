@@ -22,6 +22,11 @@ interface WHVFilterPageProps {
   };
 }
 
+interface LocationRow {
+  state: string;
+  location: string; // "Suburb (Postcode)"
+}
+
 const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     industry: "",
@@ -34,12 +39,12 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   const [industries, setIndustries] = useState<{ id?: number; name: string }[]>([]);
   const [states, setStates] = useState<string[]>([]);
-  const [suburbs, setSuburbs] = useState<string[]>([]);
+  const [allSuburbs, setAllSuburbs] = useState<LocationRow[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Fetch industries (once on load)
+  // ✅ Fetch industries
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await (supabase as any).rpc("view_eligible_industries_for_maker", {
@@ -51,18 +56,17 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       }
       if (data) {
         setIndustries(
-          data.map((d: any) => ({
-            id: d.industry_id,
+          data.map((d: any, idx: number) => ({
+            id: d.industry_id ?? idx,
             name: d.industry,
           }))
         );
       }
     };
-
     fetchIndustries();
   }, [user.id]);
 
-  // ✅ Fetch states/suburbs when industry changes
+  // ✅ Fetch states + suburbs whenever industry changes
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
@@ -75,12 +79,37 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       }
       if (data) {
         setStates([...new Set(data.map((l: any) => l.state))]);
-        setSuburbs(data.map((l: any) => l.location));
+        setAllSuburbs(data); // keep full list with state + suburb
       }
     };
-
     fetchLocations();
   }, [user.id, selectedFilters.industry]);
+
+  // ✅ Fetch facilities + enums
+  useEffect(() => {
+    const fetchOtherFilters = async () => {
+      const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
+      setFacilities(
+        facilityData?.map((f) => ({ id: f.facility_id, name: f.name })) || []
+      );
+
+      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
+        enum_name: "job_type_enum",
+      });
+      setJobTypes((jobTypesData as string[]) || []);
+
+      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
+        enum_name: "pay_range",
+      });
+      setSalaryRanges((salaryRangesData as string[]) || []);
+    };
+    fetchOtherFilters();
+  }, []);
+
+  // ✅ Filter suburbs based on selected state
+  const suburbs = selectedFilters.state
+    ? allSuburbs.filter((s) => s.state === selectedFilters.state).map((s) => s.location)
+    : allSuburbs.map((s) => s.location);
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
@@ -104,8 +133,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       return;
     }
 
-    console.log("Filter results:", data);
     onResults(data || []);
+    onClose();
   };
 
   return (
@@ -137,8 +166,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
               <SelectValue placeholder="Select industry" />
             </SelectTrigger>
             <SelectContent>
-              {industries.map((i) => (
-                <SelectItem key={i.id} value={i.id?.toString() || ""}>
+              {industries.map((i, idx) => (
+                <SelectItem key={i.id ?? idx} value={(i.id ?? idx).toString()}>
                   {i.name}
                 </SelectItem>
               ))}
@@ -164,9 +193,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 <SelectValue placeholder="Select state" />
               </SelectTrigger>
               <SelectContent>
-                {states.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
+                {states.map((s, idx) => (
+                  <SelectItem key={idx} value={s || `state-${idx}`}>
+                    {s || "Unknown state"}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -189,8 +218,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
               </SelectTrigger>
               <SelectContent>
                 {suburbs.map((s, idx) => (
-                  <SelectItem key={idx} value={s}>
-                    {s}
+                  <SelectItem key={idx} value={s || `suburb-${idx}`}>
+                    {s || "Unknown suburb"}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -201,10 +230,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
       {/* Submit */}
       <div className="px-6 mt-auto pb-6">
-        <Button
-          onClick={handleFindJobs}
-          className="w-full bg-slate-800 text-white rounded-xl"
-        >
+        <Button onClick={handleFindJobs} className="w-full bg-slate-800 text-white rounded-xl">
           Find Jobs
         </Button>
       </div>
