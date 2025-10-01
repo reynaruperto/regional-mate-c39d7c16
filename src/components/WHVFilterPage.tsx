@@ -16,7 +16,7 @@ interface WHVFilterPageProps {
   onResults: (jobs: any[], filters: any) => void;
   user: {
     id: string;
-    subClass: string; 
+    subClass: string;
     countryId: number;
     stage: number;
   };
@@ -47,7 +47,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         "view_eligible_industries_for_maker",
         { p_maker_id: user.id }
       );
-      if (industriesData) setIndustries(industriesData);
+      setIndustries((industriesData as any[]) || []);
 
       const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
       setFacilities(
@@ -78,8 +78,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
 
       if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state ?? "Unknown"))]);
-        setAllSuburbs(locData.map((l: any) => ({ state: l.state, location: l.location })));
+        setStates((locData as any[]).map((l) => l.state ?? "Unknown"));
+        setAllSuburbs((locData as any[]).map((l) => ({ state: l.state, location: l.location })));
       }
     };
     fetchLocations();
@@ -115,11 +115,14 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       return;
     }
 
-    // Pass both jobs + clean filters back
+    // Return both jobs + clean labels
     onResults(data || [], {
-      ...selectedFilters,
       industryLabel: selectedFilters.industry?.industry || "",
-      facilityLabel: facilities.find((f) => f.id === selectedFilters.facility?.id)?.name || "",
+      state: selectedFilters.state || "",
+      suburbCityPostcode: selectedFilters.suburbCityPostcode || "",
+      jobType: selectedFilters.jobType || "",
+      salaryRange: selectedFilters.salaryRange || "",
+      facilityLabel: selectedFilters.facility?.name || "",
     });
     onClose();
   };
@@ -128,7 +131,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
+          <div className="flex flex-col h-full bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
               <Button variant="ghost" size="icon" className="mr-4" onClick={onClose}>
