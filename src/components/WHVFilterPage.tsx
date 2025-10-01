@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface WHVFilterPageProps {
   onClose: () => void;
-  onResults: (jobs: any[], filters: any) => void; // ✅ updated to 2 args
+  onResults: (jobs: any[], filters: any) => void; // ✅ now accepts jobs + filters
   user: {
     id: string;
     subClass: string; // 417 or 462
@@ -50,7 +50,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       );
       if (industriesData) {
         setIndustries(
-          industriesData.map((d: any, idx: number) => ({
+          (industriesData as any[]).map((d: any, idx: number) => ({
             id: d.industry_id ?? null,
             name: d.industry ?? `Industry ${idx + 1}`,
           }))
@@ -60,7 +60,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       // Facilities
       const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
       setFacilities(
-        facilityData?.map((f, idx) => ({
+        (facilityData as any[])?.map((f: any, idx: number) => ({
           id: f.facility_id ?? null,
           name: f.name ?? `Facility ${idx + 1}`,
         })) || []
@@ -96,9 +96,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
 
       if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state ?? "Unknown"))]);
+        setStates([...new Set((locData as any[]).map((l: any) => l.state ?? "Unknown"))]);
         setAllSuburbs(
-          locData.map((l: any, idx: number) => ({
+          (locData as any[]).map((l: any, idx: number) => ({
             state: l.state ?? "Unknown",
             location: l.location ?? `Location ${idx + 1}`,
           }))
@@ -157,7 +157,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
     console.log("Filter results:", data);
     // ✅ now return both jobs + filters
-    onResults(data || [], selectedFilters);
+    onResults((data as any[]) || [], selectedFilters);
     onClose();
   };
 
