@@ -1,3 +1,4 @@
+// src/components/WHVFilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface WHVFilterPageProps {
   onClose: () => void;
-  onResults: (jobs: any[]) => void;
+  onResults: (jobs: any[], filters: any) => void; // ✅ updated to 2 args
   user: {
     id: string;
     subClass: string; // 417 or 462
@@ -49,7 +50,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       );
       if (industriesData) {
         setIndustries(
-          (industriesData as any[]).map((d: any, idx: number) => ({
+          industriesData.map((d: any, idx: number) => ({
             id: d.industry_id ?? null,
             name: d.industry ?? `Industry ${idx + 1}`,
           }))
@@ -59,7 +60,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       // Facilities
       const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
       setFacilities(
-        (facilityData as any[])?.map((f: any, idx: number) => ({
+        facilityData?.map((f, idx) => ({
           id: f.facility_id ?? null,
           name: f.name ?? `Facility ${idx + 1}`,
         })) || []
@@ -95,9 +96,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
 
       if (locData) {
-        setStates([...new Set((locData as any[]).map((l: any) => l.state ?? "Unknown"))]);
+        setStates([...new Set(locData.map((l: any) => l.state ?? "Unknown"))]);
         setAllSuburbs(
-          (locData as any[]).map((l: any, idx: number) => ({
+          locData.map((l: any, idx: number) => ({
             state: l.state ?? "Unknown",
             location: l.location ?? `Location ${idx + 1}`,
           }))
@@ -128,20 +129,24 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
-      p_maker_id: user.id,
+    const { data, error } = await (supabase as any).rpc("filter_employer_for_maker", {
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
+
       p_filter_industry_ids:
         selectedFilters.industry && !isNaN(parseInt(selectedFilters.industry))
           ? [parseInt(selectedFilters.industry)]
           : null,
+
       p_filter_job_type: selectedFilters.jobType || null,
       p_filter_salary_range: selectedFilters.salaryRange || null,
+
       p_filter_facility_ids:
         selectedFilters.facility && !isNaN(parseInt(selectedFilters.facility))
           ? [parseInt(selectedFilters.facility)]
           : null,
+
+      p_filter_start_date_range: null,
     });
 
     if (error) {
@@ -151,8 +156,9 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     }
 
     console.log("Filter results:", data);
-    onResults((data as any[]) || []);
-    onClose(); // ✅ close filter modal after applying
+    // ✅ now return both jobs + filters
+    onResults(data || [], selectedFilters);
+    onClose();
   };
 
   return (
