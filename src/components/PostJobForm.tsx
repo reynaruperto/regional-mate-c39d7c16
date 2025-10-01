@@ -33,6 +33,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   const [yearsExpEnum, setYearsExpEnum] = useState<string[]>([]);
   const [employmentTypeEnum, setEmploymentTypeEnum] = useState<string[]>([]);
   const [licenses, setLicenses] = useState<LicenseRow[]>([]);
+  const [industryId, setIndustryId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     job_id: editingJob?.job_id || null,
@@ -83,8 +84,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           ? draft.startDate
           : null,
     };
-
-    console.log("Saving job payload:", payload);
 
     let jobId = draft.job_id;
 
@@ -179,25 +178,36 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     ]);
   }, []);
 
-  // Load roles
+  // ✅ Fetch employer industry_id once
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) return;
 
-      const { data: emp } = await supabase
+      const { data: emp, error: empErr } = await supabase
         .from("employer")
         .select("industry_id")
         .eq("user_id", uid)
         .single();
 
-      if (!emp?.industry_id) return;
+      if (empErr || !emp?.industry_id) {
+        console.error("Could not fetch employer industry:", empErr);
+        return;
+      }
 
+      setIndustryId(emp.industry_id);
+    })();
+  }, []);
+
+  // ✅ Load roles for employer industry
+  useEffect(() => {
+    if (!industryId) return;
+    (async () => {
       const { data: roleData } = await supabase
         .from("industry_role")
         .select("industry_role_id, role")
-        .eq("industry_id", emp.industry_id);
+        .eq("industry_id", industryId);
 
       if (roleData) {
         setRoles(
@@ -208,29 +218,32 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         );
       }
     })();
-  }, []);
+  }, [industryId]);
 
-  // Load locations with deduplication
+  // ✅ Load locations for employer industry
   useEffect(() => {
+    if (!industryId) return;
     (async () => {
-      const { data } = await supabase
-        .from("vw_regional_rules_base")
+      const { data, error } = await supabase
+        .from("visa_work_location_rules")
         .select("state, suburb_city, postcode")
-        .limit(500);
+        .eq("industry_id", industryId);
+
+      if (error) {
+        console.error("Error fetching visa work locations:", error);
+        return;
+      }
 
       if (data) {
         const unique = Array.from(
           new Map(
-            data.map((loc) => [
-              `${loc.suburb_city}-${loc.postcode}`,
-              loc,
-            ])
+            data.map((loc) => [`${loc.suburb_city}-${loc.postcode}`, loc])
           ).values()
         );
         setLocations(unique);
       }
     })();
-  }, []);
+  }, [industryId]);
 
   // Load licenses
   useEffect(() => {
@@ -274,11 +287,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
-                >
+                <SelectContent className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg">
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
@@ -311,11 +320,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select employment type" />
                 </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
-                >
+                <SelectContent className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg">
                   {employmentTypeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -335,11 +340,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
-                >
+                <SelectContent className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg">
                   {payRangeEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -359,11 +360,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
-                >
+                <SelectContent className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg">
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -390,11 +387,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg"
-                >
+                <SelectContent className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg">
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
