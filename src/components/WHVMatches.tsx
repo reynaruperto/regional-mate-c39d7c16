@@ -146,11 +146,11 @@ const WHVMatches: React.FC = () => {
     setShowLikeModal(true);
 
     // Insert into likes
-    const { error } = await supabase.from("likes").insert({
+    const { error } = await supabase.from("likes").insert([{
       liker_id: whvId,
       liker_type: "whv",
-      liked_job_post_id: employer.id, // employer’s job post id
-    });
+      liked_job_post_id: parseInt(employer.id), // employer's job post id
+    }]);
 
     if (error) console.error("Error liking employer:", error);
   };

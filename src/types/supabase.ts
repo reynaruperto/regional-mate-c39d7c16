@@ -1573,6 +1573,29 @@ export type Database = {
         Args: {};
         Returns: string[];
       };
+      filter_jobs_for_maker: {
+        Args: {
+          p_maker_id: string;
+          p_filter_state?: string | null;
+          p_filter_suburb_city_postcode?: string | null;
+          p_filter_industry_ids?: number[] | null;
+          p_filter_job_type?: string | null;
+          p_filter_salary_range?: string | null;
+          p_filter_facility_ids?: number[] | null;
+        };
+        Returns: {
+          profile_photo: string;
+          emp_id: string;
+          job_id: number;
+          role: string;
+          company: string;
+          industry: string;
+          location: string;
+          job_type: string;
+          salary_range: string;
+          job_description: string;
+        }[];
+      };
     };
     Enums: {
       business_tenure:
