@@ -79,7 +79,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       }
       if (data) {
         setStates([...new Set(data.map((l: any) => l.state))]);
-        setAllSuburbs(data); // keep full list with state + suburb
+        setAllSuburbs(data);
       }
     };
     fetchLocations();
@@ -138,101 +138,129 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100">
-      {/* Header */}
-      <div className="px-6 py-4 flex items-center">
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <ArrowLeft />
-        </Button>
-        <h1 className="ml-3 text-lg font-semibold">Filter Jobs</h1>
-      </div>
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-      <div className="px-6 space-y-6 flex-1 overflow-y-auto">
-        {/* Industry */}
-        <div>
-          <label className="block text-sm font-medium">Industry</label>
-          <Select
-            value={selectedFilters.industry}
-            onValueChange={(v) =>
-              setSelectedFilters((prev) => ({
-                ...prev,
-                industry: v,
-                state: "",
-                suburbCityPostcode: "",
-              }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select industry" />
-            </SelectTrigger>
-            <SelectContent>
-              {industries.map((i, idx) => (
-                <SelectItem key={i.id ?? idx} value={(i.id ?? idx).toString()}>
-                  {i.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={onClose}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">Filter Jobs</h1>
+            </div>
+
+            {/* Filters */}
+            <div className="flex-1 px-6 overflow-y-auto space-y-6">
+              {/* Industry */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
+                <Select
+                  value={selectedFilters.industry}
+                  onValueChange={(v) =>
+                    setSelectedFilters((prev) => ({
+                      ...prev,
+                      industry: v,
+                      state: "",
+                      suburbCityPostcode: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full h-12 rounded-xl">
+                    <SelectValue placeholder="Select industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {industries.map((i, idx) => {
+                      const val = i?.id ? i.id.toString() : `industry-${idx}`;
+                      return (
+                        <SelectItem key={val} value={val}>
+                          {i?.name || "Unnamed Industry"}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* State */}
+              {states.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                  <Select
+                    value={selectedFilters.state}
+                    onValueChange={(v) =>
+                      setSelectedFilters((prev) => ({
+                        ...prev,
+                        state: v,
+                        suburbCityPostcode: "",
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-full h-12 rounded-xl">
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {states.map((s, idx) => {
+                        const val = s && s.trim() !== "" ? s : `state-${idx}`;
+                        return (
+                          <SelectItem key={val} value={val}>
+                            {s || "Unknown State"}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Suburb/Postcode */}
+              {suburbs.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Suburb / Postcode
+                  </label>
+                  <Select
+                    value={selectedFilters.suburbCityPostcode}
+                    onValueChange={(v) =>
+                      setSelectedFilters((prev) => ({ ...prev, suburbCityPostcode: v }))
+                    }
+                  >
+                    <SelectTrigger className="w-full h-12 rounded-xl">
+                      <SelectValue placeholder="Select suburb or postcode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suburbs.map((s, idx) => {
+                        const val = s && s.trim() !== "" ? s : `suburb-${idx}`;
+                        return (
+                          <SelectItem key={val} value={val}>
+                            {s || "Unknown Suburb"}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Find Jobs Button */}
+            <div className="px-6 pb-8">
+              <Button
+                onClick={handleFindJobs}
+                className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl"
+              >
+                Find Jobs
+              </Button>
+            </div>
+          </div>
         </div>
-
-        {/* State */}
-        {states.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium">State</label>
-            <Select
-              value={selectedFilters.state}
-              onValueChange={(v) =>
-                setSelectedFilters((prev) => ({
-                  ...prev,
-                  state: v,
-                  suburbCityPostcode: "",
-                }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select state" />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((s, idx) => (
-                  <SelectItem key={idx} value={s || `state-${idx}`}>
-                    {s || "Unknown state"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Suburb */}
-        {suburbs.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium">Suburb / Postcode</label>
-            <Select
-              value={selectedFilters.suburbCityPostcode}
-              onValueChange={(v) =>
-                setSelectedFilters((prev) => ({ ...prev, suburbCityPostcode: v }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select suburb" />
-              </SelectTrigger>
-              <SelectContent>
-                {suburbs.map((s, idx) => (
-                  <SelectItem key={idx} value={s || `suburb-${idx}`}>
-                    {s || "Unknown suburb"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {/* Submit */}
-      <div className="px-6 mt-auto pb-6">
-        <Button onClick={handleFindJobs} className="w-full bg-slate-800 text-white rounded-xl">
-          Find Jobs
-        </Button>
       </div>
     </div>
   );
