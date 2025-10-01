@@ -32,7 +32,7 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  // ✅ Logged-in WHV ID
+  // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -41,104 +41,55 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs from RPC
+  // ✅ Fetch jobs (eligible)
+  const fetchJobs = async (activeFilters: any = {}) => {
+    if (!whvId) return;
+
+    const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
+      p_maker_id: whvId,
+      p_filter_state: activeFilters.state || null,
+      p_filter_suburb_city_postcode: activeFilters.suburbCityPostcode || null,
+      p_filter_industry_ids: activeFilters.industry ? [activeFilters.industry] : null,
+      p_filter_job_type: activeFilters.jobType || null,
+      p_filter_salary_range: activeFilters.salaryRange || null,
+      p_filter_facility_ids: activeFilters.facility ? [activeFilters.facility] : null,
+    });
+
+    if (error) {
+      console.error("Error fetching jobs:", error);
+      return;
+    }
+    if (!jobsData) return;
+
+    // Likes
+    const { data: likes } = await supabase
+      .from("likes")
+      .select("liked_job_post_id")
+      .eq("liker_id", whvId)
+      .eq("liker_type", "whv");
+
+    const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+    const mapped: JobCard[] = (jobsData as any[]).map((job: any) => ({
+      job_id: job.job_id,
+      company: job.company || "Employer not listed",
+      profile_photo: job.profile_photo || "/placeholder.png",
+      role: job.role || "Role not specified",
+      industry: job.industry || "General",
+      location: job.location || "Location not specified",
+      salary_range: job.salary_range || "Pay not disclosed",
+      job_type: job.job_type || "Employment type not specified",
+      description: job.description || "No description provided",
+      isLiked: likedIds.includes(job.job_id),
+    }));
+
+    setJobs(mapped);
+    setAllJobs(mapped);
+  };
+
   useEffect(() => {
-    const fetchJobs = async () => {
-      if (!whvId) return;
-
-      // Visa stage label
-      const { data: visa } = await supabase
-        .from("maker_visa")
-        .select("stage_id, visa_stage(label)")
-        .eq("user_id", whvId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      setVisaStageLabel(visa?.visa_stage?.label || "");
-
-      // Eligible jobs
-      const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
-        p_maker_id: whvId,
-      });
-      if (error) {
-        console.error("Error fetching jobs:", error);
-        return;
-      }
-      if (!jobsData) return;
-
-      // Likes
-      const { data: likes } = await supabase
-        .from("likes")
-        .select("liked_job_post_id")
-        .eq("liker_id", whvId)
-        .eq("liker_type", "whv");
-
-      const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
-
-      const mapped: JobCard[] = jobsData.map((job: any) => {
-        const photoUrl = job.profile_photo
-          ? (job.profile_photo.startsWith("http")
-              ? job.profile_photo
-              : supabase.storage.from("profile_photo").getPublicUrl(job.profile_photo).data.publicUrl)
-          : "/placeholder.png";
-
-        return {
-          job_id: job.job_id,
-          company: job.company || "Employer not listed",
-          profile_photo: photoUrl,
-          role: job.role || "Role not specified",
-          industry: job.industry || "General",
-          location: job.location || "Location not specified",
-          salary_range: job.salary_range || "Pay not disclosed",
-          job_type: job.job_type || "Employment type not specified",
-          description: job.description || "No description provided",
-          isLiked: likedIds.includes(job.job_id),
-        };
-      });
-
-      setJobs(mapped);
-      setAllJobs(mapped);
-    };
-
     fetchJobs();
   }, [whvId]);
-
-  // 🔎 Search + Filters
-  useEffect(() => {
-    let list = [...allJobs];
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      list = list.filter(
-        (j) =>
-          j.role.toLowerCase().includes(query) ||
-          j.industry.toLowerCase().includes(query) ||
-          j.company.toLowerCase().includes(query) ||
-          j.location.toLowerCase().includes(query)
-      );
-    }
-
-    if (filters.state) {
-      list = list.filter((j) => j.location.toLowerCase().includes(filters.state.toLowerCase()));
-    }
-    if (filters.facilityLabel) {
-      list = list.filter((j) =>
-        j.description?.toLowerCase().includes(filters.facilityLabel.toLowerCase())
-      );
-    }
-    if (filters.jobType) {
-      list = list.filter((j) => j.job_type.toLowerCase() === filters.jobType.toLowerCase());
-    }
-    if (filters.salaryRange) {
-      list = list.filter((j) => j.salary_range.toLowerCase() === filters.salaryRange.toLowerCase());
-    }
-    if (filters.industryLabel) {
-      list = list.filter((j) => j.industry.toLowerCase() === filters.industryLabel.toLowerCase());
-    }
-
-    setJobs(list);
-  }, [searchQuery, filters, allJobs]);
 
   // ✅ Like/unlike
   const handleLikeJob = async (jobId: number) => {
@@ -179,13 +130,15 @@ const WHVBrowseJobs: React.FC = () => {
   // ✅ Remove single filter chip
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null };
-    setFilters(updated);
+    const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
+    setFilters(clean);
+    fetchJobs(clean);
   };
 
   // ✅ Clear all filters
   const handleClearFilters = () => {
     setFilters({});
-    setJobs(allJobs);
+    fetchJobs({});
   };
 
   // ✅ Build filter chips
@@ -193,7 +146,7 @@ const WHVBrowseJobs: React.FC = () => {
     .filter(([_, v]) => v)
     .map(([key, value]) => ({
       key,
-      label: key === "industryLabel" || key === "facilityLabel" ? value : `${key}: ${value}`,
+      label: value as string,
     }));
 
   return showFilters ? (
