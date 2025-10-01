@@ -43,14 +43,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
-      const { data: industriesData } = await supabase.rpc<
-        { industry_id: number; industry: string }[],
-        { p_maker_id: string }
-      >("view_eligible_industries_for_maker", { p_maker_id: user.id });
-
+      const { data: industriesData } = await (supabase as any).rpc(
+        "view_eligible_industries_for_maker",
+        { p_maker_id: user.id }
+      );
       if (industriesData) {
         setIndustries(
-          industriesData.map((d, idx) => ({
+          (industriesData as any[]).map((d: any, idx: number) => ({
             id: d.industry_id ?? null,
             name: d.industry ?? `Industry ${idx + 1}`,
           }))
@@ -60,25 +59,23 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       // Facilities
       const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
       setFacilities(
-        facilityData?.map((f, idx) => ({
+        (facilityData as any[])?.map((f: any, idx: number) => ({
           id: f.facility_id ?? null,
           name: f.name ?? `Facility ${idx + 1}`,
         })) || []
       );
 
       // Job Types
-      const { data: jobTypesData } = await supabase.rpc<string[], { enum_name: string }>(
-        "get_enum_values",
-        { enum_name: "job_type_enum" }
-      );
-      setJobTypes(jobTypesData || []);
+      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
+        enum_name: "job_type_enum",
+      });
+      setJobTypes((jobTypesData as string[]) || []);
 
       // Salary Ranges
-      const { data: salaryRangesData } = await supabase.rpc<string[], { enum_name: string }>(
-        "get_enum_values",
-        { enum_name: "pay_range" }
-      );
-      setSalaryRanges(salaryRangesData || []);
+      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
+        enum_name: "pay_range",
+      });
+      setSalaryRanges((salaryRangesData as string[]) || []);
     };
 
     fetchEligibility();
@@ -92,18 +89,15 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
           ? parseInt(selectedFilters.industry)
           : null;
 
-      const { data: locData } = await supabase.rpc<
-        { state: string; location: string }[],
-        { p_maker_id: string; p_industry_id: number | null }
-      >("view_eligible_locations_for_maker", {
+      const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
         p_maker_id: user.id,
         p_industry_id: industryId,
       });
 
       if (locData) {
-        setStates([...new Set(locData.map((l) => l.state ?? "Unknown"))]);
+        setStates([...new Set((locData as any[]).map((l: any) => l.state ?? "Unknown"))]);
         setAllSuburbs(
-          locData.map((l, idx) => ({
+          (locData as any[]).map((l: any, idx: number) => ({
             state: l.state ?? "Unknown",
             location: l.location ?? `Location ${idx + 1}`,
           }))
@@ -134,15 +128,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await supabase.rpc<any[], {
-      p_maker_id: string;
-      p_filter_state: string | null;
-      p_filter_suburb_city_postcode: string | null;
-      p_filter_industry_ids: number[] | null;
-      p_filter_job_type: string | null;
-      p_filter_salary_range: string | null;
-      p_filter_facility_ids: number[] | null;
-    }>("filter_jobs_for_maker", {
+    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
       p_maker_id: user.id,
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
@@ -165,7 +151,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     }
 
     console.log("Filter results:", data);
-    onResults(data || []);
+    onResults((data as any[]) || []);
     onClose(); // ✅ close filter modal after applying
   };
 
