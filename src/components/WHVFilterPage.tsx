@@ -95,7 +95,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
 
       if (locData) {
-        setStates([...new Set(locData.map((l: any) => l.state ?? "Unknown"))]);
+        const stateStrings = locData.map((l: any) => (l.state ?? "Unknown") as string);
+        setStates(Array.from(new Set(stateStrings)));
         setAllSuburbs(
           locData.map((l: any, idx: number) => ({
             state: l.state ?? "Unknown",
