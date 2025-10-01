@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface WHVFilterPageProps {
   onClose: () => void;
-  onResults: (jobs: any[], filters: any) => void; // ✅ jobs + filters
+  onResults: (jobs: any[], filters: any) => void;
   user: {
     id: string;
     subClass: string; // 417 or 462
@@ -39,66 +39,49 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load industries, facilities, job types, salary ranges
+  // ✅ Fetch data (with dummy fallback)
   useEffect(() => {
     const fetchEligibility = async () => {
       try {
-        // Industries
-        const { data: industriesData, error: indError } = await (supabase as any).rpc(
+        const { data: industriesData } = await (supabase as any).rpc(
           "view_eligible_industries_for_maker",
           { p_maker_id: user.id }
         );
-        if (indError) console.warn("Industries RPC error:", indError.message);
-        if (industriesData?.length) {
-          setIndustries(
-            industriesData.map((d: any, idx: number) => ({
-              id: d.industry_id ?? idx,
-              name: d.industry ?? `Industry ${idx + 1}`,
-            }))
-          );
-        } else {
-          // fallback dummy data
-          setIndustries([
-            { id: 1, name: "Agriculture" },
-            { id: 2, name: "Aged Care" },
-            { id: 3, name: "Hospitality" },
-          ]);
-        }
-
-        // Facilities
-        const { data: facilityData, error: facError } = await supabase
-          .from("facility")
-          .select("facility_id, name");
-        if (facError) console.warn("Facilities error:", facError.message);
-        if (facilityData?.length) {
-          setFacilities(
-            facilityData.map((f, idx) => ({
-              id: f.facility_id ?? idx,
-              name: f.name ?? `Facility ${idx + 1}`,
-            }))
-          );
-        } else {
-          setFacilities([
-            { id: 1, name: "Farm" },
-            { id: 2, name: "Hospital" },
-            { id: 3, name: "Hotel" },
-          ]);
-        }
-
-        // Job Types
-        const { data: jobTypesData, error: jobError } = await (supabase as any).rpc(
-          "get_enum_values",
-          { enum_name: "job_type_enum" }
+        setIndustries(
+          industriesData?.length
+            ? industriesData.map((d: any, idx: number) => ({
+                id: d.industry_id ?? idx,
+                name: d.industry ?? `Industry ${idx + 1}`,
+              }))
+            : [
+                { id: 1, name: "Agriculture" },
+                { id: 2, name: "Aged Care" },
+                { id: 3, name: "Hospitality" },
+              ]
         );
-        if (jobError) console.warn("JobTypes error:", jobError.message);
+
+        const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
+        setFacilities(
+          facilityData?.length
+            ? facilityData.map((f, idx) => ({
+                id: f.facility_id ?? idx,
+                name: f.name ?? `Facility ${idx + 1}`,
+              }))
+            : [
+                { id: 1, name: "Farm" },
+                { id: 2, name: "Hospital" },
+                { id: 3, name: "Hotel" },
+              ]
+        );
+
+        const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
+          enum_name: "job_type_enum",
+        });
         setJobTypes((jobTypesData as string[]) || ["Full-time", "Part-time", "Casual"]);
 
-        // Salary Ranges
-        const { data: salaryRangesData, error: salError } = await (supabase as any).rpc(
-          "get_enum_values",
-          { enum_name: "pay_range" }
-        );
-        if (salError) console.warn("SalaryRange error:", salError.message);
+        const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
+          enum_name: "pay_range",
+        });
         setSalaryRanges((salaryRangesData as string[]) || ["$20-25/hr", "$25-30/hr", "$30+/hr"]);
       } catch (err) {
         console.error("fetchEligibility failed:", err);
@@ -116,11 +99,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
             ? parseInt(selectedFilters.industry)
             : null;
 
-        const { data: locData, error: locError } = await (supabase as any).rpc(
-          "view_eligible_locations_for_maker",
-          { p_maker_id: user.id, p_industry_id: industryId }
-        );
-        if (locError) console.warn("Locations RPC error:", locError.message);
+        const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
+          p_maker_id: user.id,
+          p_industry_id: industryId,
+        });
 
         if (locData?.length) {
           setStates([...new Set(locData.map((l: any) => l.state ?? "Unknown"))]);
@@ -131,7 +113,6 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
             }))
           );
         } else {
-          // fallback dummy states/suburbs
           setStates(["NSW", "QLD", "VIC"]);
           setAllSuburbs([
             { state: "NSW", location: "Sydney 2000" },
@@ -188,6 +169,18 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     } catch (err) {
       console.error("handleFindJobs failed:", err);
     }
+  };
+
+  // ✅ Reset all filters
+  const handleClearFilters = () => {
+    setSelectedFilters({
+      industry: "",
+      state: "",
+      suburbCityPostcode: "",
+      jobType: "",
+      salaryRange: "",
+      facility: "",
+    });
   };
 
   return (
@@ -347,8 +340,15 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
               </div>
             </div>
 
-            {/* Find Jobs Button */}
-            <div className="px-6 pb-8">
+            {/* Buttons */}
+            <div className="px-6 pb-8 flex flex-col gap-3">
+              <Button
+                variant="outline"
+                onClick={handleClearFilters}
+                className="w-full h-12 border-gray-400 text-gray-700 rounded-xl"
+              >
+                Clear All Filters
+              </Button>
               <Button
                 onClick={handleFindJobs}
                 className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl"
