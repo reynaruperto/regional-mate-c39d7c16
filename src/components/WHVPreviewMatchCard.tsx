@@ -312,7 +312,101 @@ const WHVPreviewMatchCard: React.FC = () => {
                   )}
                 </div>
 
-                {/* ... rest unchanged (Work Preferences, Location Preferences, Work Experience, Licenses, References) ... */}
+                {/* Work Preferences */}
+                <div>
+                  <h3 className="font-semibold text-orange-600 mb-2">Work Preferences</h3>
+                  {Object.keys(groupedWorkPrefs).length > 0 ? (
+                    Object.entries(groupedWorkPrefs).map(([industry, roles]) => (
+                      <div key={industry} className="mb-2">
+                        <p className="font-medium">{industry}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {Array.from(roles as Set<string>).map((role, idx) => (
+                            <li key={idx}>{role}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No work preferences set</p>
+                  )}
+                </div>
+
+                {/* Location Preferences */}
+                <div>
+                  <h3 className="font-semibold text-orange-600 mb-2">Location Preferences</h3>
+                  {Object.keys(groupedLocationPrefs).length > 0 ? (
+                    Object.entries(groupedLocationPrefs).map(([state, areas]) => (
+                      <div key={state} className="mb-2">
+                        <p className="font-medium">{state}</p>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {Array.from(areas as Set<string>).map((area, idx) => (
+                            <li key={idx}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No location preferences set</p>
+                  )}
+                </div>
+
+                {/* Work Experience */}
+                <div>
+                  <h3 className="font-semibold text-orange-600 mb-2">Work Experience</h3>
+                  {workExperiences.length > 0 ? (
+                    workExperiences.map((exp, idx) => (
+                      <div key={idx} className="border p-3 rounded-lg mb-2 text-sm text-gray-700">
+                        <p><span className="font-medium">Company:</span> {exp.company}</p>
+                        <p><span className="font-medium">Industry:</span> {exp.industry}</p>
+                        <p><span className="font-medium">Position:</span> {exp.position}</p>
+                        <p><span className="font-medium">Location:</span> {exp.location}</p>
+                        <p>
+                          <span className="font-medium">Dates:</span>{" "}
+                          {formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}{" "}
+                          ({categorizeYears(exp.start_date, exp.end_date)})
+                        </p>
+                        {exp.description && <p><span className="font-medium">Description:</span> {exp.description}</p>}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No work experience added yet</p>
+                  )}
+                </div>
+
+                {/* Licenses */}
+                <div>
+                  <h3 className="font-semibold text-orange-600 mb-2">Licenses & Certifications</h3>
+                  {licenses.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {licenses.map((license, idx) => (
+                        <span key={idx} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
+                          {license}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses added yet</p>
+                  )}
+                </div>
+
+                {/* References */}
+                <div>
+                  <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
+                    <FileText size={16} className="mr-2" /> References
+                  </h3>
+                  {references.length > 0 ? (
+                    references.map((ref, idx) => (
+                      <div key={idx} className="border p-3 rounded-lg mb-2 text-sm text-gray-700">
+                        <p><span className="font-medium">Name:</span> {ref.name}</p>
+                        <p><span className="font-medium">Business:</span> {ref.business_name}</p>
+                        <p><span className="font-medium">Email:</span> {ref.email}</p>
+                        {ref.mobile_num && <p><span className="font-medium">Phone:</span> {ref.mobile_num}</p>}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No references added</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

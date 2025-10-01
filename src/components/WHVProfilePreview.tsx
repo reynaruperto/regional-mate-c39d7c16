@@ -16,11 +16,12 @@ const WHVProfilePreview: React.FC = () => {
   const [availableFrom, setAvailableFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  //  Helper: format date
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-US", {
+  // ✅ Consistent date formatting
+  const formatDate = (d: string | Date | null) => {
+    if (!d) return "Not set";
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) return "Not set";
+    return parsed.toLocaleDateString("en-US", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -29,7 +30,9 @@ const WHVProfilePreview: React.FC = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         navigate("/sign-in");
         return;
@@ -48,19 +51,17 @@ const WHVProfilePreview: React.FC = () => {
         .select("available_from")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (availabilityRow) setAvailableFrom(availabilityRow.available_from);
 
-      if (availabilityRow?.available_from) {
-        setAvailableFrom(availabilityRow.available_from);
-      } else {
-        setAvailableFrom(null); // fallback
-      }
-
-      // All industries
+      // All industries (for joining with work_experience)
       const { data: industryData } = await supabase
         .from("industry")
         .select("industry_id, name");
       setIndustries(
-        industryData?.map((i: any) => ({ id: i.industry_id, name: i.name })) || []
+        industryData?.map((i: any) => ({
+          id: i.industry_id,
+          name: i.name,
+        })) || []
       );
 
       // Industry Preferences
@@ -91,7 +92,9 @@ const WHVProfilePreview: React.FC = () => {
       // Work Experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience" as any)
-        .select("position, company, industry_id, location, start_date, end_date, job_description")
+        .select(
+          "position, company, industry_id, location, start_date, end_date, job_description"
+        )
         .eq("user_id", user.id)
         .order("start_date", { ascending: false });
 
@@ -192,23 +195,138 @@ const WHVProfilePreview: React.FC = () => {
                   {profileData?.tagline}
                 </p>
 
-                {/*  Availability with fallback */}
-                {availableFrom ? (
+                {availableFrom && (
                   <p className="text-sm text-gray-600 mt-1">
                     Available from:{" "}
                     <span className="font-medium text-gray-900">
                       {formatDate(availableFrom)}
                     </span>
                   </p>
+                )}
+              </div>
+
+              {/* Industry Preferences */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Industry Preferences
+                  </span>
+                </div>
+                {industryPrefs.length > 0 ? (
+                  <ul className="list-disc list-inside text-sm text-gray-700">
+                    {industryPrefs.map((ind, i) => (
+                      <li key={i}>{ind}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Availability not set
+                  <p className="text-sm text-gray-500">No industries set</p>
+                )}
+              </div>
+
+              {/* Location Preferences */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <MapPin className="w-5 h-5 text-orange-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Location Preferences
+                  </span>
+                </div>
+                {locationPreferences.length > 0 ? (
+                  <div className="space-y-3">
+                    {locationPreferences.map(([state, suburbs]) => (
+                      <div key={state}>
+                        <p className="font-medium text-gray-800">{state}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(suburbs as string[]).map((s, i) => (
+                            <span
+                              key={i}
+                              className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No location preferences set
                   </p>
                 )}
               </div>
 
-              {/* rest of content unchanged: Industry Prefs, Location Prefs, Work Exp, Licenses... */}
-              {/* ... */}
+              {/* Work Experience Summary */}
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Work Experience
+                  </span>
+                </div>
+                {workExperiences.length > 0 ? (
+                  <div>
+                    <ul className="space-y-3 text-sm text-gray-700">
+                      {workExperiences.map((exp, i) => {
+                        const industryName =
+                          industries.find(
+                            (ind) => ind.id === exp.industry_id
+                          )?.name || "N/A";
+
+                        const start = new Date(exp.start_date);
+                        const end = exp.end_date
+                          ? new Date(exp.end_date)
+                          : new Date();
+
+                        return (
+                          <li key={i} className="border-b last:border-0 pb-2">
+                            <div>
+                              <span className="font-medium">{exp.position}</span>{" "}
+                              in {industryName} at {exp.company}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {formatDate(start)} –{" "}
+                              {exp.end_date ? formatDate(end) : "Present"}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No work experience added
+                  </p>
+                )}
+              </div>
+
+              {/* Licenses */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                  <Award size={16} className="text-orange-500 mr-2" />
+                  Licenses & Certifications
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {licenses.length > 0 ? (
+                    licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses added</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Heart to Match */}
+              <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
+                <Heart size={18} className="fill-white" /> Heart to Match
+              </Button>
             </div>
           </div>
         </div>
