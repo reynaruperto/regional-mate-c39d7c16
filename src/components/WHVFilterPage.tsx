@@ -43,9 +43,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
-      const { data: industriesData } = await supabase.rpc("view_eligible_industries_for_maker", {
-        p_maker_id: user.id,
-      });
+      const { data: industriesData } = await (supabase as any).rpc(
+        "view_eligible_industries_for_maker",
+        { p_maker_id: user.id }
+      );
       if (industriesData) {
         setIndustries(
           industriesData.map((d: any, idx: number) => ({
@@ -65,13 +66,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       );
 
       // Job Types
-      const { data: jobTypesData } = await supabase.rpc("get_enum_values", {
+      const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
         enum_name: "job_type_enum",
       });
       setJobTypes((jobTypesData as string[]) || []);
 
       // Salary Ranges
-      const { data: salaryRangesData } = await supabase.rpc("get_enum_values", {
+      const { data: salaryRangesData } = await (supabase as any).rpc("get_enum_values", {
         enum_name: "pay_range",
       });
       setSalaryRanges((salaryRangesData as string[]) || []);
@@ -88,7 +89,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
           ? parseInt(selectedFilters.industry)
           : null;
 
-      const { data: locData } = await supabase.rpc("view_eligible_locations_for_maker", {
+      const { data: locData } = await (supabase as any).rpc("view_eligible_locations_for_maker", {
         p_maker_id: user.id,
         p_industry_id: industryId,
       });
@@ -127,7 +128,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await supabase.rpc("filter_jobs_for_maker", {
+    const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
       p_maker_id: user.id,
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
@@ -197,13 +198,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     <SelectValue placeholder="Select industry" />
                   </SelectTrigger>
                   <SelectContent>
-                    {industries.map((i, idx) =>
-                      i.id ? (
-                        <SelectItem key={i.id} value={i.id.toString()}>
-                          {i.name}
-                        </SelectItem>
-                      ) : null
-                    )}
+                    {industries.map((i, idx) => (
+                      <SelectItem key={i.id ?? idx} value={(i.id ?? idx).toString()}>
+                        {i.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -325,13 +324,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     <SelectValue placeholder="Select facility" />
                   </SelectTrigger>
                   <SelectContent>
-                    {facilities.map((f, idx) =>
-                      f.id ? (
-                        <SelectItem key={f.id} value={f.id.toString()}>
-                          {f.name}
-                        </SelectItem>
-                      ) : null
-                    )}
+                    {facilities.map((f, idx) => (
+                      <SelectItem key={f.id ?? idx} value={(f.id ?? idx).toString()}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
