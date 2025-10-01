@@ -39,7 +39,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load industries + facilities + enums
+  // ✅ Load industries, facilities, job types, salary ranges
   useEffect(() => {
     const fetchEligibility = async () => {
       // Industries
@@ -150,10 +150,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
     if (error) {
       console.error("Error filtering jobs:", error);
+      alert("Could not fetch jobs. Please try again.");
       return;
     }
 
+    console.log("Filter results:", data);
     onResults(data || []);
+    onClose(); // ✅ close filter modal after applying
   };
 
   return (
