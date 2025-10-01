@@ -44,7 +44,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     const fetchEligibility = async () => {
       // Industries
       const { data: industriesData } = await supabase.rpc<
-        { industry_id: number | null; industry: string }[]
+        { industry_id: number; industry: string }[],
+        { p_maker_id: string }
       >("view_eligible_industries_for_maker", { p_maker_id: user.id });
 
       if (industriesData) {
@@ -65,16 +66,18 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
         })) || []
       );
 
-      // Job Types (⚡ FIXED with generic)
-      const { data: jobTypesData } = await supabase.rpc<string[]>("get_enum_values", {
-        enum_name: "job_type_enum",
-      });
+      // Job Types
+      const { data: jobTypesData } = await supabase.rpc<string[], { enum_name: string }>(
+        "get_enum_values",
+        { enum_name: "job_type_enum" }
+      );
       setJobTypes(jobTypesData || []);
 
-      // Salary Ranges (⚡ FIXED with generic)
-      const { data: salaryRangesData } = await supabase.rpc<string[]>("get_enum_values", {
-        enum_name: "pay_range",
-      });
+      // Salary Ranges
+      const { data: salaryRangesData } = await supabase.rpc<string[], { enum_name: string }>(
+        "get_enum_values",
+        { enum_name: "pay_range" }
+      );
       setSalaryRanges(salaryRangesData || []);
     };
 
@@ -90,7 +93,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
           : null;
 
       const { data: locData } = await supabase.rpc<
-        { state: string; location: string }[]
+        { state: string; location: string }[],
+        { p_maker_id: string; p_industry_id: number | null }
       >("view_eligible_locations_for_maker", {
         p_maker_id: user.id,
         p_industry_id: industryId,
@@ -130,8 +134,16 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
 
   // ✅ Apply filters
   const handleFindJobs = async () => {
-    const { data, error } = await supabase.rpc("filter_jobs_for_maker", {
-      p_maker_id: user.id, // ✅ must include maker_id
+    const { data, error } = await supabase.rpc<any[], {
+      p_maker_id: string;
+      p_filter_state: string | null;
+      p_filter_suburb_city_postcode: string | null;
+      p_filter_industry_ids: number[] | null;
+      p_filter_job_type: string | null;
+      p_filter_salary_range: string | null;
+      p_filter_facility_ids: number[] | null;
+    }>("filter_jobs_for_maker", {
+      p_maker_id: user.id,
       p_filter_state: selectedFilters.state || null,
       p_filter_suburb_city_postcode: selectedFilters.suburbCityPostcode || null,
       p_filter_industry_ids:
