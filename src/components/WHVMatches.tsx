@@ -22,6 +22,18 @@ interface MatchCard {
   isMutualMatch?: boolean;
 }
 
+interface RecommendedJobRow {
+  emp_id: string;
+  job_id: number;
+  company: string;
+  profile_photo: string;
+  role: string;
+  salary_range: string;
+  employment_type: string;
+  description: string;
+  match_score: number;
+}
+
 const WHVMatches: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
@@ -98,18 +110,19 @@ const WHVMatches: React.FC = () => {
     if (!whvId) return;
 
     const fetchRecommended = async () => {
-      const { data, error } = await supabase
-        .from("vw_maker_match_scores_top10") // use your VIEW
+      const { data, error } = await (supabase as any)
+        .from("vw_maker_match_scores")
         .select("*")
         .eq("maker_id", whvId)
-        .order("match_score", { ascending: false });
+        .order("match_score", { ascending: false })
+        .limit(10);
 
       if (error) {
         console.error("❌ Error fetching recommendations:", error);
         return;
       }
 
-      const formatted: MatchCard[] = (data || []).map((r: any) => ({
+      const formatted: MatchCard[] = ((data as any) || []).map((r: any) => ({
         emp_id: r.emp_id,
         job_id: r.job_id,
         company: r.company || "Unknown Employer",
@@ -124,7 +137,7 @@ const WHVMatches: React.FC = () => {
 
       // sort highest score first
       const sorted = formatted.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
-      setRecommended(sorted as MatchCard[]);
+      setRecommended(sorted);
     };
 
     fetchRecommended();
