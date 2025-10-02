@@ -67,7 +67,7 @@ const WHVMatches: React.FC = () => {
       const jobIds = matchRows.map((m) => m.job_id);
 
       // 2. fetch job + employer details
-      const { data: jobsData, error: jobsError } = await supabase
+      const { data: jobsData, error: jobsError } = await (supabase as any)
         .from("job")
         .select(
           `
@@ -78,7 +78,7 @@ const WHVMatches: React.FC = () => {
           state,
           suburb_city,
           industry_role_id,
-          employer:employer (
+          employer!job_user_id_fkey:employer (
             user_id,
             company_name,
             tagline,
