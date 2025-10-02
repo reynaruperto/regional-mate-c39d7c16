@@ -32,7 +32,7 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  //  Get logged-in WHV ID
+  // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -41,39 +41,7 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  //  Fetch WHV visa info
-  useEffect(() => {
-    if (!whvId) return;
-
-    const fetchVisaInfo = async () => {
-      const { data, error } = await supabase
-        .from("maker_visa")
-        .select(`
-          stage_id,
-          expiry_date,
-          visa_stage:stage_id (
-            sub_class,
-            label
-          )
-        `)
-        .eq("user_id", whvId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error fetching visa info:", error);
-        return;
-      }
-
-      if (data?.visa_stage) {
-        // Example: "417 – First Year"
-        setVisaStageLabel(`${data.visa_stage.sub_class} – ${data.visa_stage.label}`);
-      }
-    };
-
-    fetchVisaInfo();
-  }, [whvId]);
-
-  //  Fetch jobs (eligible)
+  // ✅ Fetch jobs (eligible)
   const fetchJobs = async (activeFilters: any = {}) => {
     if (!whvId) return;
 
@@ -111,7 +79,7 @@ const WHVBrowseJobs: React.FC = () => {
       location: job.location || "Location not specified",
       salary_range: job.salary_range || "Pay not disclosed",
       job_type: job.job_type || "Employment type not specified",
-      description: job.description || "No description provided",
+      description: job.description, // keep raw, handle fallback later
       isLiked: likedIds.includes(job.job_id),
     }));
 
@@ -123,7 +91,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  //  Like/unlike
+  // ✅ Like/unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -159,7 +127,7 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
-  //  Remove single filter chip
+  // ✅ Remove single filter chip
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null };
     const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
@@ -167,13 +135,13 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs(clean);
   };
 
-  //  Clear all filters
+  // ✅ Clear all filters
   const handleClearFilters = () => {
     setFilters({});
     fetchJobs({});
   };
 
-  //  Build filter chips
+  // ✅ Build filter chips
   const filterChips = Object.entries(filters)
     .filter(([_, v]) => v)
     .map(([key, value]) => ({
@@ -309,14 +277,15 @@ const WHVBrowseJobs: React.FC = () => {
                           </span>
                         </div>
 
-                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                          {job.description}
+                        {/* ✅ Show description preview up to 4 lines */}
+                        <p className="text-sm text-gray-700 mt-2 line-clamp-4">
+                          {job.description && job.description.trim() !== ""
+                            ? job.description
+                            : "No description provided"}
                         </p>
 
                         <div className="flex items-center gap-3 mt-4">
-                          <Button
-                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                          >
+                          <Button className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl">
                             View Details
                           </Button>
                           <button
@@ -325,7 +294,11 @@ const WHVBrowseJobs: React.FC = () => {
                           >
                             <Heart
                               size={20}
-                              className={job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                              className={
+                                job.isLiked
+                                  ? "text-orange-500 fill-orange-500"
+                                  : "text-orange-500"
+                              }
                             />
                           </button>
                         </div>
