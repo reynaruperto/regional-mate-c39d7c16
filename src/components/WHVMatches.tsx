@@ -1,6 +1,6 @@
 // src/components/WHVMatches.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BottomNavigation from "@/components/BottomNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,43 +8,46 @@ import { supabase } from "@/integrations/supabase/client";
 interface Employer {
   user_id: string;
   company_name: string;
-  profile_photo: string | null;
-  suburb_city: string;
-  state: string;
   tagline?: string;
+  suburb_city?: string;
+  state?: string;
+  postcode?: string;
+  profile_photo?: string;
 }
 
 interface Job {
   job_id: number;
-  description: string;
-  salary_range: string;
-  employment_type: string;
-  suburb_city: string;
-  state: string;
+  description?: string;
+  salary_range?: string;
+  employment_type?: string;
+  state?: string;
+  suburb_city?: string;
+  postcode?: string;
+  start_date?: string;
+  user_id?: string;
 }
 
 interface Match {
   job_post_id: number;
-  employer_id: string;
   matched_at: string;
-  employer?: Employer;
-  job?: Job;
+  employer: Employer | null;
+  job: Job | null;
 }
 
 interface Recommendation {
   job_id: number;
   match_score: number;
-  job?: Job;
-  employer?: Employer;
+  job: Job | null;
+  employer: Employer | null;
 }
 
 const WHVMatches: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"matches" | "recommended">("matches");
+  const [tab, setTab] = useState<"matches" | "recommended">("matches");
   const [whvId, setWhvId] = useState<string | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
-  // ✅ Get logged-in WHV ID
+  // ✅ Get current WHV user
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -57,41 +60,36 @@ const WHVMatches: React.FC = () => {
   const fetchMatches = async () => {
     if (!whvId) return;
 
-    // Step 1: raw matches
-    const { data: rawMatches, error } = await supabase
+    const { data: matchesData, error } = await supabase
       .from("matches")
-      .select("job_post_id, employer_id, matched_at")
+      .select("*")
       .eq("whv_id", whvId);
 
     if (error) {
       console.error("Error fetching matches:", error);
       return;
     }
-    if (!rawMatches || rawMatches.length === 0) {
-      setMatches([]);
-      return;
-    }
+    if (!matchesData) return;
 
-    // Step 2: fetch jobs
-    const jobIds = rawMatches.map(m => m.job_post_id);
-    const { data: jobs } = await supabase
-      .from("job")
-      .select("job_id, description, salary_range, employment_type, suburb_city, state")
-      .in("job_id", jobIds);
+    const employerIds = matchesData.map((m) => m.employer_id);
+    const jobIds = matchesData.map((m) => m.job_post_id);
 
-    // Step 3: fetch employers
-    const employerIds = rawMatches.map(m => m.employer_id);
     const { data: employers } = await supabase
       .from("employer")
-      .select("user_id, company_name, profile_photo, suburb_city, state, tagline")
+      .select("user_id, company_name, tagline, suburb_city, state, postcode, profile_photo")
       .in("user_id", employerIds);
 
-    // Step 4: merge
-    const merged = rawMatches.map(m => {
-      const job = jobs?.find(j => j.job_id === m.job_post_id);
-      const employer = employers?.find(e => e.user_id === m.employer_id);
-      return { ...m, job, employer };
-    });
+    const { data: jobs } = await supabase
+      .from("job")
+      .select("job_id, description, salary_range, employment_type, state, suburb_city, postcode, start_date, user_id")
+      .in("job_id", jobIds);
+
+    const merged = matchesData.map((m) => ({
+      job_post_id: m.job_post_id,
+      matched_at: m.matched_at,
+      employer: employers?.find((e) => e.user_id === m.employer_id) || null,
+      job: jobs?.find((j) => j.job_id === m.job_post_id) || null,
+    }));
 
     setMatches(merged);
   };
@@ -100,10 +98,9 @@ const WHVMatches: React.FC = () => {
   const fetchRecommendations = async () => {
     if (!whvId) return;
 
-    // Step 1: raw recommendations
-    const { data: rawRecs, error } = await supabase
+    const { data: recs, error } = await supabase
       .from("matching_score")
-      .select("job_id, match_score")
+      .select("*")
       .eq("whv_id", whvId)
       .order("match_score", { ascending: false })
       .limit(10);
@@ -112,29 +109,23 @@ const WHVMatches: React.FC = () => {
       console.error("Error fetching recommendations:", error);
       return;
     }
-    if (!rawRecs || rawRecs.length === 0) {
-      setRecommendations([]);
-      return;
-    }
+    if (!recs) return;
 
-    // Step 2: fetch jobs
-    const jobIds = rawRecs.map(r => r.job_id);
+    const jobIds = recs.map((r) => r.job_id);
     const { data: jobs } = await supabase
       .from("job")
-      .select("job_id, description, salary_range, employment_type, suburb_city, state, user_id")
+      .select("job_id, description, salary_range, employment_type, state, suburb_city, postcode, start_date, user_id")
       .in("job_id", jobIds);
 
-    // Step 3: fetch employers
-    const employerIds = jobs?.map(j => j.user_id) || [];
+    const employerIds = jobs?.map((j) => j.user_id) || [];
     const { data: employers } = await supabase
       .from("employer")
-      .select("user_id, company_name, profile_photo, suburb_city, state, tagline")
+      .select("user_id, company_name, tagline, profile_photo")
       .in("user_id", employerIds);
 
-    // Step 4: merge
-    const merged = rawRecs.map(r => {
-      const job = jobs?.find(j => j.job_id === r.job_id);
-      const employer = employers?.find(e => e.user_id === job?.user_id);
+    const merged = recs.map((r) => {
+      const job = jobs?.find((j) => j.job_id === r.job_id) || null;
+      const employer = job ? employers?.find((e) => e.user_id === job.user_id) || null : null;
       return { ...r, job, employer };
     });
 
@@ -166,36 +157,30 @@ const WHVMatches: React.FC = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex px-6 mt-2">
+            <div className="flex px-6 mt-4 mb-2">
               <button
-                className={`flex-1 py-3 rounded-full text-sm font-medium ${
-                  activeTab === "matches"
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-200 text-gray-700"
+                className={`flex-1 py-2 text-center rounded-full ${
+                  tab === "matches" ? "bg-orange-500 text-white font-semibold" : "bg-gray-200 text-gray-600"
                 }`}
-                onClick={() => setActiveTab("matches")}
+                onClick={() => setTab("matches")}
               >
                 Matches
               </button>
               <button
-                className={`flex-1 py-3 rounded-full text-sm font-medium ml-2 ${
-                  activeTab === "recommended"
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-200 text-gray-700"
+                className={`flex-1 py-2 text-center rounded-full ml-2 ${
+                  tab === "recommended" ? "bg-orange-500 text-white font-semibold" : "bg-gray-200 text-gray-600"
                 }`}
-                onClick={() => setActiveTab("recommended")}
+                onClick={() => setTab("recommended")}
               >
                 Top Recommended
               </button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 px-6 overflow-y-auto mt-4" style={{ paddingBottom: "100px" }}>
-              {activeTab === "matches" ? (
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+              {tab === "matches" ? (
                 matches.length === 0 ? (
-                  <div className="text-center text-gray-600 mt-10">
-                    <p>No employers found.</p>
-                  </div>
+                  <div className="text-center text-gray-600 mt-10">No employers found.</div>
                 ) : (
                   matches.map((m, idx) => (
                     <div
@@ -205,42 +190,27 @@ const WHVMatches: React.FC = () => {
                       <div className="flex items-start gap-4">
                         <img
                           src={m.employer?.profile_photo || "/placeholder.png"}
-                          alt={m.employer?.company_name}
+                          alt={m.employer?.company_name || "Employer"}
                           className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = "/placeholder.png";
-                          }}
                         />
                         <div className="flex-1 min-w-0">
                           <h2 className="text-xl font-bold text-gray-900">
                             {m.employer?.company_name || "Unknown Employer"}
                           </h2>
-                          <p className="text-sm text-gray-600">
-                            {m.employer?.tagline || "No tagline"}
-                          </p>
+                          <p className="text-sm text-gray-600">{m.job?.description || "No description"}</p>
                           <p className="text-sm text-gray-500">
-                            {m.employer?.suburb_city}, {m.employer?.state}
+                            {m.job?.suburb_city}, {m.job?.state}
                           </p>
-                          <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                            {m.job?.description || "No job description"}
+                          <p className="text-xs text-gray-400 mt-1">
+                            Matched on {new Date(m.matched_at).toLocaleDateString()}
                           </p>
-                          <div className="flex items-center gap-3 mt-4">
-                            <Button className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl">
-                              View Profile
-                            </Button>
-                            <button className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200">
-                              <Heart size={20} className="text-orange-500" />
-                            </button>
-                          </div>
                         </div>
                       </div>
                     </div>
                   ))
                 )
               ) : recommendations.length === 0 ? (
-                <div className="text-center text-gray-600 mt-10">
-                  <p>No recommendations found.</p>
-                </div>
+                <div className="text-center text-gray-600 mt-10">No recommendations found.</div>
               ) : (
                 recommendations.map((r, idx) => (
                   <div
@@ -250,41 +220,20 @@ const WHVMatches: React.FC = () => {
                     <div className="flex items-start gap-4">
                       <img
                         src={r.employer?.profile_photo || "/placeholder.png"}
-                        alt={r.employer?.company_name}
+                        alt={r.employer?.company_name || "Employer"}
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = "/placeholder.png";
-                        }}
                       />
                       <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-bold text-gray-900">
                           {r.employer?.company_name || "Unknown Employer"}
                         </h2>
-                        <p className="text-sm text-gray-600">
-                          {r.employer?.tagline || "No tagline"}
-                        </p>
+                        <p className="text-sm text-gray-600">{r.job?.description || "No description"}</p>
                         <p className="text-sm text-gray-500">
                           {r.job?.suburb_city}, {r.job?.state}
                         </p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                            {r.job?.employment_type || "Unknown type"}
-                          </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                            {r.job?.salary_range || "N/A"}
-                          </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded-full">
-                            {r.match_score}% Match
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                          {r.job?.description || "No job description"}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Match Score: {r.match_score.toFixed(2)}%
                         </p>
-                        <div className="flex items-center gap-3 mt-4">
-                          <Button className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl">
-                            View Job
-                          </Button>
-                        </div>
                       </div>
                     </div>
                   </div>
