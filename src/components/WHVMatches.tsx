@@ -49,7 +49,7 @@ const WHVMatches: React.FC = () => {
 
     const fetchMatches = async () => {
       // 1. get matched jobs for this WHV
-      const { data: matchRows, error } = await supabase
+      const { data: matchRows, error } = await (supabase as any)
         .from("matches")
         .select("job_id")
         .eq("whv_id", whvId)
@@ -126,7 +126,7 @@ const WHVMatches: React.FC = () => {
     if (!whvId) return;
 
     const fetchTopRecommended = async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("vw_maker_match_scores_top10") // ⚡ use the view you confirmed exists
         .select("*")
         .eq("maker_id", whvId)

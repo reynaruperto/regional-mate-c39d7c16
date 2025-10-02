@@ -108,7 +108,7 @@ const WHVMatches: React.FC = () => {
     if (!whvId) return;
 
     const fetchTopRecommended = async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("vw_maker_match_scores_top10") // <-- your view
         .select("*")
         .eq("maker_id", whvId)
