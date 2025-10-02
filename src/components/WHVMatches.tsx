@@ -24,7 +24,7 @@ interface Job {
   suburb_city?: string;
   state?: string;
   postcode?: string;
-  user_id: string; // employer reference
+  user_id: string;
 }
 
 interface Match {
@@ -55,7 +55,7 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ fetch matches manually
+  // ✅ fetch matches
   const fetchMatches = async () => {
     if (!whvId) return;
 
@@ -69,36 +69,35 @@ const WHVMatches: React.FC = () => {
       console.error("Error fetching matches:", error);
       return;
     }
-
     if (!matchRows?.length) {
       setMatches([]);
       return;
     }
 
-    const employerIds = [...new Set(matchRows.map((m) => m.employer_id))];
-    const jobIds = [...new Set(matchRows.map((m) => m.job_post_id))];
-
-    const { data: employers } = await supabase
-      .from("employer")
-      .select("user_id, company_name, tagline, suburb_city, state, postcode, profile_photo")
-      .in("user_id", employerIds);
+    const jobIds = matchRows.map((m) => m.job_post_id);
+    const employerIds = matchRows.map((m) => m.employer_id);
 
     const { data: jobs } = await supabase
       .from("job")
       .select("job_id, description, salary_range, employment_type, start_date, suburb_city, state, postcode, user_id")
       .in("job_id", jobIds);
 
+    const { data: employers } = await supabase
+      .from("employer")
+      .select("user_id, company_name, tagline, suburb_city, state, postcode, profile_photo")
+      .in("user_id", employerIds);
+
     const mapped = matchRows.map((m) => ({
       job_post_id: m.job_post_id,
       matched_at: m.matched_at,
-      employer: employers?.find((e) => e.user_id === m.employer_id) || null,
       job: jobs?.find((j) => j.job_id === m.job_post_id) || null,
+      employer: employers?.find((e) => e.user_id === m.employer_id) || null,
     }));
 
-    setMatches(mapped);
+    setMatches(mapped as Match[]);
   };
 
-  // ✅ fetch recommendations manually
+  // ✅ fetch recommendations
   const fetchRecommendations = async () => {
     if (!whvId) return;
 
@@ -113,19 +112,20 @@ const WHVMatches: React.FC = () => {
       console.error("Error fetching recommendations:", error);
       return;
     }
-
     if (!recRows?.length) {
       setRecommendations([]);
       return;
     }
 
     const jobIds = recRows.map((r) => r.job_id);
+
     const { data: jobs } = await supabase
       .from("job")
       .select("job_id, description, salary_range, employment_type, start_date, suburb_city, state, postcode, user_id")
       .in("job_id", jobIds);
 
     const employerIds = jobs?.map((j) => j.user_id) || [];
+
     const { data: employers } = await supabase
       .from("employer")
       .select("user_id, company_name, tagline, profile_photo")
@@ -137,10 +137,9 @@ const WHVMatches: React.FC = () => {
       return { ...r, job: job ? { ...job, employer } : null };
     });
 
-    setRecommendations(mapped);
+    setRecommendations(mapped as Recommendation[]);
   };
 
-  // ✅ load data on tab change
   useEffect(() => {
     if (tab === "matches") {
       fetchMatches();
@@ -153,12 +152,15 @@ const WHVMatches: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
+          
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
             <Button variant="ghost" size="icon" className="w-12 h-12 bg-white rounded-xl shadow-sm">
               <ArrowLeft className="w-6 h-6 text-gray-700" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">Explore Matches & Top Recommended Employers</h1>
+            <h1 className="text-lg font-semibold text-gray-900">
+              Explore Matches & Top Recommended Employers
+            </h1>
           </div>
 
           {/* Tabs */}
@@ -196,9 +198,13 @@ const WHVMatches: React.FC = () => {
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
                       />
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold text-gray-900">{m.employer?.company_name}</h2>
+                        <h2 className="text-lg font-bold text-gray-900">
+                          {m.employer?.company_name}
+                        </h2>
                         <p className="text-sm text-gray-600">{m.job?.description}</p>
-                        <p className="text-xs text-gray-500">{m.job?.suburb_city}, {m.job?.state}</p>
+                        <p className="text-xs text-gray-500">
+                          {m.job?.suburb_city}, {m.job?.state}
+                        </p>
                         <Button className="mt-3 w-full bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl">
                           View Full Profile
                         </Button>
@@ -219,9 +225,13 @@ const WHVMatches: React.FC = () => {
                       className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
                     />
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-lg font-bold text-gray-900">{r.job?.employer?.company_name}</h2>
+                      <h2 className="text-lg font-bold text-gray-900">
+                        {r.job?.employer?.company_name}
+                      </h2>
                       <p className="text-sm text-gray-600">{r.job?.description}</p>
-                      <p className="text-xs text-gray-500">{r.job?.suburb_city}, {r.job?.state}</p>
+                      <p className="text-xs text-gray-500">
+                        {r.job?.suburb_city}, {r.job?.state}
+                      </p>
                       <span className="block mt-2 text-sm font-semibold text-orange-600">
                         Match Score: {r.match_score}%
                       </span>
@@ -243,3 +253,4 @@ const WHVMatches: React.FC = () => {
 };
 
 export default WHVMatches;
+
