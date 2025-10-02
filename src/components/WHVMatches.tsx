@@ -1,285 +1,240 @@
+// src/components/WHVMatches.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import BottomNavigation from "@/components/BottomNavigation";
-import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MatchEmployer {
   id: string;
   name: string;
-  country: string;
-  location: string;
-  availability: string;
+  tagline?: string;
   profileImage: string;
+  location: string;
+  jobTitle?: string;
+  salary?: string;
+  startDate?: string;
   isMutualMatch?: boolean;
   matchPercentage?: number;
 }
 
 const WHVMatches: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
-  const [showLikeModal, setShowLikeModal] = useState(false);
-  const [likedEmployerName, setLikedEmployerName] = useState("");
+  const [activeTab, setActiveTab] = useState<"matches" | "recommended">("matches");
   const [matches, setMatches] = useState<MatchEmployer[]>([]);
-  const [topRecommended, setTopRecommended] = useState<MatchEmployer[]>([]);
+  const [recommended, setRecommended] = useState<MatchEmployer[]>([]);
 
-  const [whvId, setWhvId] = useState<string | null>(null);
+  // --------------------
+  // Fetch Matches (mutual likes)
+  // --------------------
+  const fetchMatches = async (whvId: string) => {
+    const { data, error } = await supabase
+      .from("matches")
+      .select(`
+        job_post_id,
+        matched_at,
+        employer:employer_id (
+          user_id,
+          company_name,
+          tagline,
+          suburb_city,
+          state,
+          postcode,
+          profile_photo
+        ),
+        job:job_post_id (
+          job_id,
+          description,
+          salary_range,
+          employment_type,
+          start_date,
+          suburb_city,
+          state,
+          postcode
+        )
+      `)
+      .eq("whv_id", whvId)
+      .not("matched_at", "is", null);
 
-  // ✅ Load logged-in WHV user
+    if (error) {
+      console.error("Error fetching matches:", error);
+      return [];
+    }
+
+    return (
+      data?.map((m: any) => ({
+        id: m.employer?.user_id,
+        name: m.employer?.company_name || "Employer",
+        tagline: m.employer?.tagline,
+        profileImage: m.employer?.profile_photo || "/placeholder.png",
+        location: `${m.employer?.suburb_city ?? ""}, ${m.employer?.state ?? ""} ${m.employer?.postcode ?? ""}`,
+        jobTitle: m.job?.description,
+        salary: m.job?.salary_range,
+        startDate: m.job?.start_date,
+        isMutualMatch: true,
+      })) ?? []
+    );
+  };
+
+  // --------------------
+  // Fetch Recommendations (Top Recommended)
+  // --------------------
+  const fetchRecommendations = async (whvId: string) => {
+    const { data, error } = await supabase
+      .from("matching_score")
+      .select(`
+        job_id,
+        match_score,
+        job:job_id (
+          job_id,
+          description,
+          salary_range,
+          employment_type,
+          start_date,
+          suburb_city,
+          state,
+          postcode
+        ),
+        employer:employer_id (
+          user_id,
+          company_name,
+          tagline,
+          profile_photo
+        )
+      `)
+      .eq("whv_id", whvId)
+      .order("match_score", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.error("Error fetching recommendations:", error);
+      return [];
+    }
+
+    return (
+      data?.map((m: any) => ({
+        id: m.employer?.user_id,
+        name: m.employer?.company_name || "Employer",
+        tagline: m.employer?.tagline,
+        profileImage: m.employer?.profile_photo || "/placeholder.png",
+        location: `${m.job?.suburb_city ?? ""}, ${m.job?.state ?? ""} ${m.job?.postcode ?? ""}`,
+        jobTitle: m.job?.description,
+        salary: m.job?.salary_range,
+        startDate: m.job?.start_date,
+        matchPercentage: m.match_score,
+      })) ?? []
+    );
+  };
+
+  // --------------------
+  // Load Data on Mount
+  // --------------------
   useEffect(() => {
-    const getUser = async () => {
+    const loadData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setWhvId(user.id);
+      if (!user) return;
+
+      const matchesData = await fetchMatches(user.id);
+      const recommendedData = await fetchRecommendations(user.id);
+
+      setMatches(matchesData);
+      setRecommended(recommendedData);
     };
-    getUser();
+
+    loadData();
   }, []);
 
-  // ✅ Fetch Matches
-  useEffect(() => {
-    if (!whvId) return;
-
-    const fetchMatches = async () => {
-      let { data, error } = await supabase
-        .from("matches")
-        .select(`
-          job_post_id,
-          matched_at,
-          employer:employer_id (
-            user_id,
-            company_name,
-            state,
-            suburb_city,
-            postcode,
-            start_date,
-            profile_photo
-          )
-        `)
-        .eq("whv_id", whvId)
-        .not("matched_at", "is", null);
-
-      if (error) {
-        console.error("Error fetching matches:", error);
-        return;
-      }
-
-      // Map results
-      const formatted =
-        data?.map((m: any) => ({
-          id: m.employer?.user_id,
-          name: m.employer?.company_name || "Employer",
-          country: "Australia",
-          profileImage: m.employer?.profile_photo || "/placeholder.png",
-          location: `${m.employer?.suburb_city}, ${m.employer?.state} ${m.employer?.postcode}`,
-          availability: m.employer?.start_date
-            ? `Start Date ${m.employer.start_date}`
-            : "No availability info",
-          isMutualMatch: true,
-        })) ?? [];
-
-      setMatches(formatted);
-    };
-
-    fetchMatches();
-  }, [whvId]);
-
-  // ✅ Fetch Top Recommended
-  useEffect(() => {
-    if (!whvId) return;
-
-    const fetchTopRecommended = async () => {
-      let { data, error } = await supabase
-        .from("matching_score")
-        .select(`
-          job_id,
-          match_score,
-          employer:job_id (
-            user_id,
-            company_name,
-            state,
-            suburb_city,
-            postcode,
-            start_date,
-            profile_photo
-          )
-        `)
-        .eq("whv_id", whvId)
-        .order("match_score", { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error("Error fetching recommendations:", error);
-        return;
-      }
-
-      const formatted =
-        data?.map((r: any) => ({
-          id: r.employer?.user_id,
-          name: r.employer?.company_name,
-          country: "Australia",
-          profileImage: r.employer?.profile_photo || "/placeholder.png",
-          location: `${r.employer?.suburb_city}, ${r.employer?.state} ${r.employer?.postcode}`,
-          availability: r.employer?.start_date
-            ? `Start Date ${r.employer.start_date}`
-            : "No availability info",
-          matchPercentage: Math.round(r.match_score),
-        })) ?? [];
-
-      setTopRecommended(formatted);
-    };
-
-    fetchTopRecommended();
-  }, [whvId]);
-
-  const handleViewProfile = (employerId: string, isMutualMatch?: boolean) => {
-    const route = isMutualMatch
-      ? `/whv/employer/full-profile/${employerId}`
-      : `/whv/employer/profile/${employerId}`;
-    navigate(`${route}?from=whv-matches&tab=${activeTab}`);
-  };
-
-  const handleLikeEmployer = async (employer: MatchEmployer) => {
-    setLikedEmployerName(employer.name);
-    setShowLikeModal(true);
-
-    const { error } = await supabase.from("likes").insert([{
-      liker_id: whvId,
-      liker_type: "whv",
-      liked_job_post_id: parseInt(employer.id),
-    }]);
-
-    if (error) console.error("Error liking employer:", error);
-  };
-
-  const handleCloseLikeModal = () => {
-    setShowLikeModal(false);
-    setLikedEmployerName("");
-  };
-
-  const currentEmployers = activeTab === "matches" ? matches : topRecommended;
-
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
-          {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-4 mb-4"></div>
-
-          {/* Header */}
-          <div className="px-4 py-3 border-b bg-white flex items-center gap-3">
-            <button onClick={() => navigate("/whv/dashboard")}>
-              <ArrowLeft size={24} className="text-gray-600" />
-            </button>
-            <h1 className="text-sm font-medium text-gray-700 flex-1 text-center">
-              Explore Matches & Top Recommended Employers
-            </h1>
-          </div>
-
-          {/* Tabs */}
-          <div className="px-4 py-4">
-            <div className="flex bg-gray-100 rounded-full p-1">
-              <button
-                onClick={() => setActiveTab("matches")}
-                className={`flex-1 py-2 px-4 rounded-full text-sm font-medium ${
-                  activeTab === "matches"
-                    ? "bg-orange-500 text-white"
-                    : "text-gray-600 hover:text-gray-800"
-                }`}
-              >
-                Matches
-              </button>
-              <button
-                onClick={() => setActiveTab("topRecommended")}
-                className={`flex-1 py-2 px-4 rounded-full text-sm font-medium ${
-                  activeTab === "topRecommended"
-                    ? "bg-orange-500 text-white"
-                    : "text-gray-600 hover:text-gray-800"
-                }`}
-              >
-                Top Recommended
-              </button>
-            </div>
-          </div>
-
-          {/* Employer List */}
-          <div className="flex-1 overflow-y-auto px-4 pb-20 space-y-4">
-            {currentEmployers.length === 0 ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>
-                  {activeTab === "matches"
-                    ? "No employers found."
-                    : "No recommendations available."}
-                </p>
-              </div>
-            ) : (
-              currentEmployers.map((e) => (
-                <div
-                  key={e.id}
-                  className="bg-white p-4 rounded-2xl shadow-sm border"
-                >
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={e.profileImage}
-                      alt={e.name}
-                      className="w-16 h-16 rounded-lg object-cover"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900">{e.name}</h3>
-                      <p className="text-sm text-gray-600">{e.country}</p>
-                      <p className="text-sm text-gray-600">{e.location}</p>
-                      <p className="text-sm text-gray-600">{e.availability}</p>
-
-                      <div className="flex items-center gap-2 mt-3">
-                        <Button
-                          onClick={() =>
-                            handleViewProfile(e.id, e.isMutualMatch)
-                          }
-                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm h-10 rounded-full"
-                        >
-                          {e.isMutualMatch ? "View Full Profile" : "View Profile"}
-                        </Button>
-                        {!e.isMutualMatch && (
-                          <button
-                            onClick={() => handleLikeEmployer(e)}
-                            className="h-10 w-10 bg-orange-500 rounded-lg flex items-center justify-center hover:bg-orange-600"
-                          >
-                            <Heart size={16} className="text-white" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {!e.isMutualMatch && e.matchPercentage && (
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-lg font-bold text-orange-500">
-                          {e.matchPercentage}%
-                        </div>
-                        <div className="text-xs font-semibold text-orange-500">
-                          Match
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Bottom Navigation */}
-          <div className="bg-white border-t rounded-b-[48px] flex-shrink-0">
-            <BottomNavigation />
-          </div>
-
-          {/* Like Modal */}
-          <LikeConfirmationModal
-            candidateName={likedEmployerName}
-            onClose={handleCloseLikeModal}
-            isVisible={showLikeModal}
-          />
-        </div>
+    <div className="flex flex-col h-screen">
+      {/* Header */}
+      <div className="flex items-center p-4 border-b">
+        <ArrowLeft className="mr-2" onClick={() => navigate(-1)} />
+        <h1 className="text-lg font-semibold">
+          Explore Matches & Top Recommended Employers
+        </h1>
       </div>
+
+      {/* Tabs */}
+      <div className="flex justify-center mt-2 mb-4">
+        <Button
+          variant={activeTab === "matches" ? "default" : "outline"}
+          onClick={() => setActiveTab("matches")}
+          className="w-1/2"
+        >
+          Matches
+        </Button>
+        <Button
+          variant={activeTab === "recommended" ? "default" : "outline"}
+          onClick={() => setActiveTab("recommended")}
+          className="w-1/2"
+        >
+          Top Recommended
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {activeTab === "matches" &&
+          (matches.length > 0 ? (
+            matches.map((emp) => (
+              <div
+                key={emp.id}
+                className="p-4 mb-4 border rounded-lg shadow-sm flex items-center"
+              >
+                <img
+                  src={emp.profileImage}
+                  alt={emp.name}
+                  className="w-12 h-12 rounded-full mr-4"
+                />
+                <div className="flex-1">
+                  <h2 className="font-semibold">{emp.name}</h2>
+                  <p className="text-sm text-gray-500">{emp.tagline}</p>
+                  <p className="text-sm">{emp.jobTitle}</p>
+                  <p className="text-xs text-gray-400">{emp.location}</p>
+                </div>
+                <Button onClick={() => navigate(`/employer/${emp.id}`)}>
+                  View Full Profile
+                </Button>
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-gray-500">No employers found.</p>
+          ))}
+
+        {activeTab === "recommended" &&
+          (recommended.length > 0 ? (
+            recommended.map((emp) => (
+              <div
+                key={emp.id}
+                className="p-4 mb-4 border rounded-lg shadow-sm flex items-center"
+              >
+                <img
+                  src={emp.profileImage}
+                  alt={emp.name}
+                  className="w-12 h-12 rounded-full mr-4"
+                />
+                <div className="flex-1">
+                  <h2 className="font-semibold">{emp.name}</h2>
+                  <p className="text-sm text-gray-500">{emp.tagline}</p>
+                  <p className="text-sm">{emp.jobTitle}</p>
+                  <p className="text-xs text-gray-400">{emp.location}</p>
+                  {emp.matchPercentage !== undefined && (
+                    <p className="text-xs font-medium text-green-600">
+                      Match Score: {emp.matchPercentage}%
+                    </p>
+                  )}
+                </div>
+                <Heart className="text-red-500" />
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-gray-500">No recommendations found.</p>
+          ))}
+      </div>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation />
     </div>
   );
 };
