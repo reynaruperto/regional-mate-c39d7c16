@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 interface MatchEmployer {
   id: string;
   name: string;
-  country: string;
   location: string;
   availability: string;
   profileImage: string;
@@ -26,64 +25,69 @@ const WHVMatches: React.FC = () => {
   const [likedEmployerName, setLikedEmployerName] = useState("");
   const [matches, setMatches] = useState<MatchEmployer[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchEmployer[]>([]);
-  const whvId = "CURRENT_WHV_UUID"; // TODO: replace with logged-in WHV id
+  const [whvId, setWhvId] = useState<string | null>(null);
 
-  // Handle tab switching via URL
+  // ✅ Get logged-in WHV ID
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const tab = urlParams.get("tab");
-    if (tab === "matches" || tab === "topRecommended") {
-      setActiveTab(tab as "matches" | "topRecommended");
-    }
-  }, [location.search]);
-
-  // ✅ Fetch mutual matches
-  useEffect(() => {
-    const fetchMatches = async () => {
-      const { data, error } = await supabase
-        .from("matches")
-        .select(
-          `
-          job_post_id,
-          matched_at,
-          employer:employers (
-            user_id,
-            company_name,
-            state,
-            suburb_city,
-            postcode,
-            start_date,
-            profile_photo
-          )
-        `
-        )
-        .eq("whv_id", whvId)
-        .not("matched_at", "is", null);
-
-      if (error) {
-        console.error("Error fetching matches:", error);
-        return;
-      }
-
-      const formatted =
-        data?.map((m: any) => ({
-          id: m.employer?.user_id,
-          name: m.employer?.company_name,
-          country: "Australia",
-          profileImage: m.employer?.profile_photo,
-          location: `${m.employer?.suburb_city}, ${m.employer?.state} ${m.employer?.postcode}`,
-          availability: `Start Date ${m.employer?.start_date}`,
-          isMutualMatch: true,
-        })) ?? [];
-
-      setMatches(formatted);
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setWhvId(user.id);
     };
+    getUser();
+  }, []);
 
-    fetchMatches();
+  // ✅ Fetch Matches (with employer expansion)
+  const fetchMatches = async (whvId: string) => {
+    const { data, error } = await supabase
+      .from("matches")
+      .select(`
+        job_post_id,
+        matched_at,
+        employer:employer (
+          user_id,
+          company_name,
+          state,
+          suburb_city,
+          postcode,
+          start_date,
+          profile_photo
+        )
+      `)
+      .eq("whv_id", whvId)
+      .not("matched_at", "is", null);
+
+    if (error) {
+      console.error("Error fetching matches:", error);
+      return [];
+    }
+
+    return (
+      data?.map((m: any) => ({
+        id: m.employer?.user_id,
+        name: m.employer?.company_name || "Employer",
+        profileImage: m.employer?.profile_photo || "/placeholder.png",
+        location: `${m.employer?.suburb_city}, ${m.employer?.state} ${m.employer?.postcode}`,
+        availability: m.employer?.start_date
+          ? `Start Date ${m.employer.start_date}`
+          : "No availability info",
+        isMutualMatch: true,
+      })) ?? []
+    );
+  };
+
+  // ✅ Load matches when WHV ID is ready
+  useEffect(() => {
+    if (!whvId) return;
+    const loadMatches = async () => {
+      const matchesData = await fetchMatches(whvId);
+      setMatches(matchesData);
+    };
+    loadMatches();
   }, [whvId]);
 
-  // ✅ Fetch top recommended
+  // ✅ Fetch top recommended (stub for now)
   useEffect(() => {
+    if (!whvId) return;
     const fetchTopRecommended = async () => {
       const { data, error } = await supabase
         .from("matching_score")
@@ -91,7 +95,7 @@ const WHVMatches: React.FC = () => {
           `
           job_id,
           match_score,
-          employer:employers (
+          employer:employer (
             user_id,
             company_name,
             state,
@@ -115,7 +119,6 @@ const WHVMatches: React.FC = () => {
         data?.map((r: any) => ({
           id: r.employer?.user_id,
           name: r.employer?.company_name,
-          country: "Australia",
           profileImage: r.employer?.profile_photo,
           location: `${r.employer?.suburb_city}, ${r.employer?.state} ${r.employer?.postcode}`,
           availability: `Start Date ${r.employer?.start_date}`,
@@ -143,7 +146,9 @@ const WHVMatches: React.FC = () => {
       {
         liker_id: whvId,
         liker_type: "whv",
-        liked_job_post_id: parseInt(employer.id), // ⚠️ confirm employer.id maps to job_post_id
+        liked_whv_id: null,
+        liked_job_post_id: null,
+        liked_employer_id: employer.id,
       },
     ]);
 
