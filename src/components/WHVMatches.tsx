@@ -1,49 +1,39 @@
-// src/components/WHVMatches.tsx
+// src/pages/WHVMatches.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import BottomNavigation from "@/components/BottomNavigation";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 
-interface MatchCard {
-  emp_id: string;
+interface MatchEmployer {
   job_id: number;
-  company: string;
-  tagline: string;
-  profile_photo: string;
+  id: string; // employer id
   role: string;
+  company: string;
+  industry: string;
+  location: string;
   salary_range: string;
   employment_type: string;
-  description: string;
-  match_score?: number;
-  isLiked?: boolean;
+  description?: string;
+  profileImage: string;
   isMutualMatch?: boolean;
-}
-
-interface RecommendedJobRow {
-  emp_id: string;
-  job_id: number;
-  company: string;
-  profile_photo: string;
-  role: string;
-  salary_range: string;
-  employment_type: string;
-  description: string;
-  match_score: number;
+  matchPercentage?: number;
+  isLiked?: boolean;
 }
 
 const WHVMatches: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
-  const [matches, setMatches] = useState<MatchCard[]>([]);
-  const [recommended, setRecommended] = useState<MatchCard[]>([]);
-  const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobTitle, setLikedJobTitle] = useState("");
+  const [matches, setMatches] = useState<MatchEmployer[]>([]);
+  const [topRecommended, setTopRecommended] = useState<MatchEmployer[]>([]);
+  const [whvId, setWhvId] = useState<string | null>(null);
 
-  // ✅ Get logged-in WHV user
+  // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -52,163 +42,131 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch mutual matches
+  // ✅ Fix Supabase storage image URL
+  const getPhotoUrl = (path: string | null) => {
+    if (!path) return "/placeholder.png";
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/profile_photos/${path}`;
+  };
+
+  // ✅ Fetch Matches
   useEffect(() => {
     if (!whvId) return;
-
     const fetchMatches = async () => {
-      // First, fetch matches with just the IDs
-      const { data: matchesData, error: matchesError } = await supabase
+      const { data, error } = await supabase
         .from("matches")
-        .select("whv_id, job_post_id, employer_id, matched_at")
-        .eq("whv_id", whvId);
+        .select(`
+          job_id,
+          matched_at,
+          job:job (
+            job_id,
+            role,
+            industry,
+            salary_range,
+            employment_type,
+            description,
+            state,
+            suburb_city,
+            postcode,
+            employer:employer (
+              user_id,
+              company_name,
+              profile_photo
+            )
+          )
+        `)
+        .eq("whv_id", whvId)
+        .not("matched_at", "is", null);
 
-      if (matchesError) {
-        console.error("❌ Error fetching matches:", matchesError);
+      if (error) {
+        console.error("Error fetching matches:", error);
         return;
       }
 
-      if (!matchesData || matchesData.length === 0) {
-        setMatches([]);
-        return;
-      }
-
-      // Fetch employer and job details separately
-      const formatted: MatchCard[] = [];
-
-      for (const match of matchesData) {
-        // Fetch employer details
-        const { data: employerData } = await supabase
-          .from("employer")
-          .select("user_id, company_name, tagline, profile_photo")
-          .eq("user_id", match.employer_id)
-          .single();
-
-        // Fetch job details using job_post_id
-        const { data: jobData } = await supabase
-          .from("job")
-          .select("job_id, industry_role_id, salary_range, employment_type, description")
-          .eq("job_id", match.job_post_id)
-          .single();
-
-        // Fetch role name from industry_role
-        let roleName = "Unknown Role";
-        if (jobData?.industry_role_id) {
-          const { data: roleData } = await supabase
-            .from("industry_role")
-            .select("role")
-            .eq("industry_role_id", jobData.industry_role_id)
-            .single();
-          
-          if (roleData) {
-            roleName = roleData.role;
-          }
-        }
-
-        formatted.push({
-          emp_id: match.employer_id,
-          job_id: match.job_post_id,
-          company: employerData?.company_name || "Unknown Employer",
-          tagline: employerData?.tagline || "",
-          profile_photo: employerData?.profile_photo || "/placeholder.png",
-          role: roleName,
-          salary_range: jobData?.salary_range || "N/A",
-          employment_type: jobData?.employment_type || "N/A",
-          description: jobData?.description || "",
+      const formatted =
+        data?.map((m: any) => ({
+          job_id: m.job?.job_id,
+          id: m.job?.employer?.user_id,
+          role: m.job?.role,
+          company: m.job?.employer?.company_name,
+          industry: m.job?.industry,
+          location: `${m.job?.suburb_city}, ${m.job?.state} ${m.job?.postcode}`,
+          salary_range: m.job?.salary_range,
+          employment_type: m.job?.employment_type,
+          description: m.job?.description,
+          profileImage: getPhotoUrl(m.job?.employer?.profile_photo),
           isMutualMatch: true,
-        });
-      }
+        })) ?? [];
 
-      // Remove duplicates by job_id
-      const unique = Array.from(new Map(formatted.map(f => [f.job_id, f])).values());
-      setMatches(unique);
+      setMatches(formatted);
     };
 
     fetchMatches();
   }, [whvId]);
 
-  // ✅ Fetch top recommended
+  // ✅ Fetch Top Recommended
   useEffect(() => {
     if (!whvId) return;
-
-    const fetchRecommended = async () => {
-      const { data, error } = await (supabase as any)
-        .from("vw_maker_match_scores")
+    const fetchTopRecommended = async () => {
+      const { data, error } = await supabase
+        .from("vw_maker_match_scores_top10") // view you showed earlier
         .select("*")
         .eq("maker_id", whvId)
-        .order("match_score", { ascending: false })
-        .limit(10);
+        .order("match_score", { ascending: false });
 
       if (error) {
-        console.error("❌ Error fetching recommendations:", error);
+        console.error("Error fetching recommendations:", error);
         return;
       }
 
-      const formatted: MatchCard[] = ((data as any) || []).map((r: any) => ({
-        emp_id: r.emp_id,
-        job_id: r.job_id,
-        company: r.company || "Unknown Employer",
-        tagline: "",
-        profile_photo: r.profile_photo || "/placeholder.png",
-        role: r.role || "Unknown Role",
-        salary_range: r.salary_range || "N/A",
-        employment_type: r.employment_type || "N/A",
-        description: r.description || "",
-        match_score: r.match_score,
-      }));
+      const formatted =
+        data?.map((r: any) => ({
+          job_id: r.job_id,
+          id: r.emp_id,
+          role: r.role,
+          company: r.company,
+          industry: r.industry,
+          location: r.location,
+          salary_range: r.salary_range,
+          employment_type: r.employment_type,
+          description: r.description,
+          profileImage: getPhotoUrl(r.profile_photo),
+          matchPercentage: Math.round(r.match_score),
+        })) ?? [];
 
-      // sort highest score first
-      const sorted = formatted.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
-      setRecommended(sorted);
+      setTopRecommended(formatted);
     };
 
-    fetchRecommended();
+    fetchTopRecommended();
   }, [whvId]);
 
-  // ✅ Like/unlike
-  const handleLikeJob = async (jobId: number, jobRole: string) => {
+  // ✅ Like / Unlike
+  const handleLikeJob = async (jobId: number, role: string) => {
     if (!whvId) return;
-
-    const job = [...matches, ...recommended].find((j) => j.job_id === jobId);
-    if (!job) return;
-
     try {
-      if (job.isLiked) {
-        await supabase
-          .from("likes")
-          .delete()
-          .eq("liker_id", whvId)
-          .eq("liker_type", "whv")
-          .eq("liked_job_post_id", jobId);
-
-        setMatches((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
-        setRecommended((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
-      } else {
-        await supabase.from("likes").insert({
-          liker_id: whvId,
-          liker_type: "whv",
-          liked_job_post_id: jobId,
-        });
-
-        setMatches((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
-        setRecommended((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
-
-        setLikedJobTitle(jobRole);
-        setShowLikeModal(true);
-      }
+      await supabase.from("likes").insert({
+        liker_id: whvId,
+        liker_type: "whv",
+        liked_job_post_id: jobId,
+      });
+      setLikedJobTitle(role);
+      setShowLikeModal(true);
     } catch (err) {
-      console.error("❌ Error toggling like:", err);
+      console.error("Error liking job:", err);
     }
   };
 
-  const currentList = activeTab === "matches" ? matches : recommended;
+  const handleCloseLikeModal = () => {
+    setShowLikeModal(false);
+    setLikedJobTitle("");
+  };
+
+  const currentEmployers = activeTab === "matches" ? matches : topRecommended;
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="flex flex-col h-full bg-gray-50">
-            
             {/* Header */}
             <div className="px-6 pt-16 pb-2 flex items-center">
               <Button
@@ -219,48 +177,48 @@ const WHVMatches: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">
-                Explore Matches & Top Recommended
-              </h1>
+              <h1 className="text-lg font-semibold text-gray-900">Explore Matches</h1>
             </div>
 
             {/* Tabs */}
-            <div className="flex px-6 mb-4">
-              <button
+            <div className="px-6 mt-2 flex gap-2">
+              <Button
                 onClick={() => setActiveTab("matches")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "matches" ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-700"
+                className={`flex-1 h-10 rounded-full text-sm font-medium ${
+                  activeTab === "matches"
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-200 text-gray-700"
                 }`}
               >
                 Matches
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setActiveTab("topRecommended")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
+                className={`flex-1 h-10 rounded-full text-sm font-medium ${
                   activeTab === "topRecommended"
                     ? "bg-orange-500 text-white"
                     : "bg-gray-200 text-gray-700"
                 }`}
               >
                 Top Recommended
-              </button>
+              </Button>
             </div>
 
             {/* Cards */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-              {currentList.length === 0 ? (
+              {currentEmployers.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
                   <p>No employers found.</p>
                 </div>
               ) : (
-                currentList.map((job) => (
+                currentEmployers.map((job) => (
                   <div
                     key={job.job_id}
-                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4 relative"
                   >
                     <div className="flex items-start gap-4">
                       <img
-                        src={job.profile_photo}
+                        src={job.profileImage}
                         alt={job.company}
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
                         onError={(e) => {
@@ -270,13 +228,22 @@ const WHVMatches: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-bold text-gray-900">{job.role}</h2>
                         <p className="text-sm text-gray-600">
-                          {job.company} • {job.employment_type}
+                          {job.company} • {job.industry}
                         </p>
-                        <p className="text-sm text-gray-500">{job.salary_range}</p>
+                        <p className="text-sm text-gray-500">{job.location}</p>
 
-                        {job.match_score && (
-                          <p className="text-sm text-orange-600 font-medium mt-1">
-                            Match Score: {job.match_score}%
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            {job.employment_type}
+                          </span>
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                            {job.salary_range}
+                          </span>
+                        </div>
+
+                        {job.isMutualMatch && (
+                          <p className="text-xs text-orange-500 font-medium mt-2">
+                            Mutual Match
                           </p>
                         )}
 
@@ -285,23 +252,25 @@ const WHVMatches: React.FC = () => {
                         </p>
 
                         <div className="flex items-center gap-3 mt-4">
-                          <Button
-                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                          >
-                            {job.isMutualMatch ? "View Full Profile" : "View Details"}
+                          <Button className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl">
+                            View Details
                           </Button>
                           <button
                             onClick={() => handleLikeJob(job.job_id, job.role)}
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
-                            <Heart
-                              size={20}
-                              className={job.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
-                            />
+                            <Heart size={20} className="text-orange-500" />
                           </button>
                         </div>
                       </div>
                     </div>
+
+                    {/* Match Score for Top Recommended */}
+                    {!job.isMutualMatch && job.matchPercentage && (
+                      <span className="absolute top-4 right-4 px-3 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">
+                        {job.matchPercentage}% Match
+                      </span>
+                    )}
                   </div>
                 ))
               )}
@@ -315,7 +284,7 @@ const WHVMatches: React.FC = () => {
             {/* Like Modal */}
             <LikeConfirmationModal
               candidateName={likedJobTitle}
-              onClose={() => setShowLikeModal(false)}
+              onClose={handleCloseLikeModal}
               isVisible={showLikeModal}
             />
           </div>
