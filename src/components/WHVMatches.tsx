@@ -30,16 +30,19 @@ const WHVMatches: React.FC = () => {
   const [topRecommended, setTopRecommended] = useState<MatchEmployer[]>([]);
   const [whvId, setWhvId] = useState<string | null>(null);
 
-  // Logged in WHV
+  // Get logged-in WHV
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setWhvId(user.id);
+      if (user) {
+        console.log("✅ Logged in user:", user.id);
+        setWhvId(user.id);
+      }
     };
     getUser();
   }, []);
 
-  // maintain tab from URL
+  // Tab sync with URL
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const tab = urlParams.get("tab");
@@ -58,6 +61,8 @@ const WHVMatches: React.FC = () => {
     if (!whvId) return;
 
     const fetchMatches = async () => {
+      console.log("🔍 Fetching matches for WHV:", whvId);
+
       const { data: matchRows, error } = await supabase
         .from("matches")
         .select("job_post_id, employer_id, matched_at")
@@ -65,27 +70,30 @@ const WHVMatches: React.FC = () => {
         .not("matched_at", "is", null);
 
       if (error) {
-        console.error("Error fetching matches:", error);
+        console.error("❌ Error fetching matches:", error);
         return;
       }
+      console.log("📦 Matches raw:", matchRows);
+
       if (!matchRows?.length) {
         setMatches([]);
         return;
       }
 
-      // Fetch related jobs
       const jobIds = [...new Set(matchRows.map((r) => r.job_post_id))];
+      const empIds = [...new Set(matchRows.map((r) => r.employer_id))];
+
       const { data: jobs } = await supabase
         .from("job")
         .select("job_id, start_date, user_id, suburb_city, state, postcode")
         .in("job_id", jobIds);
+      console.log("📦 Jobs for matches:", jobs);
 
-      // Fetch employers
-      const empIds = [...new Set(matchRows.map((r) => r.employer_id))];
       const { data: employers } = await supabase
         .from("employer")
         .select("user_id, company_name, profile_photo, suburb_city, state, postcode")
         .in("user_id", empIds);
+      console.log("📦 Employers for matches:", employers);
 
       const merged = matchRows.map((r) => {
         const job = jobs?.find((j) => j.job_id === r.job_post_id);
@@ -102,6 +110,7 @@ const WHVMatches: React.FC = () => {
         };
       });
 
+      console.log("✅ Final merged matches:", merged);
       setMatches(merged);
     };
 
@@ -113,6 +122,8 @@ const WHVMatches: React.FC = () => {
     if (!whvId) return;
 
     const fetchTopRecommended = async () => {
+      console.log("🔍 Fetching recommendations for WHV:", whvId);
+
       const { data: recRows, error } = await supabase
         .from("matching_score")
         .select("job_id, match_score")
@@ -121,9 +132,11 @@ const WHVMatches: React.FC = () => {
         .limit(10);
 
       if (error) {
-        console.error("Error fetching recommendations:", error);
+        console.error("❌ Error fetching recommendations:", error);
         return;
       }
+      console.log("📦 Raw recommendations:", recRows);
+
       if (!recRows?.length) {
         setTopRecommended([]);
         return;
@@ -134,12 +147,14 @@ const WHVMatches: React.FC = () => {
         .from("job")
         .select("job_id, user_id, start_date, suburb_city, state, postcode")
         .in("job_id", jobIds);
+      console.log("📦 Jobs for recommendations:", jobs);
 
       const empIds = jobs?.map((j) => j.user_id) || [];
       const { data: employers } = await supabase
         .from("employer")
         .select("user_id, company_name, profile_photo, suburb_city, state, postcode")
         .in("user_id", empIds);
+      console.log("📦 Employers for recommendations:", employers);
 
       const merged = recRows.map((r) => {
         const job = jobs?.find((j) => j.job_id === r.job_id);
@@ -156,6 +171,7 @@ const WHVMatches: React.FC = () => {
         };
       });
 
+      console.log("✅ Final merged recommendations:", merged);
       setTopRecommended(merged);
     };
 
@@ -190,7 +206,6 @@ const WHVMatches: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
-          {/* Dynamic Island */}
           <div className="w-32 h-6 bg-black rounded-full mx-auto mt-4 mb-4"></div>
 
           {/* Header */}
@@ -281,12 +296,10 @@ const WHVMatches: React.FC = () => {
             )}
           </div>
 
-          {/* Bottom Navigation */}
           <div className="bg-white border-t rounded-b-[48px] flex-shrink-0">
             <BottomNavigation />
           </div>
 
-          {/* Like Modal */}
           <LikeConfirmationModal
             candidateName={likedEmployerName}
             onClose={() => setShowLikeModal(false)}
