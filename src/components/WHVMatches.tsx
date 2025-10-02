@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 interface MatchEmployer {
   id: string;
   name: string;
-  skills?: string[];
   country: string;
   location: string;
   availability: string;
@@ -22,9 +21,7 @@ interface MatchEmployer {
 const WHVMatches: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">(
-    "matches"
-  );
+  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
   const [matches, setMatches] = useState<MatchEmployer[]>([]);
@@ -32,6 +29,7 @@ const WHVMatches: React.FC = () => {
 
   const whvId = "CURRENT_WHV_UUID"; // TODO: replace with logged-in WHV id
 
+  // Handle tab switching via URL
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const tab = urlParams.get("tab");
@@ -40,14 +38,13 @@ const WHVMatches: React.FC = () => {
     }
   }, [location.search]);
 
-  // Fetch mutual matches
+  // ✅ Fetch mutual matches from matches table
   useEffect(() => {
     const fetchMatches = async () => {
       const { data, error } = await supabase
         .from("matches")
         .select(
           `
-          employer_id,
           job_post_id,
           matched_at,
           employer:employers (
@@ -87,7 +84,7 @@ const WHVMatches: React.FC = () => {
     fetchMatches();
   }, [whvId]);
 
-  // Fetch top recommended employers
+  // ✅ Fetch top recommended from matching_score
   useEffect(() => {
     const fetchTopRecommended = async () => {
       const { data, error } = await supabase
@@ -145,12 +142,13 @@ const WHVMatches: React.FC = () => {
     setLikedEmployerName(employer.name);
     setShowLikeModal(true);
 
-    // Insert into likes
-    const { error } = await supabase.from("likes").insert([{
-      liker_id: whvId,
-      liker_type: "whv",
-      liked_job_post_id: parseInt(employer.id), // employer's job post id
-    }]);
+    const { error } = await supabase.from("likes").insert([
+      {
+        liker_id: whvId,
+        liker_type: "whv",
+        liked_job_post_id: parseInt(employer.id), // 👈 double-check this field
+      },
+    ]);
 
     if (error) console.error("Error liking employer:", error);
   };
@@ -208,10 +206,7 @@ const WHVMatches: React.FC = () => {
           {/* Employer List */}
           <div className="flex-1 overflow-y-auto px-4 pb-20 space-y-4">
             {currentEmployers.map((e) => (
-              <div
-                key={e.id}
-                className="bg-white p-4 rounded-2xl shadow-sm border"
-              >
+              <div key={e.id} className="bg-white p-4 rounded-2xl shadow-sm border">
                 <div className="flex items-start gap-3">
                   <img
                     src={e.profileImage}
@@ -220,20 +215,13 @@ const WHVMatches: React.FC = () => {
                   />
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900">{e.name}</h3>
-                    {e.skills && (
-                      <p className="text-sm text-gray-600">
-                        {e.skills.join(", ")}
-                      </p>
-                    )}
                     <p className="text-sm text-gray-600">{e.country}</p>
                     <p className="text-sm text-gray-600">{e.location}</p>
                     <p className="text-sm text-gray-600">{e.availability}</p>
 
                     <div className="flex items-center gap-2 mt-3">
                       <Button
-                        onClick={() =>
-                          handleViewProfile(e.id, e.isMutualMatch)
-                        }
+                        onClick={() => handleViewProfile(e.id, e.isMutualMatch)}
                         className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm h-10 rounded-full"
                       >
                         {e.isMutualMatch ? "View Full Profile" : "View Profile"}
