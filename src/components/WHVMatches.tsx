@@ -57,49 +57,71 @@ const WHVMatches: React.FC = () => {
     if (!whvId) return;
 
     const fetchMatches = async () => {
-      const { data, error } = await supabase
+      // First, fetch matches with just the IDs
+      const { data: matchesData, error: matchesError } = await supabase
         .from("matches")
-        .select(`
-          whv_id,
-          job_post_id,
-          matched_at,
-          employer:employer_id (
-            user_id,
-            company_name,
-            tagline,
-            profile_photo
-          ),
-          job:job_post_id (
-            job_id,
-            role,
-            salary_range,
-            employment_type,
-            description
-          )
-        `)
+        .select("whv_id, job_post_id, employer_id, matched_at")
         .eq("whv_id", whvId);
 
-      if (error) {
-        console.error("❌ Error fetching matches:", error);
+      if (matchesError) {
+        console.error("❌ Error fetching matches:", matchesError);
         return;
       }
 
-      const formatted: MatchCard[] = (data || []).map((m: any) => ({
-        emp_id: m.employer?.user_id,
-        job_id: m.job?.job_id,
-        company: m.employer?.company_name || "Unknown Employer",
-        tagline: m.employer?.tagline || "",
-        profile_photo: m.employer?.profile_photo || "/placeholder.png",
-        role: m.job?.role || "Unknown Role",
-        salary_range: m.job?.salary_range || "N/A",
-        employment_type: m.job?.employment_type || "N/A",
-        description: m.job?.description || "",
-        isMutualMatch: true,
-      }));
+      if (!matchesData || matchesData.length === 0) {
+        setMatches([]);
+        return;
+      }
 
-      // remove duplicates by job_id
+      // Fetch employer and job details separately
+      const formatted: MatchCard[] = [];
+
+      for (const match of matchesData) {
+        // Fetch employer details
+        const { data: employerData } = await supabase
+          .from("employer")
+          .select("user_id, company_name, tagline, profile_photo")
+          .eq("user_id", match.employer_id)
+          .single();
+
+        // Fetch job details using job_post_id
+        const { data: jobData } = await supabase
+          .from("job")
+          .select("job_id, industry_role_id, salary_range, employment_type, description")
+          .eq("job_id", match.job_post_id)
+          .single();
+
+        // Fetch role name from industry_role
+        let roleName = "Unknown Role";
+        if (jobData?.industry_role_id) {
+          const { data: roleData } = await supabase
+            .from("industry_role")
+            .select("role")
+            .eq("industry_role_id", jobData.industry_role_id)
+            .single();
+          
+          if (roleData) {
+            roleName = roleData.role;
+          }
+        }
+
+        formatted.push({
+          emp_id: match.employer_id,
+          job_id: match.job_post_id,
+          company: employerData?.company_name || "Unknown Employer",
+          tagline: employerData?.tagline || "",
+          profile_photo: employerData?.profile_photo || "/placeholder.png",
+          role: roleName,
+          salary_range: jobData?.salary_range || "N/A",
+          employment_type: jobData?.employment_type || "N/A",
+          description: jobData?.description || "",
+          isMutualMatch: true,
+        });
+      }
+
+      // Remove duplicates by job_id
       const unique = Array.from(new Map(formatted.map(f => [f.job_id, f])).values());
-      setMatches(unique as MatchCard[]);
+      setMatches(unique);
     };
 
     fetchMatches();
