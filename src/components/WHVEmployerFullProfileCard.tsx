@@ -1,308 +1,273 @@
-import React, { useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+// src/pages/WHVMatches.tsx
+import React, { useState, useEffect } from "react";
+import { ArrowLeft, Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate, useLocation } from "react-router-dom";
+import BottomNavigation from "@/components/BottomNavigation";
+import LikeConfirmationModal from "@/components/LikeConfirmationModal";
+import { supabase } from "@/integrations/supabase/client";
 
-interface EmployerFullProfile {
+interface MatchEmployer {
   id: string;
   name: string;
-  employerName: string;
-  description: string;
+  country: string;
   location: string;
-  industry: string;
-  rolesOffered: string[];
-  jobAvailability: string;
-  payBenefits: string;
-  facilities: string;
+  availability: string;
   profileImage: string;
-  contactEmail: string;
-  contactPhone: string;
-  companySize: string;
-  establishedYear: string;
-  certifications: string[];
-  workEnvironment: string;
-  // Job details
-  abn: string;
-  jobOpenings: {
-    title: string;
-    status: string;
-    period?: string;
-  }[];
-  visaAcceptance: string[];
-  experienceSkills: string[];
-  licenses: string[];
-  salary: {
-    hourlyRate: string;
-    overtimeRate: string;
-    inclusions: string[];
-  };
-  employmentType: string;
-  duration: string;
-  extensions: string;
+  isMutualMatch?: boolean;
+  matchPercentage?: number;
 }
 
-const WHVEmployerFullProfileCard: React.FC = () => {
+const WHVMatches: React.FC = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
   const [showLikeModal, setShowLikeModal] = useState(false);
+  const [likedEmployerName, setLikedEmployerName] = useState("");
+  const [matches, setMatches] = useState<MatchEmployer[]>([]);
+  const [topRecommended, setTopRecommended] = useState<MatchEmployer[]>([]);
+  const whvId = "CURRENT_WHV_UUID"; // TODO: replace with logged-in WHV id
 
-  // Mock employer data with full details for mutual matches
-  const employerProfiles: { [key: string]: EmployerFullProfile } = {
-    '4': {
-      id: '4',
-      name: 'Green Harvest Farms',
-      employerName: 'Sarah Mitchell',
-      description: 'Sustainable organic farm in northern NSW, specializing in diverse crop production and eco-friendly farming practices. We offer hands-on experience in modern sustainable agriculture with opportunities for skill development and organic certification training.',
-      location: 'Northrivers, NSW 2470',
-      industry: 'Agriculture & Farming',
-      rolesOffered: ['Farm Assistant', 'Organic Crop Technician', 'Equipment Operator', 'Quality Control Inspector'],
-      jobAvailability: 'Available from Aug 2025 - March 2026',
-      payBenefits: '$29/hour + super + organic produce allowance + overtime rates',
-      facilities: 'Shared accommodation on-farm, Meals provided, Equipment training, Transport to town weekly',
-      profileImage: '/lovable-uploads/a8da007e-b9f6-4996-9a54-c5cb294d1f4f.png',
-      contactEmail: 'sarah@greenharvest.com.au',
-      contactPhone: '+61 2 6687 5432',
-      companySize: '25-40 employees',
-      establishedYear: '2010',
-      certifications: ['Organic Certification Australia', 'Sustainable Agriculture Initiative', 'Fair Work Standards'],
-      workEnvironment: 'Outdoor sustainable farming in beautiful northern NSW. Modern equipment and techniques with focus on environmental responsibility and worker wellbeing.',
-      abn: '22 333 444 555',
-      jobOpenings: [
-        { title: 'Farm Assistant', status: 'Current Opening' },
-        { title: 'Seasonal Harvest Workers', status: 'September-December', period: 'September-December' },
-        { title: 'Packing & Sorting Operators', status: 'Available' }
-      ],
-      visaAcceptance: ['WHV (subclass 417 & 462) accepted'],
-      experienceSkills: [
-        'Prior farm or outdoor work (preferred, not required)',
-        'Physically fit for manual labor',
-        'Team-oriented, punctual, safety-conscious'
-      ],
-      licenses: ['Forklift License (advantage)', 'Drivers License (advantage)'],
-      salary: {
-        hourlyRate: 'AUD $28.26 (per Fair Work casual rate, Agriculture Award)',
-        overtimeRate: 'Overtime & Penalty Rates: Paid as per Fair Work standards',
-        inclusions: [
-          'Accommodation available on-site at discounted rates',
-          'Weekly transport to town provided',
-          'Farm safety training included',
-          'Eligible work for 2nd & 3rd year WHV extension'
-        ]
-      },
-      employmentType: 'Seasonal, Full-time (6 months)',
-      duration: 'Extensions possible based on performance and farm needs',
-      extensions: 'Extensions possible based on performance and farm needs'
-    },
-    '5': {
-      id: '5',
-      name: 'Coastal Breeze Resort',
-      employerName: 'Marcus Thompson',
-      description: 'Premier beachfront resort on the Gold Coast offering exceptional hospitality experiences. We provide comprehensive training in hospitality service excellence and career development opportunities in a luxury tourism environment.',
-      location: 'Coolangatta, QLD 4225',
-      industry: 'Hospitality and Tourism',
-      rolesOffered: ['Barista', 'Front Desk Associate', 'Housekeeping Supervisor', 'Food Service Attendant', 'Event Coordinator'],
-      jobAvailability: 'Available from Sep 2025 - May 2026',
-      payBenefits: '$27/hour + super + tips + staff discounts + performance bonuses',
-      facilities: 'Staff accommodation available, Meal allowances, Staff gym access, Professional development programs',
-      profileImage: '/lovable-uploads/dde1f5c0-2bba-4180-ab2c-b05bcb7b7def.png',
-      contactEmail: 'marcus@coastalbreeze.com.au',
-      contactPhone: '+61 7 5536 8901',
-      companySize: '80-120 employees',
-      establishedYear: '2005',
-      certifications: ['Tourism Industry Council', 'Hospitality Excellence Award', 'Green Tourism Certification'],
-      workEnvironment: 'Dynamic beachfront resort environment with international guests. Modern facilities and professional team culture focused on service excellence.',
-      abn: '33 444 555 666',
-      jobOpenings: [
-        { title: 'Barista', status: 'Current Opening' },
-        { title: 'Front Desk Associate', status: 'Available' },
-        { title: 'Housekeeping Supervisor', status: 'Current Opening' }
-      ],
-      visaAcceptance: ['WHV (subclass 417 & 462) accepted'],
-      experienceSkills: [
-        'Hospitality experience preferred',
-        'Excellent English communication',
-        'Customer service focused',
-        'Professional presentation'
-      ],
-      licenses: ['RSA Certificate (Required)', 'Food Safety Certificate (advantage)'],
-      salary: {
-        hourlyRate: 'AUD $27.50 (per Hospitality Award)',
-        overtimeRate: 'Penalty rates apply for weekends and public holidays',
-        inclusions: [
-          'Staff accommodation available',
-          'Meal allowances during shifts',
-          'Staff gym and facilities access',
-          'Professional development programs'
-        ]
-      },
-      employmentType: 'Full-time, Permanent',
-      duration: 'Minimum 6 months commitment',
-      extensions: 'Career progression opportunities available'
-    },
-    '6': {
-      id: '6',
-      name: 'Gotall Estates',
-      employerName: 'Robert Williams',
-      description: 'Family-owned dairy farm operation on the Sunshine Coast, combining traditional farming values with modern dairy technology. We offer comprehensive dairy farming experience with opportunities to learn cutting-edge agricultural techniques.',
-      location: 'Sunshine Coast, QLD 4019',
-      industry: 'Dairy Farm',
-      rolesOffered: ['Farm Maintenance', 'Dairy Hand', 'Livestock Technician', 'Equipment Operator', 'Quality Assurance'],
-      jobAvailability: 'Available from Oct 2025 - September 2026',
-      payBenefits: '$30/hour + super + dairy products allowance + skill development bonuses',
-      facilities: 'On-site cottage accommodation, Meals included, Equipment certification training, Transport provided',
-      profileImage: '/lovable-uploads/3961a45e-fda8-48f4-97cc-a5573079e6ac.png',
-      contactEmail: 'robert@gotallestates.com.au',
-      contactPhone: '+61 7 5494 7234',
-      companySize: '12-18 employees',
-      establishedYear: '1987',
-      certifications: ['Australian Dairy Standards', 'Animal Welfare Certification', 'Sustainable Farming Practices'],
-      workEnvironment: 'Traditional dairy farm with modern equipment on beautiful Sunshine Coast. Close-knit team environment with focus on quality dairy production and animal welfare.',
-      abn: '44 555 666 777',
-      jobOpenings: [
-        { title: 'Dairy Hand', status: 'Current Opening' },
-        { title: 'Farm Maintenance', status: 'Available' },
-        { title: 'Livestock Technician', status: 'Current Opening' }
-      ],
-      visaAcceptance: ['WHV (subclass 417 & 462) accepted'],
-      experienceSkills: [
-        'Farm work experience preferred',
-        'Early morning availability (4:30 AM starts)',
-        'Animal handling experience (advantage)',
-        'Mechanical aptitude helpful'
-      ],
-      licenses: ['Drivers License (Required)', 'Chemical Handling Certificate (provided)'],
-      salary: {
-        hourlyRate: 'AUD $30.15 (per Pastoral Award)',
-        overtimeRate: 'Overtime rates apply after 38 hours per week',
-        inclusions: [
-          'On-site cottage accommodation',
-          'Fresh dairy products included',
-          'Equipment operation training',
-          'Eligible for 2nd year visa extension'
-        ]
-      },
-      employmentType: 'Full-time, Ongoing',
-      duration: '12 months minimum commitment',
-      extensions: 'Long-term opportunities for suitable candidates'
+  // Handle tab switching via URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const tab = urlParams.get("tab");
+    if (tab === "matches" || tab === "topRecommended") {
+      setActiveTab(tab as "matches" | "topRecommended");
     }
+  }, [location.search]);
+
+  // ✅ Fetch mutual matches
+  useEffect(() => {
+    const fetchMatches = async () => {
+      const { data, error } = await supabase
+        .from("matches")
+        .select(
+          `
+          job_post_id,
+          matched_at,
+          employer:employers (
+            user_id,
+            company_name,
+            state,
+            suburb_city,
+            postcode,
+            start_date,
+            profile_photo
+          )
+        `
+        )
+        .eq("whv_id", whvId)
+        .not("matched_at", "is", null);
+
+      if (error) {
+        console.error("Error fetching matches:", error);
+        return;
+      }
+
+      const formatted =
+        data?.map((m: any) => ({
+          id: m.employer?.user_id,
+          name: m.employer?.company_name,
+          country: "Australia",
+          profileImage: m.employer?.profile_photo,
+          location: `${m.employer?.suburb_city}, ${m.employer?.state} ${m.employer?.postcode}`,
+          availability: `Start Date ${m.employer?.start_date}`,
+          isMutualMatch: true,
+        })) ?? [];
+
+      setMatches(formatted);
+    };
+
+    fetchMatches();
+  }, [whvId]);
+
+  // ✅ Fetch top recommended
+  useEffect(() => {
+    const fetchTopRecommended = async () => {
+      const { data, error } = await supabase
+        .from("matching_score")
+        .select(
+          `
+          job_id,
+          match_score,
+          employer:employers (
+            user_id,
+            company_name,
+            state,
+            suburb_city,
+            postcode,
+            start_date,
+            profile_photo
+          )
+        `
+        )
+        .eq("whv_id", whvId)
+        .order("match_score", { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error("Error fetching recommendations:", error);
+        return;
+      }
+
+      const formatted =
+        data?.map((r: any) => ({
+          id: r.employer?.user_id,
+          name: r.employer?.company_name,
+          country: "Australia",
+          profileImage: r.employer?.profile_photo,
+          location: `${r.employer?.suburb_city}, ${r.employer?.state} ${r.employer?.postcode}`,
+          availability: `Start Date ${r.employer?.start_date}`,
+          matchPercentage: Math.round(r.match_score),
+        })) ?? [];
+
+      setTopRecommended(formatted);
+    };
+
+    fetchTopRecommended();
+  }, [whvId]);
+
+  const handleViewProfile = (employerId: string, isMutualMatch?: boolean) => {
+    const route = isMutualMatch
+      ? `/whv/employer/full-profile/${employerId}`
+      : `/whv/employer/profile/${employerId}`;
+    navigate(`${route}?from=whv-matches&tab=${activeTab}`);
   };
 
-  const employer = employerProfiles[id || '1'];
+  const handleLikeEmployer = async (employer: MatchEmployer) => {
+    setLikedEmployerName(employer.name);
+    setShowLikeModal(true);
 
-  const handleViewJobs = () => {
-    navigate(`/whv/employer/jobs/${id}?from=whv-full-profile&tab=matches`);
+    const { error } = await supabase.from("likes").insert([
+      {
+        liker_id: whvId,
+        liker_type: "whv",
+        liked_job_post_id: parseInt(employer.id), // ⚠️ confirm employer.id maps to job_post_id
+      },
+    ]);
+
+    if (error) console.error("Error liking employer:", error);
   };
 
-  const handleBackNavigation = () => {
-    const fromPage = searchParams.get('from');
-    const tab = searchParams.get('tab');
-    
-    if (fromPage === 'whv-matches') {
-      navigate(`/whv/matches?tab=${tab || 'matches'}`);
-    } else {
-      navigate('/whv/matches?tab=matches');
-    }
-  };
-
-  if (!employer) {
-    return <div>Employer not found</div>;
-  }
+  const currentEmployers = activeTab === "matches" ? matches : topRecommended;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* iPhone 16 Pro Max Frame */}
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island - Fixed */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-4 flex-shrink-0 sticky top-2 z-10"></div>
-          
-          {/* Header - Fixed */}
-          <div className="px-4 py-3 flex-shrink-0 sticky top-8 z-10 bg-white border-b">
-            <button onClick={handleBackNavigation}>
+        <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
+          {/* Dynamic Island */}
+          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-4 mb-4"></div>
+
+          {/* Header */}
+          <div className="px-4 py-3 border-b bg-white flex items-center gap-3">
+            <button onClick={() => navigate("/whv/dashboard")}>
               <ArrowLeft size={24} className="text-gray-600" />
             </button>
+            <h1 className="text-sm font-medium text-gray-700 flex-1 text-center">
+              Explore Matches & Top Recommended Employers
+            </h1>
           </div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
-            
-            {/* Profile Card */}
-            <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 shadow-lg">
-              
-              {/* Match Header */}
-              <div className="bg-gradient-to-r from-orange-500 to-blue-900 text-white text-center py-4 rounded-2xl mb-6">
-                <h2 className="text-xl font-bold">🎉 IT'S A MATCH! 🎉</h2>
-                <p className="text-sm mt-1">with {employer.name.toUpperCase()}</p>
-              </div>
-
-              {/* Profile Picture */}
-              <div className="flex justify-center mb-6">
-                <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden">
-                  <img 
-                    src={employer.profileImage}
-                    alt={employer.name} 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-
-              {/* Quote/Description */}
-              <div className="text-center mb-6 bg-gray-50 rounded-2xl p-4">
-                <p className="text-gray-700 text-sm italic leading-relaxed">
-                  {employer.description}
-                </p>
-              </div>
-
-              {/* Key Details */}
-              <div className="space-y-3 text-sm mb-6">
-                <div><span className="font-semibold">ABN:</span> {employer.abn}</div>
-                <div><span className="font-semibold">Location:</span> {employer.location}</div>
-                <div><span className="font-semibold">Industry:</span> {employer.industry}</div>
-                <div><span className="font-semibold">Company Size:</span> {employer.companySize}</div>
-                <div><span className="font-semibold">Established:</span> {employer.establishedYear}</div>
-                <div><span className="font-semibold">Roles Offered:</span> {employer.rolesOffered.join(', ')}</div>
-                <div><span className="font-semibold">Job Availability:</span> {employer.jobAvailability}</div>
-                <div><span className="font-semibold">Pay & Benefits:</span> {employer.payBenefits}</div>
-                <div><span className="font-semibold">Facilities:</span> {employer.facilities}</div>
-                <div><span className="font-semibold">Certifications:</span> {employer.certifications.join(', ')}</div>
-                <div><span className="font-semibold">Work Environment:</span> {employer.workEnvironment}</div>
-              </div>
-
-              {/* Contact Information - Available because it's a match */}
-              <div className="bg-gradient-to-r from-orange-500 to-blue-900 text-white rounded-2xl p-6 text-center">
-                <h3 className="font-bold text-lg mb-3">🎉 Contact Details Unlocked! 🎉</h3>
-                <div className="space-y-2">
-                  <div className="bg-white/20 rounded-xl p-3">
-                    <div className="font-semibold">Email:</div>
-                    <div className="text-lg">{employer.contactEmail}</div>
-                  </div>
-                  <div className="bg-white/20 rounded-xl p-3">
-                    <div className="font-semibold">Phone:</div>
-                    <div className="text-lg">{employer.contactPhone}</div>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm text-white/90">
-                  You can now contact {employer.name} directly!
-                </p>
-              </div>
-
-              {/* View Jobs Button */}
-              <div className="mt-6">
-                <button
-                  onClick={handleViewJobs}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg h-12 flex items-center justify-center gap-2 font-medium"
-                >
-                  View Available Jobs
-                </button>
-              </div>
+          {/* Tabs */}
+          <div className="px-4 py-4">
+            <div className="flex bg-gray-100 rounded-full p-1">
+              <button
+                onClick={() => setActiveTab("matches")}
+                className={`flex-1 py-2 px-4 rounded-full text-sm font-medium ${
+                  activeTab === "matches"
+                    ? "bg-orange-500 text-white"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                Matches
+              </button>
+              <button
+                onClick={() => setActiveTab("topRecommended")}
+                className={`flex-1 py-2 px-4 rounded-full text-sm font-medium ${
+                  activeTab === "topRecommended"
+                    ? "bg-orange-500 text-white"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                Top Recommended
+              </button>
             </div>
-
           </div>
+
+          {/* Employer List */}
+          <div className="flex-1 overflow-y-auto px-4 pb-20 space-y-4">
+            {currentEmployers.length === 0 ? (
+              <div className="text-center text-gray-600 mt-10">
+                <p>No employers found.</p>
+              </div>
+            ) : (
+              currentEmployers.map((e) => (
+                <div
+                  key={e.id}
+                  className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <img
+                      src={e.profileImage || "/placeholder.png"}
+                      alt={e.name}
+                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-bold text-gray-900">{e.name}</h2>
+                      <p className="text-sm text-gray-600">{e.location}</p>
+                      <p className="text-sm text-gray-500">{e.availability}</p>
+
+                      <div className="flex items-center gap-3 mt-4">
+                        <Button
+                          onClick={() => handleViewProfile(e.id, e.isMutualMatch)}
+                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-11 rounded-xl"
+                        >
+                          {e.isMutualMatch ? "View Full Profile" : "View Profile"}
+                        </Button>
+
+                        {/* Only show heart on Top Recommended */}
+                        {!e.isMutualMatch && (
+                          <button
+                            onClick={() => handleLikeEmployer(e)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart size={20} className="text-orange-500" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Only show % on Top Recommended */}
+                    {!e.isMutualMatch && e.matchPercentage && (
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <div className="text-lg font-bold text-orange-500">
+                          {e.matchPercentage}%
+                        </div>
+                        <div className="text-xs font-semibold text-orange-500">Match</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Bottom Navigation */}
+          <div className="bg-white border-t rounded-b-[48px] flex-shrink-0">
+            <BottomNavigation />
+          </div>
+
+          {/* Like Modal */}
+          <LikeConfirmationModal
+            candidateName={likedEmployerName}
+            onClose={() => setShowLikeModal(false)}
+            isVisible={showLikeModal}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-export default WHVEmployerFullProfileCard;
+export default WHVMatches;
