@@ -26,7 +26,6 @@ const WHVMatches: React.FC = () => {
   const [likedEmployerName, setLikedEmployerName] = useState("");
   const [matches, setMatches] = useState<MatchEmployer[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchEmployer[]>([]);
-
   const whvId = "CURRENT_WHV_UUID"; // TODO: replace with logged-in WHV id
 
   // Handle tab switching via URL
@@ -38,7 +37,7 @@ const WHVMatches: React.FC = () => {
     }
   }, [location.search]);
 
-  // ✅ Fetch mutual matches from matches table
+  // ✅ Fetch mutual matches
   useEffect(() => {
     const fetchMatches = async () => {
       const { data, error } = await supabase
@@ -50,7 +49,6 @@ const WHVMatches: React.FC = () => {
           employer:employers (
             user_id,
             company_name,
-            tagline,
             state,
             suburb_city,
             postcode,
@@ -71,7 +69,7 @@ const WHVMatches: React.FC = () => {
         data?.map((m: any) => ({
           id: m.employer?.user_id,
           name: m.employer?.company_name,
-          country: "Australia", // static for employers
+          country: "Australia",
           profileImage: m.employer?.profile_photo,
           location: `${m.employer?.suburb_city}, ${m.employer?.state} ${m.employer?.postcode}`,
           availability: `Start Date ${m.employer?.start_date}`,
@@ -84,7 +82,7 @@ const WHVMatches: React.FC = () => {
     fetchMatches();
   }, [whvId]);
 
-  // ✅ Fetch top recommended from matching_score
+  // ✅ Fetch top recommended
   useEffect(() => {
     const fetchTopRecommended = async () => {
       const { data, error } = await supabase
@@ -96,7 +94,6 @@ const WHVMatches: React.FC = () => {
           employer:employers (
             user_id,
             company_name,
-            tagline,
             state,
             suburb_city,
             postcode,
@@ -146,16 +143,11 @@ const WHVMatches: React.FC = () => {
       {
         liker_id: whvId,
         liker_type: "whv",
-        liked_job_post_id: parseInt(employer.id), // 👈 double-check this field
+        liked_job_post_id: parseInt(employer.id), // ⚠️ confirm employer.id maps to job_post_id
       },
     ]);
 
     if (error) console.error("Error liking employer:", error);
-  };
-
-  const handleCloseLikeModal = () => {
-    setShowLikeModal(false);
-    setLikedEmployerName("");
   };
 
   const currentEmployers = activeTab === "matches" ? matches : topRecommended;
@@ -205,52 +197,60 @@ const WHVMatches: React.FC = () => {
 
           {/* Employer List */}
           <div className="flex-1 overflow-y-auto px-4 pb-20 space-y-4">
-            {currentEmployers.map((e) => (
-              <div key={e.id} className="bg-white p-4 rounded-2xl shadow-sm border">
-                <div className="flex items-start gap-3">
-                  <img
-                    src={e.profileImage}
-                    alt={e.name}
-                    className="w-16 h-16 rounded-lg object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900">{e.name}</h3>
-                    <p className="text-sm text-gray-600">{e.country}</p>
-                    <p className="text-sm text-gray-600">{e.location}</p>
-                    <p className="text-sm text-gray-600">{e.availability}</p>
-
-                    <div className="flex items-center gap-2 mt-3">
-                      <Button
-                        onClick={() => handleViewProfile(e.id, e.isMutualMatch)}
-                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm h-10 rounded-full"
-                      >
-                        {e.isMutualMatch ? "View Full Profile" : "View Profile"}
-                      </Button>
-                      {!e.isMutualMatch && (
-                        <button
-                          onClick={() => handleLikeEmployer(e)}
-                          className="h-10 w-10 bg-orange-500 rounded-lg flex items-center justify-center hover:bg-orange-600"
-                        >
-                          <Heart size={16} className="text-white" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* % only for topRecommended */}
-                  {!e.isMutualMatch && e.matchPercentage && (
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <div className="text-lg font-bold text-orange-500">
-                        {e.matchPercentage}%
-                      </div>
-                      <div className="text-xs font-semibold text-orange-500">
-                        Match
-                      </div>
-                    </div>
-                  )}
-                </div>
+            {currentEmployers.length === 0 ? (
+              <div className="text-center text-gray-600 mt-10">
+                <p>No employers found.</p>
               </div>
-            ))}
+            ) : (
+              currentEmployers.map((e) => (
+                <div
+                  key={e.id}
+                  className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <img
+                      src={e.profileImage || "/placeholder.png"}
+                      alt={e.name}
+                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-bold text-gray-900">{e.name}</h2>
+                      <p className="text-sm text-gray-600">{e.location}</p>
+                      <p className="text-sm text-gray-500">{e.availability}</p>
+
+                      <div className="flex items-center gap-3 mt-4">
+                        <Button
+                          onClick={() => handleViewProfile(e.id, e.isMutualMatch)}
+                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-11 rounded-xl"
+                        >
+                          {e.isMutualMatch ? "View Full Profile" : "View Profile"}
+                        </Button>
+
+                        {/* Only show heart on Top Recommended */}
+                        {!e.isMutualMatch && (
+                          <button
+                            onClick={() => handleLikeEmployer(e)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart size={20} className="text-orange-500" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Only show % on Top Recommended */}
+                    {!e.isMutualMatch && e.matchPercentage && (
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <div className="text-lg font-bold text-orange-500">
+                          {e.matchPercentage}%
+                        </div>
+                        <div className="text-xs font-semibold text-orange-500">Match</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Bottom Navigation */}
@@ -261,7 +261,7 @@ const WHVMatches: React.FC = () => {
           {/* Like Modal */}
           <LikeConfirmationModal
             candidateName={likedEmployerName}
-            onClose={handleCloseLikeModal}
+            onClose={() => setShowLikeModal(false)}
             isVisible={showLikeModal}
           />
         </div>
