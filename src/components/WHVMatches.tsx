@@ -1,6 +1,6 @@
 // src/components/WHVMatches.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Heart, X } from "lucide-react";
+import { ArrowLeft, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import BottomNavigation from "@/components/BottomNavigation";
@@ -31,7 +31,7 @@ const WHVMatches: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobTitle, setLikedJobTitle] = useState("");
 
-  // ✅ get logged-in WHV user
+  // ✅ Get logged-in WHV user
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -40,7 +40,7 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ fetch mutual matches
+  // ✅ Fetch mutual matches
   useEffect(() => {
     if (!whvId) return;
 
@@ -65,14 +65,14 @@ const WHVMatches: React.FC = () => {
             description
           )
         `)
-        .eq("whv_id", whvId) as any;
+        .eq("whv_id", whvId);
 
       if (error) {
         console.error("❌ Error fetching matches:", error);
         return;
       }
 
-      const formatted = (data || []).map((m: any) => ({
+      const formatted: MatchCard[] = (data || []).map((m: any) => ({
         emp_id: m.employer?.user_id,
         job_id: m.job?.job_id,
         company: m.employer?.company_name || "Unknown Employer",
@@ -87,29 +87,29 @@ const WHVMatches: React.FC = () => {
 
       // remove duplicates by job_id
       const unique = Array.from(new Map(formatted.map(f => [f.job_id, f])).values());
-      setMatches(unique);
+      setMatches(unique as MatchCard[]);
     };
 
     fetchMatches();
   }, [whvId]);
 
-  // ✅ fetch top recommended
+  // ✅ Fetch top recommended
   useEffect(() => {
     if (!whvId) return;
 
     const fetchRecommended = async () => {
       const { data, error } = await supabase
-        .from("vw_maker_match_scores_top10") // ✅ use your VIEW
+        .from("vw_maker_match_scores_top10") // use your VIEW
         .select("*")
         .eq("maker_id", whvId)
-        .order("match_score", { ascending: false }) as any;
+        .order("match_score", { ascending: false });
 
       if (error) {
         console.error("❌ Error fetching recommendations:", error);
         return;
       }
 
-      const formatted = (data || []).map((r: any) => ({
+      const formatted: MatchCard[] = (data || []).map((r: any) => ({
         emp_id: r.emp_id,
         job_id: r.job_id,
         company: r.company || "Unknown Employer",
@@ -122,15 +122,15 @@ const WHVMatches: React.FC = () => {
         match_score: r.match_score,
       }));
 
-      // sort highest score on top
+      // sort highest score first
       const sorted = formatted.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
-      setRecommended(sorted);
+      setRecommended(sorted as MatchCard[]);
     };
 
     fetchRecommended();
   }, [whvId]);
 
-  // ✅ like/unlike
+  // ✅ Like/unlike
   const handleLikeJob = async (jobId: number, jobRole: string) => {
     if (!whvId) return;
 
@@ -211,7 +211,7 @@ const WHVMatches: React.FC = () => {
               </button>
             </div>
 
-            {/* Employer Cards */}
+            {/* Cards */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {currentList.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
