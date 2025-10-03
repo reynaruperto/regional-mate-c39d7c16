@@ -14,7 +14,7 @@ import {
   Mail,
   Clipboard,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface JobDetails {
@@ -46,12 +46,24 @@ interface EmployerDetails {
 
 const EmployerJobMatchPreview: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { jobId } = useParams();
+
+  const fromPage = (location.state as any)?.from;
+
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
   const [facilities, setFacilities] = useState<string[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleBack = () => {
+    if (fromPage === "postJob") {
+      navigate("/employer/post-job");
+    } else {
+      navigate(-1);
+    }
+  };
 
   useEffect(() => {
     const fetchJobAndEmployer = async () => {
@@ -166,10 +178,10 @@ const EmployerJobMatchPreview: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+            <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </button>
-            <h1 className="text-lg font-semibold">Job Details</h1>
+            <h1 className="text-lg font-semibold">Job Preview</h1>
             <div className="w-10" />
           </div>
 
@@ -206,7 +218,7 @@ const EmployerJobMatchPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Employer Info (ABN, Email, Phone, Website clickable + copy) */}
+              {/* Employer Info */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2 text-center">
                 {employer.abn && employer.abn !== "N/A" ? (
                   <p className="flex items-center justify-center gap-2">
