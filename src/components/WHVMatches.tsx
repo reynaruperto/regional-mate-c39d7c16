@@ -6,6 +6,13 @@ import { useNavigate } from "react-router-dom";
 import BottomNavigation from "@/components/BottomNavigation";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface MatchCard {
   job_id: number;
@@ -34,6 +41,8 @@ const WHVMatches: React.FC = () => {
 
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
+
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   // Helper to resolve photo URL
   const resolvePhoto = (val?: string | null) => {
@@ -150,6 +159,29 @@ const WHVMatches: React.FC = () => {
             </h1>
           </div>
 
+          {/* Job Selector */}
+          <div className="px-6 mb-3">
+            <Select
+              onValueChange={(value) => setSelectedJobId(Number(value))}
+              value={selectedJobId ? String(selectedJobId) : ""}
+            >
+              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+                <SelectValue placeholder="Filter by job (optional)" />
+              </SelectTrigger>
+              <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+                {matches.concat(topRecommended).map((job) => (
+                  <SelectItem
+                    key={job.job_id}
+                    value={String(job.job_id)}
+                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                  >
+                    {job.role} – {job.company}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Tabs */}
           <div className="px-6 py-3 flex bg-gray-100 rounded-full mx-6 my-2">
             <button
@@ -188,86 +220,89 @@ const WHVMatches: React.FC = () => {
                 </p>
               </div>
             ) : (
-              currentEmployers.map((e) => (
-                <div
-                  key={e.job_id}
-                  className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
-                >
-                  <div className="flex items-start gap-4">
-                    <img
-                      src={e.profile_photo}
-                      alt={e.company}
-                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
-                      onError={(ev) => {
-                        (ev.currentTarget as HTMLImageElement).src =
-                          "/placeholder.png";
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-xl font-bold text-gray-900">
-                        {e.role}
-                      </h2>
-                      <p className="text-sm text-gray-600">
-                        {e.company} • {e.industry}
-                      </p>
-                      <p className="text-sm text-gray-500">{e.location}</p>
+              currentEmployers
+                .filter((e) => !selectedJobId || e.job_id === selectedJobId)
+                .map((e) => (
+                  <div
+                    key={e.job_id}
+                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                  >
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={e.profile_photo}
+                        alt={e.company}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                        onError={(ev) => {
+                          (ev.currentTarget as HTMLImageElement).src =
+                            "/placeholder.png";
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-xl font-bold text-gray-900 truncate">
+                          {e.role}
+                        </h2>
+                        <p className="text-sm text-gray-600 whitespace-normal break-words">
+                          {e.company} • {e.industry}
+                        </p>
+                        <p className="text-sm text-gray-500 whitespace-normal break-words">
+                          {e.location}
+                        </p>
 
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                          {e.employment_type}
-                        </span>
-                        <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                          {e.salary_range}
-                        </span>
-                      </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            {e.employment_type}
+                          </span>
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                            {e.salary_range}
+                          </span>
+                        </div>
 
-                      {/* Buttons */}
-                      <div className="flex items-center gap-3 mt-4">
-                        <Button
-                          className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
-                          onClick={() => {
-                            if (e.isMutualMatch) {
-                              navigate(`/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`);
-                            } else {
-                              navigate(`/whv/job/${e.job_id}`, {
-                                state: { from: "topRecommended" },
-                              });
-                            }
-                          }}
-                        >
-                          {e.isMutualMatch
-                            ? "View Full Profile"
-                            : "View Profile"}
-                        </Button>
-
-                        {!e.isMutualMatch && (
-                          <button
-                            onClick={() => handleLikeEmployer(e)}
-                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                        {/* Buttons */}
+                        <div className="flex items-center gap-3 mt-4">
+                          <Button
+                            className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
+                            onClick={() => {
+                              if (e.isMutualMatch) {
+                                navigate(
+                                  `/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`
+                                );
+                              } else {
+                                navigate(`/whv/job/${e.job_id}`, {
+                                  state: { from: "topRecommended" },
+                                });
+                              }
+                            }}
                           >
-                            <Heart
-                              size={20}
-                              className="text-orange-500"
-                            />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                            {e.isMutualMatch
+                              ? "View Full Profile"
+                              : "View Profile"}
+                          </Button>
 
-                    {/* Match % badge */}
-                    {e.matchPercentage && !e.isMutualMatch && (
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-lg font-bold text-orange-500">
-                          {e.matchPercentage}%
-                        </div>
-                        <div className="text-xs font-semibold text-orange-500">
-                          Match
+                          {!e.isMutualMatch && (
+                            <button
+                              onClick={() => handleLikeEmployer(e)}
+                              className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            >
+                              <Heart size={20} className="text-orange-500" />
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
+
+                      {/* Match % badge */}
+                      {e.matchPercentage && !e.isMutualMatch && (
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <div className="text-lg font-bold text-orange-500">
+                            {e.matchPercentage}%
+                          </div>
+                          <div className="text-xs font-semibold text-orange-500">
+                            Match
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                ))
             )}
           </div>
 
