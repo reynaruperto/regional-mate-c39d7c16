@@ -39,14 +39,12 @@ const EmployerMatches: React.FC = () => {
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
 
-  // --- helper: resolve photo ---
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/default-avatar.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  // --- auth ---
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -54,7 +52,6 @@ const EmployerMatches: React.FC = () => {
     })();
   }, []);
 
-  // --- job posts dropdown ---
   useEffect(() => {
     if (!employerId) return;
     (async () => {
@@ -68,7 +65,6 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [employerId]);
 
-  // --- merge likes into candidates ---
   const mergeLikes = async (list: MatchCandidate[]) => {
     if (!employerId || !selectedJobId) return list;
     const { data: likes } = await supabase
@@ -82,7 +78,6 @@ const EmployerMatches: React.FC = () => {
     return list.map((c) => ({ ...c, isLiked: likedIds.includes(c.id) }));
   };
 
-  // --- fetch matches ---
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
@@ -108,7 +103,6 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [selectedJobId]);
 
-  // --- fetch recommendations ---
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
@@ -134,7 +128,6 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [selectedJobId]);
 
-  // --- actions ---
   const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
     const route = isMutualMatch
       ? `/full-candidate-profile/${id}`
@@ -144,10 +137,8 @@ const EmployerMatches: React.FC = () => {
 
   const handleLike = async (candidate: MatchCandidate) => {
     if (!employerId || !selectedJobId) return;
-
     try {
       if (candidate.isLiked) {
-        // Unlike
         await supabase
           .from("likes")
           .delete()
@@ -166,7 +157,6 @@ const EmployerMatches: React.FC = () => {
           );
         }
       } else {
-        // Like
         await supabase.from("likes").insert({
           liker_id: employerId,
           liker_type: "employer",
@@ -193,7 +183,6 @@ const EmployerMatches: React.FC = () => {
 
   const currentList = activeTab === "matches" ? matches : topRecommended;
 
-  // --- render ---
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -213,18 +202,25 @@ const EmployerMatches: React.FC = () => {
             </h1>
           </div>
 
-          {/* Job selector */}
+          {/* Job selector (fixed dropdown width) */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(value) => setSelectedJobId(Number(value))}
               value={selectedJobId ? String(selectedJobId) : ""}
             >
-              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
                 <SelectValue placeholder="Select an active job post" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent
+                className="w-full max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
+                align="start"
+              >
                 {jobPosts.map((job) => (
-                  <SelectItem key={job.job_id} value={String(job.job_id)}>
+                  <SelectItem
+                    key={job.job_id}
+                    value={String(job.job_id)}
+                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                  >
                     {job.industry_role?.role || "Unknown Role"} –{" "}
                     {job.description || `Job #${job.job_id}`}
                   </SelectItem>
@@ -233,7 +229,7 @@ const EmployerMatches: React.FC = () => {
             </Select>
           </div>
 
-          {/* Tabs - navy theme */}
+          {/* Tabs */}
           <div className="px-6 py-3 flex bg-gray-100 rounded-full mx-6 my-2">
             <button
               onClick={() => setActiveTab("matches")}
