@@ -34,7 +34,11 @@ const WHVPhotoUpload: React.FC = () => {
       }
 
       if (data?.profile_photo) {
-        setSelectedImage(data.profile_photo); // preload saved photo
+        // Build public URL from relative path
+        const { data: urlData } = supabase.storage
+          .from("profile_photo")
+          .getPublicUrl(data.profile_photo);
+        setSelectedImage(urlData.publicUrl);
       }
     };
 
@@ -100,7 +104,7 @@ const WHVPhotoUpload: React.FC = () => {
     }
 
     try {
-      // 1. Fetch current photo to delete old file if needed
+      // 1. Delete old photo if exists (using relative path from DB)
       const { data: makerData } = await supabase
         .from("whv_maker")
         .select("profile_photo")
@@ -108,13 +112,8 @@ const WHVPhotoUpload: React.FC = () => {
         .maybeSingle();
 
       if (makerData?.profile_photo) {
-        const url = new URL(makerData.profile_photo);
-        const pathParts = url.pathname.split("/");
-        const bucketIndex = pathParts.indexOf("profile_photo"); // ✅ match bucket name
-        if (bucketIndex !== -1) {
-          const relativePath = pathParts.slice(bucketIndex + 1).join("/");
-          await supabase.storage.from("profile_photo").remove([relativePath]);
-        }
+        // profile_photo is now a relative path, use it directly
+        await supabase.storage.from("profile_photo").remove([makerData.profile_photo]);
       }
 
       // 2. Upload new file
@@ -128,21 +127,20 @@ const WHVPhotoUpload: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // 3. Get public URL
-      const { data } = supabase.storage
-        .from("profile_photo") // ✅ use correct bucket
-        .getPublicUrl(filePath);
-      const publicUrl = data.publicUrl;
-
-      // 4. Save to DB
+      // 3. Save relative path to DB (not full URL)
       const { error: dbError } = await supabase
         .from("whv_maker")
-        .update({ profile_photo: publicUrl })
+        .update({ profile_photo: filePath })
         .eq("user_id", user.id);
 
       if (dbError) throw dbError;
 
-      setSelectedImage(publicUrl);
+      // 4. Get public URL for display only
+      const { data } = supabase.storage
+        .from("profile_photo")
+        .getPublicUrl(filePath);
+      
+      setSelectedImage(data.publicUrl);
 
       toast({
         title: "Photo uploaded!",
