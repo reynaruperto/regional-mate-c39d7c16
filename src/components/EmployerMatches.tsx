@@ -1,4 +1,4 @@
-// src/pages/EmployerMatches.tsx
+// src/components/EmployerMatches.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Heart } from "lucide-react";
@@ -22,13 +22,12 @@ interface MatchCandidate {
   profileImage: string;
   preferredLocations: string[];
   industries: string[];
-  experiences: string;         // "Industry: X years, …" or "No experience listed"
-  isMutualMatch?: boolean;     // true for Matches tab
-  matchPercentage?: number;    // only set for Top Recommended
+  experiences: string;
+  isMutualMatch?: boolean;
+  matchPercentage?: number;
   isLiked?: boolean;
 }
 
-/* ---------- helpers ---------- */
 const resolvePhoto = (val?: string | null) => {
   if (!val) return "/default-avatar.png";
   if (val.startsWith("http")) return val;
@@ -36,18 +35,17 @@ const resolvePhoto = (val?: string | null) => {
 };
 
 const buildExperience = (workExp: any): string => {
-  const arr = Array.isArray(workExp) ? workExp : [];
+  const arr: any[] = Array.isArray(workExp) ? workExp : [];
   if (!arr.length) return "No experience listed";
   return arr
     .map((we: any) => {
       const ind = we?.industry ?? "Industry";
-      const yrs = we?.years ?? 0;
+      const yrs = Number(we?.years ?? 0);
       return `${ind}: ${yrs} ${yrs === 1 ? "year" : "years"}`;
     })
     .join(", ");
 };
 
-/* Fetch core candidate facts from whv_maker in one go */
 async function hydrateCandidateFacts(ids: string[]) {
   if (!ids.length) return new Map<string, any>();
   const { data, error } = await supabase
@@ -57,7 +55,7 @@ async function hydrateCandidateFacts(ids: string[]) {
 
   if (error || !data) return new Map<string, any>();
   const map = new Map<string, any>();
-  data.forEach((r: any) => map.set(r.user_id, r));
+  data.forEach((r: any) => map.set(r.user_id as string, r));
   return map;
 }
 
@@ -76,7 +74,6 @@ const EmployerMatches: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
 
-  /* ---------- auth ---------- */
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -84,7 +81,6 @@ const EmployerMatches: React.FC = () => {
     })();
   }, []);
 
-  /* ---------- job posts for dropdown ---------- */
   useEffect(() => {
     if (!employerId) return;
     (async () => {
@@ -97,12 +93,9 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [employerId]);
 
-  /* ---------- load Matches (IDs) then hydrate details ---------- */
   useEffect(() => {
     if (!selectedJobId) return;
-
     (async () => {
-      // returns: maker_id, match_score, etc. (no prefs/experience)
       const { data, error } = await (supabase as any).rpc("fetch_job_matches", {
         p_job_id: selectedJobId,
       });
@@ -114,7 +107,7 @@ const EmployerMatches: React.FC = () => {
 
       const ids = Array.from(
         new Set(
-          (data || []).map((r: any) => r.maker_id || r.whv_id || r.user_id).filter(Boolean)
+          (data || []).map((r: any) => String(r.maker_id || r.whv_id || r.user_id)).filter(Boolean)
         )
       );
 
@@ -124,10 +117,14 @@ const EmployerMatches: React.FC = () => {
         const f = facts.get(id) || {};
         return {
           id,
-          name: f.given_name ?? "Unknown",
-          profileImage: resolvePhoto(f.profile_photo),
-          preferredLocations: Array.isArray(f.state_pref) ? f.state_pref : [],
-          industries: Array.isArray(f.industry_pref) ? f.industry_pref : [],
+          name: (f.given_name as string) ?? "Unknown",
+          profileImage: resolvePhoto(f.profile_photo as string),
+          preferredLocations: Array.isArray(f.state_pref)
+            ? (f.state_pref as string[])
+            : [],
+          industries: Array.isArray(f.industry_pref)
+            ? (f.industry_pref as string[])
+            : [],
           experiences: buildExperience(f.work_experience),
           isMutualMatch: true,
         };
@@ -137,10 +134,8 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [selectedJobId]);
 
-  /* ---------- load Top Recommended (IDs + score) then hydrate ---------- */
   useEffect(() => {
     if (!selectedJobId) return;
-
     (async () => {
       const { data, error } = await (supabase as any).rpc("fetch_job_recommendations", {
         p_job_id: selectedJobId,
@@ -153,22 +148,26 @@ const EmployerMatches: React.FC = () => {
 
       const rows = data || [];
       const ids = Array.from(
-        new Set(rows.map((r: any) => r.maker_id || r.whv_id || r.user_id).filter(Boolean))
+        new Set(rows.map((r: any) => String(r.maker_id || r.whv_id || r.user_id)).filter(Boolean))
       );
 
       const facts = await hydrateCandidateFacts(ids);
 
       const formatted: MatchCandidate[] = rows.map((r: any) => {
-        const id = r.maker_id || r.whv_id || r.user_id;
+        const id = String(r.maker_id || r.whv_id || r.user_id);
         const f = facts.get(id) || {};
         return {
           id,
-          name: f.given_name ?? "Unknown",
-          profileImage: resolvePhoto(f.profile_photo),
-          preferredLocations: Array.isArray(f.state_pref) ? f.state_pref : [],
-          industries: Array.isArray(f.industry_pref) ? f.industry_pref : [],
+          name: (f.given_name as string) ?? "Unknown",
+          profileImage: resolvePhoto(f.profile_photo as string),
+          preferredLocations: Array.isArray(f.state_pref)
+            ? (f.state_pref as string[])
+            : [],
+          industries: Array.isArray(f.industry_pref)
+            ? (f.industry_pref as string[])
+            : [],
           experiences: buildExperience(f.work_experience),
-          matchPercentage: r.match_score ? Math.round(r.match_score) : undefined,
+          matchPercentage: r.match_score ? Math.round(Number(r.match_score)) : undefined,
         };
       });
 
@@ -176,7 +175,6 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [selectedJobId]);
 
-  /* ---------- like ---------- */
   const handleLike = async (c: MatchCandidate) => {
     if (!employerId || !selectedJobId) return;
     try {
@@ -203,7 +201,6 @@ const EmployerMatches: React.FC = () => {
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
-
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
@@ -240,7 +237,7 @@ const EmployerMatches: React.FC = () => {
               </Select>
             </div>
 
-            {/* Tabs (always visible) */}
+            {/* Tabs */}
             <div className="px-6 mb-4">
               <div className="flex bg-gray-100 rounded-full p-1">
                 <button
@@ -266,7 +263,7 @@ const EmployerMatches: React.FC = () => {
               </div>
             </div>
 
-            {/* List */}
+            {/* Candidate list */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -282,15 +279,13 @@ const EmployerMatches: React.FC = () => {
                     key={c.id}
                     className="relative bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
                   >
-                    {/* % badge only for Top Recommended */}
+                    {/* % badge only for top recommended */}
                     {activeTab === "topRecommended" && c.matchPercentage !== undefined && (
                       <div className="absolute right-4 top-4 text-right">
                         <div className="text-lg font-bold text-orange-500">
                           {c.matchPercentage}%
                         </div>
-                        <div className="text-xs font-semibold text-orange-500">
-                          Match
-                        </div>
+                        <div className="text-xs font-semibold text-orange-500">Match</div>
                       </div>
                     )}
 
@@ -312,14 +307,12 @@ const EmployerMatches: React.FC = () => {
                             ? c.preferredLocations.join(", ")
                             : "Not specified"}
                         </p>
-
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Industries:</strong>{" "}
                           {c.industries.length
                             ? c.industries.join(", ")
                             : "No preferences"}
                         </p>
-
                         <p className="text-sm text-gray-600">
                           <strong>Experience:</strong> {c.experiences}
                         </p>
@@ -339,8 +332,6 @@ const EmployerMatches: React.FC = () => {
                           >
                             {c.isMutualMatch ? "View Full Profile" : "View Profile"}
                           </Button>
-
-                          {/* Heart ONLY when not mutual (Top Recommended) */}
                           {!c.isMutualMatch && (
                             <button
                               onClick={() => handleLike(c)}
@@ -358,12 +349,10 @@ const EmployerMatches: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom nav */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like modal */}
           <LikeConfirmationModal
             candidateName={likedCandidateName}
             onClose={() => setShowLikeModal(false)}
