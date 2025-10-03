@@ -34,7 +34,6 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -43,7 +42,6 @@ const WHVBrowseJobs: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch jobs (eligible)
   const fetchJobs = async (activeFilters: any = {}) => {
     if (!whvId) return;
 
@@ -63,7 +61,6 @@ const WHVBrowseJobs: React.FC = () => {
     }
     if (!jobsData) return;
 
-    // Likes
     const { data: likes } = await supabase
       .from("likes")
       .select("liked_job_post_id")
@@ -81,7 +78,6 @@ const WHVBrowseJobs: React.FC = () => {
       location: job.location || "Location not specified",
       salary_range: job.salary_range || "Pay not disclosed",
       job_type: job.job_type || "Employment type not specified",
-      description: job.description || "No description provided",
       isLiked: likedIds.includes(job.job_id),
     }));
 
@@ -93,7 +89,6 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  // ✅ Like/unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -129,7 +124,6 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
-  // ✅ Remove single filter chip
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null };
     const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
@@ -137,13 +131,11 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs(clean);
   };
 
-  // ✅ Clear all filters
   const handleClearFilters = () => {
     setFilters({});
     fetchJobs({});
   };
 
-  // ✅ Build filter chips
   const filterChips = Object.entries(filters)
     .filter(([_, v]) => v)
     .map(([key, value]) => ({
@@ -178,7 +170,7 @@ const WHVBrowseJobs: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={() => navigate(-1)} // ✅ Back button works
+                onClick={() => navigate(-1)}
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
@@ -280,19 +272,15 @@ const WHVBrowseJobs: React.FC = () => {
                           </span>
                         </div>
 
-                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                          {job.description}
-                        </p>
+                        {/*  Description removed */}
 
                         <div className="flex items-center gap-3 mt-4">
-                          {/* ✅ Navigate to job preview */}
                           <Button
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
                             onClick={() => navigate(`/whv/job/${job.job_id}`)}
                           >
                             View Details
                           </Button>
-
                           <button
                             onClick={() => handleLikeJob(job.job_id)}
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
@@ -311,12 +299,10 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom nav */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like Modal */}
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
