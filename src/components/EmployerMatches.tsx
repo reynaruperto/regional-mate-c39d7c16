@@ -37,10 +37,17 @@ const EmployerMatches: React.FC = () => {
 
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [employerId, setEmployerId] = useState<string | null>(null);
 
-  const employerId = "CURRENT_EMPLOYER_UUID"; // TODO: replace with logged-in employer’s id
+  // Fetch employer's user ID
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setEmployerId(user.id);
+    })();
+  }, []);
 
-  // Fetch employer’s job posts
+  // Fetch employer's job posts
   useEffect(() => {
     if (!employerId) return;
     (async () => {
