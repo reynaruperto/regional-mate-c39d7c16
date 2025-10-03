@@ -10,9 +10,15 @@ interface MatchMaker {
   job_id: number;
   given_name: string;
   profile_photo: string | null;
+  country: string;
   location: string;
   availability: string;
   match_score: number;
+  work_experience_score: number;
+  license_score: number;
+  location_score: number;
+  industry_score: number;
+  matching_rank: number;
 }
 
 const EmployerMatches: React.FC<{ jobId: number }> = ({ jobId }) => {

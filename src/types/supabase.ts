@@ -1694,6 +1694,46 @@ export type Database = {
           matching_rank: number;
         }[];
       };
+      fetch_job_matches: {
+        Args: {
+          p_job_id: number;
+        };
+        Returns: {
+          maker_id: string;
+          job_id: number;
+          given_name: string;
+          profile_photo: string;
+          country: string;
+          location: string;
+          availability: string;
+          match_score: number;
+          work_experience_score: number;
+          license_score: number;
+          location_score: number;
+          industry_score: number;
+          matching_rank: number;
+        }[];
+      };
+      fetch_job_recommendations: {
+        Args: {
+          p_job_id: number;
+        };
+        Returns: {
+          maker_id: string;
+          job_id: number;
+          given_name: string;
+          profile_photo: string;
+          country: string;
+          location: string;
+          availability: string;
+          match_score: number;
+          work_experience_score: number;
+          license_score: number;
+          location_score: number;
+          industry_score: number;
+          matching_rank: number;
+        }[];
+      };
     };
     Enums: {
       business_tenure:
