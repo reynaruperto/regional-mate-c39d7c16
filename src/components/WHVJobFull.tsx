@@ -71,7 +71,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1. Get job (with employer_id reference)
+        // 1️⃣ Fetch the job
         const { data: job } = await supabase
           .from("job")
           .select(`
@@ -93,14 +93,14 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
-        // 2. Get employer
+        // 2️⃣ Fetch employer
         const { data: emp } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // 3. Get employer email from profile
+        // 3️⃣ Fetch email separately from profile
         let email = "";
         if (emp?.user_id) {
           const { data: profile } = await supabase
@@ -108,11 +108,12 @@ const WHVJobFull: React.FC = () => {
             .select("email")
             .eq("user_id", emp.user_id)
             .maybeSingle();
+
+          console.log("PROFILE RESULT:", profile); // 🔎 debug
           email = profile?.email || "";
-          console.log("PROFILE EMAIL:", email); // 🔎 Debug log
         }
 
-        // 4. Handle company photo
+        // 4️⃣ Company photo signed URL
         let companyPhoto: string | null = null;
         if (emp?.profile_photo) {
           let photoPath = emp.profile_photo;
@@ -125,23 +126,25 @@ const WHVJobFull: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // 5. Facilities
+        // 5️⃣ Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
           .eq("user_id", job.user_id);
 
-        const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
+        const facilities =
+          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // 6. Licenses
+        // 6️⃣ Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
           .eq("job_id", job.job_id);
 
-        const licenses = licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
+        const licenses =
+          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        // ✅ Set states
+        // ✅ Set job + employer state
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -231,17 +234,19 @@ const WHVJobFull: React.FC = () => {
                   <p>
                     <Hash size={14} className="inline mr-1" /> ABN: {employer.abn}
                   </p>
-                  {employer.email && (
-                    <p>
-                      <Mail size={14} className="inline mr-1" />
+                  <p>
+                    <Mail size={14} className="inline mr-1" />
+                    {employer.email ? (
                       <a
                         href={`mailto:${employer.email}`}
                         className="text-blue-600 hover:underline"
                       >
                         {employer.email}
                       </a>
-                    </p>
-                  )}
+                    ) : (
+                      <span className="text-gray-500">No email on file</span>
+                    )}
+                  </p>
                   {employer.mobile_num && (
                     <p>
                       <Phone size={14} className="inline mr-1" /> {employer.mobile_num}
