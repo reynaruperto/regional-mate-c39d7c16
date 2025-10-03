@@ -165,10 +165,10 @@ const WHVMatches: React.FC = () => {
               onValueChange={(value) => setSelectedJobId(Number(value))}
               value={selectedJobId ? String(selectedJobId) : ""}
             >
-              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
                 <SelectValue placeholder="Filter by job (optional)" />
               </SelectTrigger>
-              <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+              <SelectContent className="w-full max-w-[370px] max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
                 {matches.concat(topRecommended).map((job) => (
                   <SelectItem
                     key={job.job_id}
