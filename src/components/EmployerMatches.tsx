@@ -23,6 +23,7 @@ interface MatchCandidate {
   experiences: string;
   isMutualMatch?: boolean;
   matchPercentage?: number;
+  isLiked?: boolean;
 }
 
 const EmployerMatches: React.FC = () => {
@@ -60,7 +61,21 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [employerId]);
 
-  // --- fetch matches (mutual likes) ---
+  // --- merge likes into candidates ---
+  const mergeLikes = async (list: MatchCandidate[]) => {
+    if (!employerId || !selectedJobId) return list;
+    const { data: likes } = await supabase
+      .from("likes")
+      .select("liked_whv_id")
+      .eq("liker_id", employerId)
+      .eq("liker_type", "employer")
+      .eq("liked_job_post_id", selectedJobId);
+
+    const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+    return list.map((c) => ({ ...c, isLiked: likedIds.includes(c.id) }));
+  };
+
+  // --- fetch matches ---
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
@@ -71,7 +86,6 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching matches:", error);
         return;
       }
-
       const formatted = (data || []).map((m: any) => ({
         id: m.maker_id,
         name: m.given_name,
@@ -83,7 +97,7 @@ const EmployerMatches: React.FC = () => {
           : "No experience listed",
         isMutualMatch: true,
       }));
-      setMatches(formatted);
+      setMatches(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
 
@@ -98,7 +112,6 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching recommendations:", error);
         return;
       }
-
       const formatted = (data || []).map((r: any) => ({
         id: r.maker_id,
         name: r.given_name,
@@ -110,7 +123,7 @@ const EmployerMatches: React.FC = () => {
           : "No experience listed",
         matchPercentage: Math.round(r.match_score),
       }));
-      setTopRecommended(formatted);
+      setTopRecommended(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
 
@@ -124,17 +137,51 @@ const EmployerMatches: React.FC = () => {
 
   const handleLike = async (candidate: MatchCandidate) => {
     if (!employerId || !selectedJobId) return;
-    setLikedCandidateName(candidate.name);
-    setShowLikeModal(true);
 
-    const { error } = await supabase.from("likes").insert({
-      liker_id: employerId,
-      liker_type: "employer",
-      liked_whv_id: candidate.id,
-      liked_job_post_id: selectedJobId,
-    });
+    try {
+      if (candidate.isLiked) {
+        // Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", employerId)
+          .eq("liker_type", "employer")
+          .eq("liked_whv_id", candidate.id)
+          .eq("liked_job_post_id", selectedJobId);
 
-    if (error) console.error("Error liking candidate:", error);
+        if (activeTab === "matches") {
+          setMatches((prev) =>
+            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c))
+          );
+        } else {
+          setTopRecommended((prev) =>
+            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c))
+          );
+        }
+      } else {
+        // Like
+        await supabase.from("likes").insert({
+          liker_id: employerId,
+          liker_type: "employer",
+          liked_whv_id: candidate.id,
+          liked_job_post_id: selectedJobId,
+        });
+
+        if (activeTab === "matches") {
+          setMatches((prev) =>
+            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c))
+          );
+        } else {
+          setTopRecommended((prev) =>
+            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c))
+          );
+        }
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
   };
 
   const currentList = activeTab === "matches" ? matches : topRecommended;
@@ -143,12 +190,9 @@ const EmployerMatches: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden flex flex-col">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
-
+        <div className="w-full h-full bg-background rounded-[48px] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 flex items-center">
+          <div className="px-6 pt-16 pb-2 flex items-center">
             <Button
               variant="ghost"
               size="icon"
@@ -157,7 +201,9 @@ const EmployerMatches: React.FC = () => {
             >
               <ArrowLeft className="w-6 h-6 text-gray-700" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">Matches & Recommendations</h1>
+            <h1 className="text-lg font-semibold text-gray-900">
+              Matches & Recommendations
+            </h1>
           </div>
 
           {/* Job selector */}
@@ -180,26 +226,28 @@ const EmployerMatches: React.FC = () => {
             </Select>
           </div>
 
-          {/* Tabs (always visible) */}
-          <div className="px-6 py-2 flex-shrink-0">
-            <div className="flex bg-gray-100 rounded-full p-1">
-              <button
-                onClick={() => setActiveTab("matches")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "matches" ? "bg-slate-800 text-white" : "text-gray-600"
-                }`}
-              >
-                Matches
-              </button>
-              <button
-                onClick={() => setActiveTab("topRecommended")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "topRecommended" ? "bg-slate-800 text-white" : "text-gray-600"
-                }`}
-              >
-                Top Recommended
-              </button>
-            </div>
+          {/* Tabs */}
+          <div className="px-6 py-3 flex bg-gray-100 rounded-full mx-6 my-2">
+            <button
+              onClick={() => setActiveTab("matches")}
+              className={`flex-1 py-2 rounded-full text-sm font-medium ${
+                activeTab === "matches"
+                  ? "bg-orange-500 text-white"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Matches
+            </button>
+            <button
+              onClick={() => setActiveTab("topRecommended")}
+              className={`flex-1 py-2 rounded-full text-sm font-medium ${
+                activeTab === "topRecommended"
+                  ? "bg-orange-500 text-white"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Top Recommended
+            </button>
           </div>
 
           {/* Candidate list */}
@@ -228,7 +276,9 @@ const EmployerMatches: React.FC = () => {
                       }}
                     />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
+                      <h3 className="font-semibold text-gray-900 text-lg truncate">
+                        {c.name}
+                      </h3>
                       <p className="text-sm text-gray-600">
                         <strong>Preferred Locations:</strong>{" "}
                         {c.preferredLocations.join(", ") || "Not specified"}
@@ -251,11 +301,15 @@ const EmployerMatches: React.FC = () => {
                         {!c.isMutualMatch && (
                           <button
                             onClick={() => handleLike(c)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50"
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
-                              size={18}
-                              className="text-orange-500"
+                              size={20}
+                              className={
+                                c.isLiked
+                                  ? "text-orange-500 fill-orange-500"
+                                  : "text-orange-500"
+                              }
                             />
                           </button>
                         )}
@@ -278,7 +332,7 @@ const EmployerMatches: React.FC = () => {
           </div>
 
           {/* Bottom Navigation */}
-          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
+          <div className="bg-white border-t border-gray-200 rounded-b-[48px] flex-shrink-0">
             <BottomNavigation />
           </div>
 
