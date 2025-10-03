@@ -12,7 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select-inline";
+} from "@/components/ui/select";
 
 interface MatchCandidate {
   id: string;
@@ -45,6 +45,7 @@ const EmployerMatches: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
+  // ---------- Auth ----------
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -52,6 +53,7 @@ const EmployerMatches: React.FC = () => {
     })();
   }, []);
 
+  // ---------- Job posts ----------
   useEffect(() => {
     if (!employerId) return;
     (async () => {
@@ -60,11 +62,11 @@ const EmployerMatches: React.FC = () => {
         .select("job_id, description, industry_role(role)")
         .eq("user_id", employerId)
         .eq("job_status", "active");
-
       if (data) setJobPosts(data);
     })();
   }, [employerId]);
 
+  // ---------- Likes merging ----------
   const mergeLikes = async (list: MatchCandidate[]) => {
     if (!employerId || !selectedJobId) return list;
     const { data: likes } = await supabase
@@ -78,6 +80,7 @@ const EmployerMatches: React.FC = () => {
     return list.map((c) => ({ ...c, isLiked: likedIds.includes(c.id) }));
   };
 
+  // ---------- Fetch Matches ----------
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
@@ -103,6 +106,7 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [selectedJobId]);
 
+  // ---------- Fetch Recommendations ----------
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
@@ -128,13 +132,7 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [selectedJobId]);
 
-  const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
-    const route = isMutualMatch
-      ? `/full-candidate-profile/${id}`
-      : `/short-candidate-profile/${id}`;
-    navigate(`${route}?from=employer-matches&tab=${activeTab}`);
-  };
-
+  // ---------- Like/Unlike ----------
   const handleLike = async (candidate: MatchCandidate) => {
     if (!employerId || !selectedJobId) return;
     try {
@@ -173,6 +171,7 @@ const EmployerMatches: React.FC = () => {
             prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c))
           );
         }
+
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
@@ -181,18 +180,28 @@ const EmployerMatches: React.FC = () => {
     }
   };
 
+  // ---------- View Profile ----------
+  const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
+    const route = isMutualMatch
+      ? `/full-candidate-profile/${id}`
+      : `/short-candidate-profile/${id}`;
+    navigate(`${route}?from=employer-matches&tab=${activeTab}`);
+  };
+
   const currentList = activeTab === "matches" ? matches : topRecommended;
+
+  // ---------- Dropdown Classes ----------
+  const dropdownClasses =
+    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
+  const itemClasses =
+    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* outer phone container with id + relative */}
-      <div
-        id="employer-matches-container"
-        className="relative w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl overflow-hidden"
-      >
-        <div className="w-full h-full bg-background rounded-[48px] flex flex-col overflow-hidden">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl overflow-hidden">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
-          <div className="px-6 pt-16 pb-2 flex items-center">
+          <div className="px-6 pt-16 pb-4 flex items-center">
             <Button
               variant="ghost"
               size="icon"
@@ -206,24 +215,21 @@ const EmployerMatches: React.FC = () => {
             </h1>
           </div>
 
-          {/* Job selector */}
+          {/* Job Post Selector (identical to BrowseCandidates) */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(value) => setSelectedJobId(Number(value))}
               value={selectedJobId ? String(selectedJobId) : ""}
             >
-              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
+              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                 <SelectValue placeholder="Select an active job post" />
               </SelectTrigger>
-              <SelectContent
-                container={document.getElementById("employer-matches-container") || undefined}
-                className="absolute z-50 max-h-48 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
-              >
+              <SelectContent className={dropdownClasses}>
                 {jobPosts.map((job) => (
                   <SelectItem
                     key={job.job_id}
                     value={String(job.job_id)}
-                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                    className={itemClasses}
                   >
                     {job.industry_role?.role || "Unknown Role"} –{" "}
                     {job.description || `Job #${job.job_id}`}
@@ -306,7 +312,7 @@ const EmployerMatches: React.FC = () => {
                         {!c.isMutualMatch && (
                           <button
                             onClick={() => handleLike(c)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50"
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
                               size={20}
@@ -325,9 +331,7 @@ const EmployerMatches: React.FC = () => {
                         <div className="text-lg font-bold text-orange-500">
                           {c.matchPercentage}%
                         </div>
-                        <div className="text-xs font-semibold text-orange-500">
-                          Match
-                        </div>
+                        <div className="text-xs font-semibold text-orange-500">Match</div>
                       </div>
                     )}
                   </div>
