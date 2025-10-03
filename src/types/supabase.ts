@@ -1649,6 +1649,51 @@ export type Database = {
           industry_pref: string[];
         }[];
       };
+      fetch_whv_matches: {
+        Args: {
+          p_whv_id: string;
+        };
+        Returns: {
+          job_id: number;
+          emp_id: string;
+          company: string;
+          profile_photo: string;
+          role: string;
+          industry: string;
+          suburb_city: string;
+          state: string;
+          postcode: string;
+          salary_range: string;
+          employment_type: string;
+          description: string;
+          start_date: string;
+        }[];
+      };
+      fetch_whv_recommendations: {
+        Args: {
+          p_whv_id: string;
+        };
+        Returns: {
+          job_id: number;
+          emp_id: string;
+          company: string;
+          role: string;
+          industry: string;
+          profile_photo: string;
+          suburb_city: string;
+          state: string;
+          postcode: string;
+          salary_range: string;
+          employment_type: string;
+          description: string;
+          match_score: number;
+          work_experience_score: number;
+          license_score: number;
+          location_score: number;
+          industry_score: number;
+          matching_rank: number;
+        }[];
+      };
     };
     Enums: {
       business_tenure:
