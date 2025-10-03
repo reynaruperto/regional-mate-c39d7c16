@@ -1,3 +1,4 @@
+// src/pages/BrowseCandidates.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
@@ -29,7 +30,6 @@ interface Candidate {
 const BrowseCandidates: React.FC = () => {
   const navigate = useNavigate();
 
-  // UI state
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
@@ -63,14 +63,14 @@ const BrowseCandidates: React.FC = () => {
           : "No experience listed";
 
       return {
-        user_id: row.maker_id,
+        user_id: row.maker_id || row.user_id,
         name: row.given_name,
         profileImage: resolvePhoto(row.profile_photo),
         industries: (row.industry_pref as string[]) || [],
         workExpIndustries,
         experiences,
         preferredLocations: (row.state_pref as string[]) || [],
-        isLiked: Boolean(row.isLiked),
+        isLiked: false,
       };
     });
 
@@ -117,26 +117,53 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- initial candidates ----------
-  useEffect(() => {
+  // ---------- fetch candidates with likes ----------
+  const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
-    (async () => {
-      const { data, error } = await (supabase as any).rpc("view_all_eligible_makers", {
-        p_emp_id: employerId,
-        p_job_id: selectedJobId,
-      });
-      if (error) {
-        console.error("Eligible makers RPC error:", error);
-        return;
-      }
-      const mapped = mapRowsToCandidates(data || []);
-      setAllCandidates(mapped);
-      setCandidates(mapped);
-      setSelectedFilters({});
-    })();
+
+    // 1. Eligible candidates
+    const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
+      p_emp_id: employerId,
+      p_job_id: selectedJobId,
+    });
+    if (error) {
+      console.error("Eligible makers RPC error:", error);
+      return;
+    }
+
+    // 2. Likes for this job
+    const { data: likes } = await supabase
+      .from("likes")
+      .select("liked_whv_id")
+      .eq("liker_id", employerId)
+      .eq("liker_type", "employer")
+      .eq("liked_job_post_id", selectedJobId);
+
+    const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+
+    console.log("✅ Employer:", employerId);
+    console.log("✅ Job ID:", selectedJobId);
+    console.log("✅ Likes from DB:", likedIds);
+    console.log("✅ Candidate raw data:", makers);
+
+    // 3. Merge
+    const mapped = (makers || []).map((row: any) => {
+      const c = mapRowsToCandidates([row])[0];
+      return { ...c, isLiked: likedIds.includes(c.user_id) };
+    });
+
+    console.log("✅ Final mapped candidates:", mapped);
+
+    setCandidates(mapped);
+    setAllCandidates(mapped);
+    setSelectedFilters(filters);
+  };
+
+  useEffect(() => {
+    if (employerId && selectedJobId) fetchCandidates();
   }, [employerId, selectedJobId]);
 
-  // ---------- local search ----------
+  // ---------- search ----------
   useEffect(() => {
     if (!searchQuery) {
       setCandidates(allCandidates);
@@ -153,77 +180,62 @@ const BrowseCandidates: React.FC = () => {
     );
   }, [searchQuery, allCandidates]);
 
-  // ---------- like ----------
+  // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
+
     const candidate = candidates.find((c) => c.user_id === candidateId);
-    if (!candidate || candidate.isLiked) return;
+    if (!candidate) return;
 
     try {
-      await supabase.from("likes").insert({
-        liker_id: employerId,
-        liker_type: "employer",
-        liked_whv_id: candidateId,
-        liked_job_post_id: selectedJobId,
-      });
+      if (candidate.isLiked) {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", employerId)
+          .eq("liker_type", "employer")
+          .eq("liked_whv_id", candidateId)
+          .eq("liked_job_post_id", selectedJobId);
 
-      setCandidates((prev) =>
-        prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-      );
-      setAllCandidates((prev) =>
-        prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-      );
+        setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
+      } else {
+        await supabase.from("likes").insert({
+          liker_id: employerId,
+          liker_type: "employer",
+          liked_whv_id: candidateId,
+          liked_job_post_id: selectedJobId,
+        });
 
-      setLikedCandidateName(candidate.name);
-      setShowLikeModal(true);
+        setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+      }
     } catch (err) {
-      console.error("Error liking candidate:", err);
+      console.error("Error toggling like:", err);
     }
   };
 
-  // ---------- apply filters ----------
+  // ---------- filters ----------
   const handleApplyFilters = async (filters: any) => {
-    if (!employerId || !selectedJobId) return;
-
-    const payload = {
-      p_emp_id: employerId,
-      p_job_id: selectedJobId,
-      p_filter_state: filters.p_filter_state || null,
-      p_filter_suburb_city_postcode: filters.p_filter_suburb_city_postcode || null,
-      p_filter_work_industry_id: filters.p_filter_work_industry_id
-        ? Number(filters.p_filter_work_industry_id)
-        : null,
-      p_filter_work_years_experience: filters.p_filter_work_years_experience || null,
-      p_filter_industry_ids: filters.p_filter_industry_ids
-        ? [Number(filters.p_filter_industry_ids)]
-        : null,
-      p_filter_license_ids: filters.p_filter_license_ids
-        ? [Number(filters.p_filter_license_ids)]
-        : null,
-    };
-
-    const { data, error } = await (supabase as any).rpc(
-      "filter_makers_for_employer",
-      payload
-    );
-
-    if (error) {
-      console.error("Error applying filters:", error);
-      return;
-    }
-
-    const mapped = mapRowsToCandidates(data || []);
-    setCandidates(mapped);
-    setAllCandidates(mapped);
-    setSelectedFilters(filters);
+    await fetchCandidates(filters);
     setShowFilters(false);
   };
 
   const removeFilter = async (key: string) => {
     const updated = { ...selectedFilters };
     delete updated[key];
-    setSelectedFilters(updated);
-    await handleApplyFilters(updated);
+    await fetchCandidates(updated);
   };
 
   const chipLabel = (k: string, v: string) => {
@@ -315,7 +327,7 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
-            {/* Chips */}
+            {/* Filter chips */}
             {Object.keys(selectedFilters).length > 0 && (
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
@@ -338,7 +350,7 @@ const BrowseCandidates: React.FC = () => {
                 <button
                   onClick={() => {
                     setSelectedFilters({});
-                    handleApplyFilters({});
+                    fetchCandidates({});
                   }}
                   className="text-xs text-blue-600 underline"
                 >
@@ -404,16 +416,11 @@ const BrowseCandidates: React.FC = () => {
                           </Button>
                           <button
                             onClick={() => handleLikeCandidate(c.user_id)}
-                            disabled={c.isLiked}
-                            className={`h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 ${
-                              c.isLiked 
-                                ? 'bg-orange-500 border-2 border-orange-500 cursor-not-allowed' 
-                                : 'bg-white border-2 border-orange-200 hover:bg-orange-50'
-                            }`}
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
-                              size={18}
-                              className={c.isLiked ? "text-white fill-white" : "text-orange-500"}
+                              size={20}
+                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         </div>
