@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-// Use the inline (no-portal) Select
+// Use inline (no portal) Select
 import {
   Select,
   SelectContent,
@@ -191,7 +191,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
-  // load roles (map `role` -> `industry_role` to satisfy RoleRow)
+  // load roles
   useEffect(() => {
     if (!industryId) return;
     (async () => {
@@ -243,7 +243,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center">
@@ -272,7 +272,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent className="max-h-48 text-sm py-1">
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg"
+                >
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
@@ -286,17 +290,6 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               </Select>
             </div>
 
-            {/* Description */}
-            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-2">Description *</h2>
-              <Textarea
-                value={form.description}
-                onChange={(e) => handle("description", e.target.value)}
-                placeholder="Describe the role..."
-                className="text-sm"
-              />
-            </div>
-
             {/* Employment Type */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-2">Employment Type *</h2>
@@ -307,7 +300,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select employment type" />
                 </SelectTrigger>
-                <SelectContent className="max-h-48 text-sm py-1">
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg"
+                >
                   {employmentTypeEnum.map((t) => (
                     <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
@@ -327,7 +324,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
-                <SelectContent className="max-h-48 text-sm py-1">
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg"
+                >
                   {payRangeEnum.map((t) => (
                     <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
@@ -347,7 +348,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
-                <SelectContent className="max-h-48 text-sm py-1">
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg"
+                >
                   {yearsExpEnum.map((t) => (
                     <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
@@ -374,7 +379,11 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
-                <SelectContent className="max-h-48 text-sm py-1">
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg"
+                >
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
