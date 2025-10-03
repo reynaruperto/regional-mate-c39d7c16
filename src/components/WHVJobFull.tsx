@@ -71,7 +71,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1️⃣ Fetch the job
+        // 1️⃣ Get job
         const { data: job } = await supabase
           .from("job")
           .select(`
@@ -93,23 +93,26 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
-        // 2️⃣ Fetch employer
+        // 2️⃣ Get employer
         const { data: emp } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // 3️⃣ Fetch email separately from profile
+        // 3️⃣ Get profile email separately
         let email = "";
         if (emp?.user_id) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileErr } = await supabase
             .from("profile")
             .select("email")
             .eq("user_id", emp.user_id)
             .maybeSingle();
 
-          console.log("PROFILE RESULT:", profile); // 🔎 debug
+          console.log("EMPLOYER USER_ID:", emp.user_id);
+          console.log("PROFILE RESULT:", profile);
+          console.log("PROFILE ERROR:", profileErr);
+
           email = profile?.email || "";
         }
 
@@ -144,7 +147,7 @@ const WHVJobFull: React.FC = () => {
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        // ✅ Set job + employer state
+        // ✅ Set job state
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -165,6 +168,7 @@ const WHVJobFull: React.FC = () => {
           licenses,
         });
 
+        // ✅ Set employer state
         setEmployer({
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
@@ -228,6 +232,21 @@ const WHVJobFull: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
+              {/* Role + Industry + Status */}
+              <div className="text-center">
+                <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
+                <p className="text-sm text-gray-600">{jobDetails.industry}</p>
+                <span
+                  className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
+                    jobDetails.job_status === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {jobDetails.job_status}
+                </span>
+              </div>
+
               {/* Employer Info */}
               {employer && (
                 <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
@@ -244,7 +263,7 @@ const WHVJobFull: React.FC = () => {
                         {employer.email}
                       </a>
                     ) : (
-                      <span className="text-gray-500">No email on file</span>
+                      <span className="text-gray-500">⚠️ No email found</span>
                     )}
                   </p>
                   {employer.mobile_num && (
@@ -257,6 +276,91 @@ const WHVJobFull: React.FC = () => {
                   </p>
                 </div>
               )}
+
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center mb-1">
+                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
+                  <span className="text-sm font-medium text-gray-600">Location</span>
+                </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <Clock className="w-5 h-5 mr-2" />
+                    <span>Type</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.employment_type}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    <span>Salary</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.salary_range}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Experience</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.req_experience}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    <span>Start Date</span>
+                  </div>
+                  <p className="font-semibold">
+                    {new Date(jobDetails.start_date).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Licenses */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Licenses</h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Facilities */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Facilities</h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities listed</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div>
+                <h4 className="font-semibold mb-2">Job Description</h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p>{jobDetails.description}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
