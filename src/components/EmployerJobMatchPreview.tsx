@@ -14,7 +14,7 @@ import {
   Mail,
   Clipboard,
 } from "lucide-react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface JobDetails {
@@ -40,25 +40,11 @@ interface EmployerDetails {
   website: string;
   mobile_num?: string;
   email?: string;
-  business_tenure?: string;
-  employee_count?: string;
 }
 
 const EmployerJobMatchPreview: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { jobId } = useParams();
-
-  // ✅ State-aware back button
-  const fromPage = (location.state as any)?.from;
-  const handleBack = () => {
-    if (fromPage === "postJob") {
-      navigate("/employer/post-jobs"); // 👈 make sure this matches your route for PostJobs.tsx
-    } else {
-      navigate(-1);
-    }
-  };
-
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
   const [facilities, setFacilities] = useState<string[]>([]);
@@ -108,7 +94,7 @@ const EmployerJobMatchPreview: React.FC = () => {
 
         const { data: emp } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id, business_tenure, employee_count")
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
@@ -138,8 +124,6 @@ const EmployerJobMatchPreview: React.FC = () => {
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
           email: profile?.email || "",
-          business_tenure: emp?.business_tenure || "Not available",
-          employee_count: emp?.employee_count || "Not available",
         });
 
         const { data: facs } = await supabase
@@ -178,10 +162,10 @@ const EmployerJobMatchPreview: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+            <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </button>
-            <h1 className="text-lg font-semibold">Job Preview</h1>
+            <h1 className="text-lg font-semibold">Job Details</h1>
             <div className="w-10" />
           </div>
 
@@ -218,8 +202,9 @@ const EmployerJobMatchPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Employer Info */}
+              {/* Employer Info (all clickable + copy icons) */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2 text-center">
+                {/* ABN */}
                 {employer.abn && employer.abn !== "N/A" ? (
                   <p className="flex items-center justify-center gap-2">
                     <Hash size={14} />
@@ -238,6 +223,8 @@ const EmployerJobMatchPreview: React.FC = () => {
                 ) : (
                   <p className="text-gray-500">⚠️ No ABN provided</p>
                 )}
+
+                {/* Email */}
                 {employer.email ? (
                   <p className="flex items-center justify-center gap-2">
                     <Mail size={14} />
@@ -251,6 +238,8 @@ const EmployerJobMatchPreview: React.FC = () => {
                 ) : (
                   <p className="text-gray-500">⚠️ No email found</p>
                 )}
+
+                {/* Phone */}
                 {employer.mobile_num && (
                   <p className="flex items-center justify-center gap-2">
                     <Phone size={14} />
@@ -262,6 +251,8 @@ const EmployerJobMatchPreview: React.FC = () => {
                     </button>
                   </p>
                 )}
+
+                {/* Website */}
                 {employer.website && employer.website !== "Not provided" ? (
                   <p className="flex items-center justify-center gap-2">
                     <Globe size={14} />
@@ -312,7 +303,7 @@ const EmployerJobMatchPreview: React.FC = () => {
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
                     <User className="w-5 h-5 mr-2" />
-                    <span>Experience Required</span>
+                    <span> Years of Work Experience Required</span>
                   </div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
@@ -327,31 +318,15 @@ const EmployerJobMatchPreview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Company Tenure + Employees */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <User className="w-5 h-5 mr-2" />
-                    <span>Company Tenure</span>
-                  </div>
-                  <p className="font-semibold">{employer.business_tenure}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <User className="w-5 h-5 mr-2" />
-                    <span>Employees</span>
-                  </div>
-                  <p className="font-semibold">{employer.employee_count}</p>
-                </div>
-              </div>
-
-              {/* Licenses Required */}
+              {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Licenses Required</h4>
+                <h4 className="font-semibold mb-2">Licenses</h4>
                 <div className="flex flex-wrap gap-2">
                   {licenses.length > 0 ? (
                     licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {l}
+                      </span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No licenses required</p>
@@ -365,7 +340,9 @@ const EmployerJobMatchPreview: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {facilities.length > 0 ? (
                     facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">{f}</span>
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {f}
+                      </span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No facilities listed</p>
