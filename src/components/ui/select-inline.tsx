@@ -29,30 +29,34 @@ export const SelectTrigger = React.forwardRef<
 ));
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
-// Content (inline, NO Portal)
+// Content (inline with optional Portal container)
 export const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Content
-    ref={ref}
-    position={position}
-    className={cn(
-      "z-50 max-h-48 min-w-[8rem] overflow-y-auto rounded-xl border bg-white text-sm shadow-lg",
-      "data-[state=open]:animate-in data-[state=closed]:animate-out",
-      "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
-      className
-    )}
-    {...props}
-  >
-    <SelectPrimitive.ScrollUpButton className="flex items-center justify-center py-1">
-      <ChevronUp className="h-4 w-4" />
-    </SelectPrimitive.ScrollUpButton>
-    <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
-    <SelectPrimitive.ScrollDownButton className="flex items-center justify-center py-1">
-      <ChevronDown className="h-4 w-4" />
-    </SelectPrimitive.ScrollDownButton>
-  </SelectPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    container?: HTMLElement;
+  }
+>(({ className, children, position = "popper", container, ...props }, ref) => (
+  <SelectPrimitive.Portal container={container}>
+    <SelectPrimitive.Content
+      ref={ref}
+      position={position}
+      className={cn(
+        "z-50 max-h-48 min-w-[8rem] overflow-y-auto rounded-xl border bg-white text-sm shadow-lg",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+        className
+      )}
+      {...props}
+    >
+      <SelectPrimitive.ScrollUpButton className="flex items-center justify-center py-1">
+        <ChevronUp className="h-4 w-4" />
+      </SelectPrimitive.ScrollUpButton>
+      <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
+      <SelectPrimitive.ScrollDownButton className="flex items-center justify-center py-1">
+        <ChevronDown className="h-4 w-4" />
+      </SelectPrimitive.ScrollDownButton>
+    </SelectPrimitive.Content>
+  </SelectPrimitive.Portal>
 ));
 SelectContent.displayName = "SelectContent";
 
