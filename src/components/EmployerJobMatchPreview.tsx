@@ -1,3 +1,4 @@
+// src/pages/EmployerJobMatchPreview.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -7,7 +8,6 @@ import {
   DollarSign,
   User,
   Image,
-  Award,
   Globe,
   Hash,
   Phone,
@@ -120,7 +120,7 @@ const EmployerJobMatchPreview: React.FC = () => {
           tagline: emp?.tagline || "",
           profile_photo: signedPhoto,
           abn: emp?.abn || "N/A",
-          website: emp?.website || "Not applicable",
+          website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
           email: profile?.email || "",
         });
@@ -160,7 +160,7 @@ const EmployerJobMatchPreview: React.FC = () => {
             <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </button>
-            <h1 className="text-lg font-semibold">Job Match</h1>
+            <h1 className="text-lg font-semibold">Job Details</h1>
             <div className="w-10" />
           </div>
 
@@ -189,11 +189,23 @@ const EmployerJobMatchPreview: React.FC = () => {
                 }`}>{jobDetails.job_status}</span>
               </div>
 
-              {/* Employer Info (Full only) */}
+              {/* Employer Info */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
                 <p><Hash size={14} className="inline mr-1" /> ABN: {employer.abn}</p>
-                {employer.email && <p><Mail size={14} className="inline mr-1" /> {employer.email}</p>}
-                {employer.mobile_num && <p><Phone size={14} className="inline mr-1" /> {employer.mobile_num}</p>}
+                {employer.email ? (
+                  <p>
+                    <Mail size={14} className="inline mr-1" />
+                    <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">{employer.email}</a>
+                  </p>
+                ) : (
+                  <p className="text-gray-500">⚠️ No email found</p>
+                )}
+                {employer.mobile_num && (
+                  <p>
+                    <Phone size={14} className="inline mr-1" />
+                    <a href={`tel:${employer.mobile_num}`} className="text-blue-600 hover:underline">{employer.mobile_num}</a>
+                  </p>
+                )}
                 <p><Globe size={14} className="inline mr-1" /> {employer.website}</p>
               </div>
 
