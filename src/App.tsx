@@ -107,7 +107,7 @@ const App = () => (
           <Route path="/employer/full-profile-preview" element={<EmployerFullProfilePreview />} />
           <Route path="/employer/profile/:id" element={<EmployerProfile />} />
           <Route path="/employer/jobs/:employerId" element={<EmployerJobs />} />
-          <Route path="/employer/matches/:jobId" element={<EmployerMatches />} />
+          <Route path="/employer/matches/:jobId?" element={<EmployerMatches />} />
           <Route path="/employer/messages" element={<EmployerMessages />} />
           <Route path="/employer/notifications" element={<EmployerNotifications />} />
           <Route path="/employer/privacy" element={<EmployerPrivacy />} />
