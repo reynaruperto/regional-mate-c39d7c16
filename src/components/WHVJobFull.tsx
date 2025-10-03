@@ -98,10 +98,11 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", job.user_id)
           .maybeSingle();
 
+        // ✅ FIX: use `id` instead of `user_id` when querying profile
         const { data: profile } = await supabase
           .from("profile")
           .select("email")
-          .eq("user_id", job.user_id)
+          .eq("id", job.user_id)
           .maybeSingle();
 
         let companyPhoto: string | null = null;
