@@ -157,7 +157,7 @@ const BrowseCandidates: React.FC = () => {
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
     const candidate = candidates.find((c) => c.user_id === candidateId);
-    if (!candidate) return;
+    if (!candidate || candidate.isLiked) return;
 
     try {
       await supabase.from("likes").insert({
@@ -404,11 +404,16 @@ const BrowseCandidates: React.FC = () => {
                           </Button>
                           <button
                             onClick={() => handleLikeCandidate(c.user_id)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            disabled={c.isLiked}
+                            className={`h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                              c.isLiked 
+                                ? 'bg-orange-500 border-2 border-orange-500 cursor-not-allowed' 
+                                : 'bg-white border-2 border-orange-200 hover:bg-orange-50'
+                            }`}
                           >
                             <Heart
                               size={18}
-                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                              className={c.isLiked ? "text-white fill-white" : "text-orange-500"}
                             />
                           </button>
                         </div>

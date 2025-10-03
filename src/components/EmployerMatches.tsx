@@ -23,6 +23,7 @@ interface MatchCandidate {
   experiences: string;
   isMutualMatch?: boolean;
   matchPercentage?: number;
+  isLiked?: boolean;
 }
 
 const EmployerMatches: React.FC = () => {
@@ -119,6 +120,16 @@ const EmployerMatches: React.FC = () => {
         return;
       }
 
+      // Get all likes for this employer and job
+      const { data: likesData } = await supabase
+        .from("likes")
+        .select("liked_whv_id")
+        .eq("liker_id", employerId)
+        .eq("liker_type", "employer")
+        .eq("liked_job_post_id", selectedJobId);
+
+      const likedIds = new Set(likesData?.map(l => l.liked_whv_id) || []);
+
       const formatted: MatchCandidate[] =
         (data || []).map((r: any) => ({
           id: String(r.maker_id || r.whv_id || r.user_id),
@@ -132,6 +143,7 @@ const EmployerMatches: React.FC = () => {
             : [],
           experiences: buildExperience(r.work_experience),
           matchPercentage: r.match_score ? Math.round(Number(r.match_score)) : undefined,
+          isLiked: likedIds.has(String(r.maker_id || r.whv_id || r.user_id)),
         })) ?? [];
 
       setTopRecommended(formatted);
@@ -146,7 +158,7 @@ const EmployerMatches: React.FC = () => {
   };
 
   const handleLike = async (candidate: MatchCandidate) => {
-    if (!employerId || !selectedJobId) return;
+    if (!employerId || !selectedJobId || candidate.isLiked) return;
 
     setLikedCandidateName(candidate.name);
     setShowLikeModal(true);
@@ -158,7 +170,16 @@ const EmployerMatches: React.FC = () => {
       liked_job_post_id: selectedJobId,
     });
 
-    if (error) console.error("Error liking candidate:", error);
+    if (error) {
+      console.error("Error liking candidate:", error);
+    } else {
+      // Update local state to mark as liked
+      if (activeTab === "topRecommended") {
+        setTopRecommended(prev => 
+          prev.map(c => c.id === candidate.id ? { ...c, isLiked: true } : c)
+        );
+      }
+    }
   };
 
   const currentList = activeTab === "matches" ? matches : topRecommended;
@@ -277,9 +298,17 @@ const EmployerMatches: React.FC = () => {
                         {!c.isMutualMatch && (
                           <button
                             onClick={() => handleLike(c)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50"
+                            disabled={c.isLiked}
+                            className={`h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center ${
+                              c.isLiked 
+                                ? 'bg-orange-500 border-2 border-orange-500 cursor-not-allowed' 
+                                : 'bg-white border-2 border-orange-200 hover:bg-orange-50'
+                            }`}
                           >
-                            <Heart size={18} className="text-orange-500" />
+                            <Heart 
+                              size={18} 
+                              className={c.isLiked ? "text-white fill-white" : "text-orange-500"}
+                            />
                           </button>
                         )}
                       </div>
