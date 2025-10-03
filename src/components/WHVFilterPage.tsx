@@ -9,6 +9,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 
 interface WHVFilterPageProps {
@@ -40,7 +48,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
-  // ✅ Load industries, facilities, enums
+  // Load eligibility
   useEffect(() => {
     const fetchEligibility = async () => {
       const { data: industriesData } = await (supabase as any).rpc(
@@ -67,7 +75,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     fetchEligibility();
   }, [user.id]);
 
-  // ✅ Load locations when industry changes
+  // Load locations when industry changes
   useEffect(() => {
     const fetchLocations = async () => {
       if (!selectedFilters.industry) return;
@@ -78,14 +86,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
 
       if (locData) {
-        // Deduplicate + sort states
         const uniqueStates = Array.from(
           new Set((locData as any[]).map((l) => l.state ?? "Unknown"))
         ).sort();
 
         setStates(uniqueStates);
-
-        // Keep all suburbs with their state
         setAllSuburbs(
           (locData as any[]).map((l) => ({ state: l.state, location: l.location }))
         );
@@ -94,7 +99,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     fetchLocations();
   }, [user.id, selectedFilters.industry]);
 
-  // ✅ Suburbs update when state changes
+  // Update suburbs when state changes
   useEffect(() => {
     if (!selectedFilters.state) {
       setSuburbs([]);
@@ -104,12 +109,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       .filter((s) => s.state === selectedFilters.state)
       .map((s) => s.location);
 
-    // Deduplicate + sort suburbs too
     const uniqueSuburbs = Array.from(new Set(filtered)).sort();
     setSuburbs(uniqueSuburbs);
   }, [selectedFilters.state, allSuburbs]);
 
-  // ✅ Apply filters
+  // Apply filters
   const handleFindJobs = async () => {
     const { data, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
       p_maker_id: user.id,
@@ -128,11 +132,13 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     }
 
     onResults(data || [], {
+      industryId: selectedFilters.industry?.id || null,
       industryLabel: selectedFilters.industry?.industry || "",
       state: selectedFilters.state || "",
       suburbCityPostcode: selectedFilters.suburbCityPostcode || "",
       jobType: selectedFilters.jobType || "",
       salaryRange: selectedFilters.salaryRange || "",
+      facilityId: selectedFilters.facility?.id || null,
       facilityLabel: selectedFilters.facility?.name || "",
     });
     onClose();
@@ -229,26 +235,28 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                 </div>
               )}
 
-              {/* Job Type */}
+              {/* Job Type with Searchable Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Job Type</label>
-                <Select
-                  value={selectedFilters.jobType}
-                  onValueChange={(v) =>
-                    setSelectedFilters((prev: any) => ({ ...prev, jobType: v }))
-                  }
-                >
-                  <SelectTrigger className="w-full h-12 rounded-xl">
-                    <SelectValue placeholder="Select job type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobTypes.map((jt, idx) => (
-                      <SelectItem key={idx} value={jt}>
-                        {jt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Command>
+                  <CommandInput placeholder="Search job type..." />
+                  <CommandList>
+                    <CommandEmpty>No job types found.</CommandEmpty>
+                    <CommandGroup>
+                      {jobTypes.map((jt, idx) => (
+                        <CommandItem
+                          key={idx}
+                          value={jt}
+                          onSelect={(v) =>
+                            setSelectedFilters((prev: any) => ({ ...prev, jobType: v }))
+                          }
+                        >
+                          {jt}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
               </div>
 
               {/* Salary Range */}
