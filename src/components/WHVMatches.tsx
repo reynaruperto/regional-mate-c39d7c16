@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectPortal,
 } from "@/components/ui/select";
 
 interface MatchCard {
@@ -168,17 +169,19 @@ const WHVMatches: React.FC = () => {
               <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
                 <SelectValue placeholder="Filter by job (optional)" />
               </SelectTrigger>
-              <SelectContent className="w-full max-w-[370px] max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
-                {matches.concat(topRecommended).map((job) => (
-                  <SelectItem
-                    key={job.job_id}
-                    value={String(job.job_id)}
-                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
-                  >
-                    {job.role} – {job.company}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              <SelectPortal disabled>
+                <SelectContent className="w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+                  {matches.concat(topRecommended).map((job) => (
+                    <SelectItem
+                      key={job.job_id}
+                      value={String(job.job_id)}
+                      className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                    >
+                      {job.role} – {job.company}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </SelectPortal>
             </Select>
           </div>
 
