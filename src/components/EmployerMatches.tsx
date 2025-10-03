@@ -31,7 +31,7 @@ const EmployerMatches: React.FC = () => {
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
   const [employerId, setEmployerId] = useState<string | null>(null);
 
-  // ✅ get jobId from query string (?jobId=123)
+  // ✅ jobId from URL (?jobId=123)
   const urlParams = new URLSearchParams(location.search);
   const currentJobId = parseInt(urlParams.get("jobId") || "0", 10);
 
@@ -52,7 +52,7 @@ const EmployerMatches: React.FC = () => {
     }
   }, [location.search]);
 
-  // ✅ Fetch mutual matches for this employer + job
+  // ✅ Fetch mutual matches (employer + job)
   useEffect(() => {
     if (!employerId || !currentJobId) return;
 
@@ -73,7 +73,7 @@ const EmployerMatches: React.FC = () => {
           )
         `)
         .eq("employer_id", employerId)
-        .eq("job_post_id", currentJobId)   // ✅ filter by job
+        .eq("job_post_id", currentJobId)
         .not("matched_at", "is", null);
 
       if (error) {
@@ -145,7 +145,7 @@ const EmployerMatches: React.FC = () => {
         location: r.whv?.current_location,
         availability: r.whv?.availability,
         matchPercentage: Math.round(r.match_score),
-        isLiked: likedIds.includes(r.whv?.user_id || r.whv_id),
+        isLiked: likedIds.includes(r.whv?.user_id ?? r.whv_id), // ✅ preload
       }));
 
       setTopRecommended(formatted);
@@ -281,10 +281,10 @@ const EmployerMatches: React.FC = () => {
                           className="h-10 w-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700"
                         >
                           <Heart
-                            size={16}
+                            size={20}
                             strokeWidth={2}
                             className={c.isLiked ? "text-red-500" : "text-white"}
-                            fill={c.isLiked ? "currentColor" : "none"}
+                            fill={c.isLiked ? "currentColor" : "none"} // ✅ correct inside fill
                           />
                         </button>
                       )}
