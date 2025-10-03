@@ -7,10 +7,11 @@ import {
   MapPin,
   Award,
   User,
-  Calendar,
   FileText,
   Phone,
   Mail,
+  Calendar,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +21,6 @@ const EMPCandidateFull: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
 
-  // Profile data states
   const [profileData, setProfileData] = useState<any>(null);
   const [visaData, setVisaData] = useState<any>(null);
   const [industryPrefs, setIndustryPrefs] = useState<string[]>([]);
@@ -35,7 +35,7 @@ const EMPCandidateFull: React.FC = () => {
       if (!id) return;
       setLoading(true);
 
-      // 1. Candidate profile
+      // Candidate core
       const { data: whv } = await supabase
         .from("whv_maker")
         .select(
@@ -44,17 +44,24 @@ const EMPCandidateFull: React.FC = () => {
         .eq("user_id", id)
         .maybeSingle();
 
-      // 2. Visa
+      // Email from profile
+      const { data: profileRow } = await supabase
+        .from("profile")
+        .select("email")
+        .eq("user_id", id)
+        .maybeSingle();
+
+      // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
-          "expiry_date, stage_id, country_id, visa_stage (label), country (name)"
+          "expiry_date, stage_id, visa_stage (sub_class, label), country(name)"
         )
         .eq("user_id", id)
         .maybeSingle();
       setVisaData(visa);
 
-      // 3. Availability
+      // Availability
       const { data: availabilityRow } = await supabase
         .from("maker_pref_availability")
         .select("available_from")
@@ -62,7 +69,7 @@ const EMPCandidateFull: React.FC = () => {
         .maybeSingle();
       setAvailableFrom(availabilityRow?.available_from || null);
 
-      // 4. Industry Preferences
+      // Industry Prefs
       const { data: industryRows } = await supabase
         .from("maker_pref_industry")
         .select("industry (name)")
@@ -71,7 +78,7 @@ const EMPCandidateFull: React.FC = () => {
         industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
       );
 
-      // 5. Location Preferences
+      // Location Prefs
       const { data: locationRows } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
@@ -80,24 +87,22 @@ const EMPCandidateFull: React.FC = () => {
         const grouped: Record<string, string[]> = {};
         locationRows.forEach((loc) => {
           const state = loc.state;
-          const suburb = `${loc.suburb_city} (${loc.postcode})`;
+          const area = `${loc.suburb_city} (${loc.postcode})`;
           if (!grouped[state]) grouped[state] = [];
-          if (!grouped[state].includes(suburb)) grouped[state].push(suburb);
+          if (!grouped[state].includes(area)) grouped[state].push(area);
         });
         setLocationPreferences(Object.entries(grouped));
       }
 
-      // 6. Work Experiences
+      // Work experience
       const { data: expRows } = await supabase
         .from("maker_work_experience")
-        .select(
-          "position, company, industry(name), location, start_date, end_date, job_description"
-        )
+        .select("position, company, industry(name), location, start_date, end_date, job_description")
         .eq("user_id", id)
         .order("start_date", { ascending: false });
       setWorkExperiences(expRows || []);
 
-      // 7. Licenses
+      // Licenses
       const { data: licenseRows } = await supabase
         .from("maker_license")
         .select("license(name), other")
@@ -106,27 +111,19 @@ const EMPCandidateFull: React.FC = () => {
         licenseRows?.map((l) => l.other || l.license?.name).filter(Boolean) || []
       );
 
-      // 8. References
+      // References
       const { data: refRows } = await supabase
         .from("maker_reference")
         .select("name, business_name, email, mobile_num, role")
         .eq("user_id", id);
       setReferences(refRows || []);
 
-      // 9. Candidate email from profile table
-      const { data: profileRow } = await supabase
-        .from("profile")
-        .select("email")
-        .eq("user_id", id)
-        .maybeSingle();
-
-      // 10. Signed profile photo
+      // Signed photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
-        let path = whv.profile_photo;
-        if (path.includes("/profile_photo/")) {
-          path = path.split("/profile_photo/")[1];
-        }
+        let path = whv.profile_photo.includes("/profile_photo/")
+          ? whv.profile_photo.split("/profile_photo/")[1]
+          : whv.profile_photo;
         const { data } = await supabase.storage
           .from("profile_photo")
           .createSignedUrl(path, 3600);
@@ -138,11 +135,8 @@ const EMPCandidateFull: React.FC = () => {
           .filter(Boolean)
           .join(" "),
         tagline: whv?.tagline || "",
-        state: whv?.state,
-        suburb: whv?.suburb,
-        postcode: whv?.postcode,
-        birthDate: whv?.birth_date,
         nationality: whv?.nationality,
+        birthDate: whv?.birth_date,
         profilePhoto: signedPhoto,
         phone: whv?.mobile_num || "",
         email: profileRow?.email || "",
@@ -159,19 +153,15 @@ const EMPCandidateFull: React.FC = () => {
   };
 
   const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-    });
+    new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
   const calculateAge = (birthDate: string) => {
     const birth = new Date(birthDate);
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
     if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birth.getDate())
+      today.getMonth() < birth.getMonth() ||
+      (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
     ) {
       age--;
     }
@@ -179,47 +169,26 @@ const EMPCandidateFull: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <p className="text-gray-600">Loading profile...</p>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">Loading…</div>;
   }
 
   if (!profileData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center">
-          <p className="text-gray-600">Candidate not found</p>
-          <Button onClick={handleBack} className="mt-4">
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">Candidate not found</div>;
   }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* Phone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
 
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={handleBack}
-            >
+          <div className="px-6 pt-16 pb-4 shadow-sm flex items-center justify-between flex-shrink-0">
+            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
               <ArrowLeft className="w-5 h-5 text-gray-700" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Candidate Profile
-            </h1>
+            <h1 className="text-lg font-semibold text-gray-900">Candidate Profile</h1>
             <div className="w-10" />
           </div>
 
@@ -227,25 +196,21 @@ const EMPCandidateFull: React.FC = () => {
           <div className="flex-1 overflow-y-auto min-h-0 px-6 py-4">
             <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
               {/* Profile Header */}
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center text-center">
                 <div className="w-24 h-24 rounded-full border-2 border-orange-500 overflow-hidden mb-3">
                   {profileData.profilePhoto ? (
-                    <img
-                      src={profileData.profilePhoto}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
                       <User size={32} />
                     </div>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {profileData.name}
-                </h2>
+                <h2 className="text-xl font-bold">{profileData.name}</h2>
                 <p className="text-sm text-gray-600">{profileData.tagline}</p>
-                <p className="text-xs text-gray-500">{profileData.nationality}</p>
+                {profileData.nationality && (
+                  <p className="text-xs text-gray-500">{profileData.nationality}</p>
+                )}
                 {profileData.birthDate && (
                   <p className="text-xs text-gray-500">
                     {calculateAge(profileData.birthDate)} years old
@@ -253,39 +218,47 @@ const EMPCandidateFull: React.FC = () => {
                 )}
               </div>
 
-              {/* Contact Info */}
-              {(profileData.phone || profileData.email) && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h3 className="font-semibold text-orange-600 mb-2">
-                    Contact Information
-                  </h3>
-                  {profileData.phone && (
-                    <p className="text-sm text-gray-700 flex items-center">
-                      <Phone size={14} className="mr-2 text-orange-500" />{" "}
-                      {profileData.phone}
-                    </p>
-                  )}
-                  {profileData.email && (
-                    <p className="text-sm text-gray-700 flex items-center">
-                      <Mail size={14} className="mr-2 text-orange-500" />{" "}
-                      {profileData.email}
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* Info Grid */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {visaData?.visa_stage?.sub_class && (
+                  <div className="flex items-center gap-2">
+                    <Globe size={14} className="text-orange-500" />
+                    Visa {visaData.visa_stage.sub_class}
+                  </div>
+                )}
+                {visaData?.expiry_date && (
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} className="text-orange-500" />
+                    Expires {formatDate(visaData.expiry_date)}
+                  </div>
+                )}
+                {availableFrom && (
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} className="text-orange-500" />
+                    Available {formatDate(availableFrom)}
+                  </div>
+                )}
+                {profileData.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone size={14} className="text-orange-500" />
+                    {profileData.phone}
+                  </div>
+                )}
+                {profileData.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-orange-500" />
+                    {profileData.email}
+                  </div>
+                )}
+              </div>
 
               {/* Industry Preferences */}
               {industryPrefs.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-orange-600 mb-2">
-                    Industry Preferences
-                  </h3>
+                  <h3 className="font-semibold text-orange-600 mb-2">Industry Preferences</h3>
                   <div className="flex flex-wrap gap-2">
                     {industryPrefs.map((ind, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
                         {ind}
                       </span>
                     ))}
@@ -296,19 +269,14 @@ const EMPCandidateFull: React.FC = () => {
               {/* Location Preferences */}
               {locationPreferences.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-orange-600 mb-2">
-                    Location Preferences
-                  </h3>
-                  {locationPreferences.map(([state, suburbs]) => (
+                  <h3 className="font-semibold text-orange-600 mb-2">Location Preferences</h3>
+                  {locationPreferences.map(([state, areas]) => (
                     <div key={state} className="mb-2">
                       <p className="font-medium">{state}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(suburbs as string[]).map((s, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                          >
-                            {s}
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(areas as string[]).map((a, idx) => (
+                          <span key={idx} className="px-2 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
+                            {a}
                           </span>
                         ))}
                       </div>
@@ -320,28 +288,14 @@ const EMPCandidateFull: React.FC = () => {
               {/* Work Experience */}
               {workExperiences.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-orange-600 mb-2">
-                    Work Experience
-                  </h3>
+                  <h3 className="font-semibold text-orange-600 mb-2">Work Experience</h3>
                   <div className="space-y-3 text-sm">
                     {workExperiences.map((exp, idx) => (
-                      <div
-                        key={idx}
-                        className="border rounded-lg p-3 text-gray-700"
-                      >
-                        <p className="font-medium">
-                          {exp.position} - {exp.company}
-                        </p>
-                        <p className="text-gray-600">
-                          {exp.industry?.name} • {exp.location}
-                        </p>
-                        <p className="text-xs">
-                          {formatDate(exp.start_date)} –{" "}
-                          {exp.end_date ? formatDate(exp.end_date) : "Present"}
-                        </p>
-                        {exp.job_description && (
-                          <p className="text-xs mt-1">{exp.job_description}</p>
-                        )}
+                      <div key={idx} className="border rounded-lg p-3 text-gray-700">
+                        <p className="font-medium">{exp.position} - {exp.company}</p>
+                        <p className="text-gray-600">{exp.industry?.name} • {exp.location}</p>
+                        <p className="text-xs">{formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}</p>
+                        {exp.job_description && <p className="text-xs mt-1">{exp.job_description}</p>}
                       </div>
                     ))}
                   </div>
@@ -351,15 +305,10 @@ const EMPCandidateFull: React.FC = () => {
               {/* Licenses */}
               {licenses.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-orange-600 mb-2">
-                    Licenses & Certifications
-                  </h3>
+                  <h3 className="font-semibold text-orange-600 mb-2">Licenses & Certifications</h3>
                   <div className="flex flex-wrap gap-2">
                     {licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
                         {l}
                       </span>
                     ))}
@@ -375,10 +324,7 @@ const EMPCandidateFull: React.FC = () => {
                   </h3>
                   <div className="space-y-2">
                     {references.map((ref, i) => (
-                      <div
-                        key={i}
-                        className="border p-3 rounded-lg text-sm text-gray-700"
-                      >
+                      <div key={i} className="border p-3 rounded-lg text-sm text-gray-700">
                         <p className="font-medium">{ref.name}</p>
                         <p>{ref.business_name}</p>
                         <p>{ref.email}</p>
