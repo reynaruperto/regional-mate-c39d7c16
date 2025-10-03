@@ -413,7 +413,8 @@ const BrowseCandidates: React.FC = () => {
                           >
                             <Heart
                               size={18}
-                              className={c.isLiked ? "text-white fill-white" : "text-orange-500"}
+                              fill={c.isLiked ? "white" : "none"}
+                              color={c.isLiked ? "white" : "#f97316"}
                             />
                           </button>
                         </div>
