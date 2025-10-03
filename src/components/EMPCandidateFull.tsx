@@ -8,10 +8,7 @@ import {
   Mail,
   Calendar,
   Globe,
-  Briefcase,
-  MapPin,
   FileText,
-  Award,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -37,7 +34,7 @@ const EMPCandidateFull: React.FC = () => {
       const { data: whv } = await supabase
         .from("whv_maker")
         .select(
-          "given_name, middle_name, family_name, tagline, profile_photo, state, suburb, postcode, birth_date, nationality, mobile_num"
+          "given_name, middle_name, family_name, tagline, profile_photo, birth_date, nationality, mobile_num"
         )
         .eq("user_id", id)
         .maybeSingle();
@@ -50,7 +47,7 @@ const EMPCandidateFull: React.FC = () => {
 
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select("expiry_date, stage_id, visa_stage (sub_class, label), country(name)")
+        .select("expiry_date, visa_stage (sub_class)")
         .eq("user_id", id)
         .maybeSingle();
       setVisaData(visa);
@@ -189,68 +186,57 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
                 <h2 className="text-xl font-bold">{profileData.name}</h2>
                 <p className="text-sm text-gray-600">{profileData.tagline}</p>
-                {profileData.nationality && (
-                  <p className="text-xs text-gray-500">{profileData.nationality}</p>
+              </div>
+
+              {/* Contact Info */}
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
+                {profileData.email ? (
+                  <p>
+                    <Mail size={14} className="inline mr-1 text-[#EC5823]" />
+                    <a href={`mailto:${profileData.email}`} className="text-blue-600 hover:underline">
+                      {profileData.email}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="text-gray-500">⚠️ No email found</p>
                 )}
-                {profileData.birthDate && (
-                  <p className="text-xs text-gray-500">{calculateAge(profileData.birthDate)} years old</p>
+                {profileData.phone && (
+                  <p>
+                    <Phone size={14} className="inline mr-1 text-[#EC5823]" />
+                    <a href={`tel:${profileData.phone}`} className="text-blue-600 hover:underline">
+                      {profileData.phone}
+                    </a>
+                  </p>
                 )}
               </div>
 
               {/* Info Grid */}
               <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <span className="text-sm text-gray-600">Nationality</span>
+                  <p className="font-semibold">{profileData.nationality || "N/A"}</p>
+                </div>
                 {visaData?.visa_stage?.sub_class && (
                   <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-1">
-                      <Globe className="w-5 h-5 text-[#EC5823] mr-2" />
-                      <span>Visa</span>
-                    </div>
+                    <span className="text-sm text-gray-600">Visa</span>
                     <p className="font-semibold">{visaData.visa_stage.sub_class}</p>
                   </div>
                 )}
                 {visaData?.expiry_date && (
                   <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-1">
-                      <Calendar className="w-5 h-5 text-[#EC5823] mr-2" />
-                      <span>Expiry</span>
-                    </div>
+                    <span className="text-sm text-gray-600">Expiry Date</span>
                     <p className="font-semibold">{formatDate(visaData.expiry_date)}</p>
                   </div>
                 )}
                 {availableFrom && (
                   <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-1">
-                      <Calendar className="w-5 h-5 text-[#EC5823] mr-2" />
-                      <span>Available</span>
-                    </div>
+                    <span className="text-sm text-gray-600">Available From</span>
                     <p className="font-semibold">{formatDate(availableFrom)}</p>
-                  </div>
-                )}
-                {profileData.phone && (
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-1">
-                      <Phone className="w-5 h-5 text-[#EC5823] mr-2" />
-                      <span>Phone</span>
-                    </div>
-                    <a href={`tel:${profileData.phone}`} className="font-semibold text-blue-600 hover:underline">
-                      {profileData.phone}
-                    </a>
-                  </div>
-                )}
-                {profileData.email && (
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <div className="flex items-center mb-1">
-                      <Mail className="w-5 h-5 text-[#EC5823] mr-2" />
-                      <span>Email</span>
-                    </div>
-                    <a href={`mailto:${profileData.email}`} className="font-semibold text-blue-600 hover:underline">
-                      {profileData.email}
-                    </a>
                   </div>
                 )}
               </div>
 
-              {/* Industry Preferences */}
+              {/* Rest Sections (prefs, work, licenses, references) same as before */}
               {industryPrefs.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Industry Preferences</h3>
@@ -264,7 +250,6 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
-              {/* Location Preferences */}
               {locationPreferences.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Location Preferences</h3>
@@ -283,7 +268,6 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
-              {/* Work Experience */}
               {workExperiences.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Work Experience</h3>
@@ -306,7 +290,6 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
-              {/* Licenses */}
               {licenses.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Licenses & Certifications</h3>
@@ -320,7 +303,6 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
-              {/* References */}
               {references.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2 flex items-center">
