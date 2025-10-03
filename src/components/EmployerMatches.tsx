@@ -1,9 +1,11 @@
-// src/pages/EmployerMatches.tsx
-import React, { useState, useEffect } from "react";
+// src/pages/BrowseCandidates.tsx
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
+import FilterPage from "@/components/FilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -14,29 +16,36 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface MatchCandidate {
-  id: string;
+interface Candidate {
+  user_id: string;
   name: string;
   profileImage: string;
-  preferredLocations: string[];
   industries: string[];
+  workExpIndustries: string[];
   experiences: string;
-  isMutualMatch?: boolean;
-  matchPercentage?: number;
+  preferredLocations: string[];
+  isLiked?: boolean;
 }
 
-const EmployerMatches: React.FC = () => {
+const BrowseCandidates: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
+
+  // UI state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
 
-  const [matches, setMatches] = useState<MatchCandidate[]>([]);
-  const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
+  const [selectedFilters, setSelectedFilters] = useState<any>({});
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
+  const [employerId, setEmployerId] = useState<string | null>(null);
 
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [employerId, setEmployerId] = useState<string | null>(null);
+
+  const [industriesMap, setIndustriesMap] = useState<Record<number, string>>({});
+  const [licensesMap, setLicensesMap] = useState<Record<number, string>>({});
 
   // ---------- helpers ----------
   const resolvePhoto = (val?: string | null) => {
@@ -45,12 +54,26 @@ const EmployerMatches: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  const buildExperience = (exp: any): string => {
-    if (!Array.isArray(exp) || exp.length === 0) return "No experience listed";
-    return exp
-      .map((e: any) => `${e?.industry || "Unknown"}: ${e?.years || 0} yrs`)
-      .join(", ");
-  };
+  const mapRowsToCandidates = (rows: any[]): Candidate[] =>
+    (rows || []).map((row: any) => {
+      const workExp = Array.isArray(row.work_experience) ? row.work_experience : [];
+      const workExpIndustries = workExp.map((we: any) => we?.industry).filter(Boolean);
+      const experiences =
+        workExp.length > 0
+          ? workExp.map((we: any) => `${we?.industry}: ${we?.years}`).join(", ")
+          : "No experience listed";
+
+      return {
+        user_id: row.maker_id,
+        name: row.given_name,
+        profileImage: resolvePhoto(row.profile_photo),
+        industries: (row.industry_pref as string[]) || [],
+        workExpIndustries,
+        experiences,
+        preferredLocations: (row.state_pref as string[]) || [],
+        isLiked: Boolean(row.isLiked),
+      };
+    });
 
   // ---------- auth ----------
   useEffect(() => {
@@ -60,13 +83,34 @@ const EmployerMatches: React.FC = () => {
     })();
   }, []);
 
+  // ---------- lookups ----------
+  useEffect(() => {
+    (async () => {
+      const { data: inds } = await supabase.from("industry").select("industry_id, name");
+      setIndustriesMap(
+        (inds || []).reduce((acc: Record<number, string>, r: any) => {
+          acc[r.industry_id] = r.name;
+          return acc;
+        }, {})
+      );
+
+      const { data: lic } = await supabase.from("license").select("license_id, name");
+      setLicensesMap(
+        (lic || []).reduce((acc: Record<number, string>, r: any) => {
+          acc[r.license_id] = r.name;
+          return acc;
+        }, {})
+      );
+    })();
+  }, []);
+
   // ---------- job posts ----------
   useEffect(() => {
     if (!employerId) return;
     (async () => {
       const { data, error } = await supabase
         .from("job")
-        .select("job_id, description, industry_role(role)")
+        .select("job_id, description, job_status, industry_role(role)")
         .eq("user_id", employerId)
         .eq("job_status", "active");
 
@@ -74,232 +118,359 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- fetch matches ----------
+  // ---------- initial candidates + likes ----------
   useEffect(() => {
-    if (!selectedJobId || !employerId) return;
+    if (!employerId || !selectedJobId) return;
     (async () => {
-      const { data, error } = await (supabase as any).rpc("fetch_job_matches", {
+      const { data, error } = await (supabase as any).rpc("view_all_eligible_makers", {
+        p_emp_id: employerId,
         p_job_id: selectedJobId,
       });
-
       if (error) {
-        console.error("Error fetching matches:", error);
+        console.error("Eligible makers RPC error:", error);
         return;
       }
 
-      const formatted: MatchCandidate[] =
-        (data || []).map((m: any) => ({
-          id: String(m.maker_id || m.whv_id || m.user_id),
-          name: m.given_name ?? "Unknown",
-          profileImage: resolvePhoto(m.profile_photo as string),
-          preferredLocations: Array.isArray(m.state_pref)
-            ? (m.state_pref as unknown[]).map((s) => String(s))
-            : [],
-          industries: Array.isArray(m.industry_pref)
-            ? (m.industry_pref as unknown[]).map((s) => String(s))
-            : [],
-          experiences: buildExperience(m.work_experience),
-          isMutualMatch: true,
-        })) ?? [];
+      //  Fetch employer likes for this job
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_whv_id")
+        .eq("liker_id", employerId)
+        .eq("liker_type", "employer")
+        .eq("liked_job_post_id", selectedJobId);
 
-      setMatches(formatted);
-    })();
-  }, [selectedJobId, employerId]);
+      const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-  // ---------- fetch top recommended ----------
-  useEffect(() => {
-    if (!selectedJobId || !employerId) return;
-    (async () => {
-      const { data, error } = await (supabase as any).rpc("fetch_job_recommendations", {
-        p_job_id: selectedJobId,
+      //  Map candidates and mark liked
+      const mapped = (data || []).map((row: any) => {
+        const c = mapRowsToCandidates([row])[0];
+        return { ...c, isLiked: likedIds.includes(c.user_id) };
       });
 
-      if (error) {
-        console.error("Error fetching recommendations:", error);
-        return;
-      }
-
-      const formatted: MatchCandidate[] =
-        (data || []).map((r: any) => ({
-          id: String(r.maker_id || r.whv_id || r.user_id),
-          name: r.given_name ?? "Unknown",
-          profileImage: resolvePhoto(r.profile_photo as string),
-          preferredLocations: Array.isArray(r.state_pref)
-            ? (r.state_pref as unknown[]).map((s) => String(s))
-            : [],
-          industries: Array.isArray(r.industry_pref)
-            ? (r.industry_pref as unknown[]).map((s) => String(s))
-            : [],
-          experiences: buildExperience(r.work_experience),
-          matchPercentage: r.match_score ? Math.round(Number(r.match_score)) : undefined,
-        })) ?? [];
-
-      setTopRecommended(formatted);
+      setAllCandidates(mapped);
+      setCandidates(mapped);
+      setSelectedFilters({});
     })();
-  }, [selectedJobId, employerId]);
+  }, [employerId, selectedJobId]);
 
-  const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
-    const route = isMutualMatch
-      ? `/full-candidate-profile/${id}`
-      : `/short-candidate-profile/${id}`;
-    navigate(`${route}?from=employer-matches&tab=${activeTab}`);
+  // ---------- local search ----------
+  useEffect(() => {
+    if (!searchQuery) {
+      setCandidates(allCandidates);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    setCandidates(
+      allCandidates.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.workExpIndustries as string[]).some((i) => i.toLowerCase().includes(q)) ||
+          (c.preferredLocations as string[]).some((l) => l.toLowerCase().includes(q))
+      )
+    );
+  }, [searchQuery, allCandidates]);
+
+  // ---------- like ----------
+  const handleLikeCandidate = async (candidateId: string) => {
+    if (!employerId || !selectedJobId) return;
+    const candidate = candidates.find((c) => c.user_id === candidateId);
+    if (!candidate) return;
+
+    try {
+      if (candidate.isLiked) {
+        // Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("liker_id", employerId)
+          .eq("liker_type", "employer")
+          .eq("liked_whv_id", candidateId)
+          .eq("liked_job_post_id", selectedJobId);
+
+        setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
+      } else {
+        // Like
+        await supabase.from("likes").insert({
+          liker_id: employerId,
+          liker_type: "employer",
+          liked_whv_id: candidateId,
+          liked_job_post_id: selectedJobId,
+        });
+
+        setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+
+        setLikedCandidateName(candidate.name);
+        setShowLikeModal(true);
+      }
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
   };
 
-  const handleLike = async (candidate: MatchCandidate) => {
+  // ---------- apply filters ----------
+  const handleApplyFilters = async (filters: any) => {
     if (!employerId || !selectedJobId) return;
 
-    setLikedCandidateName(candidate.name);
-    setShowLikeModal(true);
+    const payload = {
+      p_emp_id: employerId,
+      p_job_id: selectedJobId,
+      p_filter_state: filters.p_filter_state || null,
+      p_filter_suburb_city_postcode: filters.p_filter_suburb_city_postcode || null,
+      p_filter_work_industry_id: filters.p_filter_work_industry_id
+        ? Number(filters.p_filter_work_industry_id)
+        : null,
+      p_filter_work_years_experience: filters.p_filter_work_years_experience || null,
+      p_filter_industry_ids: filters.p_filter_industry_ids
+        ? [Number(filters.p_filter_industry_ids)]
+        : null,
+      p_filter_license_ids: filters.p_filter_license_ids
+        ? [Number(filters.p_filter_license_ids)]
+        : null,
+    };
 
-    const { error } = await supabase.from("likes").insert({
-      liker_id: employerId,
-      liker_type: "employer",
-      liked_whv_id: candidate.id,
-      liked_job_post_id: selectedJobId,
-    });
+    const { data, error } = await (supabase as any).rpc(
+      "filter_makers_for_employer",
+      payload
+    );
 
-    if (error) console.error("Error liking candidate:", error);
+    if (error) {
+      console.error("Error applying filters:", error);
+      return;
+    }
+
+    //  Mark liked state again after filter
+    const { data: likes } = await supabase
+      .from("likes")
+      .select("liked_whv_id")
+      .eq("liker_id", employerId)
+      .eq("liker_type", "employer")
+      .eq("liked_job_post_id", selectedJobId);
+
+    const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+    const mapped = mapRowsToCandidates(data || []).map((c) => ({
+      ...c,
+      isLiked: likedIds.includes(c.user_id),
+    }));
+
+    setCandidates(mapped);
+    setAllCandidates(mapped);
+    setSelectedFilters(filters);
+    setShowFilters(false);
   };
 
-  const currentList = activeTab === "matches" ? matches : topRecommended;
+  const removeFilter = async (key: string) => {
+    const updated = { ...selectedFilters };
+    delete updated[key];
+    setSelectedFilters(updated);
+    await handleApplyFilters(updated);
+  };
+
+  const chipLabel = (k: string, v: string) => {
+    switch (k) {
+      case "p_filter_work_industry_id":
+        return `Work Exp Industry: ${industriesMap[Number(v)] || v}`;
+      case "p_filter_industry_ids":
+        return `Preferred Industry: ${industriesMap[Number(v)] || v}`;
+      case "p_filter_license_ids":
+        return `License: ${licensesMap[Number(v)] || v}`;
+      case "p_filter_state":
+        return v;
+      case "p_filter_suburb_city_postcode":
+        return v;
+      case "p_filter_work_years_experience":
+        return `Years: ${v}`;
+      default:
+        return `${k}: ${v}`;
+    }
+  };
+
+  // ---------- render ----------
+  if (showFilters) {
+    return (
+      <FilterPage
+        onClose={() => setShowFilters(false)}
+        onApplyFilters={handleApplyFilters}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
-          {/* Dynamic Island */}
-          <div className="w-32 h-6 bg-black rounded-full mx-auto mt-2 mb-2"></div>
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
 
-          {/* Header */}
-          <div className="px-4 py-3 border-b flex items-center gap-3 flex-shrink-0">
-            <button onClick={() => navigate("/employer/dashboard")}>
-              <ArrowLeft size={24} className="text-gray-600" />
-            </button>
-            <h1 className="text-sm font-medium text-gray-700 flex-1 text-center">
-              Matches & Recommendations
-            </h1>
-          </div>
-
-          {/* Job Post Selector */}
-          <div className="px-4 py-3">
-            <Select
-              onValueChange={(value) => setSelectedJobId(Number(value))}
-              value={selectedJobId ? String(selectedJobId) : ""}
-            >
-              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
-                <SelectValue placeholder="Select an active job post" />
-              </SelectTrigger>
-              <SelectContent>
-                {jobPosts.map((job) => (
-                  <SelectItem key={job.job_id} value={String(job.job_id)}>
-                    {job.industry_role?.role || "Unknown Role"} –{" "}
-                    {job.description || `Job #${job.job_id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Tabs */}
-          <div className="px-4 py-2 flex-shrink-0">
-            <div className="flex bg-gray-100 rounded-full p-1">
-              <button
-                onClick={() => setActiveTab("matches")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "matches" ? "bg-slate-800 text-white" : "text-gray-600"
-                }`}
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={() => navigate("/employer/dashboard")}
               >
-                Matches
-              </button>
-              <button
-                onClick={() => setActiveTab("topRecommended")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "topRecommended"
-                    ? "bg-slate-800 text-white"
-                    : "text-gray-600"
-                }`}
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
+            </div>
+
+            {/* Job Post Selector */}
+            <div className="px-6 mb-4">
+              <Select
+                onValueChange={(value) => setSelectedJobId(Number(value))}
+                value={selectedJobId ? String(selectedJobId) : ""}
               >
-                Top Recommended
+                <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+                  <SelectValue placeholder="Select an active job post" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobPosts.map((job) => (
+                    <SelectItem key={job.job_id} value={String(job.job_id)}>
+                      {job.industry_role?.role || "Unknown Role"} –{" "}
+                      {job.description || `Job #${job.job_id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Search */}
+            <div className="relative mb-2 px-6">
+              <Search
+                className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400"
+                size={20}
+              />
+              <Input
+                placeholder="Search for candidates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
+              />
+              <button
+                onClick={() => setShowFilters(true)}
+                className="absolute right-9 top-1/2 -translate-y-1/2"
+              >
+                <Filter className="text-gray-400" size={20} />
               </button>
+            </div>
+
+            {/* Chips */}
+            {Object.keys(selectedFilters).length > 0 && (
+              <div className="px-6 flex flex-wrap gap-2 mb-3">
+                {Object.entries(selectedFilters).map(([k, v]) => {
+                  if (!v) return null;
+                  const value = String(v);
+                  return (
+                    <span
+                      key={k}
+                      className="flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
+                    >
+                      {chipLabel(k, value)}
+                      <X
+                        size={12}
+                        className="cursor-pointer"
+                        onClick={() => removeFilter(k)}
+                      />
+                    </span>
+                  );
+                })}
+                <button
+                  onClick={() => {
+                    setSelectedFilters({});
+                    handleApplyFilters({});
+                  }}
+                  className="text-xs text-blue-600 underline"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+
+            {/* Candidates */}
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+              {!selectedJobId ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>Please select a job post above to view matching candidates.</p>
+                </div>
+              ) : candidates.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No candidates match this job yet.</p>
+                </div>
+              ) : (
+                candidates.map((c) => (
+                  <div
+                    key={c.user_id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
+                  >
+                    <div className="flex gap-3 items-start">
+                      <img
+                        src={c.profileImage}
+                        alt={c.name}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">
+                          {c.name}
+                        </h3>
+
+                        <p className="text-sm text-gray-600">
+                          <strong>Preferred Locations:</strong>{" "}
+                          {(c.preferredLocations as string[])?.join(", ") || "Not specified"}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          <strong>Preferred Industries:</strong>{" "}
+                          {(c.industries as string[])?.join(", ") || "No preferences"}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          <strong>Experience:</strong> {c.experiences}
+                        </p>
+
+                        <div className="flex items-center gap-3 mt-3">
+                          <Button
+                            onClick={() =>
+                              navigate(
+                                `/short-candidate-profile/${c.user_id}?from=browse-candidates`
+                              )
+                            }
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
+                          >
+                            View Profile
+                          </Button>
+                          <button
+                            onClick={() => handleLikeCandidate(c.user_id)}
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart
+                              size={20}
+                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          {/* Candidate List */}
-          <div className="flex-1 overflow-y-auto px-4 space-y-4 pb-4">
-            {!selectedJobId ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>Please select a job post above to view matches and recommendations.</p>
-              </div>
-            ) : currentList.length === 0 ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>No candidates found for this job yet.</p>
-              </div>
-            ) : (
-              currentList.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
-                >
-                  <div className="flex gap-3 items-start">
-                    <img
-                      src={c.profileImage}
-                      alt={c.name}
-                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-lg truncate">
-                        {c.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        <strong>Preferred Locations:</strong>{" "}
-                        {c.preferredLocations.length > 0
-                          ? c.preferredLocations.join(", ")
-                          : "Not specified"}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        <strong>Preferred Industries:</strong>{" "}
-                        {c.industries.length > 0 ? c.industries.join(", ") : "No preferences"}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        <strong>Experience:</strong> {c.experiences}
-                      </p>
-
-                      <div className="flex items-center gap-3 mt-3">
-                        <Button
-                          onClick={() => handleViewProfile(c.id, c.isMutualMatch)}
-                          className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
-                        >
-                          {c.isMutualMatch ? "View Full Profile" : "View Profile"}
-                        </Button>
-                        {!c.isMutualMatch && (
-                          <button
-                            onClick={() => handleLike(c)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50"
-                          >
-                            <Heart size={18} className="text-orange-500" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {c.matchPercentage && !c.isMutualMatch && (
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-lg font-bold text-orange-500">
-                          {c.matchPercentage}%
-                        </div>
-                        <div className="text-xs font-semibold text-orange-500">Match</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
           {/* Bottom Navigation */}
-          <div className="bg-white border-t rounded-b-[48px] flex-shrink-0">
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
@@ -314,4 +485,4 @@ const EmployerMatches: React.FC = () => {
   );
 };
 
-export default EmployerMatches;
+export default BrowseCandidates;
