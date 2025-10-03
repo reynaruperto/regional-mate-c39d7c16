@@ -67,7 +67,8 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        const { data, error } = await supabase
+        // 1. Fetch job
+        const { data: job, error: jobError } = await supabase
           .from("job")
           .select(`
             job_id,
@@ -81,40 +82,39 @@ const WHVJobFull: React.FC = () => {
             start_date,
             job_status,
             industry_role ( role, industry(name) ),
-            employer:user_id (
-              user_id,
-              company_name,
-              tagline,
-              profile_photo,
-              abn,
-              website,
-              mobile_num,
-              profile:user_id (
-                email
-              )
-            )
+            user_id
           `)
           .eq("job_id", Number(jobId))
           .maybeSingle();
 
-        console.log("jobId param:", jobId);
-        console.log("Supabase data:", data);
-        console.error("Supabase error:", error);
-
-        if (error) {
+        if (jobError) {
+          console.error("Job fetch error:", jobError);
+          setLoading(false);
+          return;
+        }
+        if (!job) {
           setLoading(false);
           return;
         }
 
-        if (!data) {
-          setLoading(false);
-          return;
-        }
+        // 2. Fetch employer
+        const { data: emp } = await supabase
+          .from("employer")
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .eq("user_id", job.user_id)
+          .maybeSingle();
 
-        // Handle photo
+        // 3. Fetch profile email
+        const { data: profile } = await supabase
+          .from("profile")
+          .select("email")
+          .eq("user_id", job.user_id)
+          .maybeSingle();
+
+        // Photo
         let companyPhoto: string | null = null;
-        if (data.employer?.profile_photo) {
-          let photoPath = data.employer.profile_photo;
+        if (emp?.profile_photo) {
+          let photoPath = emp.profile_photo;
           if (photoPath.includes("/profile_photo/")) {
             photoPath = photoPath.split("/profile_photo/")[1];
           }
@@ -128,7 +128,7 @@ const WHVJobFull: React.FC = () => {
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
-          .eq("user_id", data.employer?.user_id);
+          .eq("user_id", job.user_id);
 
         const facilities =
           facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
@@ -137,33 +137,33 @@ const WHVJobFull: React.FC = () => {
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
-          .eq("job_id", data.job_id);
+          .eq("job_id", job.job_id);
 
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
         setJobDetails({
-          job_id: data.job_id,
-          description: data.description || "No description available",
-          employment_type: data.employment_type || "N/A",
-          salary_range: data.salary_range || "N/A",
-          req_experience: data.req_experience || "N/A",
-          state: data.state || "N/A",
-          suburb_city: data.suburb_city || "N/A",
-          postcode: data.postcode || "",
-          start_date: data.start_date || new Date().toISOString(),
-          job_status: data.job_status || "draft",
-          role: data.industry_role?.role || "Unknown Role",
-          industry: data.industry_role?.industry?.name || "Unknown Industry",
-          company_name: data.employer?.company_name || "Unknown Company",
-          tagline: data.employer?.tagline || "No tagline provided",
+          job_id: job.job_id,
+          description: job.description || "No description available",
+          employment_type: job.employment_type || "N/A",
+          salary_range: job.salary_range || "N/A",
+          req_experience: job.req_experience || "N/A",
+          state: job.state || "N/A",
+          suburb_city: job.suburb_city || "N/A",
+          postcode: job.postcode || "",
+          start_date: job.start_date || new Date().toISOString(),
+          job_status: job.job_status || "draft",
+          role: job.industry_role?.role || "Unknown Role",
+          industry: job.industry_role?.industry?.name || "Unknown Industry",
+          company_name: emp?.company_name || "Unknown Company",
+          tagline: emp?.tagline || "No tagline provided",
           company_photo: companyPhoto,
           facilities,
           licenses,
-          email: data.employer?.profile?.email || "",
-          abn: data.employer?.abn || "N/A",
-          website: data.employer?.website || "Not provided",
-          mobile_num: data.employer?.mobile_num || "",
+          email: profile?.email || "",
+          abn: emp?.abn || "N/A",
+          website: emp?.website || "Not provided",
+          mobile_num: emp?.mobile_num || "",
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
