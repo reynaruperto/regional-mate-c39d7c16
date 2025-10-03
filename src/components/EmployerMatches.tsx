@@ -64,14 +64,14 @@ const BrowseCandidates: React.FC = () => {
           : "No experience listed";
 
       return {
-        user_id: row.maker_id,
+        user_id: row.maker_id || row.user_id, // ensure correct mapping
         name: row.given_name,
         profileImage: resolvePhoto(row.profile_photo),
         industries: (row.industry_pref as string[]) || [],
         workExpIndustries,
         experiences,
         preferredLocations: (row.state_pref as string[]) || [],
-        isLiked: Boolean(row.isLiked),
+        isLiked: false, // default, will override later
       };
     });
 
@@ -122,7 +122,7 @@ const BrowseCandidates: React.FC = () => {
   useEffect(() => {
     if (!employerId || !selectedJobId) return;
     (async () => {
-      const { data, error } = await (supabase as any).rpc("view_all_eligible_makers", {
+      const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
         p_emp_id: employerId,
         p_job_id: selectedJobId,
       });
@@ -132,19 +132,24 @@ const BrowseCandidates: React.FC = () => {
       }
 
       //  Fetch employer likes for this job
-      const { data: likes } = await supabase
+      const { data: likes, error: likesError } = await supabase
         .from("likes")
         .select("liked_whv_id")
         .eq("liker_id", employerId)
         .eq("liker_type", "employer")
         .eq("liked_job_post_id", selectedJobId);
 
+      if (likesError) {
+        console.error("Likes fetch error:", likesError);
+      }
+
       const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
       //  Map candidates and mark liked
-      const mapped = (data || []).map((row: any) => {
+      const mapped = (makers || []).map((row: any) => {
         const c = mapRowsToCandidates([row])[0];
-        return { ...c, isLiked: likedIds.includes(c.user_id) };
+        const whvId = row.maker_id || row.user_id;
+        return { ...c, isLiked: likedIds.includes(whvId) };
       });
 
       setAllCandidates(mapped);
@@ -170,7 +175,7 @@ const BrowseCandidates: React.FC = () => {
     );
   }, [searchQuery, allCandidates]);
 
-  // ---------- like ----------
+  // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
     const candidate = candidates.find((c) => c.user_id === candidateId);
@@ -248,7 +253,7 @@ const BrowseCandidates: React.FC = () => {
       return;
     }
 
-    //  Mark liked state again after filter
+    //  Re-fetch likes for consistency
     const { data: likes } = await supabase
       .from("likes")
       .select("liked_whv_id")
