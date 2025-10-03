@@ -11,6 +11,7 @@ import {
   Hash,
   Phone,
   Mail,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -66,7 +67,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
       try {
         if (!empId) return;
 
-        // 1️⃣ Get latest job by employer (or you can refine)
+        // Get latest job by employer
         const { data: job } = await supabase
           .from("job")
           .select(
@@ -86,6 +87,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           `
           )
           .eq("user_id", empId)
+          .order("start_date", { ascending: false })
           .limit(1)
           .maybeSingle();
 
@@ -105,7 +107,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           role: job.industry_role?.role || "Unknown Role",
         });
 
-        // 2️⃣ Employer details
+        // Employer details
         const { data: emp } = await supabase
           .from("employer")
           .select(
@@ -114,7 +116,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // 3️⃣ Employer email from profile
+        // Employer email from profile
         const { data: profile } = await supabase
           .from("profile")
           .select("email")
@@ -143,7 +145,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           email: profile?.email || "",
         });
 
-        // 4️⃣ Facilities
+        // Facilities
         const { data: facs } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -153,7 +155,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           facs?.map((f: any) => f.facility?.name).filter(Boolean) || []
         );
 
-        // 5️⃣ Licenses
+        // Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
