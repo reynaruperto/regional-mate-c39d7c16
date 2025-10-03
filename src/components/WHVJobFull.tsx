@@ -62,7 +62,7 @@ const WHVJobFull: React.FC = () => {
     } else if (fromPage === "matches") {
       navigate("/whv/matches", { state: { tab: "matches" } });
     } else {
-      navigate(-1);
+      navigate(-1); // fallback
     }
   };
 
@@ -71,7 +71,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1️⃣ Get job
+        // 1. Fetch job
         const { data: job } = await supabase
           .from("job")
           .select(`
@@ -93,43 +93,49 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
-        // 2️⃣ Get employer
+        // 2. Fetch employer
         const { data: emp } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // 3️⃣ Get profile email separately
+        console.log("JOB USER_ID:", job.user_id);
+        console.log("EMPLOYER USER_ID:", emp?.user_id);
+
+        // 3. Fetch email from profile (try employer.user_id, fallback to job.user_id)
         let email = "";
-        if (emp?.user_id) {
+        const targetUserId = emp?.user_id || job.user_id;
+
+        if (targetUserId) {
           const { data: profile, error: profileErr } = await supabase
             .from("profile")
-            .select("email")
-            .eq("user_id", emp.user_id)
+            .select("email, user_id")
+            .eq("user_id", targetUserId)
             .maybeSingle();
 
-          console.log("EMPLOYER USER_ID:", emp.user_id);
+          console.log("TARGET USER_ID:", targetUserId);
           console.log("PROFILE RESULT:", profile);
           console.log("PROFILE ERROR:", profileErr);
 
           email = profile?.email || "";
         }
 
-        // 4️⃣ Company photo signed URL
+        // 4. Signed photo
         let companyPhoto: string | null = null;
         if (emp?.profile_photo) {
-          let photoPath = emp.profile_photo;
-          if (photoPath.includes("/profile_photo/")) {
-            photoPath = photoPath.split("/profile_photo/")[1];
-          }
+          let photoPath = emp.profile_photo.includes("/profile_photo/")
+            ? emp.profile_photo.split("/profile_photo/")[1]
+            : emp.profile_photo;
+
           const { data: signed } = await supabase.storage
             .from("profile_photo")
             .createSignedUrl(photoPath, 3600);
+
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // 5️⃣ Facilities
+        // 5. Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -138,7 +144,7 @@ const WHVJobFull: React.FC = () => {
         const facilities =
           facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // 6️⃣ Licenses
+        // 6. Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
@@ -147,7 +153,7 @@ const WHVJobFull: React.FC = () => {
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        // ✅ Set job state
+        // 7. Save state
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -168,7 +174,6 @@ const WHVJobFull: React.FC = () => {
           licenses,
         });
 
-        // ✅ Set employer state
         setEmployer({
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
@@ -185,14 +190,8 @@ const WHVJobFull: React.FC = () => {
     fetchJobDetails();
   }, [jobId]);
 
-  if (loading)
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  if (!jobDetails)
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Job not found</p>
-      </div>
-    );
+  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  if (!jobDetails) return <div className="flex items-center justify-center min-h-screen"><p>Job not found</p></div>;
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -217,15 +216,9 @@ const WHVJobFull: React.FC = () => {
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
-                    <img
-                      src={jobDetails.company_photo}
-                      alt="Company"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={jobDetails.company_photo} alt="Company" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-                      <Image size={32} />
-                    </div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><Image size={32} /></div>
                   )}
                 </div>
                 <h2 className="text-xl font-bold">{jobDetails.company_name}</h2>
@@ -236,44 +229,27 @@ const WHVJobFull: React.FC = () => {
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
-                <span
-                  className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
-                    jobDetails.job_status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {jobDetails.job_status}
-                </span>
+                <span className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
+                  jobDetails.job_status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                }`}>{jobDetails.job_status}</span>
               </div>
 
               {/* Employer Info */}
               {employer && (
                 <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
-                  <p>
-                    <Hash size={14} className="inline mr-1" /> ABN: {employer.abn}
-                  </p>
+                  <p><Hash size={14} className="inline mr-1" /> ABN: {employer.abn}</p>
                   <p>
                     <Mail size={14} className="inline mr-1" />
                     {employer.email ? (
-                      <a
-                        href={`mailto:${employer.email}`}
-                        className="text-blue-600 hover:underline"
-                      >
+                      <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">
                         {employer.email}
                       </a>
                     ) : (
-                      <span className="text-gray-500">⚠️ No email found</span>
+                      <span className="text-gray-500">⚠ No email found</span>
                     )}
                   </p>
-                  {employer.mobile_num && (
-                    <p>
-                      <Phone size={14} className="inline mr-1" /> {employer.mobile_num}
-                    </p>
-                  )}
-                  <p>
-                    <Globe size={14} className="inline mr-1" /> {employer.website}
-                  </p>
+                  {employer.mobile_num && <p><Phone size={14} className="inline mr-1" /> {employer.mobile_num}</p>}
+                  <p><Globe size={14} className="inline mr-1" /> {employer.website}</p>
                 </div>
               )}
 
@@ -291,34 +267,20 @@ const WHVJobFull: React.FC = () => {
               {/* Details Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <Clock className="w-5 h-5 mr-2" />
-                    <span>Type</span>
-                  </div>
+                  <div className="flex items-center mb-1"><Clock className="w-5 h-5 mr-2" /><span>Type</span></div>
                   <p className="font-semibold">{jobDetails.employment_type}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <DollarSign className="w-5 h-5 mr-2" />
-                    <span>Salary</span>
-                  </div>
+                  <div className="flex items-center mb-1"><DollarSign className="w-5 h-5 mr-2" /><span>Salary</span></div>
                   <p className="font-semibold">{jobDetails.salary_range}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <User className="w-5 h-5 mr-2" />
-                    <span>Experience</span>
-                  </div>
+                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <Calendar className="w-5 h-5 mr-2" />
-                    <span>Start Date</span>
-                  </div>
-                  <p className="font-semibold">
-                    {new Date(jobDetails.start_date).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center mb-1"><Calendar className="w-5 h-5 mr-2" /><span>Start Date</span></div>
+                  <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
                 </div>
               </div>
 
@@ -326,15 +288,9 @@ const WHVJobFull: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <h4 className="font-semibold mb-2">Licenses</h4>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0 ? (
-                    jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
-                        {l}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No licenses required</p>
-                  )}
+                  {jobDetails.licenses.length > 0 ? jobDetails.licenses.map((l, i) => (
+                    <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
+                  )) : <p className="text-sm text-gray-500">No licenses required</p>}
                 </div>
               </div>
 
@@ -342,15 +298,9 @@ const WHVJobFull: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <h4 className="font-semibold mb-2">Facilities</h4>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0 ? (
-                    jobDetails.facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
-                        {f}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
-                  )}
+                  {jobDetails.facilities.length > 0 ? jobDetails.facilities.map((f, i) => (
+                    <span key={i} className="px-3 py-1 border text-xs rounded-full">{f}</span>
+                  )) : <p className="text-sm text-gray-500">No facilities listed</p>}
                 </div>
               </div>
 
@@ -361,6 +311,7 @@ const WHVJobFull: React.FC = () => {
                   <p>{jobDetails.description}</p>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
