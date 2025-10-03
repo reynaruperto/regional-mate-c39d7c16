@@ -41,13 +41,11 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch Matches
   useEffect(() => {
     if (!whvId) return;
     const fetchMatches = async () => {
       const { data } = await supabase.rpc("fetch_whv_matches", { p_whv_id: whvId });
 
-      // Get liked jobs
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_job_post_id")
@@ -75,7 +73,6 @@ const WHVMatches: React.FC = () => {
     fetchMatches();
   }, [whvId]);
 
-  // ✅ Fetch Top Recommended
   useEffect(() => {
     if (!whvId) return;
     const fetchTopRecommended = async () => {
@@ -110,7 +107,6 @@ const WHVMatches: React.FC = () => {
 
   const currentEmployers = activeTab === "matches" ? matches : topRecommended;
 
-  // ✅ Toggle like/unlike
   const handleLikeEmployer = async (jobId: number) => {
     if (!whvId) return;
 
@@ -154,7 +150,6 @@ const WHVMatches: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Header */}
           <div className="px-6 pt-16 pb-2 flex items-center">
             <Button
               variant="ghost"
@@ -169,7 +164,6 @@ const WHVMatches: React.FC = () => {
             </h1>
           </div>
 
-          {/* Tabs */}
           <div className="px-6 py-3 flex bg-gray-100 rounded-full mx-6 my-2">
             <button
               onClick={() => setActiveTab("matches")}
@@ -189,7 +183,6 @@ const WHVMatches: React.FC = () => {
             </button>
           </div>
 
-          {/* List */}
           <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
             {currentEmployers.length === 0 ? (
               <div className="text-center text-gray-600 mt-10">
@@ -226,27 +219,36 @@ const WHVMatches: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-3 mt-4">
-                        <Button
-                          className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                          onClick={() => navigate(`/whv/job/${e.job_id}`)}
-                        >
-                          View Details
-                        </Button>
-                        <button
-                          onClick={() => handleLikeEmployer(e.job_id)}
-                          className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
-                        >
-                          <Heart
-                            size={20}
-                            className={
-                              e.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"
-                            }
-                          />
-                        </button>
+                        {activeTab === "matches" ? (
+                          <Button
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                            onClick={() => navigate(`/whv/job/${e.job_id}`)}
+                          >
+                            View Full Profile
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                              onClick={() => navigate(`/whv/job/${e.job_id}`)}
+                            >
+                              View Details
+                            </Button>
+                            <button
+                              onClick={() => handleLikeEmployer(e.job_id)}
+                              className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            >
+                              <Heart
+                                size={20}
+                                className={e.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                              />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {e.matchPercentage && (
+                    {activeTab === "topRecommended" && e.matchPercentage && (
                       <div className="text-right flex-shrink-0 ml-2">
                         <div className="text-lg font-bold text-orange-500">{e.matchPercentage}%</div>
                         <div className="text-xs font-semibold text-orange-500">Match</div>
