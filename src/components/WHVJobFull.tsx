@@ -66,7 +66,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        const { data: job, error } = await supabase
+        const { data, error } = await supabase
           .from("job")
           .select(
             `
@@ -92,7 +92,7 @@ const WHVJobFull: React.FC = () => {
                 email
               )
             )
-          ` as any // 👈 TS override for nested relations
+          `
           )
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
@@ -101,7 +101,10 @@ const WHVJobFull: React.FC = () => {
           console.error("Error fetching job details:", error);
           return;
         }
-        if (!job) return;
+        if (!data) return;
+
+        // 👇 force TS to stop complaining
+        const job: any = data;
 
         // Facilities
         const { data: facilityRows } = await supabase
