@@ -17,20 +17,30 @@ interface MatchCandidate {
   skills?: string[];
   isMutualMatch?: boolean;
   matchPercentage?: number;
-  isLiked?: boolean; // ✅ added
+  isLiked?: boolean; // ✅ toggle like state
 }
 
 const EmployerMatches: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
   const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
+  const [employerId, setEmployerId] = useState<string | null>(null);
 
-  const employerId = "CURRENT_EMPLOYER_UUID"; // TODO: replace with logged-in employer’s id
-  const currentJobId = 1; // TODO: set from context / job being viewed
+  const currentJobId = 1; // TODO: get from context / current job
+
+  // ✅ Get logged-in employer UUID
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setEmployerId(user.id);
+    };
+    getUser();
+  }, []);
 
   // Pick up tab from URL
   useEffect(() => {
@@ -43,11 +53,12 @@ const EmployerMatches: React.FC = () => {
 
   // ✅ Fetch mutual matches
   useEffect(() => {
+    if (!employerId) return;
+
     const fetchMatches = async () => {
       const { data, error } = await supabase
         .from("matches")
-        .select(
-          `
+        .select(`
           whv_id,
           job_post_id,
           matched_at,
@@ -59,8 +70,7 @@ const EmployerMatches: React.FC = () => {
             current_location,
             availability
           )
-        `
-        )
+        `)
         .eq("employer_id", employerId)
         .not("matched_at", "is", null);
 
@@ -86,14 +96,14 @@ const EmployerMatches: React.FC = () => {
     fetchMatches();
   }, [employerId]);
 
-  // ✅ Fetch top recommended (with preloaded liked state)
+  // ✅ Fetch top recommended (preload liked state)
   useEffect(() => {
+    if (!employerId) return;
+
     const fetchTopRecommended = async () => {
-      // Get recommended candidates
       const { data: recs, error } = await supabase
         .from("matching_score")
-        .select(
-          `
+        .select(`
           whv_id,
           job_id,
           match_score,
@@ -105,8 +115,7 @@ const EmployerMatches: React.FC = () => {
             current_location,
             availability
           )
-        `
-        )
+        `)
         .eq("job_id", currentJobId)
         .order("match_score", { ascending: false })
         .limit(10);
@@ -126,7 +135,6 @@ const EmployerMatches: React.FC = () => {
 
       const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-      // Map into list
       const formatted: MatchCandidate[] = recs.map((r: any) => ({
         id: r.whv?.user_id,
         name: r.whv?.given_name,
@@ -146,7 +154,7 @@ const EmployerMatches: React.FC = () => {
 
   // ✅ Toggle like/unlike (Top Recommended only)
   const handleLike = async (candidate: MatchCandidate) => {
-    if (!candidate.id) return;
+    if (!candidate.id || !employerId) return;
 
     try {
       if (candidate.isLiked) {
