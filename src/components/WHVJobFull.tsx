@@ -91,22 +91,21 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
+        // ✅ Join employer with profile to get email
         const { data: emp } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .select(`
+            company_name,
+            tagline,
+            profile_photo,
+            abn,
+            website,
+            mobile_num,
+            user_id,
+            profile!inner(email)   -- 👈 join profile and pull email
+          `)
           .eq("user_id", job.user_id)
           .maybeSingle();
-
-        // ✅ Fetch email from profile using profile.user_id
-        let email = "";
-        if (emp?.user_id) {
-          const { data: profile } = await supabase
-            .from("profile")
-            .select("email")
-            .eq("user_id", emp.user_id)
-            .maybeSingle();
-          email = profile?.email || "";
-        }
 
         let companyPhoto: string | null = null;
         if (emp?.profile_photo) {
@@ -158,7 +157,7 @@ const WHVJobFull: React.FC = () => {
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
-          email,
+          email: emp?.profile?.email || "",  // ✅ now comes from join
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
