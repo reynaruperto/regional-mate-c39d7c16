@@ -78,8 +78,17 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       });
 
       if (locData) {
-        setStates((locData as any[]).map((l) => l.state ?? "Unknown"));
-        setAllSuburbs((locData as any[]).map((l) => ({ state: l.state, location: l.location })));
+        // Deduplicate + sort states
+        const uniqueStates = Array.from(
+          new Set((locData as any[]).map((l) => l.state ?? "Unknown"))
+        ).sort();
+
+        setStates(uniqueStates);
+
+        // Keep all suburbs with their state
+        setAllSuburbs(
+          (locData as any[]).map((l) => ({ state: l.state, location: l.location }))
+        );
       }
     };
     fetchLocations();
@@ -94,7 +103,10 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     const filtered = allSuburbs
       .filter((s) => s.state === selectedFilters.state)
       .map((s) => s.location);
-    setSuburbs(filtered);
+
+    // Deduplicate + sort suburbs too
+    const uniqueSuburbs = Array.from(new Set(filtered)).sort();
+    setSuburbs(uniqueSuburbs);
   }, [selectedFilters.state, allSuburbs]);
 
   // ✅ Apply filters
@@ -115,7 +127,6 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       return;
     }
 
-    // Return both jobs + clean labels
     onResults(data || [], {
       industryLabel: selectedFilters.industry?.industry || "",
       state: selectedFilters.state || "",
