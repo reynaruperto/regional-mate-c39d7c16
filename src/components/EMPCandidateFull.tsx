@@ -8,7 +8,6 @@ import {
   Award,
   User,
   Calendar,
-  Globe,
   FileText,
   Phone,
   Mail,
@@ -36,7 +35,7 @@ const EMPCandidateFull: React.FC = () => {
       if (!id) return;
       setLoading(true);
 
-      // 1. WHV Maker
+      // 1. Candidate profile
       const { data: whv } = await supabase
         .from("whv_maker")
         .select(
@@ -48,13 +47,9 @@ const EMPCandidateFull: React.FC = () => {
       // 2. Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(`
-          expiry_date,
-          stage_id,
-          country_id,
-          visa_stage (label),
-          country (name)
-        `)
+        .select(
+          "expiry_date, stage_id, country_id, visa_stage (label), country (name)"
+        )
         .eq("user_id", id)
         .maybeSingle();
       setVisaData(visa);
@@ -118,14 +113,14 @@ const EMPCandidateFull: React.FC = () => {
         .eq("user_id", id);
       setReferences(refRows || []);
 
-      // 9. Profile Email
+      // 9. Candidate email from profile table
       const { data: profileRow } = await supabase
         .from("profile")
         .select("email")
         .eq("user_id", id)
         .maybeSingle();
 
-      // 10. Signed photo URL
+      // 10. Signed profile photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
         let path = whv.profile_photo;
