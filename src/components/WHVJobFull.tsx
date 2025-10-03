@@ -34,13 +34,10 @@ interface JobDetails {
   company_photo: string | null;
   facilities: string[];
   licenses: string[];
-}
-
-interface EmployerDetails {
-  abn: string;
-  website: string;
-  mobile_num?: string;
   email?: string;
+  abn?: string;
+  website?: string;
+  mobile_num?: string;
 }
 
 const WHVJobFull: React.FC = () => {
@@ -49,9 +46,7 @@ const WHVJobFull: React.FC = () => {
   const { jobId } = useParams();
 
   const fromPage = (location.state as any)?.from;
-
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
-  const [employer, setEmployer] = useState<EmployerDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
   const handleBack = () => {
@@ -71,8 +66,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1. Job
-        const { data: job } = await supabase
+        const { data: job, error } = await supabase
           .from("job")
           .select(`
             job_id,
@@ -86,58 +80,37 @@ const WHVJobFull: React.FC = () => {
             start_date,
             job_status,
             industry_role ( role, industry(name) ),
-            user_id
+            employer: user_id (
+              company_name,
+              tagline,
+              profile_photo,
+              abn,
+              website,
+              mobile_num,
+              profile: user_id (
+                email
+              )
+            )
           `)
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
+        if (error) {
+          console.error("Error fetching job details:", error);
+          return;
+        }
         if (!job) return;
 
-        // 2. Employer
-        const { data: emp } = await supabase
-          .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num")
-          .eq("user_id", job.user_id)
-          .maybeSingle();
-
-        // 3. Email — directly from profile.user_id = job.user_id
-        let email = "";
-        const { data: profile, error: profileErr } = await supabase
-          .from("profile")
-          .select("email, user_id")
-          .eq("user_id", job.user_id)
-          .maybeSingle();
-
-        console.log("FETCHING EMAIL FOR USER_ID:", job.user_id);
-        console.log("PROFILE RESULT:", profile);
-        console.log("PROFILE ERROR:", profileErr);
-
-        email = profile?.email || "";
-
-        // 4. Photo
-        let companyPhoto: string | null = null;
-        if (emp?.profile_photo) {
-          let photoPath = emp.profile_photo.includes("/profile_photo/")
-            ? emp.profile_photo.split("/profile_photo/")[1]
-            : emp.profile_photo;
-
-          const { data: signed } = await supabase.storage
-            .from("profile_photo")
-            .createSignedUrl(photoPath, 3600);
-
-          companyPhoto = signed?.signedUrl || null;
-        }
-
-        // 5. Facilities
+        // Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
-          .eq("user_id", job.user_id);
+          .eq("user_id", job.employer?.user_id);
 
         const facilities =
           facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // 6. Licenses
+        // Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
@@ -146,7 +119,18 @@ const WHVJobFull: React.FC = () => {
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        // 7. Save state
+        // Photo
+        let companyPhoto: string | null = null;
+        if (job.employer?.profile_photo) {
+          let photoPath = job.employer.profile_photo.includes("/profile_photo/")
+            ? job.employer.profile_photo.split("/profile_photo/")[1]
+            : job.employer.profile_photo;
+          const { data: signed } = await supabase.storage
+            .from("profile_photo")
+            .createSignedUrl(photoPath, 3600);
+          companyPhoto = signed?.signedUrl || null;
+        }
+
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -160,18 +144,15 @@ const WHVJobFull: React.FC = () => {
           job_status: job.job_status || "draft",
           role: job.industry_role?.role || "Unknown Role",
           industry: job.industry_role?.industry?.name || "Unknown Industry",
-          company_name: emp?.company_name || "Unknown Company",
-          tagline: emp?.tagline || "No tagline provided",
+          company_name: job.employer?.company_name || "Unknown Company",
+          tagline: job.employer?.tagline || "No tagline provided",
           company_photo: companyPhoto,
           facilities,
           licenses,
-        });
-
-        setEmployer({
-          abn: emp?.abn || "N/A",
-          website: emp?.website || "Not provided",
-          mobile_num: emp?.mobile_num || "",
-          email,
+          email: job.employer?.profile?.email || "",
+          abn: job.employer?.abn || "N/A",
+          website: job.employer?.website || "Not provided",
+          mobile_num: job.employer?.mobile_num || "",
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
@@ -250,37 +231,137 @@ const WHVJobFull: React.FC = () => {
               </div>
 
               {/* Employer Info */}
-              {employer && (
-                <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
-                  <p>
-                    <Hash size={14} className="inline mr-1" /> ABN:{" "}
-                    {employer.abn}
-                  </p>
-                  <p>
-                    <Mail size={14} className="inline mr-1" />
-                    {employer.email ? (
-                      <a
-                        href={`mailto:${employer.email}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {employer.email}
-                      </a>
-                    ) : (
-                      <span className="text-gray-500">⚠ No email found</span>
-                    )}
-                  </p>
-                  {employer.mobile_num && (
-                    <p>
-                      <Phone size={14} className="inline mr-1" />{" "}
-                      {employer.mobile_num}
-                    </p>
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
+                <p>
+                  <Hash size={14} className="inline mr-1" /> ABN:{" "}
+                  {jobDetails.abn}
+                </p>
+                <p>
+                  <Mail size={14} className="inline mr-1" />
+                  {jobDetails.email ? (
+                    <a
+                      href={`mailto:${jobDetails.email}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {jobDetails.email}
+                    </a>
+                  ) : (
+                    <span className="text-gray-500">⚠ No email found</span>
                   )}
+                </p>
+                {jobDetails.mobile_num && (
                   <p>
-                    <Globe size={14} className="inline mr-1" />{" "}
-                    {employer.website}
+                    <Phone size={14} className="inline mr-1" />{" "}
+                    {jobDetails.mobile_num}
+                  </p>
+                )}
+                <p>
+                  <Globe size={14} className="inline mr-1" />{" "}
+                  {jobDetails.website}
+                </p>
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center mb-1">
+                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Location
+                  </span>
+                </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
+                  {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <Clock className="w-5 h-5 mr-2" />
+                    <span>Type</span>
+                  </div>
+                  <p className="font-semibold">
+                    {jobDetails.employment_type}
                   </p>
                 </div>
-              )}
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    <span>Salary</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.salary_range}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Experience</span>
+                  </div>
+                  <p className="font-semibold">
+                    {jobDetails.req_experience}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    <span>Start Date</span>
+                  </div>
+                  <p className="font-semibold">
+                    {new Date(jobDetails.start_date).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Licenses */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Licenses</h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No licenses required
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Facilities */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Facilities</h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border text-xs rounded-full"
+                      >
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No facilities listed
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div>
+                <h4 className="font-semibold mb-2">Job Description</h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p>{jobDetails.description}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
