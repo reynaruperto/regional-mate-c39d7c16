@@ -6,13 +6,6 @@ import { useNavigate } from "react-router-dom";
 import BottomNavigation from "@/components/BottomNavigation";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface MatchCard {
   job_id: number;
@@ -39,7 +32,6 @@ const WHVMatches: React.FC = () => {
 
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   // Helper to resolve photo URL
   const resolvePhoto = (val?: string | null) => {
@@ -51,9 +43,7 @@ const WHVMatches: React.FC = () => {
   // Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) setWhvId(user.id);
     };
     getUser();
@@ -156,32 +146,6 @@ const WHVMatches: React.FC = () => {
             </h1>
           </div>
 
-          {/* Job Selector */}
-          <div className="px-6 mb-3">
-            <Select
-              onValueChange={(value) => setSelectedJobId(Number(value))}
-              value={selectedJobId ? String(selectedJobId) : ""}
-            >
-              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
-                <SelectValue placeholder="Select an active job post" />
-              </SelectTrigger>
-              <SelectContent
-                className="w-full max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
-                align="start"
-              >
-                {matches.concat(topRecommended).map((job) => (
-                  <SelectItem
-                    key={job.job_id}
-                    value={String(job.job_id)}
-                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
-                  >
-                    {job.role} – {job.company}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Tabs */}
           <div className="px-6 py-3 flex bg-gray-100 rounded-full mx-6 my-2">
             <button
@@ -253,9 +217,7 @@ const WHVMatches: React.FC = () => {
                           className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
                           onClick={() => {
                             if (e.isMutualMatch) {
-                              navigate(
-                                `/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`
-                              );
+                              navigate(`/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`);
                             } else {
                               navigate(`/whv/job/${e.job_id}`, {
                                 state: { from: "topRecommended" },
