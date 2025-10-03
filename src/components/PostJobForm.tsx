@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type JobStatus = "active" | "inactive" | "draft";
 
-type RoleRow = { industry_role_id: number; industry_role: string };
+type RoleRow = { industry_role_id: number; role: string };
 type LocationRow = { state: string; suburb_city: string; postcode: string };
 type LicenseRow = { license_id: number; name: string };
 
@@ -270,7 +270,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                       key={r.industry_role_id}
                       value={String(r.industry_role_id)}
                     >
-                      {r.industry_role}
+                      {r.role}
                     </SelectItem>
                   ))}
                 </SelectContent>
