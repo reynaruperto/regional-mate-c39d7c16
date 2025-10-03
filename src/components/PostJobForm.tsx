@@ -290,6 +290,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
+                  portal={false}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {roles.map((r) => (
@@ -327,6 +328,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
+                  portal={false}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {employmentTypeEnum.map((t) => (
@@ -351,6 +353,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
+                  portal={false}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {payRangeEnum.map((t) => (
@@ -375,6 +378,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
+                  portal={false}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {yearsExpEnum.map((t) => (
@@ -406,6 +410,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
+                  portal={false}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {locations.map((l, idx) => (
