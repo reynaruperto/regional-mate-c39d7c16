@@ -7,12 +7,13 @@ import {
   Clock,
   DollarSign,
   User,
+  Image,
+  Award,
   Globe,
   Hash,
   Phone,
   Mail,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -54,7 +55,7 @@ const EmployerJobMatchPreview: React.FC = () => {
       try {
         if (!jobId) return;
 
-        // 1️⃣ Get job info
+        // Job
         const { data: job } = await supabase
           .from("job")
           .select(
@@ -92,7 +93,7 @@ const EmployerJobMatchPreview: React.FC = () => {
           role: job.industry_role?.role || "Unknown Role",
         });
 
-        // 2️⃣ Employer details
+        // Employer
         const { data: emp } = await supabase
           .from("employer")
           .select(
@@ -101,7 +102,6 @@ const EmployerJobMatchPreview: React.FC = () => {
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // 3️⃣ Employer email from profile
         const { data: profile } = await supabase
           .from("profile")
           .select("email")
@@ -130,7 +130,7 @@ const EmployerJobMatchPreview: React.FC = () => {
           email: profile?.email || "",
         });
 
-        // 4️⃣ Facilities
+        // Facilities
         const { data: facs } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -140,7 +140,7 @@ const EmployerJobMatchPreview: React.FC = () => {
           facs?.map((f: any) => f.facility?.name).filter(Boolean) || []
         );
 
-        // 5️⃣ Licenses
+        // Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
@@ -171,183 +171,151 @@ const EmployerJobMatchPreview: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-600">Job not found</p>
-        <Button onClick={() => navigate("/post-jobs")} className="mt-4">
-          Back to Jobs
-        </Button>
+        <button
+          onClick={() => navigate(-1)}
+          className="mt-4 px-4 py-2 rounded-lg bg-gray-800 text-white"
+        >
+          Back
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Header */}
+          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">Job Match</h1>
+            <div className="w-10"></div>
+          </div>
 
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header */}
-            <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-10 h-10"
-                onClick={() => navigate("/post-jobs")}
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-700" />
-              </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Job Match</h1>
-              <div className="w-10"></div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 px-6 py-4 overflow-y-auto">
-              <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-                {/* Employer Header */}
-                <div className="flex flex-col items-center">
-                  <div className="w-24 h-24 rounded-full border-2 border-[#1E293B] overflow-hidden mb-3">
-                    {employer.profile_photo ? (
-                      <img
-                        src={employer.profile_photo}
-                        alt="Company"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-                        <User size={32} />
-                      </div>
-                    )}
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {employer.company_name}
-                  </h2>
-                  <p className="text-sm text-gray-600">{employer.tagline}</p>
-                  <p className="text-xs text-gray-500 flex items-center mt-1">
-                    <Hash size={14} className="mr-1 text-[#1E293B]" />
-                    ABN: {employer.abn}
-                  </p>
-                  {employer.mobile_num && (
-                    <p className="text-sm text-gray-700 flex items-center mt-1">
-                      <Phone size={14} className="mr-1 text-[#1E293B]" />{" "}
-                      {employer.mobile_num}
-                    </p>
+          {/* Content */}
+          <div className="flex-1 px-6 py-6 overflow-y-auto">
+            <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
+              {/* Employer */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
+                  {employer.profile_photo ? (
+                    <img
+                      src={employer.profile_photo}
+                      alt="Company"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <Image size={32} />
+                    </div>
                   )}
-                  {employer.email && (
-                    <p className="text-sm text-gray-700 flex items-center mt-1">
-                      <Mail size={14} className="mr-1 text-[#1E293B]" />{" "}
-                      {employer.email}
-                    </p>
-                  )}
-                  <p className="text-sm text-gray-700 flex items-center mt-1">
-                    <Globe size={14} className="mr-1 text-[#1E293B]" />{" "}
-                    {employer.website}
-                  </p>
                 </div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {employer.company_name}
+                </h2>
+                <p className="text-sm text-gray-600">{employer.tagline}</p>
+              </div>
 
-                {/* Job Info */}
-                <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Job Details
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-gray-600">Role:</span>
-                      <p className="font-medium text-gray-900">
-                        {jobDetails.role}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Type:</span>
-                      <p className="font-medium text-gray-900">
-                        {jobDetails.employment_type}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Salary:</span>
-                      <p className="font-medium text-gray-900">
-                        {jobDetails.salary_range}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Experience Required:</span>
-                      <p className="font-medium text-gray-900">
-                        {jobDetails.req_experience} years
-                      </p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-600">Licenses Required:</span>
-                      {licenses.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {licenses.map((l, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
-                            >
-                              {l}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="font-medium text-gray-900">None</p>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Start Date:</span>
-                      <p className="font-medium text-gray-900">
-                        {new Date(jobDetails.start_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Status:</span>
-                      <p className="font-medium text-gray-900">
-                        {jobDetails.job_status}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              {/* Employer Info */}
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-2 text-sm">
+                <p><Hash size={14} className="inline-block mr-1 text-[#1E293B]" /> ABN: {employer.abn}</p>
+                <p><Globe size={14} className="inline-block mr-1 text-[#1E293B]" /> {employer.website}</p>
+                {employer.email && (
+                  <p><Mail size={14} className="inline-block mr-1 text-[#1E293B]" /> {employer.email}</p>
+                )}
+                {employer.mobile_num && (
+                  <p><Phone size={14} className="inline-block mr-1 text-[#1E293B]" /> {employer.mobile_num}</p>
+                )}
+              </div>
 
-                {/* Location */}
-                <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">Location</h3>
-                  <p className="text-gray-900 font-medium">
-                    {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                    {jobDetails.postcode}
-                  </p>
-                </div>
-
-                {/* Facilities */}
-                <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Facilities
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {facilities.length > 0 ? (
-                      facilities.map((f, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
-                        >
-                          {f}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500">
-                        No facilities listed
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <h3 className="font-semibold text-[#1E293B] mb-2">
-                    Job Description
-                  </h3>
+              {/* Job Info */}
+              <div>
+                <h3 className="font-semibold text-[#1E293B] mb-2">Job Details</h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 rounded-2xl p-4">
-                    <p className="text-gray-700 leading-relaxed">
-                      {jobDetails.description}
-                    </p>
+                    <div className="flex items-center mb-2"><User className="w-5 h-5 text-[#1E293B] mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Role</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{jobDetails.role}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-[#1E293B] mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Type</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-[#1E293B] mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Salary</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <div className="flex items-center mb-2"><User className="w-5 h-5 text-[#1E293B] mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Experience</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-[#1E293B] mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Start Date</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <div className="flex items-center mb-2"><Award className="w-5 h-5 text-[#1E293B] mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Status</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{jobDetails.job_status}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Licenses */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h3 className="font-semibold text-[#1E293B] mb-2">Licenses</h3>
+                <div className="flex flex-wrap gap-2">
+                  {licenses.length > 0 ? (
+                    licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{l}</span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h3 className="font-semibold text-[#1E293B] mb-2">Location</h3>
+                <p className="text-gray-900 font-medium">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Facilities */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h3 className="font-semibold text-[#1E293B] mb-2">Facilities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {facilities.length > 0 ? (
+                    facilities.map((f, i) => (
+                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{f}</span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities listed</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h3 className="font-semibold text-[#1E293B] mb-2">Job Description</h3>
+                <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
               </div>
             </div>
           </div>
