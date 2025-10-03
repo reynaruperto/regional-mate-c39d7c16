@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-// 👉 IMPORTANT: use inline select instead of default
+// 👉 Import inline Select (no portal, compact)
 import {
   Select,
   SelectContent,
@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type JobStatus = "active" | "inactive" | "draft";
 
-type RoleRow = { industry_role_id: number; role: string };
+type RoleRow = { industry_role_id: number; industry_role: string };
 type LocationRow = { state: string; suburb_city: string; postcode: string };
 type LicenseRow = { license_id: number; name: string };
 
@@ -253,24 +253,23 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
           </div>
 
           {/* Body */}
-          <div className="flex-1 px-6 overflow-y-auto pb-24">
+          <div className="flex-1 px-6 overflow-y-auto pb-24 text-sm">
             {/* Role */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Job Role *</h2>
+              <h2 className="text-sm font-semibold mb-2">Job Role *</h2>
               <Select
                 value={form.industryRoleId}
                 onValueChange={(v) => handle("industryRoleId", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectTrigger className="h-10 px-3 text-sm" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
                       value={String(r.industry_role_id)}
+                      className="py-2 px-3"
                     >
-                      {r.role}
+                      {r.industry_role}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -279,27 +278,26 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Description */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Description *</h2>
+              <h2 className="text-sm font-semibold mb-2">Description *</h2>
               <Textarea
                 value={form.description}
                 onChange={(e) => handle("description", e.target.value)}
                 placeholder="Describe the role..."
+                className="text-sm"
               />
             </div>
 
             {/* Employment Type */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Employment Type *</h2>
+              <h2 className="text-sm font-semibold mb-2">Employment Type *</h2>
               <Select
                 value={form.employmentType}
                 onValueChange={(v) => handle("employmentType", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employment type" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectTrigger className="h-10 px-3 text-sm" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {employmentTypeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
                     </SelectItem>
                   ))}
@@ -309,17 +307,15 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Salary */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Salary Range *</h2>
+              <h2 className="text-sm font-semibold mb-2">Salary Range *</h2>
               <Select
                 value={form.salaryRange}
                 onValueChange={(v) => handle("salaryRange", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select salary range" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectTrigger className="h-10 px-3 text-sm" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {payRangeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
                     </SelectItem>
                   ))}
@@ -329,17 +325,15 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Experience */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Experience Required *</h2>
+              <h2 className="text-sm font-semibold mb-2">Experience Required *</h2>
               <Select
                 value={form.experienceRange}
                 onValueChange={(v) => handle("experienceRange", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select experience" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectTrigger className="h-10 px-3 text-sm" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {yearsExpEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
                     </SelectItem>
                   ))}
@@ -349,7 +343,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Location */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Location *</h2>
+              <h2 className="text-sm font-semibold mb-2">Location *</h2>
               <Select
                 value={form.suburbValue}
                 onValueChange={(v) => {
@@ -361,14 +355,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   handle("postcode", chosen?.postcode || "");
                 }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectTrigger className="h-10 px-3 text-sm" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
                       value={`${l.suburb_city} (${l.postcode})`}
+                      className="py-2 px-3"
                     >
                       {l.suburb_city}, {l.state} {l.postcode}
                     </SelectItem>
@@ -379,10 +372,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Start Date */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Start Date *</h2>
+              <h2 className="text-sm font-semibold mb-2">Start Date *</h2>
               <input
                 type="date"
-                className="w-full border rounded-lg p-2"
+                className="w-full border rounded-lg p-2 text-sm"
                 value={form.startDate}
                 onChange={(e) => handle("startDate", e.target.value)}
                 required
@@ -391,9 +384,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
             {/* Licenses */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
-              <h2 className="text-sm font-semibold mb-3">Licenses</h2>
+              <h2 className="text-sm font-semibold mb-2">Licenses</h2>
               {licenses.map((l) => (
-                <label key={l.license_id} className="flex items-center gap-2">
+                <label key={l.license_id} className="flex items-center gap-2 text-sm py-1">
                   <input
                     type="checkbox"
                     checked={selectedLicenses.includes(l.license_id)}
@@ -425,7 +418,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             <div className="pb-6">
               <Button
                 onClick={onSave}
-                className="w-full bg-[#1E293B] text-white rounded-xl h-12"
+                className="w-full bg-[#1E293B] text-white rounded-xl h-12 text-sm"
               >
                 {editingJob ? "Update Job" : "Post Job"}
               </Button>
