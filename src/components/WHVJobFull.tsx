@@ -70,6 +70,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
+        // Job details
         const { data: job } = await supabase
           .from("job")
           .select(`
@@ -91,24 +92,25 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
-        // Employer + Profile (join to get email)
+        // Employer details
         const { data: emp } = await supabase
           .from("employer")
-          .select(`
-            company_name,
-            tagline,
-            profile_photo,
-            abn,
-            website,
-            mobile_num,
-            user_id,
-            profile!inner (
-              email
-            )
-          `)
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
+        // Fetch profile email separately
+        let email = "";
+        if (emp?.user_id) {
+          const { data: profile } = await supabase
+            .from("profile")
+            .select("email")
+            .eq("user_id", emp.user_id)
+            .maybeSingle();
+          email = profile?.email || "";
+        }
+
+        // Company photo
         let companyPhoto: string | null = null;
         if (emp?.profile_photo) {
           let photoPath = emp.profile_photo;
@@ -121,6 +123,7 @@ const WHVJobFull: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
+        // Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -128,6 +131,7 @@ const WHVJobFull: React.FC = () => {
 
         const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
+        // Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
@@ -135,6 +139,7 @@ const WHVJobFull: React.FC = () => {
 
         const licenses = licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
+        // Set state
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -159,7 +164,7 @@ const WHVJobFull: React.FC = () => {
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
-          email: emp?.profile?.email || "",
+          email,
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
@@ -227,7 +232,14 @@ const WHVJobFull: React.FC = () => {
                       </a>
                     </p>
                   )}
-                  {employer.mobile_num && <p><Phone size={14} className="inline mr-1" /> {employer.mobile_num}</p>}
+                  {employer.mobile_num && (
+                    <p>
+                      <Phone size={14} className="inline mr-1" />
+                      <a href={`tel:${employer.mobile_num}`} className="text-blue-600 hover:underline">
+                        {employer.mobile_num}
+                      </a>
+                    </p>
+                  )}
                   <p><Globe size={14} className="inline mr-1" /> {employer.website}</p>
                 </div>
               )}
