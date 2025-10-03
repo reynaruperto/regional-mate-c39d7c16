@@ -35,6 +35,13 @@ const WHVMatches: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
 
+  // Helper to resolve photo URL
+  const resolvePhoto = (val?: string | null) => {
+    if (!val) return "/placeholder.png";
+    if (val.startsWith("http")) return val;
+    return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
+  };
+
   //  Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
@@ -65,7 +72,7 @@ const WHVMatches: React.FC = () => {
           role: m.role,
           industry: m.industry,
           location: `${m.suburb_city}, ${m.state} ${m.postcode}`,
-          profile_photo: m.profile_photo || "/placeholder.png",
+          profile_photo: resolvePhoto(m.profile_photo),
           salary_range: m.salary_range,
           employment_type: m.employment_type,
           description: m.description,
@@ -95,7 +102,7 @@ const WHVMatches: React.FC = () => {
           role: r.role,
           industry: r.industry,
           location: `${r.suburb_city}, ${r.state} ${r.postcode}`,
-          profile_photo: r.profile_photo || "/placeholder.png",
+          profile_photo: resolvePhoto(r.profile_photo),
           salary_range: r.salary_range,
           employment_type: r.employment_type,
           description: r.description,
