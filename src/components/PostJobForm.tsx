@@ -3,13 +3,14 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+// 👉 Using inline Select (no portal)
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select-inline";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,22 +94,14 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     let jobId = draft.job_id;
 
     if (jobId) {
-      const { error } = await supabase
-        .from("job")
-        .update(payload)
-        .eq("job_id", jobId);
-      if (error)
-        console.error("Update job error:", error.message, error.details);
+      await supabase.from("job").update(payload).eq("job_id", jobId);
     } else {
       const { data, error } = await supabase
         .from("job")
         .insert({ ...payload, job_status: "draft" })
         .select("job_id")
         .single();
-      if (error) {
-        console.error("Insert job error:", error.message, error.details);
-        return;
-      }
+      if (error) return;
       jobId = data?.job_id;
       setForm((p) => ({ ...p, job_id: jobId }));
     }
@@ -116,14 +109,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     if (jobId) {
       await supabase.from("job_license").delete().eq("job_id", jobId);
       if (draft.licenses?.length) {
-        const { error } = await supabase.from("job_license").insert(
+        await supabase.from("job_license").insert(
           draft.licenses.map((lid: number) => ({
             job_id: jobId,
             license_id: lid,
           }))
         );
-        if (error)
-          console.error("Insert job_license error:", error.message, error.details);
       }
     }
   };
@@ -163,6 +154,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     onBack();
   };
 
+  // enums
   useEffect(() => {
     setPayRangeEnum([
       "$25-30/hour",
@@ -182,27 +174,24 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     ]);
   }, []);
 
+  // fetch employer industry id
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) return;
 
-      const { data: emp, error: empErr } = await supabase
+      const { data: emp } = await supabase
         .from("employer")
         .select("industry_id")
         .eq("user_id", uid)
         .single();
 
-      if (empErr || !emp?.industry_id) {
-        console.error("Could not fetch employer industry:", empErr);
-        return;
-      }
-
-      setIndustryId(emp.industry_id);
+      if (emp?.industry_id) setIndustryId(emp.industry_id);
     })();
   }, []);
 
+  // load roles
   useEffect(() => {
     if (!industryId) return;
     (async () => {
@@ -210,31 +199,18 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
         .from("industry_role")
         .select("industry_role_id, role")
         .eq("industry_id", industryId);
-
-      if (roleData) {
-        setRoles(
-          roleData.map((r) => ({
-            industry_role_id: r.industry_role_id,
-            industry_role: r.role,
-          }))
-        );
-      }
+      if (roleData) setRoles(roleData);
     })();
   }, [industryId]);
 
+  // load locations
   useEffect(() => {
     if (!industryId) return;
     (async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("visa_work_location_rules")
         .select("state, suburb_city, postcode")
         .eq("industry_id", industryId);
-
-      if (error) {
-        console.error("Error fetching visa work locations:", error);
-        return;
-      }
-
       if (data) {
         const unique = Array.from(
           new Map(
@@ -246,6 +222,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, [industryId]);
 
+  // load licenses
   useEffect(() => {
     (async () => {
       const { data } = await supabase
@@ -258,10 +235,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div
-        id="phone-frame"
-        className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative"
-      >
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center">
@@ -287,19 +261,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 value={form.industryRoleId}
                 onValueChange={(v) => handle("industryRoleId", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  container={document.getElementById("phone-frame")!}
-                  className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
-                >
+                <SelectTrigger className="h-10 text-sm px-3" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
                       value={String(r.industry_role_id)}
+                      className="py-2 px-3"
                     >
                       {r.industry_role}
                     </SelectItem>
@@ -315,6 +283,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 value={form.description}
                 onChange={(e) => handle("description", e.target.value)}
                 placeholder="Describe the role..."
+                className="text-sm"
               />
             </div>
 
@@ -325,17 +294,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 value={form.employmentType}
                 onValueChange={(v) => handle("employmentType", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employment type" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  container={document.getElementById("phone-frame")!}
-                  className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
-                >
+                <SelectTrigger className="h-10 text-sm px-3" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {employmentTypeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
                     </SelectItem>
                   ))}
@@ -350,17 +312,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 value={form.salaryRange}
                 onValueChange={(v) => handle("salaryRange", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select salary range" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  container={document.getElementById("phone-frame")!}
-                  className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
-                >
+                <SelectTrigger className="h-10 text-sm px-3" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {payRangeEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
                     </SelectItem>
                   ))}
@@ -375,17 +330,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 value={form.experienceRange}
                 onValueChange={(v) => handle("experienceRange", v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select experience" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  container={document.getElementById("phone-frame")!}
-                  className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
-                >
+                <SelectTrigger className="h-10 text-sm px-3" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {yearsExpEnum.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem key={t} value={t} className="py-2 px-3">
                       {t}
                     </SelectItem>
                   ))}
@@ -407,19 +355,13 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   handle("postcode", chosen?.postcode || "");
                 }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  sideOffset={4}
-                  container={document.getElementById("phone-frame")!}
-                  className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
-                >
+                <SelectTrigger className="h-10 text-sm px-3" />
+                <SelectContent className="max-h-48 text-sm py-1">
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
                       value={`${l.suburb_city} (${l.postcode})`}
+                      className="py-2 px-3"
                     >
                       {l.suburb_city}, {l.state} {l.postcode}
                     </SelectItem>
@@ -433,7 +375,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
               <h2 className="text-sm font-semibold mb-3">Start Date *</h2>
               <input
                 type="date"
-                className="w-full border rounded-lg p-2"
+                className="w-full border rounded-lg p-2 text-sm"
                 value={form.startDate}
                 onChange={(e) => handle("startDate", e.target.value)}
                 required
@@ -444,7 +386,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-3">Licenses</h2>
               {licenses.map((l) => (
-                <label key={l.license_id} className="flex items-center gap-2">
+                <label key={l.license_id} className="flex items-center gap-2 text-sm py-1">
                   <input
                     type="checkbox"
                     checked={selectedLicenses.includes(l.license_id)}
@@ -476,7 +418,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             <div className="pb-6">
               <Button
                 onClick={onSave}
-                className="w-full bg-[#1E293B] text-white rounded-xl h-12"
+                className="w-full bg-[#1E293B] text-white rounded-xl h-12 text-sm"
               >
                 {editingJob ? "Update Job" : "Post Job"}
               </Button>
