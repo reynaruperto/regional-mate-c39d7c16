@@ -68,7 +68,8 @@ const WHVJobFull: React.FC = () => {
       try {
         const { data: job, error } = await supabase
           .from("job")
-          .select(`
+          .select(
+            `
             job_id,
             description,
             employment_type,
@@ -80,18 +81,19 @@ const WHVJobFull: React.FC = () => {
             start_date,
             job_status,
             industry_role ( role, industry(name) ),
-            employer: user_id (
+            employer:user_id (
               company_name,
               tagline,
               profile_photo,
               abn,
               website,
               mobile_num,
-              profile: user_id (
+              profile:user_id (
                 email
               )
             )
-          `)
+          ` as any // 👈 TS override for nested relations
+          )
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
