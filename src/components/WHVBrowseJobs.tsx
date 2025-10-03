@@ -7,6 +7,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import WHVFilterPage from "@/components/WHVFilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface JobCard {
   job_id: number;
@@ -22,6 +23,7 @@ interface JobCard {
 }
 
 const WHVBrowseJobs: React.FC = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
@@ -176,6 +178,7 @@ const WHVBrowseJobs: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={() => navigate(-1)} // ✅ Back button works
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
@@ -282,9 +285,14 @@ const WHVBrowseJobs: React.FC = () => {
                         </p>
 
                         <div className="flex items-center gap-3 mt-4">
-                          <Button className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl">
+                          {/* ✅ Navigate to job preview */}
+                          <Button
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                            onClick={() => navigate(`/whv/job-preview/${job.job_id}`)}
+                          >
                             View Details
                           </Button>
+
                           <button
                             onClick={() => handleLikeJob(job.job_id)}
                             className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
