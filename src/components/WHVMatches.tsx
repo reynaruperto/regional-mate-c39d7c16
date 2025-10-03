@@ -166,7 +166,7 @@ const WHVMatches: React.FC = () => {
                 <SelectValue placeholder="Select an active job post" />
               </SelectTrigger>
               <SelectContent
-                className="min-w-0 w-full max-w-[360px] max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
+                className="w-full max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
                 align="start"
               >
                 {matches.concat(topRecommended).map((job) => (
