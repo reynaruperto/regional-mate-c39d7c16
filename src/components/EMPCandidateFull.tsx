@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Briefcase, MapPin, Award, User, Calendar, Globe } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, Mail, MapPin, Award, Calendar, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 const EMPCandidateFull: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+
   const [loading, setLoading] = useState(true);
-  
-  // Profile data states
   const [profileData, setProfileData] = useState<any>(null);
   const [visaData, setVisaData] = useState<any>(null);
   const [industryPrefs, setIndustryPrefs] = useState<string[]>([]);
@@ -22,111 +21,96 @@ const EMPCandidateFull: React.FC = () => {
   useEffect(() => {
     const fetchFullProfile = async () => {
       if (!id) return;
-      
       setLoading(true);
 
-      // 1. WHV Maker profile
+      // Candidate profile
       const { data: whv } = await supabase
         .from("whv_maker")
-        .select("given_name, middle_name, family_name, tagline, profile_photo, state, suburb, postcode, birth_date, nationality")
+        .select("given_name, middle_name, family_name, tagline, profile_photo, state, suburb, postcode, birth_date, nationality, mobile_num")
         .eq("user_id", id)
         .maybeSingle();
 
-      // 2. Visa information
+      // Email
+      const { data: profile } = await supabase
+        .from("profile")
+        .select("email")
+        .eq("user_id", id)
+        .maybeSingle();
+
+      // Visa
       const { data: visa } = await supabase
         .from("maker_visa")
-        .select(`
-          expiry_date,
-          stage_id,
-          country_id,
-          visa_stage (label),
-          country (name)
-        `)
+        .select("expiry_date, visa_stage(label)")
         .eq("user_id", id)
         .maybeSingle();
-
       setVisaData(visa);
 
-      // 3. Availability
+      // Availability
       const { data: availabilityRow } = await supabase
         .from("maker_pref_availability")
         .select("available_from")
         .eq("user_id", id)
         .maybeSingle();
-
       setAvailableFrom(availabilityRow?.available_from || null);
 
-      // 4. Industry Preferences
+      // Industry prefs
       const { data: industryRows } = await supabase
         .from("maker_pref_industry")
         .select("industry (name)")
         .eq("user_id", id);
-      
-      setIndustryPrefs(
-        industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
-      );
+      setIndustryPrefs(industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []);
 
-      // 5. Location Preferences
+      // Location prefs
       const { data: locationRows } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
         .eq("user_id", id);
-      
       if (locationRows) {
         const grouped: Record<string, string[]> = {};
         locationRows.forEach((loc) => {
           const state = loc.state;
           const suburb = `${loc.suburb_city} (${loc.postcode})`;
           if (!grouped[state]) grouped[state] = [];
-          if (!grouped[state].includes(suburb)) grouped[state].push(suburb);
+          grouped[state].push(suburb);
         });
         setLocationPreferences(Object.entries(grouped));
       }
 
-      // 6. Work Experiences
+      // Work experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience")
         .select("position, company, industry(name), location, start_date, end_date, job_description")
         .eq("user_id", id)
         .order("start_date", { ascending: false });
-
       setWorkExperiences(expRows || []);
 
-      // 7. Licenses
+      // Licenses
       const { data: licenseRows } = await supabase
         .from("maker_license")
         .select("license(name), other")
         .eq("user_id", id);
-      
-      setLicenses(
-        licenseRows?.map((l) => l.other || l.license?.name).filter(Boolean) || []
-      );
+      setLicenses(licenseRows?.map((l) => l.other || l.license?.name).filter(Boolean) || []);
 
-      // 8. References
+      // References
       const { data: refRows } = await supabase
         .from("maker_reference")
         .select("name, business_name, email, mobile_num, role")
         .eq("user_id", id);
-      
       setReferences(refRows || []);
 
-      // 9. Signed photo URL
+      // Signed photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
-        let photoPath = whv.profile_photo;
-        if (photoPath.includes("/profile_photo/")) {
-          photoPath = photoPath.split("/profile_photo/")[1];
+        let path = whv.profile_photo;
+        if (path.includes("/profile_photo/")) {
+          path = path.split("/profile_photo/")[1];
         }
-        const { data } = await supabase.storage
-          .from("profile_photo")
-          .createSignedUrl(photoPath, 3600);
+        const { data } = await supabase.storage.from("profile_photo").createSignedUrl(path, 3600);
         signedPhoto = data?.signedUrl ?? null;
       }
 
       setProfileData({
-        name: [whv?.given_name, whv?.middle_name, whv?.family_name]
-          .filter(Boolean)
-          .join(" "),
+        name: [whv?.given_name, whv?.middle_name, whv?.family_name].filter(Boolean).join(" "),
         tagline: whv?.tagline || "",
         state: whv?.state,
         suburb: whv?.suburb,
@@ -134,11 +118,12 @@ const EMPCandidateFull: React.FC = () => {
         birthDate: whv?.birth_date,
         nationality: whv?.nationality,
         profilePhoto: signedPhoto,
+        phone: whv?.mobile_num || "",
+        email: profile?.email || "",
       });
 
       setLoading(false);
     };
-
     fetchFullProfile();
   }, [id]);
 
@@ -146,291 +131,164 @@ const EMPCandidateFull: React.FC = () => {
     navigate("/employer/matches?tab=matches");
   };
 
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-
-  const calculateAge = (birthDate: string) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  };
+  const formatDate = (d: string | null) =>
+    d ? new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "Not set";
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-gray-100">Loading...</div>;
   }
 
   if (!profileData) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center">
-          <p className="text-gray-600">Candidate not found</p>
-          <Button onClick={handleBack} className="mt-4">
-            Go Back
-          </Button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <p>Candidate not found</p>
+        <Button onClick={handleBack} className="mt-4">Go Back</Button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone 16 Pro Max frame */}
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
 
-          {/* Main content container */}
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Scrollable Content */}
-            <div className="flex-1 px-6 pt-16 pb-24 overflow-y-auto">
-              {/* Profile Card */}
-              <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 shadow-lg">
-                {/* Match Header */}
-                <div className="bg-gradient-to-r from-orange-500 to-blue-900 text-white text-center py-4 rounded-2xl mb-6">
-                  <h2 className="text-xl font-bold">🎉 IT'S A MATCH! 🎉</h2>
-                  <p className="text-sm mt-1">with {profileData.name.toUpperCase()}</p>
-                </div>
+          {/* Header */}
+          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
+            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900">Candidate Profile</h1>
+            <div className="w-10"></div>
+          </div>
 
-                {/* Profile Picture */}
-                <div className="flex justify-center mb-4">
-                  <div className="w-32 h-32 rounded-full border-4 border-orange-500 overflow-hidden">
-                    {profileData.profilePhoto ? (
-                      <img
-                        src={profileData.profilePhoto}
-                        alt={profileData.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-                        <User size={48} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tagline/Quote */}
-                {profileData.tagline && (
-                  <div className="text-center mb-6 bg-gray-50 rounded-2xl p-4">
-                    <p className="text-gray-700 text-sm italic leading-relaxed">
-                      "{profileData.tagline}"
-                    </p>
-                  </div>
-                )}
-
-                {/* Basic Info */}
-                <div className="space-y-3 text-sm mb-6">
-                  <div className="flex items-start">
-                    <Globe className="w-4 h-4 text-orange-500 mr-2 mt-0.5" />
-                    <div>
-                      <span className="font-semibold">Nationality:</span>{" "}
-                      {profileData.nationality || "N/A"}
-                      {profileData.birthDate && (
-                        <span className="text-gray-600">
-                          {" "}({calculateAge(profileData.birthDate)} years old)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <MapPin className="w-4 h-4 text-orange-500 mr-2 mt-0.5" />
-                    <div>
-                      <span className="font-semibold">Current Location:</span>{" "}
-                      {[profileData.suburb, profileData.state, profileData.postcode]
-                        .filter(Boolean)
-                        .join(", ") || "N/A"}
-                    </div>
-                  </div>
-
-                  {visaData && (
-                    <div className="flex items-start">
-                      <Award className="w-4 h-4 text-orange-500 mr-2 mt-0.5" />
-                      <div>
-                        <span className="font-semibold">Visa Type & Expiry:</span>{" "}
-                        {visaData.visa_stage?.label || "N/A"} - Expires{" "}
-                        {visaData.expiry_date
-                          ? new Date(visaData.expiry_date).toLocaleDateString("en-US", {
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "N/A"}
-                      </div>
-                    </div>
-                  )}
-
-                  {availableFrom && (
-                    <div className="flex items-start">
-                      <Calendar className="w-4 h-4 text-orange-500 mr-2 mt-0.5" />
-                      <div>
-                        <span className="font-semibold">Availability:</span>{" "}
-                        {new Date(availableFrom).toLocaleDateString("en-US", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </div>
+          {/* Content */}
+          <div className="flex-1 px-6 py-4 overflow-y-auto">
+            <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
+              {/* Profile Header */}
+              <div className="flex flex-col items-center">
+                <div className="w-24 h-24 rounded-full border-2 border-orange-500 overflow-hidden mb-3">
+                  {profileData.profilePhoto ? (
+                    <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <User size={32} />
                     </div>
                   )}
                 </div>
-
-                {/* Industry Preferences */}
-                {industryPrefs.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <Briefcase className="w-4 h-4 text-orange-500 mr-2" />
-                      Industry Preferences
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {industryPrefs.map((ind, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
-                        >
-                          {ind}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Location Preferences */}
-                {locationPreferences.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <MapPin className="w-4 h-4 text-orange-500 mr-2" />
-                      Willing to Work In
-                    </h3>
-                    <div className="space-y-2">
-                      {locationPreferences.map(([state, suburbs]) => (
-                        <div key={state} className="bg-gray-50 rounded-xl p-3">
-                          <p className="font-medium text-gray-800 mb-1">{state}</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(suburbs as string[]).map((s, i) => (
-                              <span
-                                key={i}
-                                className="px-2 py-0.5 border border-orange-500 text-orange-600 text-xs rounded-full"
-                              >
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Licenses */}
-                {licenses.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <Award className="w-4 h-4 text-orange-500 mr-2" />
-                      Licenses / Certificates
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {licenses.map((l, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
-                        >
-                          {l}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Work Experience */}
-                {workExperiences.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-2">
-                      Work Experience:
-                    </h3>
-                    <div className="space-y-3 text-xs bg-gray-50 rounded-xl p-3">
-                      {workExperiences.map((exp, index) => {
-                        const start = new Date(exp.start_date);
-                        const end = exp.end_date ? new Date(exp.end_date) : new Date();
-                        
-                        return (
-                          <div key={index} className="text-gray-700 border-b last:border-0 pb-2 last:pb-0">
-                            <div className="font-medium text-sm">
-                              {formatDate(start)} - {exp.end_date ? formatDate(end) : "Present"}
-                            </div>
-                            <div className="font-semibold mt-1">
-                              {exp.position} - {exp.company}
-                            </div>
-                            <div className="text-gray-500">
-                              {exp.industry?.name} • {exp.location || "N/A"}
-                            </div>
-                            {exp.job_description && (
-                              <div className="text-gray-600 mt-1 text-xs">
-                                {exp.job_description}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Job References */}
-                {references.length > 0 && (
-                  <div className="mb-6 bg-blue-50 rounded-xl p-4">
-                    <h3 className="font-semibold text-blue-900 mb-3">
-                      Job Reference{references.length > 1 ? "s" : ""}:
-                    </h3>
-                    <div className="space-y-3">
-                      {references.map((ref, i) => (
-                        <div key={i} className="text-sm text-blue-800 bg-white/50 rounded-lg p-3">
-                          <div className="font-semibold">{ref.name}</div>
-                          {ref.role && <div className="text-xs">{ref.role}</div>}
-                          {ref.business_name && (
-                            <div className="text-xs text-blue-700 mt-1">{ref.business_name}</div>
-                          )}
-                          {ref.email && <div className="mt-1">{ref.email}</div>}
-                          {ref.mobile_num && <div>{ref.mobile_num}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Contact Details - Highlighted */}
-                <div className="bg-gradient-to-r from-orange-500 to-blue-900 text-white rounded-2xl p-6 text-center">
-                  <h3 className="font-bold text-lg mb-3">
-                    🎉 You've Matched! 🎉
-                  </h3>
-                  <p className="text-sm text-white/90">
-                    Contact details and references are now available above. You can reach out to {profileData.name.split(" ")[0]} directly!
+                <h2 className="text-xl font-bold text-gray-900">{profileData.name}</h2>
+                <p className="text-sm text-gray-600">{profileData.tagline}</p>
+                <p className="text-xs text-gray-500">{profileData.nationality}</p>
+                {visaData && (
+                  <p className="text-xs text-gray-500">
+                    {visaData.visa_stage?.label} • Expires {formatDate(visaData.expiry_date)}
                   </p>
-                </div>
+                )}
+                {availableFrom && (
+                  <p className="text-xs text-gray-500">Available from {formatDate(availableFrom)}</p>
+                )}
+                {profileData.phone && (
+                  <p className="text-sm text-gray-700 flex items-center mt-1">
+                    <Phone size={14} className="mr-1 text-orange-500" /> {profileData.phone}
+                  </p>
+                )}
+                {profileData.email && (
+                  <p className="text-sm text-gray-700 flex items-center mt-1">
+                    <Mail size={14} className="mr-1 text-orange-500" /> {profileData.email}
+                  </p>
+                )}
               </div>
-            </div>
 
-            {/* Back Button - Fixed at bottom */}
-            <div className="absolute bottom-8 left-6">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-12 h-12 bg-white rounded-xl shadow-md hover:bg-gray-50"
-                onClick={handleBack}
-              >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
+              {/* Industry Preferences */}
+              <div>
+                <h3 className="font-semibold text-orange-600 mb-2">Industry Preferences</h3>
+                {industryPrefs.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {industryPrefs.map((ind, i) => (
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
+                        {ind}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No preferences set</p>
+                )}
+              </div>
+
+              {/* Location Preferences */}
+              <div>
+                <h3 className="font-semibold text-orange-600 mb-2">Location Preferences</h3>
+                {locationPreferences.length > 0 ? (
+                  locationPreferences.map(([state, suburbs]) => (
+                    <div key={state} className="mb-2">
+                      <p className="font-medium">{state}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {(suburbs as string[]).map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 border border-orange-500 text-orange-600 text-xs rounded-full">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No location preferences set</p>
+                )}
+              </div>
+
+              {/* Work Experience */}
+              <div>
+                <h3 className="font-semibold text-orange-600 mb-2">Work Experience</h3>
+                {workExperiences.length > 0 ? (
+                  workExperiences.map((exp, idx) => (
+                    <div key={idx} className="border p-3 rounded-lg mb-2 text-sm text-gray-700">
+                      <p><span className="font-medium">Company:</span> {exp.company}</p>
+                      <p><span className="font-medium">Industry:</span> {exp.industry?.name}</p>
+                      <p><span className="font-medium">Position:</span> {exp.position}</p>
+                      <p><span className="font-medium">Location:</span> {exp.location}</p>
+                      <p><span className="font-medium">Dates:</span> {formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}</p>
+                      {exp.job_description && <p><span className="font-medium">Description:</span> {exp.job_description}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No work experience added yet</p>
+                )}
+              </div>
+
+              {/* Licenses */}
+              <div>
+                <h3 className="font-semibold text-orange-600 mb-2">Licenses / Certificates</h3>
+                {licenses.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No licenses added yet</p>
+                )}
+              </div>
+
+              {/* References */}
+              <div>
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
+                  <FileText size={16} className="mr-2" /> References
+                </h3>
+                {references.length > 0 ? (
+                  references.map((ref, idx) => (
+                    <div key={idx} className="border p-3 rounded-lg mb-2 text-sm text-gray-700">
+                      <p><span className="font-medium">Name:</span> {ref.name}</p>
+                      <p><span className="font-medium">Business:</span> {ref.business_name}</p>
+                      <p><span className="font-medium">Email:</span> {ref.email}</p>
+                      {ref.mobile_num && <p><span className="font-medium">Phone:</span> {ref.mobile_num}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No references added</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
