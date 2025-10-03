@@ -141,18 +141,11 @@ const BrowseCandidates: React.FC = () => {
 
     const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-    console.log("✅ Employer:", employerId);
-    console.log("✅ Job ID:", selectedJobId);
-    console.log("✅ Likes from DB:", likedIds);
-    console.log("✅ Candidate raw data:", makers);
-
     // 3. Merge
     const mapped = (makers || []).map((row: any) => {
       const c = mapRowsToCandidates([row])[0];
       return { ...c, isLiked: likedIds.includes(c.user_id) };
     });
-
-    console.log("✅ Final mapped candidates:", mapped);
 
     setCandidates(mapped);
     setAllCandidates(mapped);
@@ -267,6 +260,11 @@ const BrowseCandidates: React.FC = () => {
     );
   }
 
+  const dropdownClasses =
+    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
+  const itemClasses =
+    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -296,9 +294,13 @@ const BrowseCandidates: React.FC = () => {
                 <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                   <SelectValue placeholder="Select an active job post" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={dropdownClasses}>
                   {jobPosts.map((job) => (
-                    <SelectItem key={job.job_id} value={String(job.job_id)}>
+                    <SelectItem
+                      key={job.job_id}
+                      value={String(job.job_id)}
+                      className={itemClasses}
+                    >
                       {job.industry_role?.role || "Unknown Role"} –{" "}
                       {job.description || `Job #${job.job_id}`}
                     </SelectItem>
