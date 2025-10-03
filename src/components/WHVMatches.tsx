@@ -32,16 +32,13 @@ interface MatchCard {
 const WHVMatches: React.FC = () => {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">(
-    "matches"
-  );
+  const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
   const [matches, setMatches] = useState<MatchCard[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCard[]>([]);
   const [whvId, setWhvId] = useState<string | null>(null);
 
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
-
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   // Helper to resolve photo URL
@@ -51,7 +48,7 @@ const WHVMatches: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  //  Get logged-in WHV ID
+  // Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const {
@@ -62,7 +59,7 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
-  //  Fetch Matches
+  // Fetch Matches
   useEffect(() => {
     if (!whvId) return;
     const fetchMatches = async () => {
@@ -92,7 +89,7 @@ const WHVMatches: React.FC = () => {
     fetchMatches();
   }, [whvId]);
 
-  //  Fetch Top Recommended
+  // Fetch Top Recommended
   useEffect(() => {
     if (!whvId) return;
     const fetchTopRecommended = async () => {
@@ -166,9 +163,12 @@ const WHVMatches: React.FC = () => {
               value={selectedJobId ? String(selectedJobId) : ""}
             >
               <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
-                <SelectValue placeholder="Filter by job (optional)" />
+                <SelectValue placeholder="Select an active job post" />
               </SelectTrigger>
-              <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+              <SelectContent
+                className="min-w-0 w-full max-w-[360px] max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
+                align="start"
+              >
                 {matches.concat(topRecommended).map((job) => (
                   <SelectItem
                     key={job.job_id}
@@ -207,10 +207,7 @@ const WHVMatches: React.FC = () => {
           </div>
 
           {/* List */}
-          <div
-            className="flex-1 px-6 overflow-y-auto"
-            style={{ paddingBottom: "100px" }}
-          >
+          <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
             {currentEmployers.length === 0 ? (
               <div className="text-center text-gray-600 mt-10">
                 <p>
@@ -220,89 +217,80 @@ const WHVMatches: React.FC = () => {
                 </p>
               </div>
             ) : (
-              currentEmployers
-                .filter((e) => !selectedJobId || e.job_id === selectedJobId)
-                .map((e) => (
-                  <div
-                    key={e.job_id}
-                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
-                  >
-                    <div className="flex items-start gap-4">
-                      <img
-                        src={e.profile_photo}
-                        alt={e.company}
-                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
-                        onError={(ev) => {
-                          (ev.currentTarget as HTMLImageElement).src =
-                            "/placeholder.png";
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-bold text-gray-900 truncate">
-                          {e.role}
-                        </h2>
-                        <p className="text-sm text-gray-600 whitespace-normal break-words">
-                          {e.company} • {e.industry}
-                        </p>
-                        <p className="text-sm text-gray-500 whitespace-normal break-words">
-                          {e.location}
-                        </p>
+              currentEmployers.map((e) => (
+                <div
+                  key={e.job_id}
+                  className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <img
+                      src={e.profile_photo}
+                      alt={e.company}
+                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                      onError={(ev) => {
+                        (ev.currentTarget as HTMLImageElement).src = "/placeholder.png";
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-bold text-gray-900">{e.role}</h2>
+                      <p className="text-sm text-gray-600">
+                        {e.company} • {e.industry}
+                      </p>
+                      <p className="text-sm text-gray-500">{e.location}</p>
 
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                            {e.employment_type}
-                          </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                            {e.salary_range}
-                          </span>
-                        </div>
-
-                        {/* Buttons */}
-                        <div className="flex items-center gap-3 mt-4">
-                          <Button
-                            className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
-                            onClick={() => {
-                              if (e.isMutualMatch) {
-                                navigate(
-                                  `/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`
-                                );
-                              } else {
-                                navigate(`/whv/job/${e.job_id}`, {
-                                  state: { from: "topRecommended" },
-                                });
-                              }
-                            }}
-                          >
-                            {e.isMutualMatch
-                              ? "View Full Profile"
-                              : "View Profile"}
-                          </Button>
-
-                          {!e.isMutualMatch && (
-                            <button
-                              onClick={() => handleLikeEmployer(e)}
-                              className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
-                            >
-                              <Heart size={20} className="text-orange-500" />
-                            </button>
-                          )}
-                        </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                          {e.employment_type}
+                        </span>
+                        <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                          {e.salary_range}
+                        </span>
                       </div>
 
-                      {/* Match % badge */}
-                      {e.matchPercentage && !e.isMutualMatch && (
-                        <div className="text-right flex-shrink-0 ml-2">
-                          <div className="text-lg font-bold text-orange-500">
-                            {e.matchPercentage}%
-                          </div>
-                          <div className="text-xs font-semibold text-orange-500">
-                            Match
-                          </div>
-                        </div>
-                      )}
+                      {/* Buttons */}
+                      <div className="flex items-center gap-3 mt-4">
+                        <Button
+                          className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
+                          onClick={() => {
+                            if (e.isMutualMatch) {
+                              navigate(
+                                `/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`
+                              );
+                            } else {
+                              navigate(`/whv/job/${e.job_id}`, {
+                                state: { from: "topRecommended" },
+                              });
+                            }
+                          }}
+                        >
+                          {e.isMutualMatch ? "View Full Profile" : "View Profile"}
+                        </Button>
+
+                        {!e.isMutualMatch && (
+                          <button
+                            onClick={() => handleLikeEmployer(e)}
+                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                          >
+                            <Heart size={20} className="text-orange-500" />
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Match % badge */}
+                    {e.matchPercentage && !e.isMutualMatch && (
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <div className="text-lg font-bold text-orange-500">
+                          {e.matchPercentage}%
+                        </div>
+                        <div className="text-xs font-semibold text-orange-500">
+                          Match
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))
+                </div>
+              ))
             )}
           </div>
 
