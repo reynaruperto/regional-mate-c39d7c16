@@ -71,8 +71,8 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // 1️⃣ Fetch job + employer info
-        const { data: job, error } = await supabase
+        // 1️⃣ Get the job
+        const { data: job, error: jobError } = await supabase
           .from("job")
           .select(`
             job_id,
@@ -86,68 +86,62 @@ const WHVJobFull: React.FC = () => {
             start_date,
             job_status,
             industry_role ( role, industry(name) ),
-            employer:user_id (
-              company_name,
-              tagline,
-              profile_photo,
-              abn,
-              website,
-              mobile_num,
-              user_id
-            )
+            user_id
           `)
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
-        if (error) {
-          console.error("Error fetching job:", error);
+        if (jobError) {
+          console.error("Error fetching job:", jobError);
           return;
         }
         if (!job) return;
 
-        // 2️⃣ Fetch employer email separately from profile
+        // 2️⃣ Get the employer
+        const { data: emp } = await supabase
+          .from("employer")
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .eq("user_id", job.user_id)
+          .maybeSingle();
+
+        // 3️⃣ Get the email from profile
         let email = "";
-        if (job.employer?.user_id) {
+        if (emp?.user_id) {
           const { data: profile } = await supabase
             .from("profile")
             .select("email")
-            .eq("user_id", job.employer.user_id)
+            .eq("user_id", emp.user_id)
             .maybeSingle();
           email = profile?.email || "";
         }
 
-        // ✅ Resolve signed company photo
+        // ✅ Signed photo
         let companyPhoto: string | null = null;
-        if (job.employer?.profile_photo) {
-          let photoPath = job.employer.profile_photo;
-          if (photoPath.includes("/profile_photo/")) {
-            photoPath = photoPath.split("/profile_photo/")[1];
-          }
+        if (emp?.profile_photo) {
+          let photoPath = emp.profile_photo.includes("/profile_photo/")
+            ? emp.profile_photo.split("/profile_photo/")[1]
+            : emp.profile_photo;
           const { data: signed } = await supabase.storage
             .from("profile_photo")
             .createSignedUrl(photoPath, 3600);
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // ✅ Fetch facilities
+        // ✅ Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
-          .eq("user_id", job.employer?.user_id);
+          .eq("user_id", emp?.user_id);
+        const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        const facilities =
-          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
-
-        // ✅ Fetch licenses
+        // ✅ Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
           .eq("job_id", job.job_id);
+        const licenses = licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
-        const licenses =
-          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
-
-        // ✅ Build job details
+        // ✅ Set state
         setJobDetails({
           job_id: job.job_id,
           description: job.description || "No description available",
@@ -161,18 +155,17 @@ const WHVJobFull: React.FC = () => {
           job_status: job.job_status || "draft",
           role: job.industry_role?.role || "Unknown Role",
           industry: job.industry_role?.industry?.name || "Unknown Industry",
-          company_name: job.employer?.company_name || "Unknown Company",
-          tagline: job.employer?.tagline || "No tagline provided",
+          company_name: emp?.company_name || "Unknown Company",
+          tagline: emp?.tagline || "No tagline provided",
           company_photo: companyPhoto,
           facilities,
           licenses,
         });
 
-        // ✅ Build employer details (with email from profile)
         setEmployer({
-          abn: job.employer?.abn || "N/A",
-          website: job.employer?.website || "Not provided",
-          mobile_num: job.employer?.mobile_num || "",
+          abn: emp?.abn || "N/A",
+          website: emp?.website || "Not provided",
+          mobile_num: emp?.mobile_num || "",
           email,
         });
       } catch (err) {
@@ -187,10 +180,9 @@ const WHVJobFull: React.FC = () => {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
+      <div className="flex items-center justify-center min-h-screen">Loading...</div>
     );
+
   if (!jobDetails)
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -255,8 +247,7 @@ const WHVJobFull: React.FC = () => {
               {employer && (
                 <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
                   <p>
-                    <Hash size={14} className="inline mr-1" /> ABN:{" "}
-                    {employer.abn}
+                    <Hash size={14} className="inline mr-1" /> ABN: {employer.abn}
                   </p>
                   {employer.email && (
                     <p>
@@ -271,13 +262,11 @@ const WHVJobFull: React.FC = () => {
                   )}
                   {employer.mobile_num && (
                     <p>
-                      <Phone size={14} className="inline mr-1" />{" "}
-                      {employer.mobile_num}
+                      <Phone size={14} className="inline mr-1" /> {employer.mobile_num}
                     </p>
                   )}
                   <p>
-                    <Globe size={14} className="inline mr-1" />{" "}
-                    {employer.website}
+                    <Globe size={14} className="inline mr-1" /> {employer.website}
                   </p>
                 </div>
               )}
@@ -286,13 +275,10 @@ const WHVJobFull: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center mb-1">
                   <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Location
-                  </span>
+                  <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
                 <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                  {jobDetails.postcode}
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
                 </p>
               </div>
 
@@ -303,9 +289,7 @@ const WHVJobFull: React.FC = () => {
                     <Clock className="w-5 h-5 mr-2" />
                     <span>Type</span>
                   </div>
-                  <p className="font-semibold">
-                    {jobDetails.employment_type}
-                  </p>
+                  <p className="font-semibold">{jobDetails.employment_type}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
@@ -319,9 +303,7 @@ const WHVJobFull: React.FC = () => {
                     <User className="w-5 h-5 mr-2" />
                     <span>Experience</span>
                   </div>
-                  <p className="font-semibold">
-                    {jobDetails.req_experience}
-                  </p>
+                  <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
@@ -340,17 +322,12 @@ const WHVJobFull: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? (
                     jobDetails.licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
                         {l}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No licenses required
-                    </p>
+                    <p className="text-sm text-gray-500">No licenses required</p>
                   )}
                 </div>
               </div>
@@ -361,17 +338,12 @@ const WHVJobFull: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.facilities.length > 0 ? (
                     jobDetails.facilities.map((f, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
                         {f}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No facilities listed
-                    </p>
+                    <p className="text-sm text-gray-500">No facilities listed</p>
                   )}
                 </div>
               </div>
