@@ -162,8 +162,21 @@ const WHVBrowseJobs: React.FC = () => {
     <WHVFilterPage
       onClose={() => setShowFilters(false)}
       onResults={(jobs, appliedFilters) => {
-        setJobs(jobs);
-        setAllJobs(jobs);
+        // Map filtered jobs to include resolved photo URLs
+        const mapped: JobCard[] = jobs.map((job: any) => ({
+          job_id: job.job_id,
+          company: job.company || "Employer not listed",
+          profile_photo: resolvePhoto(job.profile_photo),
+          role: job.role || "Role not specified",
+          industry: job.industry || "General",
+          location: job.location || "Location not specified",
+          salary_range: job.salary_range || "Pay not disclosed",
+          job_type: job.job_type || "Employment type not specified",
+          description: job.description || "No description provided",
+          isLiked: job.isLiked || false,
+        }));
+        setJobs(mapped);
+        setAllJobs(mapped);
         setFilters(appliedFilters);
         setShowFilters(false);
       }}
