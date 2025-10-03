@@ -205,11 +205,14 @@ const WHVMatches: React.FC = () => {
                       </p>
 
                       <div className="flex items-center gap-3 mt-4">
+                        {/* ✅ Navigate to Job Preview for both Matches & Top Recommended */}
                         <Button
                           className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
+                          onClick={() => navigate(`/whv/job-preview/${e.job_id}`)}
                         >
                           {e.isMutualMatch ? "View Full Profile" : "View Profile"}
                         </Button>
+
                         {!e.isMutualMatch && (
                           <button
                             onClick={() => handleLikeEmployer(e)}
