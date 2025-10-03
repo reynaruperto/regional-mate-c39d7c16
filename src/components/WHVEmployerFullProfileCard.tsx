@@ -43,7 +43,7 @@ interface EmployerDetails {
 
 const WHVEmployerFullProfileCard: React.FC = () => {
   const navigate = useNavigate();
-  const { empId } = useParams();
+  const { jobId } = useParams();
   const [searchParams] = useSearchParams();
 
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
@@ -65,9 +65,9 @@ const WHVEmployerFullProfileCard: React.FC = () => {
   useEffect(() => {
     const fetchJobAndEmployer = async () => {
       try {
-        if (!empId) return;
+        if (!jobId) return;
 
-        // Get latest job by employer
+        // 1️⃣ Fetch job by job_id
         const { data: job } = await supabase
           .from("job")
           .select(
@@ -86,9 +86,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
             user_id
           `
           )
-          .eq("user_id", empId)
-          .order("start_date", { ascending: false })
-          .limit(1)
+          .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
         if (!job) return;
@@ -107,7 +105,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           role: job.industry_role?.role || "Unknown Role",
         });
 
-        // Employer details
+        // 2️⃣ Fetch employer using job.user_id
         const { data: emp } = await supabase
           .from("employer")
           .select(
@@ -116,7 +114,6 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // Employer email from profile
         const { data: profile } = await supabase
           .from("profile")
           .select("email")
@@ -145,7 +142,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           email: profile?.email || "",
         });
 
-        // Facilities
+        // 3️⃣ Facilities
         const { data: facs } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -155,7 +152,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
           facs?.map((f: any) => f.facility?.name).filter(Boolean) || []
         );
 
-        // Licenses
+        // 4️⃣ Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
@@ -172,7 +169,7 @@ const WHVEmployerFullProfileCard: React.FC = () => {
     };
 
     fetchJobAndEmployer();
-  }, [empId]);
+  }, [jobId]);
 
   if (loading) {
     return (
