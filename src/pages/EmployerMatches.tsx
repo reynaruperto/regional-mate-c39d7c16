@@ -1,10 +1,7 @@
 import EmployerMatches from '@/components/EmployerMatches';
-import { useParams } from 'react-router-dom';
 
 const EmployerMatchesPage = () => {
-  const { jobId } = useParams<{ jobId: string }>();
-  
-  return <EmployerMatches jobId={Number(jobId)} />;
+  return <EmployerMatches />;
 };
 
 export default EmployerMatchesPage;
