@@ -31,7 +31,7 @@ const EmployerMatches: React.FC = () => {
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
   const [employerId, setEmployerId] = useState<string | null>(null);
 
-  const currentJobId = 1; // TODO: get from context / current job
+  const currentJobId = 1; // TODO: make dynamic
 
   // ✅ Get logged-in employer UUID
   useEffect(() => {
@@ -42,7 +42,7 @@ const EmployerMatches: React.FC = () => {
     getUser();
   }, []);
 
-  // Pick up tab from URL
+  // ✅ Pick tab from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const tab = urlParams.get("tab");
@@ -51,7 +51,7 @@ const EmployerMatches: React.FC = () => {
     }
   }, [location.search]);
 
-  // ✅ Fetch mutual matches
+  // ✅ Fetch mutual matches for this employer + job
   useEffect(() => {
     if (!employerId) return;
 
@@ -72,6 +72,7 @@ const EmployerMatches: React.FC = () => {
           )
         `)
         .eq("employer_id", employerId)
+        .eq("job_post_id", currentJobId)   // ✅ only for this job
         .not("matched_at", "is", null);
 
       if (error) {
@@ -94,9 +95,9 @@ const EmployerMatches: React.FC = () => {
     };
 
     fetchMatches();
-  }, [employerId]);
+  }, [employerId, currentJobId]);
 
-  // ✅ Fetch top recommended (preload liked state)
+  // ✅ Fetch top recommended + preload liked state
   useEffect(() => {
     if (!employerId) return;
 
@@ -125,7 +126,7 @@ const EmployerMatches: React.FC = () => {
         return;
       }
 
-      // Employer likes
+      // employer likes
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_whv_id")
@@ -143,7 +144,7 @@ const EmployerMatches: React.FC = () => {
         location: r.whv?.current_location,
         availability: r.whv?.availability,
         matchPercentage: Math.round(r.match_score),
-        isLiked: likedIds.includes(r.whv?.user_id || r.whv_id), // ✅ check both user_id and whv_id
+        isLiked: likedIds.includes(r.whv?.user_id || r.whv_id), // ✅ preload
       }));
 
       setTopRecommended(formatted);
@@ -168,9 +169,7 @@ const EmployerMatches: React.FC = () => {
           .eq("liked_job_post_id", currentJobId);
 
         setTopRecommended((prev) =>
-          prev.map((c) =>
-            c.id === candidate.id ? { ...c, isLiked: false } : c
-          )
+          prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c))
         );
       } else {
         // Like
@@ -182,9 +181,7 @@ const EmployerMatches: React.FC = () => {
         });
 
         setTopRecommended((prev) =>
-          prev.map((c) =>
-            c.id === candidate.id ? { ...c, isLiked: true } : c
-          )
+          prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c))
         );
 
         setLikedCandidateName(candidate.name);
@@ -275,9 +272,7 @@ const EmployerMatches: React.FC = () => {
                         onClick={() => handleViewProfile(c.id, c.isMutualMatch)}
                         className="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-sm h-10 rounded-full"
                       >
-                        {c.isMutualMatch
-                          ? "View Full Profile"
-                          : "View Profile"}
+                        {c.isMutualMatch ? "View Full Profile" : "View Profile"}
                       </Button>
                       {!c.isMutualMatch && (
                         <button
@@ -288,7 +283,7 @@ const EmployerMatches: React.FC = () => {
                             size={16}
                             strokeWidth={2}
                             className={c.isLiked ? "text-red-500" : "text-white"}
-                            fill={c.isLiked ? "currentColor" : "none"} // ✅ proper fill
+                            fill={c.isLiked ? "currentColor" : "none"} // ✅ proper fill inside
                           />
                         </button>
                       )}
