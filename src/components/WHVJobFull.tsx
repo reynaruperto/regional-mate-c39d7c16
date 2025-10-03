@@ -15,7 +15,7 @@ import {
   Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface JobDetails {
@@ -47,14 +47,11 @@ interface EmployerDetails {
 
 const WHVJobFull: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { jobId } = useParams();
 
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const fromPage = (location.state as any)?.from;
 
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -164,18 +161,6 @@ const WHVJobFull: React.FC = () => {
     fetchJobDetails();
   }, [jobId]);
 
-  const handleBack = () => {
-    if (fromPage === "browse") {
-      navigate("/whv/browse-jobs");
-    } else if (fromPage === "topRecommended") {
-      navigate("/whv/matches", { state: { tab: "topRecommended" } });
-    } else if (fromPage === "matches") {
-      navigate("/whv/matches", { state: { tab: "matches" } });
-    } else {
-      navigate(-1);
-    }
-  };
-
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -190,14 +175,12 @@ const WHVJobFull: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={handleBack}
+            <button
+              onClick={() => navigate(-1)}  // ✅ simple back
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
             >
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
-            </Button>
+            </button>
             <h1 className="text-lg font-semibold text-gray-900">Full Job Details</h1>
             <div className="w-10"></div>
           </div>
