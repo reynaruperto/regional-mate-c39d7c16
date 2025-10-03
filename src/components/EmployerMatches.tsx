@@ -19,7 +19,11 @@ interface MatchCandidate {
   matchPercentage?: number;
 }
 
-const EmployerMatches: React.FC = () => {
+interface EmployerMatchesProps {
+  jobId: number;
+}
+
+const EmployerMatches: React.FC<EmployerMatchesProps> = ({ jobId }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,15 +33,12 @@ const EmployerMatches: React.FC = () => {
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
   const [employerId, setEmployerId] = useState<string | null>(null);
-  const [currentJobId, setCurrentJobId] = useState<number | null>(null);
 
   // Get logged in employer
   useEffect(() => {
     const getEmployer = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
-      // TODO: set currentJobId from context or query params
-      setCurrentJobId(1); 
     };
     getEmployer();
   }, []);
@@ -99,7 +100,7 @@ const EmployerMatches: React.FC = () => {
 
   // Fetch top recommended
   useEffect(() => {
-    if (!currentJobId) return;
+    if (!jobId) return;
     const fetchTopRecommended = async () => {
       const { data, error } = await supabase
         .from("matching_score")
@@ -118,7 +119,7 @@ const EmployerMatches: React.FC = () => {
           )
         `
         )
-        .eq("job_id", currentJobId)
+        .eq("job_id", jobId)
         .order("match_score", { ascending: false })
         .limit(10);
 
@@ -142,7 +143,7 @@ const EmployerMatches: React.FC = () => {
     };
 
     fetchTopRecommended();
-  }, [currentJobId]);
+  }, [jobId]);
 
   const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
     if (isMutualMatch) {
@@ -153,7 +154,7 @@ const EmployerMatches: React.FC = () => {
   };
 
   const handleLike = async (candidate: MatchCandidate) => {
-    if (!employerId || !currentJobId) return;
+    if (!employerId || !jobId) return;
     setLikedCandidateName(candidate.name);
     setShowLikeModal(true);
 
@@ -161,7 +162,7 @@ const EmployerMatches: React.FC = () => {
       liker_id: employerId,
       liker_type: "employer",
       liked_whv_id: candidate.id,
-      liked_job_post_id: currentJobId,
+      liked_job_post_id: jobId,
     });
 
     if (error) console.error("Error liking candidate:", error);
