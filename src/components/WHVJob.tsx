@@ -1,3 +1,4 @@
+// src/pages/WHVJobPreview.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -8,7 +9,6 @@ import {
   User,
   Heart,
   Image,
-  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -46,7 +46,6 @@ const WHVJobPreview: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
 
-  // determine where the user came from
   const fromPage = (location.state as any)?.from;
 
   useEffect(() => {
@@ -266,7 +265,7 @@ const WHVJobPreview: React.FC = () => {
                   <p className="font-semibold">{jobDetails.salary_range}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
+                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience Required</span></div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
@@ -275,9 +274,9 @@ const WHVJobPreview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Licenses */}
+              {/* Licenses Required */}
               <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Licenses</h4>
+                <h4 className="font-semibold mb-2">Licenses Required</h4>
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? jobDetails.licenses.map((l, i) => (
                     <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
@@ -334,4 +333,3 @@ const WHVJobPreview: React.FC = () => {
 };
 
 export default WHVJobPreview;
-
