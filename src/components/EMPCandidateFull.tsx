@@ -1,4 +1,4 @@
-// src/pages/ShortCandidateProfileCard.tsx
+// src/components/EMPCandidateFull.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Heart, Briefcase, MapPin, Award, User } from "lucide-react";
@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 
-interface ShortCandidateProfileCardProps {
+interface EMPCandidateFullProps {
   candidateId: string;
 }
 
-const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
+const EMPCandidateFull: React.FC<EMPCandidateFullProps> = ({
   candidateId,
 }) => {
   const navigate = useNavigate();
@@ -381,4 +381,4 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   );
 };
 
-export default ShortCandidateProfileCard;
+export default EMPCandidateFull;

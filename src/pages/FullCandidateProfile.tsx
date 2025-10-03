@@ -1,10 +1,10 @@
 import { useParams } from 'react-router-dom';
-import ShortCandidateProfileCard from '@/components/ShortCandidateProfileCard';
+import EMPCandidateFull from '@/components/EMPCandidateFull';
 
 const FullCandidateProfilePage = () => {
   const { id } = useParams<{ id: string }>();
   
-  return <ShortCandidateProfileCard candidateId={id || '1'} />;
+  return <EMPCandidateFull candidateId={id || '1'} />;
 };
 
 export default FullCandidateProfilePage;
