@@ -61,7 +61,7 @@ const WHVJobFull: React.FC = () => {
     } else if (fromPage === "matches") {
       navigate("/whv/matches", { state: { tab: "matches" } });
     } else {
-      navigate(-1); // fallback
+      navigate(-1);
     }
   };
 
@@ -91,7 +91,7 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
-        // ✅ Join employer with profile to get email
+        // Employer + Profile (join to get email)
         const { data: emp } = await supabase
           .from("employer")
           .select(`
@@ -102,7 +102,9 @@ const WHVJobFull: React.FC = () => {
             website,
             mobile_num,
             user_id,
-            profile!inner(email)   -- 👈 join profile and pull email
+            profile!inner (
+              email
+            )
           `)
           .eq("user_id", job.user_id)
           .maybeSingle();
@@ -157,7 +159,7 @@ const WHVJobFull: React.FC = () => {
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
-          email: emp?.profile?.email || "",  // ✅ now comes from join
+          email: emp?.profile?.email || "",
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
