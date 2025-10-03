@@ -36,7 +36,7 @@ const WHVMatches: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
 
-  // ✅ Get logged-in WHV ID
+  //  Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -45,7 +45,7 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch Matches
+  //  Fetch Matches
   useEffect(() => {
     if (!whvId) return;
     const fetchMatches = async () => {
@@ -75,7 +75,7 @@ const WHVMatches: React.FC = () => {
     fetchMatches();
   }, [whvId]);
 
-  // ✅ Fetch Top Recommended
+  //  Fetch Top Recommended
   useEffect(() => {
     if (!whvId) return;
     const fetchTopRecommended = async () => {
@@ -208,7 +208,7 @@ const WHVMatches: React.FC = () => {
                         {/* ✅ Navigate to Job Preview for both Matches & Top Recommended */}
                         <Button
                           className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                          onClick={() => navigate(`/whv/job-preview/${e.job_id}`)}
+                          onClick={() => navigate(`/whv/job/${e.job_id}`)}
                         >
                           {e.isMutualMatch ? "View Full Profile" : "View Profile"}
                         </Button>
