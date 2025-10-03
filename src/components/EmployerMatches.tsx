@@ -185,7 +185,11 @@ const EmployerMatches: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+      {/* outer phone container with id + relative */}
+      <div
+        id="employer-matches-container"
+        className="relative w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl overflow-hidden"
+      >
         <div className="w-full h-full bg-background rounded-[48px] flex flex-col overflow-hidden">
           {/* Header */}
           <div className="px-6 pt-16 pb-2 flex items-center">
@@ -202,7 +206,7 @@ const EmployerMatches: React.FC = () => {
             </h1>
           </div>
 
-          {/* Job selector (now like BrowseCandidates) */}
+          {/* Job selector */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -211,7 +215,10 @@ const EmployerMatches: React.FC = () => {
               <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
                 <SelectValue placeholder="Select an active job post" />
               </SelectTrigger>
-              <SelectContent className="max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+              <SelectContent
+                container={document.getElementById("employer-matches-container") || undefined}
+                className="absolute z-50 max-h-48 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
+              >
                 {jobPosts.map((job) => (
                   <SelectItem
                     key={job.job_id}
