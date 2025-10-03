@@ -7,7 +7,6 @@ import {
   DollarSign,
   User,
   Image,
-  Award,
   Globe,
   Hash,
   Phone,
@@ -45,10 +44,10 @@ interface EmployerDetails {
 
 const WHVJobFull: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();  // 👈 for fromPage tracking
+  const location = useLocation();
   const { jobId } = useParams();
 
-  const fromPage = (location.state as any)?.from;  // 👈 detect source page
+  const fromPage = (location.state as any)?.from;
 
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
@@ -98,12 +97,16 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // ✅ FIX: use `id` instead of `user_id` when querying profile
-        const { data: profile } = await supabase
-          .from("profile")
-          .select("email")
-          .eq("id", job.user_id)
-          .maybeSingle();
+        // ✅ Fetch email from profile using employer.user_id
+        let email = "";
+        if (emp?.user_id) {
+          const { data: profile } = await supabase
+            .from("profile")
+            .select("email")
+            .eq("id", emp.user_id)
+            .maybeSingle();
+          email = profile?.email || "";
+        }
 
         let companyPhoto: string | null = null;
         if (emp?.profile_photo) {
@@ -155,7 +158,7 @@ const WHVJobFull: React.FC = () => {
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
-          email: profile?.email || "",
+          email,
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
@@ -215,7 +218,14 @@ const WHVJobFull: React.FC = () => {
               {employer && (
                 <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
                   <p><Hash size={14} className="inline mr-1" /> ABN: {employer.abn}</p>
-                  {employer.email && <p><Mail size={14} className="inline mr-1" /> {employer.email}</p>}
+                  {employer.email && (
+                    <p>
+                      <Mail size={14} className="inline mr-1" />
+                      <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">
+                        {employer.email}
+                      </a>
+                    </p>
+                  )}
                   {employer.mobile_num && <p><Phone size={14} className="inline mr-1" /> {employer.mobile_num}</p>}
                   <p><Globe size={14} className="inline mr-1" /> {employer.website}</p>
                 </div>
