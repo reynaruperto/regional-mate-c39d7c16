@@ -202,7 +202,7 @@ const EmployerMatches: React.FC = () => {
             </h1>
           </div>
 
-          {/* Job selector (fixed like BrowseCandidates) */}
+          {/* Job selector (now like BrowseCandidates) */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -211,12 +211,7 @@ const EmployerMatches: React.FC = () => {
               <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white truncate">
                 <SelectValue placeholder="Select an active job post" />
               </SelectTrigger>
-              <SelectContent
-                position="popper"
-                align="start"
-                sideOffset={6}
-                className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm"
-              >
+              <SelectContent className="max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
                 {jobPosts.map((job) => (
                   <SelectItem
                     key={job.job_id}
