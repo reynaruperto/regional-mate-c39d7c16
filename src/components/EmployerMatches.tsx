@@ -17,7 +17,7 @@ interface MatchCandidate {
   skills?: string[];
   isMutualMatch?: boolean;
   matchPercentage?: number;
-  isLiked?: boolean; // ✅ toggle like state
+  isLiked?: boolean;
 }
 
 const EmployerMatches: React.FC = () => {
@@ -125,7 +125,7 @@ const EmployerMatches: React.FC = () => {
         return;
       }
 
-      // Get employer likes for this job
+      // Employer likes
       const { data: likes } = await supabase
         .from("likes")
         .select("liked_whv_id")
@@ -143,7 +143,7 @@ const EmployerMatches: React.FC = () => {
         location: r.whv?.current_location,
         availability: r.whv?.availability,
         matchPercentage: Math.round(r.match_score),
-        isLiked: likedIds.includes(r.whv?.user_id),
+        isLiked: likedIds.includes(r.whv?.user_id || r.whv_id), // ✅ check both user_id and whv_id
       }));
 
       setTopRecommended(formatted);
@@ -152,7 +152,7 @@ const EmployerMatches: React.FC = () => {
     fetchTopRecommended();
   }, [currentJobId, employerId]);
 
-  // ✅ Toggle like/unlike (Top Recommended only)
+  // ✅ Toggle like/unlike
   const handleLike = async (candidate: MatchCandidate) => {
     if (!candidate.id || !employerId) return;
 
@@ -286,11 +286,9 @@ const EmployerMatches: React.FC = () => {
                         >
                           <Heart
                             size={16}
-                            className={
-                              c.isLiked
-                                ? "text-red-500 fill-red-500"
-                                : "text-white"
-                            }
+                            strokeWidth={2}
+                            className={c.isLiked ? "text-red-500" : "text-white"}
+                            fill={c.isLiked ? "currentColor" : "none"} // ✅ proper fill
                           />
                         </button>
                       )}
