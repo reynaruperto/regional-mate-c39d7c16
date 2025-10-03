@@ -1,4 +1,3 @@
-// src/pages/ShortCandidateProfileCard.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Heart, Briefcase, MapPin, Award, User } from "lucide-react";
@@ -27,7 +26,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   const [employerId, setEmployerId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  // ✅ Get logged-in employer ID
+  //  Get logged-in employer ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -36,41 +35,32 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     getUser();
   }, []);
 
-  // ✅ Load candidate profile
+  // Load candidate profile
   useEffect(() => {
     const fetchCandidate = async () => {
       setLoading(true);
 
-      // Candidate profile
       const { data: whv } = await supabase
         .from("whv_maker")
         .select("given_name, middle_name, family_name, tagline, profile_photo, state")
         .eq("user_id", candidateId)
         .maybeSingle();
 
-      // Availability
       const { data: availabilityRow } = await supabase
         .from("maker_pref_availability")
         .select("available_from")
         .eq("user_id", candidateId)
         .maybeSingle();
-
       if (availabilityRow?.available_from) {
         setAvailableFrom(availabilityRow.available_from);
-      } else {
-        setAvailableFrom(null); // fallback
       }
 
-      // Industry Preferences
       const { data: industryRows } = await supabase
         .from("maker_pref_industry")
         .select("industry ( name )")
         .eq("user_id", candidateId);
-      setIndustryPrefs(
-        industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
-      );
+      setIndustryPrefs(industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []);
 
-      // Location Preferences
       const { data: locationRows } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
@@ -86,25 +76,19 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
         setLocationPreferences(Object.entries(grouped));
       }
 
-      // Work Experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience")
-        .select("position, company, industry(name), location, start_date, end_date, job_description")
+        .select("position, company, industry(name), location, start_date, end_date")
         .eq("user_id", candidateId)
         .order("start_date", { ascending: false });
-
       setWorkExperiences(expRows || []);
 
-      // Licenses
       const { data: licenseRows } = await supabase
         .from("maker_license")
         .select("license(name)")
         .eq("user_id", candidateId);
-      setLicenses(
-        licenseRows?.map((l) => l.license?.name).filter(Boolean) || []
-      );
+      setLicenses(licenseRows?.map((l) => l.license?.name).filter(Boolean) || []);
 
-      // Signed photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
         let photoPath = whv.profile_photo;
@@ -118,9 +102,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       }
 
       setProfileData({
-        name: [whv?.given_name, whv?.middle_name, whv?.family_name]
-          .filter(Boolean)
-          .join(" "),
+        name: [whv?.given_name, whv?.middle_name, whv?.family_name].filter(Boolean).join(" "),
         tagline: whv?.tagline || "No tagline added",
         state: whv?.state,
         profilePhoto: signedPhoto,
@@ -132,13 +114,11 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     fetchCandidate();
   }, [candidateId]);
 
-  // ✅ Like candidate (job-specific)
   const handleLikeCandidate = async () => {
     if (!employerId || !selectedJobId) {
       alert("Please select a job post first.");
       return;
     }
-
     await supabase.from("likes").upsert(
       {
         liker_id: employerId,
@@ -148,59 +128,34 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       },
       { onConflict: "liker_id,liked_whv_id,liker_type,job_id" }
     );
-
     setShowLikeModal(true);
   };
 
-  const handleCloseLikeModal = () => setShowLikeModal(false);
-
-  // ✅ Back button logic
   const handleBack = () => {
     const fromPage = searchParams.get("from");
     const tab = searchParams.get("tab");
-
     if (fromPage === "employer-matches") {
       navigate(`/employer/matches?tab=${tab || "matches"}`);
-    } else if (fromPage === "browse-candidates") {
-      navigate("/browse-candidates");
     } else {
-      navigate("/browse-candidates"); // fallback
+      navigate("/browse-candidates");
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
-
-  // Helper: format date to "MMM YYYY"
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={handleBack}
-            >
+          <div className="px-6 pt-16 pb-4 flex items-center justify-between">
+            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
               <ArrowLeft className="w-5 h-5 text-gray-700" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Candidate Profile
-            </h1>
-            <div className="w-10"></div>
+            <h1 className="text-lg font-semibold">Candidate Profile</h1>
+            <div className="w-10" />
           </div>
 
           {/* Content */}
@@ -210,169 +165,109 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
                   {profileData?.profilePhoto ? (
-                    <img
-                      src={profileData.profilePhoto}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
                       <User size={32} />
                     </div>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {profileData?.name}
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  {profileData?.tagline}
-                </p>
-
-                {/* ✅ Availability with fallback */}
-                {availableFrom ? (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Available from:{" "}
-                    <span className="font-medium text-gray-900">
-                      {new Date(availableFrom).toLocaleDateString("en-US", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Availability not set
+                <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
+                <p className="text-sm text-gray-600">{profileData?.tagline}</p>
+                {availableFrom && (
+                  <p className="text-sm text-gray-600">
+                    Available from: <span className="font-medium">{new Date(availableFrom).toLocaleDateString()}</span>
                   </p>
                 )}
               </div>
 
               {/* Industry Preferences */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                  <Briefcase size={16} className="text-orange-500 mr-2" />
-                  Industry Preferences
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
+                  <Briefcase size={16} className="mr-2" /> Industry Preferences
                 </h3>
                 {industryPrefs.length > 0 ? (
-                  <ul className="list-disc list-inside text-sm text-gray-700">
+                  <div className="flex flex-wrap gap-2">
                     {industryPrefs.map((ind, i) => (
-                      <li key={i}>{ind}</li>
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{ind}</span>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-500">No industries set</p>
                 )}
               </div>
 
               {/* Location Preferences */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                  <MapPin size={16} className="text-orange-500 mr-2" />
-                  Location Preferences
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
+                  <MapPin size={16} className="mr-2" /> Location Preferences
                 </h3>
                 {locationPreferences.length > 0 ? (
-                  <div className="space-y-3">
-                    {locationPreferences.map(([state, suburbs]) => (
-                      <div key={state}>
-                        <p className="font-medium text-gray-800">{state}</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {(suburbs as string[]).map((s, i) => (
-                            <span
-                              key={i}
-                              className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
+                  locationPreferences.map(([state, suburbs]) => (
+                    <div key={state}>
+                      <p className="font-medium">{state}</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(suburbs as string[]).map((s, i) => (
+                          <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{s}</span>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))
                 ) : (
-                  <p className="text-sm text-gray-500">
-                    No location preferences set
-                  </p>
+                  <p className="text-sm text-gray-500">No locations set</p>
                 )}
               </div>
 
               {/* Work Experience */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                  <Briefcase size={16} className="text-orange-500 mr-2" />
-                  Work Experience
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
+                  <Briefcase size={16} className="mr-2" /> Work Experience
                 </h3>
                 {workExperiences.length > 0 ? (
-                  <ul className="space-y-3 text-sm text-gray-700">
-                    {workExperiences.map((exp, i) => {
-                      const start = new Date(exp.start_date);
-                      const end = exp.end_date ? new Date(exp.end_date) : new Date();
-                      const years =
-                        (end.getTime() - start.getTime()) /
-                        (1000 * 60 * 60 * 24 * 365);
-
-                      let yearsCategory = "";
-                      if (years < 1) yearsCategory = "<1 yr";
-                      else if (years < 3) yearsCategory = "1–2 yrs";
-                      else if (years < 5) yearsCategory = "3–4 yrs";
-                      else if (years < 8) yearsCategory = "5–7 yrs";
-                      else if (years < 11) yearsCategory = "8–10 yrs";
-                      else yearsCategory = "10+ yrs";
-
-                      return (
-                        <li key={i} className="border-b last:border-0 pb-2">
-                          <div>
-                            <span className="font-medium">{exp.position}</span>{" "}
-                            in {exp.industry?.name || "N/A"} at {exp.company || "N/A"} —{" "}
-                            <span className="text-gray-500">{yearsCategory}</span>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {formatDate(start)} –{" "}
-                            {exp.end_date ? formatDate(end) : "Present"}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  workExperiences.slice(0, 2).map((exp, i) => (
+                    <div key={i} className="border-b pb-2 mb-2">
+                      <p className="font-medium">{exp.position}</p>
+                      <p className="text-sm text-gray-600">{exp.company} • {exp.industry?.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(exp.start_date).toLocaleDateString()} – {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : "Present"}
+                      </p>
+                    </div>
+                  ))
                 ) : (
-                  <p className="text-sm text-gray-500">No work experience added</p>
+                  <p className="text-sm text-gray-500">No work experience</p>
                 )}
               </div>
 
               {/* Licenses */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                  <Award size={16} className="text-orange-500 mr-2" />
-                  Licenses & Certifications
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
+                  <Award size={16} className="mr-2" /> Licenses & Certifications
                 </h3>
-                <div className="flex flex-wrap gap-2">
-                  {licenses.length > 0 ? (
-                    licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                      >
-                        {l}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No licenses added</p>
-                  )}
-                </div>
+                {licenses.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{l}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No licenses added</p>
+                )}
               </div>
 
-              {/* Heart to Match */}
+              {/* Heart Button */}
               <Button
                 onClick={handleLikeCandidate}
-                className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
+                className="w-full bg-[#EC5823] hover:bg-orange-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
               >
-                <Heart size={18} className="fill-white" /> Heart to Match
+                <Heart size={18} className="text-white" />
+                Heart to Match
               </Button>
             </div>
           </div>
 
           <LikeConfirmationModal
             candidateName={profileData?.name}
-            onClose={handleCloseLikeModal}
+            onClose={() => setShowLikeModal(false)}
             isVisible={showLikeModal}
           />
         </div>

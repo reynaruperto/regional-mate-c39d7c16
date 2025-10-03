@@ -1,4 +1,3 @@
-// src/pages/whv/WHVProfilePreview.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Briefcase, MapPin, Award, User, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +15,6 @@ const WHVProfilePreview: React.FC = () => {
   const [availableFrom, setAvailableFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Consistent date formatting
   const formatDate = (d: string | Date | null) => {
     if (!d) return "Not set";
     const parsed = new Date(d);
@@ -30,22 +28,18 @@ const WHVProfilePreview: React.FC = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/sign-in");
         return;
       }
 
-      // Profile
       const { data: whv } = await supabase
         .from("whv_maker")
         .select("given_name, middle_name, family_name, tagline, profile_photo")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // Availability
       const { data: availabilityRow } = await supabase
         .from("maker_pref_availability")
         .select("available_from")
@@ -53,27 +47,17 @@ const WHVProfilePreview: React.FC = () => {
         .maybeSingle();
       if (availabilityRow) setAvailableFrom(availabilityRow.available_from);
 
-      // All industries (for joining with work_experience)
       const { data: industryData } = await supabase
         .from("industry")
         .select("industry_id, name");
-      setIndustries(
-        industryData?.map((i: any) => ({
-          id: i.industry_id,
-          name: i.name,
-        })) || []
-      );
+      setIndustries(industryData?.map((i: any) => ({ id: i.industry_id, name: i.name })) || []);
 
-      // Industry Preferences
       const { data: industryRows } = await supabase
         .from("maker_pref_industry")
         .select("industry ( name )")
         .eq("user_id", user.id);
-      setIndustryPrefs(
-        industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []
-      );
+      setIndustryPrefs(industryRows?.map((i: any) => i.industry?.name).filter(Boolean) || []);
 
-      // Location Preferences
       const { data: locationRows } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode")
@@ -89,29 +73,19 @@ const WHVProfilePreview: React.FC = () => {
         setLocationPreferences(Object.entries(grouped));
       }
 
-      // Work Experiences
       const { data: expRows } = await supabase
         .from("maker_work_experience" as any)
-        .select(
-          "position, company, industry_id, location, start_date, end_date, job_description"
-        )
+        .select("position, company, industry_id, location, start_date, end_date, job_description")
         .eq("user_id", user.id)
         .order("start_date", { ascending: false });
+      if (expRows) setWorkExperiences(expRows);
 
-      if (expRows) {
-        setWorkExperiences(expRows);
-      }
-
-      // Licenses
       const { data: licenseRows } = await supabase
         .from("maker_license")
         .select("license(name)")
         .eq("user_id", user.id);
-      setLicenses(
-        licenseRows?.map((l) => l.license?.name).filter(Boolean) || []
-      );
+      setLicenses(licenseRows?.map((l) => l.license?.name).filter(Boolean) || []);
 
-      // Signed photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
         let photoPath = whv.profile_photo;
@@ -125,9 +99,7 @@ const WHVProfilePreview: React.FC = () => {
       }
 
       setProfileData({
-        name: [whv?.given_name, whv?.middle_name, whv?.family_name]
-          .filter(Boolean)
-          .join(" "),
+        name: [whv?.given_name, whv?.middle_name, whv?.family_name].filter(Boolean).join(" "),
         tagline: whv?.tagline || "No tagline added",
         profilePhoto: signedPhoto,
       });
@@ -139,35 +111,20 @@ const WHVProfilePreview: React.FC = () => {
   }, [navigate]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-
+        <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={() => navigate("/whv/dashboard")}
-            >
+          <div className="px-6 pt-16 pb-4 flex items-center justify-between">
+            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={() => navigate("/whv/dashboard")}>
               <ArrowLeft className="w-5 h-5 text-gray-700" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Profile Preview
-            </h1>
-            <div className="w-10"></div>
+            <h1 className="text-lg font-semibold">Profile Preview</h1>
+            <div className="w-10" />
           </div>
 
           {/* Content */}
@@ -177,145 +134,75 @@ const WHVProfilePreview: React.FC = () => {
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
                   {profileData?.profilePhoto ? (
-                    <img
-                      src={profileData.profilePhoto}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
                       <User size={32} />
                     </div>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {profileData?.name}
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  {profileData?.tagline}
-                </p>
-
+                <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
+                <p className="text-sm text-gray-600">{profileData?.tagline}</p>
                 {availableFrom && (
                   <p className="text-sm text-gray-600 mt-1">
-                    Available from:{" "}
-                    <span className="font-medium text-gray-900">
-                      {formatDate(availableFrom)}
-                    </span>
+                    Available from: <span className="font-medium text-gray-900">{formatDate(availableFrom)}</span>
                   </p>
                 )}
               </div>
 
               {/* Industry Preferences */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Industry Preferences
-                  </span>
-                </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><Briefcase size={16} className="mr-2" /> Industry Preferences</h3>
                 {industryPrefs.length > 0 ? (
-                  <ul className="list-disc list-inside text-sm text-gray-700">
+                  <div className="flex flex-wrap gap-2">
                     {industryPrefs.map((ind, i) => (
-                      <li key={i}>{ind}</li>
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{ind}</span>
                     ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-500">No industries set</p>
-                )}
+                  </div>
+                ) : <p className="text-sm text-gray-500">No industries set</p>}
               </div>
 
               {/* Location Preferences */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <MapPin className="w-5 h-5 text-orange-500 mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Location Preferences
-                  </span>
-                </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><MapPin size={16} className="mr-2" /> Location Preferences</h3>
                 {locationPreferences.length > 0 ? (
-                  <div className="space-y-3">
-                    {locationPreferences.map(([state, suburbs]) => (
-                      <div key={state}>
-                        <p className="font-medium text-gray-800">{state}</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {(suburbs as string[]).map((s, i) => (
-                            <span
-                              key={i}
-                              className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
+                  locationPreferences.map(([state, suburbs]) => (
+                    <div key={state} className="mb-2">
+                      <p className="font-medium">{state}</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(suburbs as string[]).map((s, i) => (
+                          <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{s}</span>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    No location preferences set
-                  </p>
-                )}
+                    </div>
+                  ))
+                ) : <p className="text-sm text-gray-500">No location preferences</p>}
               </div>
 
-              {/* Work Experience Summary */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2">
-                  <Briefcase className="w-5 h-5 text-orange-500 mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Work Experience
-                  </span>
-                </div>
+              {/* Work Experience */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><Briefcase size={16} className="mr-2" /> Work Experience</h3>
                 {workExperiences.length > 0 ? (
-                  <div>
-                    <ul className="space-y-3 text-sm text-gray-700">
-                      {workExperiences.map((exp, i) => {
-                        const industryName =
-                          industries.find(
-                            (ind) => ind.id === exp.industry_id
-                          )?.name || "N/A";
-
-                        const start = new Date(exp.start_date);
-                        const end = exp.end_date
-                          ? new Date(exp.end_date)
-                          : new Date();
-
-                        return (
-                          <li key={i} className="border-b last:border-0 pb-2">
-                            <div>
-                              <span className="font-medium">{exp.position}</span>{" "}
-                              in {industryName} at {exp.company}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {formatDate(start)} –{" "}
-                              {exp.end_date ? formatDate(end) : "Present"}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    No work experience added
-                  </p>
-                )}
+                  workExperiences.map((exp, i) => {
+                    const industryName = industries.find((ind) => ind.id === exp.industry_id)?.name || "N/A";
+                    return (
+                      <div key={i} className="border-b last:border-0 pb-2 mb-2 text-sm text-gray-700">
+                        <p className="font-medium">{exp.position}</p>
+                        <p>{industryName} at {exp.company}</p>
+                        <p className="text-xs text-gray-500">{formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}</p>
+                      </div>
+                    );
+                  })
+                ) : <p className="text-sm text-gray-500">No work experience added</p>}
               </div>
 
               {/* Licenses */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                  <Award size={16} className="text-orange-500 mr-2" />
-                  Licenses & Certifications
-                </h3>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><Award size={16} className="mr-2" /> Licenses & Certifications</h3>
                 <div className="flex flex-wrap gap-2">
                   {licenses.length > 0 ? (
                     licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full"
-                      >
-                        {l}
-                      </span>
+                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{l}</span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No licenses added</p>
@@ -323,9 +210,9 @@ const WHVProfilePreview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Heart to Match */}
-              <Button className="w-full bg-gradient-to-r from-orange-400 to-slate-800 hover:from-orange-500 hover:to-slate-900 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
-                <Heart size={18} className="fill-white" /> Heart to Match
+              {/* Heart Button */}
+              <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
+                <Heart size={18} className="text-white" /> Heart to Match
               </Button>
             </div>
           </div>
