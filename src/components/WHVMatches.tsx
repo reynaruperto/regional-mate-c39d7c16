@@ -41,6 +41,7 @@ const WHVMatches: React.FC = () => {
     getUser();
   }, []);
 
+  // Fetch Matches
   useEffect(() => {
     if (!whvId) return;
     const fetchMatches = async () => {
@@ -73,6 +74,7 @@ const WHVMatches: React.FC = () => {
     fetchMatches();
   }, [whvId]);
 
+  // Fetch Top Recommended
   useEffect(() => {
     if (!whvId) return;
     const fetchTopRecommended = async () => {
@@ -222,7 +224,7 @@ const WHVMatches: React.FC = () => {
                         {activeTab === "matches" ? (
                           <Button
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                            onClick={() => navigate(`/whv/job/${e.job_id}`)}
+                            onClick={() => navigate(`/whv/employer-profile/${e.emp_id}`)}
                           >
                             View Full Profile
                           </Button>
