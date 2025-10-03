@@ -258,7 +258,10 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+      <div
+        id="phone-frame"
+        className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative"
+      >
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center">
@@ -290,7 +293,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
-                  portal={false}
+                  container={document.getElementById("phone-frame")!}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {roles.map((r) => (
@@ -328,7 +331,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
-                  portal={false}
+                  container={document.getElementById("phone-frame")!}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {employmentTypeEnum.map((t) => (
@@ -353,7 +356,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
-                  portal={false}
+                  container={document.getElementById("phone-frame")!}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {payRangeEnum.map((t) => (
@@ -378,7 +381,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
-                  portal={false}
+                  container={document.getElementById("phone-frame")!}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {yearsExpEnum.map((t) => (
@@ -410,7 +413,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectContent
                   position="popper"
                   sideOffset={4}
-                  portal={false}
+                  container={document.getElementById("phone-frame")!}
                   className="max-h-64 overflow-y-auto rounded-xl border bg-white shadow-lg z-50"
                 >
                   {locations.map((l, idx) => (
