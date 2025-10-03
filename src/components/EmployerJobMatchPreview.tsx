@@ -187,43 +187,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                 <p className="text-sm text-gray-600">{employer.tagline}</p>
               </div>
 
-              {/* Employer Info (with copy buttons) */}
-              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2 text-center">
-                <p className="flex items-center justify-center gap-2">
-                  <Hash size={14} /> ABN: {employer.abn}
-                  <button onClick={() => copyToClipboard(employer.abn)}>
-                    <Clipboard size={14} className="text-gray-500 hover:text-black" />
-                  </button>
-                </p>
-                {employer.email ? (
-                  <p className="flex items-center justify-center gap-2">
-                    <Mail size={14} />
-                    <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">
-                      {employer.email}
-                    </a>
-                    <button onClick={() => copyToClipboard(employer.email!)}>
-                      <Clipboard size={14} className="text-gray-500 hover:text-black" />
-                    </button>
-                  </p>
-                ) : (
-                  <p className="text-gray-500">⚠️ No email found</p>
-                )}
-                {employer.mobile_num && (
-                  <p className="flex items-center justify-center gap-2">
-                    <Phone size={14} />
-                    <a href={`tel:${employer.mobile_num}`} className="text-blue-600 hover:underline">
-                      {employer.mobile_num}
-                    </a>
-                    <button onClick={() => copyToClipboard(employer.mobile_num!)}>
-                      <Clipboard size={14} className="text-gray-500 hover:text-black" />
-                    </button>
-                  </p>
-                )}
-                <p>
-                  <Globe size={14} className="inline mr-1" /> {employer.website}
-                </p>
-              </div>
-
               {/* Role + Industry + Status */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
@@ -237,6 +200,77 @@ const EmployerJobMatchPreview: React.FC = () => {
                 >
                   {jobDetails.job_status}
                 </span>
+              </div>
+
+              {/* Employer Info (all clickable + copy icons) */}
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2 text-center">
+                {/* ABN */}
+                {employer.abn && employer.abn !== "N/A" ? (
+                  <p className="flex items-center justify-center gap-2">
+                    <Hash size={14} />
+                    <a
+                      href={`https://abr.business.gov.au/ABN/View?id=${employer.abn}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      ABN: {employer.abn}
+                    </a>
+                    <button onClick={() => copyToClipboard(employer.abn)}>
+                      <Clipboard size={16} className="cursor-pointer text-gray-500 hover:text-black" />
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-gray-500">⚠️ No ABN provided</p>
+                )}
+
+                {/* Email */}
+                {employer.email ? (
+                  <p className="flex items-center justify-center gap-2">
+                    <Mail size={14} />
+                    <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">
+                      {employer.email}
+                    </a>
+                    <button onClick={() => copyToClipboard(employer.email!)}>
+                      <Clipboard size={16} className="cursor-pointer text-gray-500 hover:text-black" />
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-gray-500">⚠️ No email found</p>
+                )}
+
+                {/* Phone */}
+                {employer.mobile_num && (
+                  <p className="flex items-center justify-center gap-2">
+                    <Phone size={14} />
+                    <a href={`tel:${employer.mobile_num}`} className="text-blue-600 hover:underline">
+                      {employer.mobile_num}
+                    </a>
+                    <button onClick={() => copyToClipboard(employer.mobile_num!)}>
+                      <Clipboard size={16} className="cursor-pointer text-gray-500 hover:text-black" />
+                    </button>
+                  </p>
+                )}
+
+                {/* Website */}
+                {employer.website && employer.website !== "Not provided" ? (
+                  <p className="flex items-center justify-center gap-2">
+                    <Globe size={14} />
+                    <a
+                      href={employer.website.startsWith("http") ? employer.website : `https://${employer.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {employer.website}
+                    </a>
+                    <button onClick={() => copyToClipboard(employer.website)}>
+                      <Clipboard size={16} className="cursor-pointer text-gray-500 hover:text-black" />
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-gray-500">⚠️ No website provided</p>
+                )}
               </div>
 
               {/* Location */}
