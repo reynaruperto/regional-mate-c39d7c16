@@ -1,3 +1,4 @@
+// src/pages/whv/WHVJobFull.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -209,8 +210,8 @@ const WHVJobFull: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
@@ -222,17 +223,22 @@ const WHVJobFull: React.FC = () => {
             >
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">Full Job Details</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
             <div className="w-10"></div>
           </div>
 
-          <div className="flex-1 px-6 py-6 overflow-y-auto">
+          {/* Content */}
+          <div className="flex-1 px-6 py-4 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-              {/* Company */}
-              <div className="flex flex-col items-center text-center">
-                <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
+              {/* Employer Header */}
+              <div className="flex flex-col items-center">
+                <div className="w-24 h-24 rounded-full border-2 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
-                    <img src={jobDetails.company_photo} alt="Company" className="w-full h-full object-cover" />
+                    <img
+                      src={jobDetails.company_photo}
+                      alt="Company"
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
                       <Image size={32} />
@@ -240,65 +246,81 @@ const WHVJobFull: React.FC = () => {
                   )}
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">{jobDetails.company_name}</h2>
-                <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
+                <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role + Industry */}
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">{jobDetails.role}</h3>
-                <p className="text-sm text-gray-600 mb-2">{jobDetails.industry}</p>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  jobDetails.job_status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                }`}>
-                  {jobDetails.job_status}
-                </span>
-              </div>
-
-              {/* Job Description */}
+              {/* Job Info */}
               <div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
+                <h3 className="font-semibold text-[#1E293B] mb-2">Job Details</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">Role:</span>
+                    <p className="font-medium text-gray-900">{jobDetails.role}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Type:</span>
+                    <p className="font-medium text-gray-900">{jobDetails.employment_type}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Salary:</span>
+                    <p className="font-medium text-gray-900">{jobDetails.salary_range}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Experience Required:</span>
+                    <p className="font-medium text-gray-900">{jobDetails.req_experience}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Start Date:</span>
+                    <p className="font-medium text-gray-900">
+                      {new Date(jobDetails.start_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Status:</span>
+                    <p className="font-medium text-gray-900">{jobDetails.job_status}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Details Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Type</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Salary</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><User className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Experience Required</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Start Date</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
+              {/* Location */}
+              <div>
+                <h3 className="font-semibold text-[#1E293B] mb-2">Location</h3>
+                <p className="text-gray-900 font-medium">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Facilities */}
+              <div>
+                <h3 className="font-semibold text-[#1E293B] mb-2">Facilities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? (
+                    jobDetails.facilities.map((f, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                      >
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities listed</p>
+                  )}
                 </div>
               </div>
 
               {/* Licenses */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><Award className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">License Required</span>
-                </div>
+              <div>
+                <h3 className="font-semibold text-[#1E293B] mb-2">Licenses</h3>
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? (
                     jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{l}</span>
+                      <span
+                        key={i}
+                        className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full"
+                      >
+                        {l}
+                      </span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No licenses required</p>
@@ -306,27 +328,11 @@ const WHVJobFull: React.FC = () => {
                 </div>
               </div>
 
-              {/* Location */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">Location</span>
-                </div>
-                <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
-                </p>
-              </div>
-
-              {/* Facilities */}
+              {/* Description */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0 ? (
-                    jobDetails.facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{f}</span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
-                  )}
+                <h3 className="font-semibold text-[#1E293B] mb-2">Job Description</h3>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
                 </div>
               </div>
 
@@ -335,7 +341,12 @@ const WHVJobFull: React.FC = () => {
                 onClick={handleLikeJob}
                 className="w-full bg-[#1E293B] hover:bg-[#0f172a] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
               >
-                <Heart size={18} className={jobDetails.isLiked ? "fill-red-500 text-red-500" : "text-white"} />
+                <Heart
+                  size={18}
+                  className={
+                    jobDetails.isLiked ? "fill-red-500 text-red-500" : "text-white"
+                  }
+                />
                 {jobDetails.isLiked ? "Unlike Job" : "Heart to Match"}
               </Button>
             </div>
@@ -344,16 +355,12 @@ const WHVJobFull: React.FC = () => {
 
         {/* Like Modal */}
         {showLikeModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div className="pointer-events-auto w-full h-full flex items-center justify-center">
-              <LikeConfirmationModal
-                jobTitle={jobDetails.role}
-                companyName={jobDetails.company_name}
-                onClose={() => setShowLikeModal(false)}
-                isVisible={showLikeModal}
-              />
-            </div>
-          </div>
+          <LikeConfirmationModal
+            jobTitle={jobDetails.role}
+            companyName={jobDetails.company_name}
+            onClose={() => setShowLikeModal(false)}
+            isVisible={showLikeModal}
+          />
         )}
       </div>
     </div>
