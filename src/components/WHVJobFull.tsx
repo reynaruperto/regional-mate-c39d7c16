@@ -103,7 +103,7 @@ const WHVJobFull: React.FC = () => {
           const { data: profile } = await supabase
             .from("profile")
             .select("email")
-            .eq("id", emp.user_id)
+            .eq("user_id", emp.user_id)
             .maybeSingle();
           email = profile?.email || "";
         }
