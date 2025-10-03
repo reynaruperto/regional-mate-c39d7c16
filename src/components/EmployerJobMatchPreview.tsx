@@ -14,7 +14,7 @@ import {
   Mail,
   Clipboard,
 } from "lucide-react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface JobDetails {
@@ -46,10 +46,7 @@ interface EmployerDetails {
 
 const EmployerJobMatchPreview: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { jobId } = useParams();
-
-  const fromPage = (location.state as any)?.from;
 
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
@@ -57,12 +54,9 @@ const EmployerJobMatchPreview: React.FC = () => {
   const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Back button always returns to Post Job
   const handleBack = () => {
-    if (fromPage === "postJob") {
-      navigate("/employer/post-job");
-    } else {
-      navigate(-1);
-    }
+    navigate("/employer/post-job");
   };
 
   useEffect(() => {
