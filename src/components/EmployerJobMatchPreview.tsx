@@ -40,6 +40,8 @@ interface EmployerDetails {
   website: string;
   mobile_num?: string;
   email?: string;
+  business_tenure?: string;
+  employee_count?: string;
 }
 
 const EmployerJobMatchPreview: React.FC = () => {
@@ -94,7 +96,7 @@ const EmployerJobMatchPreview: React.FC = () => {
 
         const { data: emp } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id, business_tenure, employee_count")
           .eq("user_id", job.user_id)
           .maybeSingle();
 
@@ -124,6 +126,8 @@ const EmployerJobMatchPreview: React.FC = () => {
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
           email: profile?.email || "",
+          business_tenure: emp?.business_tenure || "Not available",
+          employee_count: emp?.employee_count || "Not available",
         });
 
         const { data: facs } = await supabase
@@ -202,9 +206,8 @@ const EmployerJobMatchPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Employer Info (all clickable + copy icons) */}
+              {/* Employer Info (ABN, Email, Phone, Website clickable + copy) */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2 text-center">
-                {/* ABN */}
                 {employer.abn && employer.abn !== "N/A" ? (
                   <p className="flex items-center justify-center gap-2">
                     <Hash size={14} />
@@ -223,8 +226,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                 ) : (
                   <p className="text-gray-500">⚠️ No ABN provided</p>
                 )}
-
-                {/* Email */}
                 {employer.email ? (
                   <p className="flex items-center justify-center gap-2">
                     <Mail size={14} />
@@ -238,8 +239,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                 ) : (
                   <p className="text-gray-500">⚠️ No email found</p>
                 )}
-
-                {/* Phone */}
                 {employer.mobile_num && (
                   <p className="flex items-center justify-center gap-2">
                     <Phone size={14} />
@@ -251,8 +250,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                     </button>
                   </p>
                 )}
-
-                {/* Website */}
                 {employer.website && employer.website !== "Not provided" ? (
                   <p className="flex items-center justify-center gap-2">
                     <Globe size={14} />
@@ -318,20 +315,44 @@ const EmployerJobMatchPreview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Licenses */}
+              {/* Company Tenure + Employees */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Company Tenure</span>
+                  </div>
+                  <p className="font-semibold">{employer.business_tenure}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Employees</span>
+                  </div>
+                  <p className="font-semibold">{employer.employee_count}</p>
+                </div>
+              </div>
+
+              {/* Licenses Required */}
               <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Licenses</h4>
+                <h4 className="font-semibold mb-2">Licenses Required</h4>
                 <div className="flex flex-wrap gap-2">
                   {licenses.length > 0 ? (
                     licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
-                        {l}
-                      </span>
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No licenses required</p>
                   )}
                 </div>
+              </div>
+
+              {/* Work Experience Required */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Work Experience Required</h4>
+                <p className="text-sm text-gray-900">
+                  {jobDetails.req_experience || "No specific experience required"}
+                </p>
               </div>
 
               {/* Facilities */}
@@ -340,9 +361,7 @@ const EmployerJobMatchPreview: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {facilities.length > 0 ? (
                     facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
-                        {f}
-                      </span>
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">{f}</span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No facilities listed</p>
