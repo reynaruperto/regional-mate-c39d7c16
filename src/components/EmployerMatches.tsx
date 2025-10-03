@@ -21,25 +21,26 @@ interface MatchCandidate {
   profileImage: string;
   location: string;
   availability: string;
+  industries?: string[];
+  experiences?: string;
   isMutualMatch?: boolean;
   matchPercentage?: number;
 }
 
 const EmployerMatches: React.FC = () => {
   const navigate = useNavigate();
-
   const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
 
+  const [employerId, setEmployerId] = useState<string | null>(null);
+  const [jobPosts, setJobPosts] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
 
-  const [jobPosts, setJobPosts] = useState<any[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [employerId, setEmployerId] = useState<string | null>(null);
-
-  // Fetch employer's user ID
+  // ---------- auth ----------
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -47,7 +48,7 @@ const EmployerMatches: React.FC = () => {
     })();
   }, []);
 
-  // Fetch employer's job posts
+  // ---------- fetch employer job posts ----------
   useEffect(() => {
     if (!employerId) return;
     (async () => {
@@ -61,18 +62,21 @@ const EmployerMatches: React.FC = () => {
     })();
   }, [employerId]);
 
-  // Fetch mutual matches
+  // ---------- fetch matches ----------
   useEffect(() => {
-    if (!selectedJobId) return;
+    if (!selectedJobId || !employerId) return;
+
     (async () => {
       const { data, error } = await (supabase as any).rpc("fetch_job_matches", {
         p_job_id: selectedJobId,
       });
+
       if (error) {
         console.error("Error fetching matches:", error);
         return;
       }
-      setMatches(
+
+      const formatted =
         (data || []).map((m: any) => ({
           id: m.maker_id,
           name: m.given_name,
@@ -80,24 +84,31 @@ const EmployerMatches: React.FC = () => {
           profileImage: m.profile_photo,
           location: m.location,
           availability: m.availability,
+          experiences: m.work_experience_score
+            ? `${m.work_experience_score} yrs exp`
+            : "No experience listed",
           isMutualMatch: true,
-        }))
-      );
-    })();
-  }, [selectedJobId]);
+        })) ?? [];
 
-  // Fetch top recommended
+      setMatches(formatted);
+    })();
+  }, [selectedJobId, employerId]);
+
+  // ---------- fetch top recommended ----------
   useEffect(() => {
     if (!selectedJobId) return;
+
     (async () => {
       const { data, error } = await (supabase as any).rpc("fetch_job_recommendations", {
         p_job_id: selectedJobId,
       });
+
       if (error) {
         console.error("Error fetching recommendations:", error);
         return;
       }
-      setTopRecommended(
+
+      const formatted =
         (data || []).map((r: any) => ({
           id: r.maker_id,
           name: r.given_name,
@@ -105,12 +116,17 @@ const EmployerMatches: React.FC = () => {
           profileImage: r.profile_photo,
           location: r.location,
           availability: r.availability,
+          experiences: r.work_experience_score
+            ? `${r.work_experience_score} yrs exp`
+            : "No experience listed",
           matchPercentage: Math.round(r.match_score),
-        }))
-      );
+        })) ?? [];
+
+      setTopRecommended(formatted);
     })();
   }, [selectedJobId]);
 
+  // ---------- actions ----------
   const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
     const route = isMutualMatch
       ? `/full-candidate-profile/${id}`
@@ -135,134 +151,148 @@ const EmployerMatches: React.FC = () => {
 
   const currentList = activeTab === "matches" ? matches : topRecommended;
 
+  // ---------- render ----------
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
+        <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
 
-          {/* Header */}
-          <div className="px-6 pt-16 pb-4 flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-              onClick={() => navigate("/employer/dashboard")}
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-700" />
-            </Button>
-            <h1 className="text-lg font-semibold text-gray-900">Matches</h1>
-          </div>
-
-          {/* Job Selector */}
-          <div className="px-6 mb-4">
-            <Select
-              onValueChange={(value) => setSelectedJobId(Number(value))}
-              value={selectedJobId ? String(selectedJobId) : ""}
-            >
-              <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
-                <SelectValue placeholder="Select a job post" />
-              </SelectTrigger>
-              <SelectContent>
-                {jobPosts.map((job) => (
-                  <SelectItem key={job.job_id} value={String(job.job_id)}>
-                    {job.industry_role?.role || "Unknown Role"} –{" "}
-                    {job.description || `Job #${job.job_id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Tabs */}
-          <div className="px-6 mb-2">
-            <div className="flex bg-gray-100 rounded-full p-1">
-              <button
-                onClick={() => setActiveTab("matches")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "matches" ? "bg-slate-800 text-white" : "text-gray-600"
-                }`}
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
+            <div className="px-6 pt-16 pb-4 flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+                onClick={() => navigate("/employer/dashboard")}
               >
-                Matches
-              </button>
-              <button
-                onClick={() => setActiveTab("topRecommended")}
-                className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                  activeTab === "topRecommended" ? "bg-slate-800 text-white" : "text-gray-600"
-                }`}
-              >
-                Top Recommended
-              </button>
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">Employer Matches</h1>
             </div>
-          </div>
 
-          {/* Candidate List */}
-          <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-            {!selectedJobId ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>Please select a job post above to view candidates.</p>
-              </div>
-            ) : currentList.length === 0 ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>No candidates yet for this job.</p>
-              </div>
-            ) : (
-              currentList.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
-                >
-                  <div className="flex gap-3 items-start">
-                    <img
-                      src={c.profileImage || "/default-avatar.png"}
-                      alt={c.name}
-                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-lg truncate">
-                        {c.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">{c.location}</p>
-                      <p className="text-sm text-gray-600">{c.availability}</p>
+            {/* Job Selector */}
+            <div className="px-6 mb-4">
+              <Select
+                onValueChange={(value) => setSelectedJobId(Number(value))}
+                value={selectedJobId ? String(selectedJobId) : ""}
+              >
+                <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
+                  <SelectValue placeholder="Select an active job post" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobPosts.map((job) => (
+                    <SelectItem key={job.job_id} value={String(job.job_id)}>
+                      {job.industry_role?.role || "Unknown Role"} –{" "}
+                      {job.description || `Job #${job.job_id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                      <div className="flex items-center gap-3 mt-3">
-                        <Button
-                          onClick={() => handleViewProfile(c.id, c.isMutualMatch)}
-                          className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
-                        >
-                          {c.isMutualMatch ? "View Full Profile" : "View Profile"}
-                        </Button>
-                        {!c.isMutualMatch && (
-                          <button
-                            onClick={() => handleLike(c)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
-                          >
-                            <Heart
-                              size={18}
-                              className="text-orange-500"
-                            />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {!c.isMutualMatch && c.matchPercentage && (
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-lg font-bold text-orange-500">
-                          {c.matchPercentage}%
-                        </div>
-                        <div className="text-xs font-semibold text-orange-500">
-                          Match
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            {/* Tabs */}
+            {selectedJobId && (
+              <div className="px-6 mb-4">
+                <div className="flex bg-gray-100 rounded-full p-1">
+                  <button
+                    onClick={() => setActiveTab("matches")}
+                    className={`flex-1 py-2 rounded-full text-sm font-medium ${
+                      activeTab === "matches"
+                        ? "bg-slate-800 text-white"
+                        : "text-gray-600"
+                    }`}
+                  >
+                    Matches
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("topRecommended")}
+                    className={`flex-1 py-2 rounded-full text-sm font-medium ${
+                      activeTab === "topRecommended"
+                        ? "bg-slate-800 text-white"
+                        : "text-gray-600"
+                    }`}
+                  >
+                    Top Recommended
+                  </button>
                 </div>
-              ))
+              </div>
             )}
+
+            {/* Candidates */}
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+              {!selectedJobId ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>Please select a job post above to view candidates.</p>
+                </div>
+              ) : currentList.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No candidates match this job yet.</p>
+                </div>
+              ) : (
+                currentList.map((c) => (
+                  <div
+                    key={c.id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
+                  >
+                    <div className="flex gap-3 items-start">
+                      <img
+                        src={c.profileImage}
+                        alt={c.name}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">
+                          {c.name}
+                        </h3>
+
+                        <p className="text-sm text-gray-600">{c.location}</p>
+                        <p className="text-sm text-gray-600">{c.availability}</p>
+                        <p className="text-sm text-gray-600">
+                          <strong>Experience:</strong> {c.experiences}
+                        </p>
+
+                        <div className="flex items-center gap-3 mt-3">
+                          <Button
+                            onClick={() => handleViewProfile(c.id, c.isMutualMatch)}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
+                          >
+                            {c.isMutualMatch ? "View Full Profile" : "View Profile"}
+                          </Button>
+                          {!c.isMutualMatch && (
+                            <button
+                              onClick={() => handleLike(c)}
+                              className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            >
+                              <Heart
+                                size={18}
+                                className="text-orange-500"
+                              />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {!c.isMutualMatch && c.matchPercentage && (
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <div className="text-lg font-bold text-orange-500">
+                            {c.matchPercentage}%
+                          </div>
+                          <div className="text-xs font-semibold text-orange-500">
+                            Match
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Bottom Navigation */}
