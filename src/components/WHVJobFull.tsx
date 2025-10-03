@@ -39,6 +39,8 @@ interface JobDetails {
   abn?: string;
   website?: string;
   mobile_num?: string;
+  business_tenure?: string;
+  employee_count?: string;
 }
 
 const WHVJobFull: React.FC = () => {
@@ -109,7 +111,9 @@ const WHVJobFull: React.FC = () => {
             profile_photo,
             abn,
             website,
-            mobile_num
+            mobile_num,
+            business_tenure,
+            employee_count
           `)
           .eq("user_id", jobData.user_id)
           .maybeSingle();
@@ -174,6 +178,8 @@ const WHVJobFull: React.FC = () => {
           abn: employerData?.abn || "N/A",
           website: employerData?.website || "Not provided",
           mobile_num: employerData?.mobile_num || "",
+          business_tenure: employerData?.business_tenure || "Not available",
+          employee_count: employerData?.employee_count || "Not available",
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
@@ -366,7 +372,7 @@ const WHVJobFull: React.FC = () => {
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
                     <User className="w-5 h-5 mr-2" />
-                    <span>Experience</span>
+                    <span>Years of Work Experience Required</span>
                   </div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
@@ -381,9 +387,27 @@ const WHVJobFull: React.FC = () => {
                 </div>
               </div>
 
+              {/* Company Tenure + Employees */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Company Tenure</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.business_tenure}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Employees</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.employee_count}</p>
+                </div>
+              </div>
+
               {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Licenses</h4>
+                <h4 className="font-semibold mb-2">Licenses Required</h4>
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? (
                     jobDetails.licenses.map((l, i) => (
