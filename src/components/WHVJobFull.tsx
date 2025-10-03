@@ -97,7 +97,7 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", job.user_id)
           .maybeSingle();
 
-        // ✅ Fetch email from profile using employer.user_id
+        // ✅ Fetch email from profile using profile.user_id
         let email = "";
         if (emp?.user_id) {
           const { data: profile } = await supabase
