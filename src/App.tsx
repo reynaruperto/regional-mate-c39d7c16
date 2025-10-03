@@ -52,6 +52,7 @@ import WHVEmployerJobs from "./pages/WHVEmployerJobs";
 import WHVEmployerJobDetails from "./pages/WHVEmployerJobDetails";
 import WHVJobDetails from "./pages/WHVJobDetails";
 import WHVJob from "./pages/WHVJob";
+import WHVJobFull from "./pages/WHVJobFull";
 import WHVBrowseJobs from "./pages/WHVBrowseJobs";
 import WHVPreviewMatchCard from "./pages/WHVPreviewMatchCard";
 import SignInAsModal from "./components/SignInAsModal";
@@ -139,6 +140,7 @@ const App = () => (
           <Route path="/whv/employer/job-details/:id" element={<WHVEmployerJobDetails />} />
           <Route path="/whv/job-details/:employerId/:jobId" element={<WHVJobDetails />} />
           <Route path="/whv/job/:jobId" element={<WHVJob />} />
+          <Route path="/whv/job-full/:jobId" element={<WHVJobFull />} />
           <Route path="/whv/browse-jobs" element={<WHVBrowseJobs />} />
           <Route path="/whv/match-card" element={<WHVPreviewMatchCard />} />
           <Route path="/whv/login" element={<Navigate to="/sign-in" replace />} />

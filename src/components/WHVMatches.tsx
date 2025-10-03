@@ -220,7 +220,7 @@ const WHVMatches: React.FC = () => {
                           className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
                           onClick={() => {
                             if (e.isMutualMatch) {
-                              navigate(`/whv/employer/full-profile/${e.emp_id}?from=whv-matches&tab=${activeTab}`);
+                              navigate(`/whv/job-full/${e.job_id}?from=whv-matches&tab=${activeTab}`);
                             } else {
                               navigate(`/whv/job/${e.job_id}`, {
                                 state: { from: "topRecommended" },
