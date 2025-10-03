@@ -133,19 +133,6 @@ const EMPCandidateFull: React.FC = () => {
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
-  const calculateAge = (birthDate: string) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    if (
-      today.getMonth() < birth.getMonth() ||
-      (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
-    ) {
-      age--;
-    }
-    return age;
-  };
-
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading…</div>;
   }
@@ -188,12 +175,15 @@ const EMPCandidateFull: React.FC = () => {
                 <p className="text-sm text-gray-600">{profileData.tagline}</p>
               </div>
 
-              {/* Contact Info */}
-              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
+              {/* Contact Info (centered) */}
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm flex flex-col items-center text-center space-y-2">
                 {profileData.email ? (
                   <p>
-                    <Mail size={14} className="inline mr-1 text-[#EC5823]" />
-                    <a href={`mailto:${profileData.email}`} className="text-blue-600 hover:underline">
+                    <Mail size={14} className="inline mr-3 text-[#EC5823]" />
+                    <a
+                      href={`mailto:${profileData.email}`}
+                      className="text-blue-600 hover:underline"
+                    >
                       {profileData.email}
                     </a>
                   </p>
@@ -202,8 +192,11 @@ const EMPCandidateFull: React.FC = () => {
                 )}
                 {profileData.phone && (
                   <p>
-                    <Phone size={14} className="inline mr-1 text-[#EC5823]" />
-                    <a href={`tel:${profileData.phone}`} className="text-blue-600 hover:underline">
+                    <Phone size={14} className="inline mr-3 text-[#EC5823]" />
+                    <a
+                      href={`tel:${profileData.phone}`}
+                      className="text-blue-600 hover:underline"
+                    >
                       {profileData.phone}
                     </a>
                   </p>
@@ -236,7 +229,7 @@ const EMPCandidateFull: React.FC = () => {
                 )}
               </div>
 
-              {/* Rest Sections (prefs, work, licenses, references) same as before */}
+              {/* Industry Preferences */}
               {industryPrefs.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Industry Preferences</h3>
@@ -250,6 +243,7 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
+              {/* Location Preferences */}
               {locationPreferences.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Location Preferences</h3>
@@ -268,6 +262,7 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
+              {/* Work Experience */}
               {workExperiences.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Work Experience</h3>
@@ -290,6 +285,7 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
+              {/* Licenses */}
               {licenses.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2">Licenses & Certifications</h3>
@@ -303,6 +299,7 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
+              {/* References */}
               {references.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <h3 className="font-semibold mb-2 flex items-center">
