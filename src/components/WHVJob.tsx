@@ -1,4 +1,3 @@
-// src/pages/whv/WHVJobPreview.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -65,8 +64,7 @@ const WHVJobPreview: React.FC = () => {
       try {
         const { data: job } = await supabase
           .from("job")
-          .select(
-            `
+          .select(`
             job_id,
             description,
             employment_type,
@@ -79,8 +77,7 @@ const WHVJobPreview: React.FC = () => {
             job_status,
             industry_role ( role, industry(name) ),
             user_id
-          `
-          )
+          `)
           .eq("job_id", parseInt(jobId))
           .maybeSingle();
 
@@ -106,19 +103,17 @@ const WHVJobPreview: React.FC = () => {
 
         const { data: facilityRows } = await supabase
           .from("employer_facility")
-          .select("facility ( name )")
+          .select("facility(name)")
           .eq("user_id", job.user_id);
 
-        const facilities =
-          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
+        const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
         const { data: licenseRows } = await supabase
           .from("job_license")
-          .select("license ( name )")
+          .select("license(name)")
           .eq("job_id", job.job_id);
 
-        const licenses =
-          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
+        const licenses = licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
         let isLiked = false;
         if (whvId) {
@@ -201,38 +196,27 @@ const WHVJobPreview: React.FC = () => {
     } else if (fromPage === "matches") {
       navigate("/whv/matches", { state: { tab: "matches" } });
     } else {
-      navigate(-1); // fallback
+      navigate(-1);
     }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
-
-  if (!jobDetails) {
-    return <div className="flex items-center justify-center min-h-screen"><p>Job not found</p></div>;
-  }
+  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  if (!jobDetails) return <div className="flex items-center justify-center min-h-screen"><p>Job not found</p></div>;
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={handleBack}
-            >
+          <div className="px-6 pt-16 pb-4 flex items-center justify-between">
+            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
-            <div className="w-10"></div>
+            <h1 className="text-lg font-semibold">Job Preview</h1>
+            <div className="w-10" />
           </div>
 
-          {/* ... rest of your layout stays the same (company, role, description, details grid, facilities, heart button) ... */}
-
+          {/* Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
               {/* Company */}
@@ -246,76 +230,23 @@ const WHVJobPreview: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">{jobDetails.company_name}</h2>
-                <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
+                <h2 className="text-xl font-bold">{jobDetails.company_name}</h2>
+                <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role + Industry */}
+              {/* Role + Industry + Status */}
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">{jobDetails.role}</h3>
-                <p className="text-sm text-gray-600 mb-2">{jobDetails.industry}</p>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
+                <p className="text-sm text-gray-600">{jobDetails.industry}</p>
+                <span className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
                   jobDetails.job_status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                }`}>
-                  {jobDetails.job_status}
-                </span>
-              </div>
-
-              {/* Job Description */}
-              <div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
-                </div>
-              </div>
-
-              {/* Details Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Type</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Salary</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><User className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Experience Required</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-[#1E293B] mr-2" />
-                    <span className="text-sm font-medium text-gray-600">Start Date</span>
-                  </div>
-                  <p className="text-gray-900 font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
-                </div>
-              </div>
-
-              {/* Licenses */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><Award className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">License Required</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0 ? (
-                    jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{l}</span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No licenses required</p>
-                  )}
-                </div>
+                }`}>{jobDetails.job_status}</span>
               </div>
 
               {/* Location */}
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center mb-1">
+                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
                   <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
                 <p className="text-gray-900 font-semibold">
@@ -323,17 +254,51 @@ const WHVJobPreview: React.FC = () => {
                 </p>
               </div>
 
-              {/* Facilities */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1"><Clock className="w-5 h-5 mr-2" /><span>Type</span></div>
+                  <p className="font-semibold">{jobDetails.employment_type}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1"><DollarSign className="w-5 h-5 mr-2" /><span>Salary</span></div>
+                  <p className="font-semibold">{jobDetails.salary_range}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
+                  <p className="font-semibold">{jobDetails.req_experience}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1"><Calendar className="w-5 h-5 mr-2" /><span>Start Date</span></div>
+                  <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {/* Licenses */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Licenses</h4>
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0 ? (
-                    jobDetails.facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{f}</span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
-                  )}
+                  {jobDetails.licenses.length > 0 ? jobDetails.licenses.map((l, i) => (
+                    <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
+                  )) : <p className="text-sm text-gray-500">No licenses required</p>}
+                </div>
+              </div>
+
+              {/* Facilities */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Facilities</h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.facilities.length > 0 ? jobDetails.facilities.map((f, i) => (
+                    <span key={i} className="px-3 py-1 border text-xs rounded-full">{f}</span>
+                  )) : <p className="text-sm text-gray-500">No facilities listed</p>}
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div>
+                <h4 className="font-semibold mb-2">Job Description</h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p>{jobDetails.description}</p>
                 </div>
               </div>
 
@@ -368,3 +333,4 @@ const WHVJobPreview: React.FC = () => {
 };
 
 export default WHVJobPreview;
+

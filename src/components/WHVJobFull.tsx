@@ -68,7 +68,7 @@ const WHVJobFull: React.FC = () => {
             postcode,
             start_date,
             job_status,
-            industry_role(role, industry(name)),
+            industry_role ( role, industry(name) ),
             user_id
           `)
           .eq("job_id", parseInt(jobId))
@@ -169,7 +169,6 @@ const WHVJobFull: React.FC = () => {
           {/* Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-              
               {/* Company */}
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
@@ -202,30 +201,33 @@ const WHVJobFull: React.FC = () => {
                 </div>
               )}
 
-              {/* Job Description */}
-              <div>
-                <h4 className="font-semibold mb-2">Job Description</h4>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <p>{jobDetails.description}</p>
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center mb-1">
+                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
+                  <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
               </div>
 
-              {/* Job Details Grid */}
+              {/* Details Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 mr-2" /><span>Type</span></div>
+                  <div className="flex items-center mb-1"><Clock className="w-5 h-5 mr-2" /><span>Type</span></div>
                   <p className="font-semibold">{jobDetails.employment_type}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 mr-2" /><span>Salary</span></div>
+                  <div className="flex items-center mb-1"><DollarSign className="w-5 h-5 mr-2" /><span>Salary</span></div>
                   <p className="font-semibold">{jobDetails.salary_range}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
+                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 mr-2" /><span>Start Date</span></div>
+                  <div className="flex items-center mb-1"><Calendar className="w-5 h-5 mr-2" /><span>Start Date</span></div>
                   <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
                 </div>
               </div>
@@ -250,11 +252,14 @@ const WHVJobFull: React.FC = () => {
                 </div>
               </div>
 
-              {/* Location */}
-              <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Location</h4>
-                <p>{jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}</p>
+              {/* Job Description */}
+              <div>
+                <h4 className="font-semibold mb-2">Job Description</h4>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p>{jobDetails.description}</p>
+                </div>
               </div>
+
             </div>
           </div>
         </div>
