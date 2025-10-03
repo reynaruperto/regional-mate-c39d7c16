@@ -200,23 +200,25 @@ const WHVJobPreview: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden relative flex flex-col">
+          {/* Header */}
           <div className="px-6 pt-16 pb-4 bg-white shadow-sm flex items-center justify-between">
             <Button
               variant="ghost"
               size="icon"
               className="w-10 h-10"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate("/whv/browse-jobs")}
             >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
+              <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </Button>
             <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
             <div className="w-10"></div>
           </div>
 
           <div className="flex-1 px-6 py-6 overflow-y-auto">
-            <div className="border-2 border-slate-800 rounded-2xl p-6 space-y-6">
+            <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
+              {/* Company */}
               <div className="flex flex-col items-center text-center">
-                <div className="w-28 h-28 rounded-full border-4 border-slate-800 overflow-hidden mb-3">
+                <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
                     <img src={jobDetails.company_photo} alt="Company" className="w-full h-full object-cover" />
                   ) : (
@@ -229,6 +231,7 @@ const WHVJobPreview: React.FC = () => {
                 <p className="text-sm text-gray-600 mt-1">{jobDetails.tagline}</p>
               </div>
 
+              {/* Role + Industry */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-1">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600 mb-2">{jobDetails.industry}</p>
@@ -239,6 +242,7 @@ const WHVJobPreview: React.FC = () => {
                 </span>
               </div>
 
+              {/* Description */}
               <div>
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
@@ -246,41 +250,43 @@ const WHVJobPreview: React.FC = () => {
                 </div>
               </div>
 
+              {/* Details Grid */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><Clock className="w-5 h-5 text-[#1E293B] mr-2" />
                     <span className="text-sm font-medium text-gray-600">Type</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.employment_type}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><DollarSign className="w-5 h-5 text-[#1E293B] mr-2" />
                     <span className="text-sm font-medium text-gray-600">Salary</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.salary_range}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><User className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><User className="w-5 h-5 text-[#1E293B] mr-2" />
                     <span className="text-sm font-medium text-gray-600">Experience Required</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-slate-800 mr-2" />
+                  <div className="flex items-center mb-2"><Calendar className="w-5 h-5 text-[#1E293B] mr-2" />
                     <span className="text-sm font-medium text-gray-600">Start Date</span>
                   </div>
                   <p className="text-gray-900 font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
                 </div>
               </div>
 
+              {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><Award className="w-5 h-5 text-slate-800 mr-2" />
+                <div className="flex items-center mb-2"><Award className="w-5 h-5 text-[#1E293B] mr-2" />
                   <span className="text-sm font-medium text-gray-600">License Required</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? (
                     jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">{l}</span>
+                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{l}</span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No licenses required</p>
@@ -288,8 +294,9 @@ const WHVJobPreview: React.FC = () => {
                 </div>
               </div>
 
+              {/* Location */}
               <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <div className="flex items-center mb-2"><MapPin className="w-5 h-5 text-slate-800 mr-2" />
+                <div className="flex items-center mb-2"><MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
                   <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
                 <p className="text-gray-900 font-semibold">
@@ -297,12 +304,13 @@ const WHVJobPreview: React.FC = () => {
                 </p>
               </div>
 
+              {/* Facilities */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Facilities</h3>
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.facilities.length > 0 ? (
                     jobDetails.facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border border-slate-800 text-slate-800 text-xs rounded-full">{f}</span>
+                      <span key={i} className="px-3 py-1 border border-[#1E293B] text-[#1E293B] text-xs rounded-full">{f}</span>
                     ))
                   ) : (
                     <p className="text-sm text-gray-500">No facilities listed</p>
@@ -310,9 +318,10 @@ const WHVJobPreview: React.FC = () => {
                 </div>
               </div>
 
+              {/* Heart Button */}
               <Button
                 onClick={handleLikeJob}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
+                className="w-full bg-[#1E293B] hover:bg-[#0f172a] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
               >
                 <Heart size={18} className={jobDetails.isLiked ? "fill-red-500 text-red-500" : "text-white"} />
                 {jobDetails.isLiked ? "Unlike Job" : "Heart to Match"}
@@ -321,6 +330,7 @@ const WHVJobPreview: React.FC = () => {
           </div>
         </div>
 
+        {/* Like Modal */}
         {showLikeModal && (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
             <div className="pointer-events-auto w-full h-full flex items-center justify-center">
@@ -339,4 +349,3 @@ const WHVJobPreview: React.FC = () => {
 };
 
 export default WHVJobPreview;
-
