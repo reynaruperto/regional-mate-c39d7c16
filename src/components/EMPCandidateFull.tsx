@@ -118,16 +118,18 @@ const EMPCandidateFull: React.FC = () => {
         .eq("user_id", id);
       setReferences(refRows || []);
 
-      // Signed photo
+      // Resolve photo
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
-        let path = whv.profile_photo.includes("/profile_photo/")
-          ? whv.profile_photo.split("/profile_photo/")[1]
-          : whv.profile_photo;
-        const { data } = await supabase.storage
-          .from("profile_photo")
-          .createSignedUrl(path, 3600);
-        signedPhoto = data?.signedUrl ?? null;
+        const photoPath = whv.profile_photo;
+        if (photoPath.startsWith("http")) {
+          signedPhoto = photoPath;
+        } else {
+          const { data } = supabase.storage
+            .from("profile_photo")
+            .getPublicUrl(photoPath);
+          signedPhoto = data.publicUrl;
+        }
       }
 
       setProfileData({

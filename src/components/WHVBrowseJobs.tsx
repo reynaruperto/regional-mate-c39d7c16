@@ -34,6 +34,13 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
+  // Helper to resolve photo URL
+  const resolvePhoto = (val?: string | null) => {
+    if (!val) return "/placeholder.png";
+    if (val.startsWith("http")) return val;
+    return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
+  };
+
   // ✅ Get logged-in WHV ID
   useEffect(() => {
     const getUser = async () => {
@@ -75,7 +82,7 @@ const WHVBrowseJobs: React.FC = () => {
     const mapped: JobCard[] = (jobsData as any[]).map((job: any) => ({
       job_id: job.job_id,
       company: job.company || "Employer not listed",
-      profile_photo: job.profile_photo || "/placeholder.png",
+      profile_photo: resolvePhoto(job.profile_photo),
       role: job.role || "Role not specified",
       industry: job.industry || "General",
       location: job.location || "Location not specified",

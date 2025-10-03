@@ -91,14 +91,15 @@ const WHVJobPreview: React.FC = () => {
 
         let companyPhoto: string | null = null;
         if (employer?.profile_photo) {
-          let photoPath = employer.profile_photo;
-          if (photoPath.includes("/profile_photo/")) {
-            photoPath = photoPath.split("/profile_photo/")[1];
+          const photoPath = employer.profile_photo;
+          if (photoPath.startsWith("http")) {
+            companyPhoto = photoPath;
+          } else {
+            const { data } = supabase.storage
+              .from("profile_photo")
+              .getPublicUrl(photoPath);
+            companyPhoto = data.publicUrl;
           }
-          const { data: signed } = await supabase.storage
-            .from("profile_photo")
-            .createSignedUrl(photoPath, 3600);
-          companyPhoto = signed?.signedUrl || null;
         }
 
         const { data: facilityRows } = await supabase

@@ -91,14 +91,15 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
 
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
-        let photoPath = whv.profile_photo;
-        if (photoPath.includes("/profile_photo/")) {
-          photoPath = photoPath.split("/profile_photo/")[1];
+        const photoPath = whv.profile_photo;
+        if (photoPath.startsWith("http")) {
+          signedPhoto = photoPath;
+        } else {
+          const { data } = supabase.storage
+            .from("profile_photo")
+            .getPublicUrl(photoPath);
+          signedPhoto = data.publicUrl;
         }
-        const { data } = await supabase.storage
-          .from("profile_photo")
-          .createSignedUrl(photoPath, 3600);
-        signedPhoto = data?.signedUrl ?? null;
       }
 
       setProfileData({
