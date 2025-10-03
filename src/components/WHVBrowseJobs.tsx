@@ -288,7 +288,7 @@ const WHVBrowseJobs: React.FC = () => {
                           {/* ✅ Navigate to job preview */}
                           <Button
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-11 rounded-xl"
-                            onClick={() => navigate(`/whv/job-preview/${job.job_id}`)}
+                            onClick={() => navigate(`/whv/job/${job.job_id}`)}
                           >
                             View Details
                           </Button>
