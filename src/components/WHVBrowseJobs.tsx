@@ -161,8 +161,17 @@ const WHVBrowseJobs: React.FC = () => {
   return showFilters ? (
     <WHVFilterPage
       onClose={() => setShowFilters(false)}
-      onResults={(jobs, appliedFilters) => {
-        // Map filtered jobs to include resolved photo URLs
+      onResults={async (jobs, appliedFilters) => {
+        // Fetch likes for filtered jobs
+        const { data: likes } = await supabase
+          .from("likes")
+          .select("liked_job_post_id")
+          .eq("liker_id", whvId)
+          .eq("liker_type", "whv");
+
+        const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+        // Map filtered jobs to include resolved photo URLs and like status
         const mapped: JobCard[] = jobs.map((job: any) => ({
           job_id: job.job_id,
           company: job.company || "Employer not listed",
@@ -173,7 +182,7 @@ const WHVBrowseJobs: React.FC = () => {
           salary_range: job.salary_range || "Pay not disclosed",
           job_type: job.job_type || "Employment type not specified",
           description: job.description || "No description provided",
-          isLiked: job.isLiked || false,
+          isLiked: likedIds.includes(job.job_id),
         }));
         setJobs(mapped);
         setAllJobs(mapped);
