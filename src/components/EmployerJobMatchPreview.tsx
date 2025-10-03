@@ -12,6 +12,7 @@ import {
   Hash,
   Phone,
   Mail,
+  Clipboard,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -148,12 +149,16 @@ const EmployerJobMatchPreview: React.FC = () => {
     fetchJobAndEmployer();
   }, [jobId]);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!jobDetails || !employer) return <div className="min-h-screen flex items-center justify-center">Job not found</div>;
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
@@ -173,40 +178,65 @@ const EmployerJobMatchPreview: React.FC = () => {
                   {employer.profile_photo ? (
                     <img src={employer.profile_photo} alt="Company" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><Image size={32} /></div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                      <Image size={32} />
+                    </div>
                   )}
                 </div>
                 <h2 className="text-xl font-bold">{employer.company_name}</h2>
                 <p className="text-sm text-gray-600">{employer.tagline}</p>
               </div>
 
-              {/* Role + Industry + Status */}
-              <div className="text-center">
-                <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
-                <p className="text-sm text-gray-600">{jobDetails.industry}</p>
-                <span className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
-                  jobDetails.job_status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                }`}>{jobDetails.job_status}</span>
-              </div>
-
-              {/* Employer Info */}
-              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
-                <p><Hash size={14} className="inline mr-1" /> ABN: {employer.abn}</p>
+              {/* Employer Info (with copy buttons) */}
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2 text-center">
+                <p className="flex items-center justify-center gap-2">
+                  <Hash size={14} /> ABN: {employer.abn}
+                  <button onClick={() => copyToClipboard(employer.abn)}>
+                    <Clipboard size={14} className="text-gray-500 hover:text-black" />
+                  </button>
+                </p>
                 {employer.email ? (
-                  <p>
-                    <Mail size={14} className="inline mr-1" />
-                    <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">{employer.email}</a>
+                  <p className="flex items-center justify-center gap-2">
+                    <Mail size={14} />
+                    <a href={`mailto:${employer.email}`} className="text-blue-600 hover:underline">
+                      {employer.email}
+                    </a>
+                    <button onClick={() => copyToClipboard(employer.email!)}>
+                      <Clipboard size={14} className="text-gray-500 hover:text-black" />
+                    </button>
                   </p>
                 ) : (
                   <p className="text-gray-500">⚠️ No email found</p>
                 )}
                 {employer.mobile_num && (
-                  <p>
-                    <Phone size={14} className="inline mr-1" />
-                    <a href={`tel:${employer.mobile_num}`} className="text-blue-600 hover:underline">{employer.mobile_num}</a>
+                  <p className="flex items-center justify-center gap-2">
+                    <Phone size={14} />
+                    <a href={`tel:${employer.mobile_num}`} className="text-blue-600 hover:underline">
+                      {employer.mobile_num}
+                    </a>
+                    <button onClick={() => copyToClipboard(employer.mobile_num!)}>
+                      <Clipboard size={14} className="text-gray-500 hover:text-black" />
+                    </button>
                   </p>
                 )}
-                <p><Globe size={14} className="inline mr-1" /> {employer.website}</p>
+                <p>
+                  <Globe size={14} className="inline mr-1" /> {employer.website}
+                </p>
+              </div>
+
+              {/* Role + Industry + Status */}
+              <div className="text-center">
+                <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
+                <p className="text-sm text-gray-600">{jobDetails.industry}</p>
+                <span
+                  className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
+                    jobDetails.job_status === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {jobDetails.job_status}
+                </span>
               </div>
 
               {/* Location */}
@@ -223,20 +253,34 @@ const EmployerJobMatchPreview: React.FC = () => {
               {/* Details Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1"><Clock className="w-5 h-5 mr-2" /><span>Type</span></div>
+                  <div className="flex items-center mb-1">
+                    <Clock className="w-5 h-5 mr-2" />
+                    <span>Type</span>
+                  </div>
                   <p className="font-semibold">{jobDetails.employment_type}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1"><DollarSign className="w-5 h-5 mr-2" /><span>Salary</span></div>
+                  <div className="flex items-center mb-1">
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    <span>Salary</span>
+                  </div>
                   <p className="font-semibold">{jobDetails.salary_range}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Experience</span>
+                  </div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1"><Calendar className="w-5 h-5 mr-2" /><span>Start Date</span></div>
-                  <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
+                  <div className="flex items-center mb-1">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    <span>Start Date</span>
+                  </div>
+                  <p className="font-semibold">
+                    {new Date(jobDetails.start_date).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
 
@@ -244,9 +288,15 @@ const EmployerJobMatchPreview: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <h4 className="font-semibold mb-2">Licenses</h4>
                 <div className="flex flex-wrap gap-2">
-                  {licenses.length > 0 ? licenses.map((l, i) => (
-                    <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
-                  )) : <p className="text-sm text-gray-500">No licenses required</p>}
+                  {licenses.length > 0 ? (
+                    licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {l}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
                 </div>
               </div>
 
@@ -254,9 +304,15 @@ const EmployerJobMatchPreview: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <h4 className="font-semibold mb-2">Facilities</h4>
                 <div className="flex flex-wrap gap-2">
-                  {facilities.length > 0 ? facilities.map((f, i) => (
-                    <span key={i} className="px-3 py-1 border text-xs rounded-full">{f}</span>
-                  )) : <p className="text-sm text-gray-500">No facilities listed</p>}
+                  {facilities.length > 0 ? (
+                    facilities.map((f, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No facilities listed</p>
+                  )}
                 </div>
               </div>
 
@@ -267,7 +323,6 @@ const EmployerJobMatchPreview: React.FC = () => {
                   <p>{jobDetails.description}</p>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
