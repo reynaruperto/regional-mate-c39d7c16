@@ -22,7 +22,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     p_filter_suburb_city_postcode: "",
     p_filter_work_industry_id: "",
     p_filter_work_years_experience: "",
-    p_filter_industry_ids: "",   //  Preferred Industry
+    p_filter_industry_ids: "",   // Preferred Industry
     p_filter_license_ids: "",
   });
 
@@ -32,7 +32,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
   const [experienceLevels, setExperienceLevels] = useState<string[]>([]);
 
-  //  Load locations
+  // ---------- load locations ----------
   useEffect(() => {
     const fetchLocations = async () => {
       const { data, error } = await supabase
@@ -50,9 +50,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
           ...new Set(
             data
               .map((l) =>
-                l.suburb_city && l.postcode
-                  ? `${l.suburb_city} – ${l.postcode}`
-                  : null
+                l.suburb_city && l.postcode ? `${l.suburb_city} – ${l.postcode}` : null
               )
               .filter(Boolean)
           ),
@@ -63,12 +61,10 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchLocations();
   }, []);
 
-  //  Load industries (for both work exp & preferred industry)
+  // ---------- load industries ----------
   useEffect(() => {
     const fetchIndustries = async () => {
-      const { data, error } = await supabase
-        .from("industry")
-        .select("industry_id, name");
+      const { data, error } = await supabase.from("industry").select("industry_id, name");
 
       if (error) {
         console.error("Error fetching industries:", error);
@@ -82,7 +78,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchIndustries();
   }, []);
 
-  //  Load licenses
+  // ---------- load licenses ----------
   useEffect(() => {
     const fetchLicenses = async () => {
       const { data, error } = await supabase.from("license").select("license_id, name");
@@ -97,17 +93,9 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     fetchLicenses();
   }, []);
 
-  //  Experience Levels
+  // ---------- experience levels ----------
   useEffect(() => {
-    setExperienceLevels([
-      "None",
-      "<1",
-      "1-2",
-      "3-4",
-      "5-7",
-      "8-10",
-      "10+",
-    ]);
+    setExperienceLevels(["None", "<1", "1-2", "3-4", "5-7", "8-10", "10+"]);
   }, []);
 
   const handleSelectChange = (category: string, value: string) => {
@@ -136,6 +124,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     });
   };
 
+  // ---------- dropdown section ----------
   const DropdownSection = ({
     title,
     items,
@@ -158,15 +147,23 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="bg-white border border-gray-300 shadow-lg z-50 max-h-60 overflow-y-auto">
+        <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
           {items.length > 0 ? (
             items.map((item) =>
               isObject ? (
-                <SelectItem key={item.id} value={String(item.id)} className="hover:bg-gray-100">
+                <SelectItem
+                  key={item.id}
+                  value={String(item.id)}
+                  className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                >
                   {item.name}
                 </SelectItem>
               ) : (
-                <SelectItem key={item} value={item} className="hover:bg-gray-100">
+                <SelectItem
+                  key={item}
+                  value={item}
+                  className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                >
                   {item}
                 </SelectItem>
               )
@@ -210,7 +207,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               isObject={true}
             />
             <DropdownSection
-              title="Preferred Industry"    //  Added Preferred Industry filter
+              title="Preferred Industry"
               items={industries}
               category="p_filter_industry_ids"
               placeholder="Any preferred industry"
