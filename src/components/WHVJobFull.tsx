@@ -12,12 +12,10 @@ import {
   Phone,
   Mail,
   Award,
-  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 
 interface JobDetails {
   job_id: number;
@@ -54,20 +52,9 @@ const WHVJobFull: React.FC = () => {
   const [facilities, setFacilities] = useState<string[]>([]);
   const [licenses, setLicenses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [whvId, setWhvId] = useState<string | null>(null);
-  const [showLikeModal, setShowLikeModal] = useState(false);
 
   const from = searchParams.get("from");
   const tab = searchParams.get("tab");
-
-  // Logged-in WHV ID
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setWhvId(user.id);
-    };
-    getUser();
-  }, []);
 
   useEffect(() => {
     const fetchJobAndEmployer = async () => {
@@ -179,24 +166,6 @@ const WHVJobFull: React.FC = () => {
 
     fetchJobAndEmployer();
   }, [jobId]);
-
-  const handleLikeJob = async () => {
-    if (!whvId || !jobDetails) return;
-
-    try {
-      await supabase.from("likes").upsert(
-        {
-          liker_id: whvId,
-          liker_type: "whv",
-          liked_job_post_id: jobDetails.job_id,
-        },
-        { onConflict: "liker_id,liked_job_post_id,liker_type" }
-      );
-      setShowLikeModal(true);
-    } catch (err) {
-      console.error("Error liking job:", err);
-    }
-  };
 
   const handleBack = () => {
     if (from === "whv-matches" && tab) {
@@ -370,33 +339,10 @@ const WHVJobFull: React.FC = () => {
                     <p className="text-gray-700 leading-relaxed">{jobDetails.description}</p>
                   </div>
                 </div>
-
-                {/* Heart Button */}
-                <Button
-                  onClick={handleLikeJob}
-                  className="w-full bg-[#1E293B] hover:bg-[#0f172a] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
-                >
-                  <Heart size={18} />
-                  Heart to Match
-                </Button>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Like Modal */}
-        {showLikeModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div className="pointer-events-auto w-full h-full flex items-center justify-center">
-              <LikeConfirmationModal
-                jobTitle={jobDetails.role}
-                companyName={employer.company_name}
-                onClose={() => setShowLikeModal(false)}
-                isVisible={showLikeModal}
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
