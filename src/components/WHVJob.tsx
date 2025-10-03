@@ -12,7 +12,7 @@ import {
   Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 
@@ -39,11 +39,16 @@ interface JobDetails {
 
 const WHVJobPreview: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { jobId } = useParams();
+
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
+
+  // determine where the user came from
+  const fromPage = (location.state as any)?.from;
 
   useEffect(() => {
     const getUser = async () => {
@@ -188,6 +193,18 @@ const WHVJobPreview: React.FC = () => {
     }
   };
 
+  const handleBack = () => {
+    if (fromPage === "browse") {
+      navigate("/whv/browse-jobs");
+    } else if (fromPage === "topRecommended") {
+      navigate("/whv/matches", { state: { tab: "topRecommended" } });
+    } else if (fromPage === "matches") {
+      navigate("/whv/matches", { state: { tab: "matches" } });
+    } else {
+      navigate(-1); // fallback
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -206,13 +223,15 @@ const WHVJobPreview: React.FC = () => {
               variant="ghost"
               size="icon"
               className="w-10 h-10"
-              onClick={() => navigate("/whv/browse-jobs")}
+              onClick={handleBack}
             >
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </Button>
             <h1 className="text-lg font-semibold text-gray-900">Job Preview</h1>
             <div className="w-10"></div>
           </div>
+
+          {/* ... rest of your layout stays the same (company, role, description, details grid, facilities, heart button) ... */}
 
           <div className="flex-1 px-6 py-6 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
@@ -242,7 +261,7 @@ const WHVJobPreview: React.FC = () => {
                 </span>
               </div>
 
-              {/* Description */}
+              {/* Job Description */}
               <div>
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
