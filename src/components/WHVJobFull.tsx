@@ -92,23 +92,23 @@ const WHVJobFull: React.FC = () => {
 
         if (!job) return;
 
-        // Employer details
+        // Employer + Profile email
         const { data: emp } = await supabase
           .from("employer")
-          .select("company_name, tagline, profile_photo, abn, website, mobile_num, user_id")
+          .select(`
+            company_name,
+            tagline,
+            profile_photo,
+            abn,
+            website,
+            mobile_num,
+            user_id,
+            profile:user_id (
+              email
+            )
+          `)
           .eq("user_id", job.user_id)
           .maybeSingle();
-
-        // Fetch profile email separately
-        let email = "";
-        if (emp?.user_id) {
-          const { data: profile } = await supabase
-            .from("profile")
-            .select("email")
-            .eq("user_id", emp.user_id)
-            .maybeSingle();
-          email = profile?.email || "";
-        }
 
         // Company photo
         let companyPhoto: string | null = null;
@@ -164,7 +164,7 @@ const WHVJobFull: React.FC = () => {
           abn: emp?.abn || "N/A",
           website: emp?.website || "Not provided",
           mobile_num: emp?.mobile_num || "",
-          email,
+          email: emp?.profile?.email || "",
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
