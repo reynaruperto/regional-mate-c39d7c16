@@ -13,7 +13,7 @@ import {
   Phone,
   Mail,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface JobDetails {
@@ -45,10 +45,26 @@ interface EmployerDetails {
 
 const WHVJobFull: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();  // 👈 for fromPage tracking
   const { jobId } = useParams();
+
+  const fromPage = (location.state as any)?.from;  // 👈 detect source page
+
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [employer, setEmployer] = useState<EmployerDetails | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleBack = () => {
+    if (fromPage === "browse") {
+      navigate("/whv/browse-jobs");
+    } else if (fromPage === "topRecommended") {
+      navigate("/whv/matches", { state: { tab: "topRecommended" } });
+    } else if (fromPage === "matches") {
+      navigate("/whv/matches", { state: { tab: "matches" } });
+    } else {
+      navigate(-1); // fallback
+    }
+  };
 
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -159,7 +175,10 @@ const WHVJobFull: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+            <button
+              onClick={handleBack}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+            >
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </button>
             <h1 className="text-lg font-semibold">Full Job Details</h1>
