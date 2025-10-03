@@ -39,6 +39,13 @@ const EmployerMatches: React.FC = () => {
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
 
+  // --- helper: resolve photo ---
+  const resolvePhoto = (val?: string | null) => {
+    if (!val) return "/default-avatar.png";
+    if (val.startsWith("http")) return val;
+    return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
+  };
+
   // --- auth ---
   useEffect(() => {
     (async () => {
@@ -89,7 +96,7 @@ const EmployerMatches: React.FC = () => {
       const formatted = (data || []).map((m: any) => ({
         id: m.maker_id,
         name: m.given_name,
-        profileImage: m.profile_photo || "/default-avatar.png",
+        profileImage: resolvePhoto(m.profile_photo),
         preferredLocations: m.state_pref || [],
         preferredIndustries: m.industry_pref || [],
         experiences: m.work_experience
@@ -115,7 +122,7 @@ const EmployerMatches: React.FC = () => {
       const formatted = (data || []).map((r: any) => ({
         id: r.maker_id,
         name: r.given_name,
-        profileImage: r.profile_photo || "/default-avatar.png",
+        profileImage: resolvePhoto(r.profile_photo),
         preferredLocations: r.state_pref || [],
         preferredIndustries: r.industry_pref || [],
         experiences: r.work_experience
@@ -226,13 +233,13 @@ const EmployerMatches: React.FC = () => {
             </Select>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs - navy theme */}
           <div className="px-6 py-3 flex bg-gray-100 rounded-full mx-6 my-2">
             <button
               onClick={() => setActiveTab("matches")}
               className={`flex-1 py-2 rounded-full text-sm font-medium ${
                 activeTab === "matches"
-                  ? "bg-orange-500 text-white"
+                  ? "bg-[#1E293B] text-white"
                   : "text-gray-600 hover:text-gray-800"
               }`}
             >
@@ -242,7 +249,7 @@ const EmployerMatches: React.FC = () => {
               onClick={() => setActiveTab("topRecommended")}
               className={`flex-1 py-2 rounded-full text-sm font-medium ${
                 activeTab === "topRecommended"
-                  ? "bg-orange-500 text-white"
+                  ? "bg-[#1E293B] text-white"
                   : "text-gray-600 hover:text-gray-800"
               }`}
             >
@@ -270,15 +277,13 @@ const EmployerMatches: React.FC = () => {
                     <img
                       src={c.profileImage}
                       alt={c.name}
-                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
+                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1 border"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
                       }}
                     />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-lg truncate">
-                        {c.name}
-                      </h3>
+                      <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
                       <p className="text-sm text-gray-600">
                         <strong>Preferred Locations:</strong>{" "}
                         {c.preferredLocations.join(", ") || "Not specified"}
@@ -301,7 +306,7 @@ const EmployerMatches: React.FC = () => {
                         {!c.isMutualMatch && (
                           <button
                             onClick={() => handleLike(c)}
-                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50"
                           >
                             <Heart
                               size={20}
