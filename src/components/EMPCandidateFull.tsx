@@ -8,7 +8,6 @@ import {
   Award,
   User,
   Calendar,
-  Globe,
   FileText,
   Phone,
   Mail,
@@ -228,8 +227,8 @@ const EMPCandidateFull: React.FC = () => {
             <div className="w-10" />
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-6 py-4">
             <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
               {/* Profile Header */}
               <div className="flex flex-col items-center">
@@ -296,8 +295,7 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
-              {/* Preferences, Experience, Licenses, References */}
-              {/* Industry Prefs */}
+              {/* Preferences */}
               {industryPrefs.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">
@@ -316,7 +314,6 @@ const EMPCandidateFull: React.FC = () => {
                 </div>
               )}
 
-              {/* Location Prefs */}
               {locationPreferences.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-orange-600 mb-2">
