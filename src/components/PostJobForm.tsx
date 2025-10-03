@@ -241,6 +241,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     })();
   }, []);
 
+  const dropdownClasses =
+    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
+
+  const itemClasses =
+    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
@@ -272,12 +278,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className={dropdownClasses}>
                   {roles.map((r) => (
                     <SelectItem
                       key={r.industry_role_id}
                       value={String(r.industry_role_id)}
-                      className="py-2 px-3 whitespace-normal break-words text-sm leading-snug"
+                      className={itemClasses}
                     >
                       {r.industry_role}
                     </SelectItem>
@@ -296,13 +302,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select employment type" />
                 </SelectTrigger>
-                <SelectContent className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className={dropdownClasses}>
                   {employmentTypeEnum.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="py-2 px-3 whitespace-normal break-words text-sm leading-snug"
-                    >
+                    <SelectItem key={t} value={t} className={itemClasses}>
                       {t}
                     </SelectItem>
                   ))}
@@ -320,13 +322,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select salary range" />
                 </SelectTrigger>
-                <SelectContent className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className={dropdownClasses}>
                   {payRangeEnum.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="py-2 px-3 whitespace-normal break-words text-sm leading-snug"
-                    >
+                    <SelectItem key={t} value={t} className={itemClasses}>
                       {t}
                     </SelectItem>
                   ))}
@@ -344,13 +342,9 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select experience" />
                 </SelectTrigger>
-                <SelectContent className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className={dropdownClasses}>
                   {yearsExpEnum.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="py-2 px-3 whitespace-normal break-words text-sm leading-snug"
-                    >
+                    <SelectItem key={t} value={t} className={itemClasses}>
                       {t}
                     </SelectItem>
                   ))}
@@ -375,12 +369,12 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                 <SelectTrigger className="h-10 px-3 text-sm">
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
-                <SelectContent className="w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className={dropdownClasses}>
                   {locations.map((l, idx) => (
                     <SelectItem
                       key={`${l.suburb_city}-${l.postcode}-${idx}`}
                       value={`${l.suburb_city} (${l.postcode})`}
-                      className="py-2 px-3 whitespace-normal break-words text-sm leading-snug"
+                      className={itemClasses}
                     >
                       {l.suburb_city}, {l.state} {l.postcode}
                     </SelectItem>
@@ -431,9 +425,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                       });
                     }}
                   />
-                  <span className="whitespace-normal break-words">
-                    {l.name}
-                  </span>
+                  <span className="whitespace-normal break-words">{l.name}</span>
                 </label>
               ))}
             </div>
