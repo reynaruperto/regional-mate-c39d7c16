@@ -1,5 +1,13 @@
+// src/components/WHVProfilePreview.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Briefcase, MapPin, Award, User, Heart } from "lucide-react";
+import {
+  ArrowLeft,
+  Briefcase,
+  MapPin,
+  Award,
+  User,
+  Heart,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,19 +128,22 @@ const WHVProfilePreview: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={() => navigate("/whv/dashboard")}>
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
-            </Button>
+            <button
+              onClick={() => navigate("/whv/dashboard")}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
+            </button>
             <h1 className="text-lg font-semibold">Profile Preview</h1>
             <div className="w-10" />
           </div>
 
-          {/* Content */}
+          {/* Scrollable Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
-            <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
+            <div className="border-2 border-[#EC5823] rounded-2xl p-6 space-y-6">
               {/* Profile Header */}
               <div className="flex flex-col items-center text-center">
-                <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
+                <div className="w-28 h-28 rounded-full border-4 border-[#EC5823] overflow-hidden mb-3">
                   {profileData?.profilePhoto ? (
                     <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
@@ -151,67 +162,89 @@ const WHVProfilePreview: React.FC = () => {
               </div>
 
               {/* Industry Preferences */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><Briefcase size={16} className="mr-2" /> Industry Preferences</h3>
-                {industryPrefs.length > 0 ? (
+              {industryPrefs.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <Briefcase size={16} className="mr-2 text-[#EC5823]" /> Industry Preferences
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {industryPrefs.map((ind, i) => (
-                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{ind}</span>
+                      <span
+                        key={i}
+                        className="px-3 py-1 border text-xs rounded-full"
+                      >
+                        {ind}
+                      </span>
                     ))}
                   </div>
-                ) : <p className="text-sm text-gray-500">No industries set</p>}
-              </div>
+                </div>
+              )}
 
               {/* Location Preferences */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><MapPin size={16} className="mr-2" /> Location Preferences</h3>
-                {locationPreferences.length > 0 ? (
-                  locationPreferences.map(([state, suburbs]) => (
+              {locationPreferences.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <MapPin size={16} className="mr-2 text-[#EC5823]" /> Location Preferences
+                  </h3>
+                  {locationPreferences.map(([state, suburbs]) => (
                     <div key={state} className="mb-2">
                       <p className="font-medium">{state}</p>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {(suburbs as string[]).map((s, i) => (
-                          <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{s}</span>
+                          <span
+                            key={i}
+                            className="px-3 py-1 border text-xs rounded-full"
+                          >
+                            {s}
+                          </span>
                         ))}
                       </div>
                     </div>
-                  ))
-                ) : <p className="text-sm text-gray-500">No location preferences</p>}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* Work Experience */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><Briefcase size={16} className="mr-2" /> Work Experience</h3>
-                {workExperiences.length > 0 ? (
-                  workExperiences.map((exp, i) => {
-                    const industryName = industries.find((ind) => ind.id === exp.industry_id)?.name || "N/A";
-                    return (
-                      <div key={i} className="border-b last:border-0 pb-2 mb-2 text-sm text-gray-700">
-                        <p className="font-medium">{exp.position}</p>
-                        <p>{industryName} at {exp.company}</p>
-                        <p className="text-xs text-gray-500">{formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}</p>
-                      </div>
-                    );
-                  })
-                ) : <p className="text-sm text-gray-500">No work experience added</p>}
-              </div>
+              {workExperiences.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <Briefcase size={16} className="mr-2 text-[#EC5823]" /> Work Experience
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    {workExperiences.map((exp, i) => {
+                      const industryName = industries.find((ind) => ind.id === exp.industry_id)?.name || "N/A";
+                      return (
+                        <div key={i} className="border rounded-lg p-3 text-gray-700">
+                          <p className="font-medium">{exp.position} – {exp.company}</p>
+                          <p className="text-gray-600">{industryName} • {exp.location}</p>
+                          <p className="text-xs text-gray-500">
+                            {formatDate(exp.start_date)} – {exp.end_date ? formatDate(exp.end_date) : "Present"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Licenses */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center"><Award size={16} className="mr-2" /> Licenses & Certifications</h3>
-                <div className="flex flex-wrap gap-2">
-                  {licenses.length > 0 ? (
-                    licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{l}</span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No licenses added</p>
-                  )}
+              {licenses.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <Award size={16} className="mr-2 text-[#EC5823]" /> Licenses & Certifications
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                        {l}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Heart Button */}
-              <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
+              <Button className="w-full bg-[#EC5823] hover:bg-orange-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md">
                 <Heart size={18} className="text-white" /> Heart to Match
               </Button>
             </div>
