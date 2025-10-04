@@ -1058,6 +1058,76 @@ export type Database = {
         Relationships: [];
       };
     };
+          // ==========================
+      // NOTIFICATIONS
+      // ==========================
+      notifications: {
+        Row: {
+          id: number;
+          sender_id: string;
+          sender_type: 'whv' | 'employer';
+          recipient_id: string;
+          recipient_type: 'whv' | 'employer';
+          type: 'job_like' | 'maker_like' | 'mutual_match';
+          job_id: number | null;
+          title: string;
+          message: string;
+          created_at: string;
+          read_at: string | null;
+        };
+        Insert: {
+          id?: number;
+          sender_id: string;
+          sender_type: 'whv' | 'employer';
+          recipient_id: string;
+          recipient_type: 'whv' | 'employer';
+          type: 'job_like' | 'maker_like' | 'mutual_match';
+          job_id?: number | null;
+          title: string;
+          message: string;
+          created_at?: string;
+          read_at?: string | null;
+        };
+        Update: {
+          id?: number;
+          sender_id?: string;
+          sender_type?: 'whv' | 'employer';
+          recipient_id?: string;
+          recipient_type?: 'whv' | 'employer';
+          type?: 'job_like' | 'maker_like' | 'mutual_match';
+          job_id?: number | null;
+          title?: string;
+          message?: string;
+          created_at?: string;
+          read_at?: string | null;
+        };
+        Relationships: [];
+      };
+
+      notification_setting: {
+        Row: {
+          user_id: string;
+          user_type: 'whv' | 'employer';
+          notifications_enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          user_type: 'whv' | 'employer';
+          notifications_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          user_type?: 'whv' | 'employer';
+          notifications_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     Views: {
       // ==========================
       // MATERIALIZED VIEWS
@@ -1735,6 +1805,18 @@ export type Database = {
         }[];
       };
     };
+          create_notification_from_like: {
+        Args: Record<string, never>;
+        Returns: unknown;
+      };
+      create_notification_from_mutual_match: {
+        Args: Record<string, never>;
+        Returns: unknown;
+      };
+      mark_notification_read: {
+        Args: { p_notification_id: number };
+        Returns: void;
+      };
     Enums: {
       business_tenure:
         | "<1"
