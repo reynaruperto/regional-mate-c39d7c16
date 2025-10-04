@@ -252,12 +252,13 @@ const WHVJobFull: React.FC = () => {
                 </span>
               </div>
 
-              {/* Employer Info */}
+              {/* Employer Info (centered) */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-3 text-center">
                 {/* ABN */}
                 {jobDetails.abn && jobDetails.abn !== "N/A" ? (
                   <div className="flex items-center justify-center gap-2">
                     <Hash size={14} />
+                    <span className="font-medium">ABN:</span>
                     <a
                       href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(
                         /\s/g,
