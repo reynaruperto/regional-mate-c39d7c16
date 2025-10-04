@@ -32,17 +32,17 @@ const EmployerNotifications: React.FC = () => {
         .select('*')
         .eq('recipient_id', user.id)
         .eq('recipient_type', 'employer')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any;
 
       if (error) console.error('Error fetching notifications:', error);
-      else setNotifications(data || []);
+      else setNotifications((data || []) as NotificationItem[]);
 
       const { data: setting } = await (supabase as any)
         .from('notification_setting')
         .select('notifications_enabled')
         .eq('user_id', user.id)
         .eq('user_type', 'employer')
-        .single();
+        .single() as any;
 
       if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
     };
@@ -60,7 +60,7 @@ const EmployerNotifications: React.FC = () => {
         user_id: userId,
         user_type: 'employer',
         notifications_enabled: value,
-      });
+      }) as any;
 
     if (error) console.error('Error updating notification setting:', error);
   };
@@ -69,7 +69,7 @@ const EmployerNotifications: React.FC = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    await (supabase as any).from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
+    await (supabase as any).from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id) as any;
   };
 
   const getNotificationIcon = (type: string) => {

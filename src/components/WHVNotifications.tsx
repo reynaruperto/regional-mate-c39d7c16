@@ -32,26 +32,26 @@ const WhvNotifications: React.FC = () => {
       setUserId(user.id);
 
       // Fetch notifications for WHV
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("notifications")
         .select("id, type, title, message, job_id, created_at, read_at")
         .eq("recipient_id", user.id)
         .eq("recipient_type", "whv")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }) as any;
 
       if (error) {
         console.error("Error fetching notifications:", error);
       } else {
-        setNotifications(data || []);
+        setNotifications((data || []) as NotificationItem[]);
       }
 
       // Fetch alert toggle status
-      const { data: setting } = await supabase
+      const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
         .eq("user_type", "whv")
-        .single();
+        .single() as any;
 
       if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
     };
@@ -64,11 +64,11 @@ const WhvNotifications: React.FC = () => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await supabase.from("notification_setting").upsert({
+    const { error } = await (supabase as any).from("notification_setting").upsert({
       user_id: userId,
       user_type: "whv",
       notifications_enabled: value,
-    });
+    }) as any;
 
     if (error) console.error("Error updating notification setting:", error);
   };
@@ -78,7 +78,7 @@ const WhvNotifications: React.FC = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
+    await (supabase as any).from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id) as any;
   };
 
   // Handle navigation on click
