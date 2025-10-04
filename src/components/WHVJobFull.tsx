@@ -1,4 +1,3 @@
-// src/components/WHVJobFull.tsx
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -48,10 +47,10 @@ const WHVJobFull: React.FC = () => {
   const { jobId } = useParams();
 
   const fromPage = (location.state as any)?.from;
-
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Updated handleBack
   const handleBack = () => {
     if (fromPage === "browse") {
       navigate("/whv/browse-jobs");
@@ -60,7 +59,7 @@ const WHVJobFull: React.FC = () => {
     } else if (fromPage === "matches") {
       navigate("/whv/matches", { state: { tab: "matches" } });
     } else {
-      navigate("/whv/browse-jobs"); // fallback
+      navigate(-1); // Go back to Notifications or previous page
     }
   };
 
@@ -75,7 +74,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // Job details
+        // Fetch job details
         const { data: jobData } = await supabase
           .from("job")
           .select(`
@@ -100,7 +99,7 @@ const WHVJobFull: React.FC = () => {
           return;
         }
 
-        // Employer details
+        // Fetch employer details
         const { data: employerData } = await supabase
           .from("employer")
           .select(`
@@ -115,14 +114,14 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // Profile email
+        // Fetch profile email
         const { data: profileData } = await supabase
           .from("profile")
           .select("email")
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // Company photo
+        // Get company photo
         let companyPhoto: string | null = null;
         if (employerData?.profile_photo) {
           let photoPath = employerData.profile_photo;
@@ -192,6 +191,7 @@ const WHVJobFull: React.FC = () => {
         Loading...
       </div>
     );
+
   if (!jobDetails)
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -252,7 +252,7 @@ const WHVJobFull: React.FC = () => {
                 </span>
               </div>
 
-              {/* Employer Info (centered) */}
+              {/* Employer Info */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-3 text-center">
                 {/* ABN */}
                 {jobDetails.abn && jobDetails.abn !== "N/A" ? (
@@ -373,7 +373,7 @@ const WHVJobFull: React.FC = () => {
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
                     <User className="w-5 h-5 mr-2" />
-                    <span>Years of Work Experience Required</span>
+                    <span>Experience Required</span>
                   </div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
@@ -385,22 +385,6 @@ const WHVJobFull: React.FC = () => {
                   <p className="font-semibold">
                     {new Date(jobDetails.start_date).toLocaleDateString()}
                   </p>
-                </div>
-                {/* Extra: Company Tenure */}
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <Award className="w-5 h-5 mr-2" />
-                    <span>Company Tenure</span>
-                  </div>
-                  <p className="font-semibold">Not provided</p>
-                </div>
-                {/* Extra: Number of Employees */}
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <User className="w-5 h-5 mr-2" />
-                    <span>Number of Employees</span>
-                  </div>
-                  <p className="font-semibold">Not provided</p>
                 </div>
               </div>
 
