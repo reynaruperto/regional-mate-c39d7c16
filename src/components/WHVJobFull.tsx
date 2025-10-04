@@ -13,6 +13,7 @@ import {
   Phone,
   Mail,
   Copy,
+  Award,
 } from "lucide-react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,8 +40,6 @@ interface JobDetails {
   abn?: string;
   website?: string;
   mobile_num?: string;
-  business_tenure?: string;
-  employee_count?: string;
 }
 
 const WHVJobFull: React.FC = () => {
@@ -76,8 +75,8 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // Fetch job details
-        const { data: jobData, error: jobError } = await supabase
+        // Job details
+        const { data: jobData } = await supabase
           .from("job")
           .select(`
             job_id,
@@ -96,12 +95,12 @@ const WHVJobFull: React.FC = () => {
           .eq("job_id", Number(jobId))
           .maybeSingle();
 
-        if (jobError || !jobData) {
+        if (!jobData) {
           setLoading(false);
           return;
         }
 
-        // Fetch employer details
+        // Employer details
         const { data: employerData } = await supabase
           .from("employer")
           .select(`
@@ -111,21 +110,19 @@ const WHVJobFull: React.FC = () => {
             profile_photo,
             abn,
             website,
-            mobile_num,
-            business_tenure,
-            employee_count
+            mobile_num
           `)
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // Fetch profile email
+        // Profile email
         const { data: profileData } = await supabase
           .from("profile")
           .select("email")
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // Handle photo
+        // Company photo
         let companyPhoto: string | null = null;
         if (employerData?.profile_photo) {
           let photoPath = employerData.profile_photo;
@@ -178,8 +175,6 @@ const WHVJobFull: React.FC = () => {
           abn: employerData?.abn || "N/A",
           website: employerData?.website || "Not provided",
           mobile_num: employerData?.mobile_num || "",
-          business_tenure: employerData?.business_tenure || "Not available",
-          employee_count: employerData?.employee_count || "Not available",
         });
       } catch (err) {
         console.error("Error fetching job full details:", err);
@@ -193,7 +188,9 @@ const WHVJobFull: React.FC = () => {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center min-h-screen">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
     );
   if (!jobDetails)
     return (
@@ -256,13 +253,16 @@ const WHVJobFull: React.FC = () => {
               </div>
 
               {/* Employer Info */}
-              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-2">
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-3 text-center">
                 {/* ABN */}
                 {jobDetails.abn && jobDetails.abn !== "N/A" ? (
-                  <p className="flex items-center gap-2">
-                    <Hash size={14} /> ABN:{" "}
+                  <div className="flex items-center justify-center gap-2">
+                    <Hash size={14} />
                     <a
-                      href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(/\s/g, "")}`}
+                      href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(
+                        /\s/g,
+                        ""
+                      )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
@@ -274,14 +274,14 @@ const WHVJobFull: React.FC = () => {
                       className="cursor-pointer text-gray-500 hover:text-gray-700"
                       onClick={() => handleCopy(jobDetails.abn!)}
                     />
-                  </p>
+                  </div>
                 ) : (
                   <p className="text-gray-500">⚠️ No ABN provided</p>
                 )}
 
                 {/* Email */}
                 {jobDetails.email ? (
-                  <p className="flex items-center gap-2">
+                  <div className="flex items-center justify-center gap-2">
                     <Mail size={14} />
                     <a
                       href={`mailto:${jobDetails.email}`}
@@ -294,14 +294,14 @@ const WHVJobFull: React.FC = () => {
                       className="cursor-pointer text-gray-500 hover:text-gray-700"
                       onClick={() => handleCopy(jobDetails.email!)}
                     />
-                  </p>
+                  </div>
                 ) : (
                   <p className="text-gray-500">⚠️ No email found</p>
                 )}
 
                 {/* Phone */}
                 {jobDetails.mobile_num && (
-                  <p className="flex items-center gap-2">
+                  <div className="flex items-center justify-center gap-2">
                     <Phone size={14} />
                     <a
                       href={`tel:${jobDetails.mobile_num}`}
@@ -314,13 +314,13 @@ const WHVJobFull: React.FC = () => {
                       className="cursor-pointer text-gray-500 hover:text-gray-700"
                       onClick={() => handleCopy(jobDetails.mobile_num!)}
                     />
-                  </p>
+                  </div>
                 )}
 
                 {/* Website */}
                 {jobDetails.website && jobDetails.website !== "Not provided" ? (
-                  <p>
-                    <Globe size={14} className="inline mr-1" />
+                  <div className="flex items-center justify-center gap-2">
+                    <Globe size={14} />
                     <a
                       href={
                         jobDetails.website.startsWith("http")
@@ -333,7 +333,7 @@ const WHVJobFull: React.FC = () => {
                     >
                       {jobDetails.website}
                     </a>
-                  </p>
+                  </div>
                 ) : (
                   <p className="text-gray-500">🌐 No website provided</p>
                 )}
@@ -385,23 +385,21 @@ const WHVJobFull: React.FC = () => {
                     {new Date(jobDetails.start_date).toLocaleDateString()}
                   </p>
                 </div>
-              </div>
-
-              {/* Company Tenure + Employees */}
-              <div className="grid grid-cols-2 gap-4">
+                {/* Extra: Company Tenure */}
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
-                    <User className="w-5 h-5 mr-2" />
+                    <Award className="w-5 h-5 mr-2" />
                     <span>Company Tenure</span>
                   </div>
-                  <p className="font-semibold">{jobDetails.business_tenure}</p>
+                  <p className="font-semibold">Not provided</p>
                 </div>
+                {/* Extra: Number of Employees */}
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center mb-1">
                     <User className="w-5 h-5 mr-2" />
-                    <span>Employees</span>
+                    <span>Number of Employees</span>
                   </div>
-                  <p className="font-semibold">{jobDetails.employee_count}</p>
+                  <p className="font-semibold">Not provided</p>
                 </div>
               </div>
 
@@ -440,7 +438,9 @@ const WHVJobFull: React.FC = () => {
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
+                    <p className="text-sm text-gray-500">
+                      No facilities listed
+                    </p>
                   )}
                 </div>
               </div>
