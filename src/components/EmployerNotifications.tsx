@@ -27,7 +27,7 @@ const EmployerNotifications: React.FC = () => {
 
       setUserId(user.id);
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('notifications')
         .select('*')
         .eq('recipient_id', user.id)
@@ -37,7 +37,7 @@ const EmployerNotifications: React.FC = () => {
       if (error) console.error('Error fetching notifications:', error);
       else setNotifications(data || []);
 
-      const { data: setting } = await supabase
+      const { data: setting } = await (supabase as any)
         .from('notification_setting')
         .select('notifications_enabled')
         .eq('user_id', user.id)
@@ -54,7 +54,7 @@ const EmployerNotifications: React.FC = () => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('notification_setting')
       .upsert({
         user_id: userId,
@@ -69,7 +69,7 @@ const EmployerNotifications: React.FC = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    await (supabase as any).from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
   };
 
   const getNotificationIcon = (type: string) => {
