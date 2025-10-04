@@ -22,15 +22,14 @@ const EmployerNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ✅ Fetch employer and their notifications
+  // ✅ Fetch employer notifications
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       setUserId(user.id);
 
-      // Fetch employer notifications
+      // Fetch notifications
       const { data, error } = await (supabase as any)
         .from("notifications")
         .select("*")
@@ -41,7 +40,7 @@ const EmployerNotifications: React.FC = () => {
       if (error) console.error("Error fetching employer notifications:", error);
       else setNotifications(data || []);
 
-      // Fetch employer alert toggle
+      // Fetch notification setting
       const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
@@ -55,7 +54,7 @@ const EmployerNotifications: React.FC = () => {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Toggle notifications
+  // ✅ Toggle notifications on/off
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
@@ -68,10 +67,10 @@ const EmployerNotifications: React.FC = () => {
         notifications_enabled: value,
       });
 
-    if (error) console.error("Error updating employer notification setting:", error);
+    if (error) console.error("Error updating notification setting:", error);
   };
 
-  // ✅ Mark notification as read and navigate
+  // ✅ Handle notification click & route correctly
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
@@ -85,9 +84,9 @@ const EmployerNotifications: React.FC = () => {
       )
     );
 
-    // Navigate depending on notification type
+    // Route logic
     if (notification.type === "mutual_match" && notification.whv_id) {
-      navigate(`/candidate-profile/${notification.whv_id}`, {
+      navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
         state: { from: "notifications" },
       });
     } else if (notification.type === "whv_like" && notification.whv_id) {
@@ -101,7 +100,7 @@ const EmployerNotifications: React.FC = () => {
     }
   };
 
-  // ✅ Icons
+  // ✅ Notification icons
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "whv_like":
@@ -115,6 +114,7 @@ const EmployerNotifications: React.FC = () => {
     }
   };
 
+  // ✅ UI
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
@@ -135,13 +135,15 @@ const EmployerNotifications: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
             </div>
 
-            {/* Toggle */}
+            {/* Toggle Setting */}
             <div className="bg-white rounded-2xl p-4 mx-6 mb-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">Turn Notifications On/Off</h3>
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    Turn Notifications On/Off
+                  </h3>
                   <p className="text-sm text-gray-500">
-                    You’ll receive updates about candidate likes and mutual matches
+                    You’ll receive updates about WHV likes and mutual matches
                   </p>
                 </div>
                 <div className="flex items-center">
@@ -157,7 +159,7 @@ const EmployerNotifications: React.FC = () => {
               </div>
             </div>
 
-            {/* List */}
+            {/* Notification List */}
             <div className="flex-1 px-6 overflow-y-auto">
               {notifications.length === 0 ? (
                 <p className="text-center text-gray-500 mt-10">No notifications yet.</p>
