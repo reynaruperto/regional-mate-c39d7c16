@@ -44,7 +44,7 @@ const EmployerNotifications: React.FC = () => {
         .select('notifications_enabled')
         .eq('user_id', user.id)
         .eq('user_type', 'employer')
-        .single();
+        .maybeSingle();
 
       if (setting) setAlertNotifications((setting as NotificationSettingRow).notifications_enabled ?? true);
     };
@@ -67,7 +67,7 @@ const EmployerNotifications: React.FC = () => {
     if (error) console.error('Error updating notification setting:', error);
   };
 
-  const markAsRead = async (id: string) => {
+  const markAsRead = async (id: bigint) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
@@ -128,7 +128,7 @@ const EmployerNotifications: React.FC = () => {
               ) : (
                 notifications.map((n) => (
                   <button
-                    key={n.id}
+                    key={String(n.id)}
                     onClick={() => markAsRead(n.id)}
                     className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow text-left mb-3 ${
                       n.is_read ? 'opacity-70' : ''

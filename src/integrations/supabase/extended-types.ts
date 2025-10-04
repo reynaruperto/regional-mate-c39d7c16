@@ -1,12 +1,12 @@
 // Extended types for tables not yet in auto-generated types.ts
 export interface NotificationRow {
-  id: string;
+  id: bigint;
   sender_id: string;
   sender_type: string | null;
   recipient_id: string;
   recipient_type: string | null;
   type: 'job_like' | 'mutual_match' | 'maker_like';
-  job_id: number;
+  job_id: bigint;
   title: string;
   message: string;
   read_at: string | null;
@@ -38,7 +38,7 @@ export interface ExtendedDatabase {
     };
     Functions: {
       mark_notification_read: {
-        Args: { p_notification_id: number };
+        Args: { p_notification_id: bigint };
         Returns: void;
       };
     };
