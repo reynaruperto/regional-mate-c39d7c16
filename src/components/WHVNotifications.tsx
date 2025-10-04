@@ -1,145 +1,205 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Heart, User, Bell, Info } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, Heart, Bell, Info, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface NotificationItem {
-  id: string;
+  id: number;
   type: string;
   title: string;
   message: string;
+  job_id?: number;
   is_read: boolean;
   created_at: string;
 }
 
-const WhvNotifications: React.FC = () => {
+const WHVNotifications: React.FC = () => {
   const navigate = useNavigate();
-  const [alertNotifications, setAlertNotifications] = useState(true);
+  const [whvId, setWhvId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [alertNotifications, setAlertNotifications] = useState(true);
+  const [loading, setLoading] = useState(true);
 
+  // ✅ Fetch WHV ID
   useEffect(() => {
-    const fetchUserAndNotifications = async () => {
+    const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      setUserId(user.id);
-
-      // Fetch notifications for WHV
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('recipient_id', user.id)
-        .eq('recipient_type', 'whv')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-      } else {
-        setNotifications(data || []);
-      }
-
-      // Fetch alert toggle status
-      const { data: setting } = await supabase
-        .from('notification_setting')
-        .select('notifications_enabled')
-        .eq('user_id', user.id)
-        .eq('user_type', 'whv')
-        .single();
-
-      if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
+      if (user) setWhvId(user.id);
     };
-
-    fetchUserAndNotifications();
+    getUser();
   }, []);
 
-  const toggleNotifications = async (value: boolean) => {
-    setAlertNotifications(value);
-    if (!userId) return;
+  // ✅ Fetch notifications + settings
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!whvId) return;
+      setLoading(true);
 
-    const { error } = await supabase
-      .from('notification_setting')
+      try {
+        // Fetch notification setting
+        const { data: settings } = await supabase
+          .from("notification_setting")
+          .select("notifications_enabled")
+          .eq("user_id", whvId)
+          .eq("user_type", "whv")
+          .maybeSingle();
+
+        if (settings?.notifications_enabled !== undefined) {
+          setAlertNotifications(settings.notifications_enabled);
+        }
+
+        // Fetch notifications
+        const { data: notifData, error } = await supabase
+          .from("notifications")
+          .select("id, type, title, message, job_id, read_at, created_at")
+          .eq("recipient_id", whvId)
+          .eq("recipient_type", "whv")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        setNotifications(
+          (notifData || []).map((n) => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            job_id: n.job_id,
+            is_read: !!n.read_at,
+            created_at: n.created_at,
+          }))
+        );
+      } catch (err) {
+        console.error("Error fetching notifications:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [whvId]);
+
+  // ✅ Toggle notifications on/off
+  const handleToggle = async (value: boolean) => {
+    if (!whvId) return;
+    setAlertNotifications(value);
+
+    await supabase
+      .from("notification_setting")
       .upsert({
-        user_id: userId,
-        user_type: 'whv',
+        user_id: whvId,
+        user_type: "whv",
         notifications_enabled: value,
       });
-
-    if (error) console.error('Error updating notification setting:', error);
   };
 
-  const markAsRead = async (id: string) => {
+  // ✅ Mark notification as read
+  const markAsRead = async (id: number) => {
+    await supabase
+      .rpc("mark_notification_read", { p_notification_id: id })
+      .catch(console.error);
+
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  };
+
+  // ✅ Handle notification click
+  const handleNotificationClick = async (notification: NotificationItem) => {
+    await markAsRead(notification.id);
+
+    if (notification.type === "job_like") {
+      // Employer liked WHV profile → view job preview
+      navigate(`/whv/job-preview/${notification.job_id}`, {
+        state: { from: "notifications" },
+      });
+    } else if (notification.type === "mutual_match") {
+      // Mutual match → open full job
+      navigate(`/whv/job-full/${notification.job_id}`, {
+        state: { from: "notifications" },
+      });
+    }
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'job_like':
+      case "job_like":
         return <Heart className="w-5 h-5 text-red-500" />;
-      case 'mutual_match':
-        return <Heart className="w-5 h-5 text-pink-500" />;
-      case 'maker_like':
+      case "mutual_match":
         return <User className="w-5 h-5 text-green-500" />;
       default:
-        return <Bell className="w-5 h-5 text-gray-500" />;
+        return <Info className="w-5 h-5 text-blue-500" />;
     }
   };
 
+  if (loading)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* iPhone Frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
-          <div className="w-full h-full flex flex-col relative bg-gray-200">
-            {/* Header */}
-            <div className="px-6 pt-16 pb-4 flex items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={() => navigate('/whv/dashboard')}
-              >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
-              </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
-            </div>
+          {/* Header */}
+          <div className="px-6 pt-16 pb-4 flex items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
+              onClick={() => navigate("/whv/dashboard")}
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900">
+              Notifications
+            </h1>
+          </div>
 
-            {/* Notification setting */}
-            <div className="bg-white rounded-2xl p-4 mx-6 mb-6 shadow-sm">
+          {/* Content */}
+          <div className="flex-1 px-6 overflow-y-auto">
+            {/* Notification Toggle */}
+            <div className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">Turn Notifications On/Off</h3>
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    Turn Notifications On/Off
+                  </h3>
                   <p className="text-sm text-gray-500">
-                    You will be notified about new likes and mutual matches
+                    You’ll be notified about important updates
                   </p>
                 </div>
                 <div className="flex items-center">
-                  <span className="text-sm text-gray-600 mr-2">{alertNotifications ? 'ON' : 'OFF'}</span>
+                  <span className="text-sm text-gray-600 mr-2">
+                    {alertNotifications ? "ON" : "OFF"}
+                  </span>
                   <Switch
                     checked={alertNotifications}
-                    onCheckedChange={toggleNotifications}
+                    onCheckedChange={handleToggle}
                     className="data-[state=checked]:bg-green-500"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Notification List */}
-            <div className="flex-1 px-6 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <p className="text-center text-gray-500 mt-10">No notifications yet.</p>
-              ) : (
-                notifications.map((n) => (
+            {/* Notifications List */}
+            {notifications.length === 0 ? (
+              <p className="text-center text-gray-500 mt-10">
+                No notifications yet
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {notifications.map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => markAsRead(n.id)}
-                    className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow text-left mb-3 ${
-                      n.is_read ? 'opacity-70' : ''
+                    onClick={() => handleNotificationClick(n)}
+                    className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow text-left ${
+                      n.is_read ? "opacity-70" : ""
                     }`}
                   >
                     <div className="flex items-start">
@@ -150,17 +210,27 @@ const WhvNotifications: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center mb-1">
-                          <h4 className="font-semibold text-gray-900">{n.title || 'Notification'}</h4>
-                          {!n.is_read && <div className="w-2 h-2 bg-orange-500 rounded-full ml-2"></div>}
+                          <h4 className="font-semibold text-gray-900">
+                            {n.title}
+                          </h4>
+                          {!n.is_read && (
+                            <div className="w-2 h-2 bg-orange-500 rounded-full ml-2"></div>
+                          )}
                         </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">{n.message}</p>
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {n.message}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(n.created_at).toLocaleString()}
+                        </p>
                       </div>
                     </div>
                   </button>
-                ))
-              )}
-              <div className="h-20"></div>
-            </div>
+                ))}
+              </div>
+            )}
+
+            <div className="h-20" />
           </div>
         </div>
       </div>
@@ -168,4 +238,4 @@ const WhvNotifications: React.FC = () => {
   );
 };
 
-export default WhvNotifications;
+export default WHVNotifications;
