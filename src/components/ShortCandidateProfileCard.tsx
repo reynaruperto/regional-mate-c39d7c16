@@ -9,9 +9,7 @@ interface ShortCandidateProfileCardProps {
   candidateId: string;
 }
 
-const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
-  candidateId,
-}) => {
+const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({ candidateId }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showLikeModal, setShowLikeModal] = useState(false);
@@ -26,7 +24,6 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   const [employerId, setEmployerId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  //  Get logged-in employer ID
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -35,7 +32,6 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     getUser();
   }, []);
 
-  // Load candidate profile
   useEffect(() => {
     const fetchCandidate = async () => {
       setLoading(true);
@@ -51,9 +47,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
         .select("available_from")
         .eq("user_id", candidateId)
         .maybeSingle();
-      if (availabilityRow?.available_from) {
-        setAvailableFrom(availabilityRow.available_from);
-      }
+      if (availabilityRow?.available_from) setAvailableFrom(availabilityRow.available_from);
 
       const { data: industryRows } = await supabase
         .from("maker_pref_industry")
@@ -91,13 +85,10 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
 
       let signedPhoto: string | null = null;
       if (whv?.profile_photo) {
-        const photoPath = whv.profile_photo;
-        if (photoPath.startsWith("http")) {
-          signedPhoto = photoPath;
+        if (whv.profile_photo.startsWith("http")) {
+          signedPhoto = whv.profile_photo;
         } else {
-          const { data } = supabase.storage
-            .from("profile_photo")
-            .getPublicUrl(photoPath);
+          const { data } = supabase.storage.from("profile_photo").getPublicUrl(whv.profile_photo);
           signedPhoto = data.publicUrl;
         }
       }
@@ -152,19 +143,22 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
-            </Button>
+            <button
+              onClick={handleBack}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
+            </button>
             <h1 className="text-lg font-semibold">Candidate Profile</h1>
             <div className="w-10" />
           </div>
 
           {/* Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
-            <div className="border-2 border-orange-500 rounded-2xl p-6 space-y-6">
+            <div className="border-2 border-[#EC5823] rounded-2xl p-6 space-y-6">
               {/* Profile Header */}
               <div className="flex flex-col items-center text-center">
-                <div className="w-28 h-28 rounded-full border-4 border-orange-500 overflow-hidden mb-3">
+                <div className="w-28 h-28 rounded-full border-4 border-[#EC5823] overflow-hidden mb-3">
                   {profileData?.profilePhoto ? (
                     <img src={profileData.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
@@ -176,84 +170,88 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
                 <h2 className="text-xl font-bold text-gray-900">{profileData?.name}</h2>
                 <p className="text-sm text-gray-600">{profileData?.tagline}</p>
                 {availableFrom && (
-                  <p className="text-sm text-gray-600">
-                    Available from: <span className="font-medium">{new Date(availableFrom).toLocaleDateString()}</span>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Available from:{" "}
+                    <span className="font-medium text-gray-900">
+                      {new Date(availableFrom).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
                   </p>
                 )}
               </div>
 
               {/* Industry Preferences */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
-                  <Briefcase size={16} className="mr-2" /> Industry Preferences
-                </h3>
-                {industryPrefs.length > 0 ? (
+              {industryPrefs.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <Briefcase size={16} className="mr-2 text-[#EC5823]" /> Industry Preferences
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {industryPrefs.map((ind, i) => (
-                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{ind}</span>
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">{ind}</span>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No industries set</p>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Location Preferences */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
-                  <MapPin size={16} className="mr-2" /> Location Preferences
-                </h3>
-                {locationPreferences.length > 0 ? (
-                  locationPreferences.map(([state, suburbs]) => (
-                    <div key={state}>
+              {locationPreferences.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <MapPin size={16} className="mr-2 text-[#EC5823]" /> Location Preferences
+                  </h3>
+                  {locationPreferences.map(([state, suburbs]) => (
+                    <div key={state} className="mb-2">
                       <p className="font-medium">{state}</p>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {(suburbs as string[]).map((s, i) => (
-                          <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{s}</span>
+                          <span key={i} className="px-3 py-1 border text-xs rounded-full">{s}</span>
                         ))}
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No locations set</p>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* Work Experience */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
-                  <Briefcase size={16} className="mr-2" /> Work Experience
-                </h3>
-                {workExperiences.length > 0 ? (
-                  workExperiences.slice(0, 2).map((exp, i) => (
-                    <div key={i} className="border-b pb-2 mb-2">
-                      <p className="font-medium">{exp.position}</p>
-                      <p className="text-sm text-gray-600">{exp.company} • {exp.industry?.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(exp.start_date).toLocaleDateString()} – {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : "Present"}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No work experience</p>
-                )}
-              </div>
-
-              {/* Licenses */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-600 mb-2 flex items-center">
-                  <Award size={16} className="mr-2" /> Licenses & Certifications
-                </h3>
-                {licenses.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border border-orange-500 text-orange-600 text-xs rounded-full">{l}</span>
+              {workExperiences.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <Briefcase size={16} className="mr-2 text-[#EC5823]" /> Work Experience
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    {workExperiences.slice(0, 2).map((exp, i) => (
+                      <div key={i} className="border rounded-lg p-3 text-gray-700">
+                        <p className="font-medium">{exp.position}</p>
+                        <p className="text-gray-600">{exp.company} • {exp.industry?.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(exp.start_date).toLocaleDateString("en-US", {
+                            month: "short",
+                            year: "numeric",
+                          })} – {exp.end_date ? new Date(exp.end_date).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Present"}
+                        </p>
+                      </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No licenses added</p>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* Licenses */}
+              {licenses.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center text-gray-900">
+                    <Award size={16} className="mr-2 text-[#EC5823]" /> Licenses & Certifications
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Heart Button */}
               <Button
