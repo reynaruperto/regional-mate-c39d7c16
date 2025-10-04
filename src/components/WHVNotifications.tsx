@@ -30,7 +30,7 @@ const WHVNotifications: React.FC = () => {
       setUserId(user.id);
 
       // Fetch notifications for WHV
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("notifications")
         .select("*")
         .eq("recipient_id", user.id)
@@ -41,7 +41,7 @@ const WHVNotifications: React.FC = () => {
       else setNotifications(data || []);
 
       // Fetch notification setting
-      const { data: setting } = await supabase
+      const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
@@ -59,7 +59,7 @@ const WHVNotifications: React.FC = () => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("notification_setting")
       .upsert({
         user_id: userId,
@@ -74,7 +74,7 @@ const WHVNotifications: React.FC = () => {
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
-    await supabase.rpc("mark_notification_read", {
+    await (supabase as any).rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
