@@ -266,7 +266,7 @@ const WHVJobPreview: React.FC = () => {
                   <p className="font-semibold">{jobDetails.salary_range}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Years of Work Experience Required</span></div>
+                  <div className="flex items-center mb-1"><User className="w-5 h-5 mr-2" /><span>Experience</span></div>
                   <p className="font-semibold">{jobDetails.req_experience}</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4">
@@ -277,7 +277,7 @@ const WHVJobPreview: React.FC = () => {
 
               {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Licenses</h4>
+                <h4 className="font-semibold mb-2">Licenses Required</h4>
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? jobDetails.licenses.map((l, i) => (
                     <span key={i} className="px-3 py-1 border text-xs rounded-full">{l}</span>
