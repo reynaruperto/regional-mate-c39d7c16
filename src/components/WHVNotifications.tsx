@@ -4,15 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import type { NotificationRow, NotificationSettingRow } from '@/integrations/supabase/extended-types';
 
-interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  job_id?: number;
-  is_read?: boolean;
-  created_at: string;
+interface NotificationItem extends NotificationRow {
+  is_read: boolean;
 }
 
 const WHVNotifications: React.FC = () => {
@@ -29,7 +24,7 @@ const WHVNotifications: React.FC = () => {
       setUserId(user.id);
 
       // Fetch notifications for WHV user
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('notifications')
         .select('id, type, title, message, job_id, created_at, read_at')
         .eq('recipient_id', user.id)
@@ -37,17 +32,23 @@ const WHVNotifications: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) console.error('Error fetching notifications:', error);
-      else setNotifications(data || []);
+      else {
+        const notificationsWithReadStatus = (data || []).map((n: NotificationRow) => ({
+          ...n,
+          is_read: !!n.read_at
+        }));
+        setNotifications(notificationsWithReadStatus);
+      }
 
       // Fetch notification setting
-      const { data: setting } = await supabase
+      const { data: setting } = await (supabase as any)
         .from('notification_setting')
         .select('notifications_enabled')
         .eq('user_id', user.id)
         .eq('user_type', 'whv')
         .single();
 
-      if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
+      if (setting) setAlertNotifications((setting as NotificationSettingRow).notifications_enabled ?? true);
     };
 
     fetchUserAndNotifications();
@@ -58,7 +59,7 @@ const WHVNotifications: React.FC = () => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('notification_setting')
       .upsert({
         user_id: userId,
@@ -74,7 +75,7 @@ const WHVNotifications: React.FC = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    await supabase
+    await (supabase as any)
       .from('notifications')
       .update({ read_at: new Date().toISOString() })
       .eq('id', id);

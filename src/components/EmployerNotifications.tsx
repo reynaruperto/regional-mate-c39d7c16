@@ -4,14 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import type { NotificationRow, NotificationSettingRow } from '@/integrations/supabase/extended-types';
 
-interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
+interface NotificationItem extends NotificationRow {
   is_read: boolean;
-  created_at: string;
 }
 
 const EmployerNotifications: React.FC = () => {
@@ -32,19 +28,25 @@ const EmployerNotifications: React.FC = () => {
         .select('*')
         .eq('recipient_id', user.id)
         .eq('recipient_type', 'employer')
-        .order('created_at', { ascending: false }) as any;
+        .order('created_at', { ascending: false });
 
       if (error) console.error('Error fetching notifications:', error);
-      else setNotifications((data || []) as NotificationItem[]);
+      else {
+        const notificationsWithReadStatus = (data || []).map((n: NotificationRow) => ({
+          ...n,
+          is_read: !!n.read_at
+        }));
+        setNotifications(notificationsWithReadStatus);
+      }
 
       const { data: setting } = await (supabase as any)
         .from('notification_setting')
         .select('notifications_enabled')
         .eq('user_id', user.id)
         .eq('user_type', 'employer')
-        .single() as any;
+        .single();
 
-      if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
+      if (setting) setAlertNotifications((setting as NotificationSettingRow).notifications_enabled ?? true);
     };
 
     fetchUserAndNotifications();
@@ -60,7 +62,7 @@ const EmployerNotifications: React.FC = () => {
         user_id: userId,
         user_type: 'employer',
         notifications_enabled: value,
-      }) as any;
+      });
 
     if (error) console.error('Error updating notification setting:', error);
   };
@@ -69,7 +71,7 @@ const EmployerNotifications: React.FC = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    await (supabase as any).from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id) as any;
+    await (supabase as any).from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
   };
 
   const getNotificationIcon = (type: string) => {
