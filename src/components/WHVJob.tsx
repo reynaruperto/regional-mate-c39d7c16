@@ -45,7 +45,7 @@ const WHVJobPreview: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch job details and like status
+  // ✅ Fetch job details + like state
   useEffect(() => {
     const fetchJob = async () => {
       if (!jobId) return;
@@ -60,7 +60,7 @@ const WHVJobPreview: React.FC = () => {
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching job details:", error);
+        console.error("Error fetching job:", error);
         setLoading(false);
         return;
       }
@@ -74,7 +74,7 @@ const WHVJobPreview: React.FC = () => {
           .eq("liker_type", "whv")
           .eq("liked_job_post_id", Number(jobId));
 
-        isLiked = likeRows && likeRows.length > 0;
+        isLiked = !!likeRows?.length;
       }
 
       setJobDetails({ ...data, isLiked });
@@ -84,12 +84,13 @@ const WHVJobPreview: React.FC = () => {
     fetchJob();
   }, [jobId, whvId]);
 
-  // ✅ Handle Like / Unlike (same as BrowseJobs)
+  // ✅ Handle Like / Unlike (TypeScript-safe)
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
 
     try {
       if (jobDetails.isLiked) {
+        // Unlike
         const { error } = await supabase
           .from("likes")
           .delete()
@@ -103,12 +104,15 @@ const WHVJobPreview: React.FC = () => {
           return;
         }
 
-        setJobDetails({ ...jobDetails, isLiked: false });
+        setJobDetails((prev) =>
+          prev ? { ...prev, isLiked: false } : prev
+        );
       } else {
+        // Like
         const payload = {
           liker_id: whvId,
           liker_type: "whv",
-          liked_job_post_id: Number(jobDetails.job_id), // ✅ CORRECT key
+          liked_job_post_id: Number(jobDetails.job_id), // ✅ correct key
           liked_whv_id: null,
         };
 
@@ -120,7 +124,9 @@ const WHVJobPreview: React.FC = () => {
         }
 
         console.log("✅ Like saved:", data);
-        setJobDetails({ ...jobDetails, isLiked: true });
+        setJobDetails((prev) =>
+          prev ? { ...prev, isLiked: true } : prev
+        );
         setShowLikeModal(true);
       }
     } catch (err) {
@@ -129,9 +135,7 @@ const WHVJobPreview: React.FC = () => {
   };
 
   // ✅ Handle back navigation
-  const handleBack = () => {
-    navigate(-1);
-  };
+  const handleBack = () => navigate(-1);
 
   if (loading || !jobDetails) {
     return (
