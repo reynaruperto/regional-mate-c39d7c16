@@ -15,8 +15,8 @@ interface Candidate {
   profile_photo: string;
   industries: string[];
   locations: string[];
-  experience_summary: string;
   licenses: string[];
+  experience_summary: string;
   isLiked?: boolean;
 }
 
@@ -33,22 +33,23 @@ const BrowseCandidates: React.FC = () => {
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
+  // ✅ Resolve storage photo
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/default-avatar.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  // ✅ Auth
+  // ✅ Auth user
   useEffect(() => {
-    const getUser = async () => {
+    const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
     };
-    getUser();
+    fetchUser();
   }, []);
 
-  // ✅ Fetch job posts
+  // ✅ Fetch employer’s active job posts
   useEffect(() => {
     if (!employerId) return;
     const loadJobs = async () => {
@@ -62,7 +63,7 @@ const BrowseCandidates: React.FC = () => {
     loadJobs();
   }, [employerId]);
 
-  // ✅ Fetch candidates
+  // ✅ Fetch eligible candidates
   const fetchCandidates = async (activeFilters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
@@ -71,8 +72,11 @@ const BrowseCandidates: React.FC = () => {
       p_job_id: selectedJobId,
       ...activeFilters,
     });
+
     if (error) {
       console.error("Error fetching candidates:", error);
+      setCandidates([]);
+      setAllCandidates([]);
       return;
     }
 
@@ -85,18 +89,20 @@ const BrowseCandidates: React.FC = () => {
 
     const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-    const mapped: Candidate[] = (makers || []).map((m: any) => ({
-      user_id: m.user_id || m.maker_id,
-      name: m.given_name || "Unnamed",
-      profile_photo: resolvePhoto(m.profile_photo),
-      industries: m.industry_pref || [],
-      locations: m.state_pref || [],
-      licenses: m.license_pref || [],
-      experience_summary: Array.isArray(m.work_experience)
-        ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
-        : "No experience listed",
-      isLiked: likedIds.includes(m.user_id || m.maker_id),
-    }));
+    const mapped: Candidate[] = Array.isArray(makers)
+      ? makers.map((m: any) => ({
+          user_id: m.user_id || m.maker_id,
+          name: m.given_name || "Unnamed",
+          profile_photo: resolvePhoto(m.profile_photo),
+          industries: m.industry_pref || [],
+          locations: m.state_pref || [],
+          licenses: m.license_pref || [],
+          experience_summary: Array.isArray(m.work_experience)
+            ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
+            : "No experience listed",
+          isLiked: likedIds.includes(m.user_id || m.maker_id),
+        }))
+      : [];
 
     setCandidates(mapped);
     setAllCandidates(mapped);
@@ -106,7 +112,7 @@ const BrowseCandidates: React.FC = () => {
     if (employerId && selectedJobId) fetchCandidates();
   }, [employerId, selectedJobId]);
 
-  // ✅ Like/unlike
+  // ✅ Like/unlike toggle
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
     const candidate = candidates.find((c) => c.user_id === candidateId);
@@ -145,7 +151,7 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ✅ Filters
+  // ✅ Filter handlers
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null, [`${key}Label`]: null };
     const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
@@ -158,9 +164,9 @@ const BrowseCandidates: React.FC = () => {
     fetchCandidates({});
   };
 
-  // ✅ Chips with all label types
+  // ✅ Filter chips (with labels)
   const filterChips = useMemo(() => {
-    if (!filters) return [];
+    if (!filters || typeof filters !== "object") return [];
     return [
       filters.industryLabel && { key: "industry", label: filters.industryLabel },
       filters.licenseLabel && { key: "license", label: filters.licenseLabel },
@@ -170,28 +176,34 @@ const BrowseCandidates: React.FC = () => {
     ].filter(Boolean) as { key: string; label: string }[];
   }, [filters]);
 
-  // ✅ Search logic
+  // ✅ Search
   const visibleCandidates = useMemo(() => {
-    if (!searchQuery) return candidates;
+    const safeCandidates = Array.isArray(candidates) ? candidates : [];
+    if (!searchQuery) return safeCandidates;
+
     const q = searchQuery.toLowerCase();
-    return candidates.filter((c) =>
-      [c.name, ...c.industries, ...c.locations, ...c.licenses, c.experience_summary]
+    return safeCandidates.filter((c) =>
+      [c.name, ...(c.industries || []), ...(c.locations || []), ...(c.licenses || []), c.experience_summary || ""]
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(q))
     );
   }, [candidates, searchQuery]);
 
-  return showFilters ? (
-    <FilterPage
-      onClose={() => setShowFilters(false)}
-      onApplyFilters={(filtered, appliedFilters) => {
-        setCandidates(filtered);
-        setAllCandidates(filtered);
-        setFilters(appliedFilters || {});
-        setShowFilters(false);
-      }}
-    />
-  ) : (
+  // ✅ Render
+  if (showFilters) {
+    return (
+      <FilterPage
+        onClose={() => setShowFilters(false)}
+        onApplyFilters={(appliedFilters: any) => {
+          setFilters(appliedFilters || {});
+          fetchCandidates(appliedFilters || {});
+          setShowFilters(false);
+        }}
+      />
+    );
+  }
+
+  return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
@@ -273,7 +285,7 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidate cards */}
+            {/* Candidate Cards */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
