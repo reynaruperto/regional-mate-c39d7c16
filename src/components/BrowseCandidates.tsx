@@ -24,7 +24,7 @@ interface Candidate {
   workExpIndustries: string[];
   experiences: string;
   preferredLocations: string[];
-  licenses?: string[];
+  licenses: (string | number)[];
   isLiked?: boolean;
 }
 
@@ -71,7 +71,7 @@ const BrowseCandidates: React.FC = () => {
         workExpIndustries,
         experiences,
         preferredLocations: (row.state_pref as string[]) || [],
-        licenses: (row.license_pref as string[]) || [],
+        licenses: (row.license_pref as (string | number)[]) || [],
         isLiked: false,
       };
     });
@@ -150,29 +150,11 @@ const BrowseCandidates: React.FC = () => {
 
     setCandidates(mapped);
     setAllCandidates(mapped);
-    setSelectedFilters(filters);
   };
 
   useEffect(() => {
-    if (employerId && selectedJobId) fetchCandidates();
+    if (employerId && selectedJobId) fetchCandidates(selectedFilters);
   }, [employerId, selectedJobId]);
-
-  // ---------- search ----------
-  useEffect(() => {
-    if (!searchQuery) {
-      setCandidates(allCandidates);
-      return;
-    }
-    const q = searchQuery.toLowerCase();
-    setCandidates(
-      allCandidates.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.workExpIndustries as string[]).some((i) => i.toLowerCase().includes(q)) ||
-          (c.preferredLocations as string[]).some((l) => l.toLowerCase().includes(q))
-      )
-    );
-  }, [searchQuery, allCandidates]);
 
   // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
@@ -222,6 +204,8 @@ const BrowseCandidates: React.FC = () => {
 
   // ---------- filters ----------
   const handleApplyFilters = async (filters: any) => {
+    // ✅ Save filters (so chips display)
+    setSelectedFilters(filters || {});
     await fetchCandidates(filters);
     setShowFilters(false);
   };
@@ -229,6 +213,7 @@ const BrowseCandidates: React.FC = () => {
   const removeFilter = async (key: string) => {
     const updated = { ...selectedFilters };
     delete updated[key];
+    setSelectedFilters(updated);
     await fetchCandidates(updated);
   };
 
@@ -265,11 +250,20 @@ const BrowseCandidates: React.FC = () => {
   const itemClasses =
     "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
+  const resolveLicenses = (licenseIds: (string | number)[]) => {
+    if (!Array.isArray(licenseIds) || licenseIds.length === 0) return "None listed";
+    const resolved = licenseIds
+      .map((id) => licensesMap[Number(id)] || id)
+      .filter(Boolean);
+    return resolved.length > 0 ? resolved.join(", ") : "None listed";
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
+
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
@@ -333,13 +327,12 @@ const BrowseCandidates: React.FC = () => {
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
                   if (!v) return null;
-                  const value = String(v);
                   return (
                     <span
                       key={k}
                       className="flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
                     >
-                      {chipLabel(k, value)}
+                      {chipLabel(k, String(v))}
                       <X
                         size={12}
                         className="cursor-pointer"
@@ -401,8 +394,7 @@ const BrowseCandidates: React.FC = () => {
                         </p>
 
                         <p className="text-sm text-gray-600">
-                          <strong>Licenses:</strong>{" "}
-                          {(c.licenses || []).join(", ") || "None listed"}
+                          <strong>Licenses:</strong> {resolveLicenses(c.licenses)}
                         </p>
 
                         <p className="text-sm text-gray-600">
