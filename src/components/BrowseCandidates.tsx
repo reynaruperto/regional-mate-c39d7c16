@@ -394,9 +394,12 @@ const BrowseCandidates: React.FC = () => {
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
-                              navigate(
-                                `/short-candidate-profile/${c.maker_id}?from=browse-candidates`
-                              )
+                              navigate(`/short-candidate-profile/${c.maker_id}`, {
+                                state: {
+                                  from: "browse-candidates",
+                                  jobId: selectedJobId,
+                                },
+                              })
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >

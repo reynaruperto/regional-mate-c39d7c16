@@ -199,8 +199,14 @@ const EmployerMatches: React.FC = () => {
     const route = isMutualMatch
       ? `/full-candidate-profile/${id}`
       : `/short-candidate-profile/${id}`;
-    console.log("[DEBUG] Navigating to:", `${route}?from=employer-matches&tab=${activeTab}`);
-    navigate(`${route}?from=employer-matches&tab=${activeTab}`);
+    console.log("[DEBUG] Navigating to:", route, "with jobId:", selectedJobId);
+    navigate(route, {
+      state: {
+        from: "employer-matches",
+        tab: activeTab,
+        jobId: selectedJobId,
+      },
+    });
   };
 
   const currentList = activeTab === "matches" ? matches : topRecommended;
