@@ -127,11 +127,11 @@ const WHVNotifications: React.FC = () => {
     if (notification.job_id) {
       switch (notification.type) {
         case "mutual_match":
+        case "job_like":
           navigate(`/whv/job-full/${notification.job_id}`, {
             state: { from: "notifications" },
           });
           break;
-        case "job_like":
         case "maker_like":
           navigate(`/whv/job/${notification.job_id}`, {
             state: { from: "notifications" },
