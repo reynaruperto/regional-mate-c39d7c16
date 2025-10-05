@@ -211,16 +211,16 @@ const BrowseCandidates: React.FC = () => {
   // ---------- build chips ----------
   const filterChips = useMemo(() => {
     const chips: { key: string; label: string }[] = [];
-    if (selectedFilters.industryLabel)
-      chips.push({ key: "p_filter_industry_ids", label: selectedFilters.industryLabel });
-    if (selectedFilters.licenseLabel)
-      chips.push({ key: "p_filter_license_ids", label: selectedFilters.licenseLabel });
-    if (selectedFilters.state)
-      chips.push({ key: "p_filter_state", label: selectedFilters.state });
-    if (selectedFilters.suburbCityPostcode)
-      chips.push({ key: "p_filter_suburb_city_postcode", label: selectedFilters.suburbCityPostcode });
-    if (selectedFilters.yearsExperience)
-      chips.push({ key: "p_filter_work_years_experience", label: selectedFilters.yearsExperience });
+    if (selectedFilters.p_filter_industry_ids?.length > 0)
+      chips.push({ key: "p_filter_industry_ids", label: `Industry: ${selectedFilters.industryLabel || 'Selected'}` });
+    if (selectedFilters.p_filter_license_ids?.length > 0)
+      chips.push({ key: "p_filter_license_ids", label: `License: ${selectedFilters.licenseLabel || 'Selected'}` });
+    if (selectedFilters.p_filter_state)
+      chips.push({ key: "p_filter_state", label: `State: ${selectedFilters.p_filter_state}` });
+    if (selectedFilters.p_filter_suburb_city_postcode)
+      chips.push({ key: "p_filter_suburb_city_postcode", label: `Location: ${selectedFilters.p_filter_suburb_city_postcode}` });
+    if (selectedFilters.p_filter_work_years_experience)
+      chips.push({ key: "p_filter_work_years_experience", label: `Experience: ${selectedFilters.p_filter_work_years_experience}` });
     return chips;
   }, [selectedFilters]);
 
@@ -233,11 +233,11 @@ const BrowseCandidates: React.FC = () => {
         c.name,
         ...(c.industries || []),
         ...(c.preferredLocations || []),
-        ...(c.licenses || []),
+        ...(c.licenses || []).map(String),
         c.experiences || "",
       ]
         .filter(Boolean)
-        .some((f) => f.toLowerCase().includes(q))
+        .some((f) => String(f).toLowerCase().includes(q))
     );
   }, [candidates, searchQuery]);
 
@@ -378,9 +378,11 @@ const BrowseCandidates: React.FC = () => {
                           {(c.industries || []).join(", ") || "No preferences"}
                         </p>
 
-                        <p className="text-sm text-gray-600">
-                          <strong>Licenses:</strong> {mapLicenses(c.licenses)}
-                        </p>
+                        {c.licenses && c.licenses.length > 0 && (
+                          <p className="text-sm text-gray-600">
+                            <strong>Licenses:</strong> {mapLicenses(c.licenses)}
+                          </p>
+                        )}
 
                         <p className="text-sm text-gray-600">
                           <strong>Experience:</strong> {c.experiences}
