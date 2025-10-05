@@ -8,7 +8,6 @@ import {
   User,
   Heart,
   Image,
-  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -93,15 +92,12 @@ const WHVJobPreview: React.FC = () => {
 
         let companyPhoto: string | null = null;
         if (employer?.profile_photo) {
-          const photoPath = employer.profile_photo;
-          if (photoPath.startsWith("http")) {
-            companyPhoto = photoPath;
-          } else {
-            const { data } = supabase.storage
+          const path = employer.profile_photo;
+          if (path.startsWith("http")) companyPhoto = path;
+          else
+            companyPhoto = supabase.storage
               .from("profile_photo")
-              .getPublicUrl(photoPath);
-            companyPhoto = data.publicUrl;
-          }
+              .getPublicUrl(path).data.publicUrl;
         }
 
         const { data: facilityRows } = await supabase
@@ -162,6 +158,7 @@ const WHVJobPreview: React.FC = () => {
     if (whvId) fetchJobDetails();
   }, [jobId, whvId]);
 
+  // ✅ Like/Unlike (matches BrowseJobs logic)
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
 
@@ -171,8 +168,8 @@ const WHVJobPreview: React.FC = () => {
           .from("likes")
           .delete()
           .eq("liker_id", whvId)
-          .eq("liked_job_post_id", jobDetails.job_id)
-          .eq("liker_type", "whv");
+          .eq("liker_type", "whv")
+          .eq("liked_job_post_id", jobDetails.job_id);
 
         setJobDetails({ ...jobDetails, isLiked: false });
       } else {
@@ -183,30 +180,29 @@ const WHVJobPreview: React.FC = () => {
           liked_whv_id: null,
         });
 
-        if (error) console.error("Like insert error:", error);
-        else {
-          setJobDetails({ ...jobDetails, isLiked: true });
-          setShowLikeModal(true);
+        if (error) {
+          console.error("Error liking job:", error);
+          alert("Failed to save like.");
+          return;
         }
+
+        setJobDetails({ ...jobDetails, isLiked: true });
+        setShowLikeModal(true);
       }
     } catch (err) {
       console.error("Error toggling like:", err);
     }
   };
 
-  // ✅ Fixed Back Navigation Logic
+  // ✅ Back navigation
   const handleBack = () => {
-    if (fromPage === "notifications") {
-      navigate("/whv/notifications");
-    } else if (fromPage === "browse") {
-      navigate("/whv/browse-jobs");
-    } else if (fromPage === "topRecommended") {
+    if (fromPage === "notifications") navigate("/whv/notifications");
+    else if (fromPage === "browse") navigate("/whv/browse-jobs");
+    else if (fromPage === "topRecommended")
       navigate("/whv/matches", { state: { tab: "topRecommended" } });
-    } else if (fromPage === "matches") {
+    else if (fromPage === "matches")
       navigate("/whv/matches", { state: { tab: "matches" } });
-    } else {
-      navigate(-1);
-    }
+    else navigate(-1);
   };
 
   if (loading)
@@ -263,33 +259,10 @@ const WHVJobPreview: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role + Industry + Status */}
+              {/* Role + Industry */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
-                <span
-                  className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
-                    jobDetails.job_status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {jobDetails.job_status}
-                </span>
-              </div>
-
-              {/* Location */}
-              <div className="bg-gray-50 rounded-2xl p-4">
-                <div className="flex items-center mb-1">
-                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Location
-                  </span>
-                </div>
-                <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                  {jobDetails.postcode}
-                </p>
               </div>
 
               {/* Details Grid */}
@@ -329,46 +302,44 @@ const WHVJobPreview: React.FC = () => {
               {/* Licenses */}
               <div className="bg-gray-50 rounded-2xl p-4">
                 <h4 className="font-semibold mb-2">Licenses Required</h4>
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0 ? (
-                    jobDetails.licenses.map((l, i) => (
+                {jobDetails.licenses.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {jobDetails.licenses.map((l, i) => (
                       <span
                         key={i}
                         className="px-3 py-1 border text-xs rounded-full"
                       >
                         {l}
                       </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No licenses required
-                    </p>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No licenses required</p>
+                )}
               </div>
 
               {/* Facilities */}
               <div className="bg-gray-50 rounded-2xl p-4">
                 <h4 className="font-semibold mb-2">Facilities</h4>
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.facilities.length > 0 ? (
-                    jobDetails.facilities.map((f, i) => (
+                {jobDetails.facilities.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {jobDetails.facilities.map((f, i) => (
                       <span
                         key={i}
                         className="px-3 py-1 border text-xs rounded-full"
                       >
                         {f}
                       </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No facilities listed
-                    </p>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No facilities listed
+                  </p>
+                )}
               </div>
 
-              {/* Job Description */}
+              {/* Description */}
               <div>
                 <h4 className="font-semibold mb-2">Job Description</h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
@@ -395,7 +366,7 @@ const WHVJobPreview: React.FC = () => {
           </div>
         </div>
 
-        {/* Like Modal */}
+        {/* Like Confirmation Modal */}
         {showLikeModal && (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
             <div className="pointer-events-auto w-full h-full flex items-center justify-center">
