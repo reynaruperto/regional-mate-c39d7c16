@@ -15,11 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type WorkExpItem = { industry: string; years: string };
+
 interface Candidate {
   maker_id: string;
   given_name: string;
   profile_photo: string;
-  work_experience: any;
+  work_experience: WorkExpItem[]; // normalized array
   maker_states: string[];
   pref_industries: string[];
   licenses: string[];
@@ -51,9 +53,29 @@ const BrowseCandidates: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
+  // Normalizes work_experience from RPC (stringified JSON or already an array)
+  const normalizeWorkExp = (we: unknown): WorkExpItem[] => {
+    if (!we) return [];
+    if (Array.isArray(we)) {
+      // Already array of objects
+      return we as WorkExpItem[];
+    }
+    if (typeof we === "string") {
+      try {
+        const parsed = JSON.parse(we);
+        return Array.isArray(parsed) ? (parsed as WorkExpItem[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
     })();
   }, []);
@@ -127,7 +149,7 @@ const BrowseCandidates: React.FC = () => {
       maker_id: row.maker_id,
       given_name: row.given_name,
       profile_photo: resolvePhoto(row.profile_photo),
-      work_experience: row.work_experience || [],
+      work_experience: normalizeWorkExp(row.work_experience),
       maker_states: row.maker_states || [],
       pref_industries: row.pref_industries || [],
       licenses: row.licenses || [],
@@ -150,12 +172,14 @@ const BrowseCandidates: React.FC = () => {
     }
     const q = searchQuery.toLowerCase();
     setCandidates(
-      allCandidates.filter(
-        (c) =>
-          c.given_name.toLowerCase().includes(q) ||
-          c.pref_industries.some((i) => i.toLowerCase().includes(q)) ||
-          c.maker_states.some((l) => l.toLowerCase().includes(q))
-      )
+      allCandidates.filter((c) => {
+        const nameMatch = c.given_name.toLowerCase().includes(q);
+        const industryMatch =
+          c.pref_industries?.some((i) => i.toLowerCase().includes(q)) ||
+          c.work_experience?.some((we) => we.industry?.toLowerCase().includes(q));
+        const locationMatch = c.maker_states?.some((l) => l.toLowerCase().includes(q));
+        return nameMatch || industryMatch || locationMatch;
+      })
     );
   }, [searchQuery, allCandidates]);
 
@@ -243,6 +267,7 @@ const BrowseCandidates: React.FC = () => {
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
           <div className="w-full h-full flex flex-col relative bg-gray-50">
+            {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
               <Button
                 variant="ghost"
@@ -255,6 +280,7 @@ const BrowseCandidates: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
             </div>
 
+            {/* Job Post Selector */}
             <div className="px-6 mb-4">
               <Select
                 onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -274,6 +300,7 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
+            {/* Search */}
             <div className="relative mb-2 px-6">
               <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
@@ -290,6 +317,7 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
+            {/* Filter chips */}
             {Object.keys(selectedFilters).length > 0 && (
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
@@ -317,6 +345,7 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
+            {/* Candidate list */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -345,25 +374,28 @@ const BrowseCandidates: React.FC = () => {
                         <h3 className="font-semibold text-gray-900 text-lg truncate">
                           {c.given_name}
                         </h3>
+
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Locations:</strong>{" "}
-                          {c.maker_states.join(", ") || "Not specified"}
+                          {c.maker_states?.join(", ") || "Not specified"}
                         </p>
+
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Industries:</strong>{" "}
-                          {c.pref_industries.join(", ") || "No preferences"}
+                          {c.pref_industries?.join(", ") || "No preferences"}
                         </p>
+
                         <p className="text-sm text-gray-600">
-                          <strong>Licenses:</strong> {c.licenses.join(", ") || "None"}
+                          <strong>Licenses:</strong> {c.licenses?.join(", ") || "None"}
                         </p>
+
                         <p className="text-sm text-gray-600">
                           <strong>Experience:</strong>{" "}
-                          {Array.isArray(c.work_experience)
-                            ? c.work_experience
-                                .map((we: any) => `${we.industry}: ${we.years}`)
-                                .join(", ")
+                          {c.work_experience.length > 0
+                            ? c.work_experience.map((we) => `${we.industry}: ${we.years}`).join(", ")
                             : "No experience listed"}
                         </p>
+
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
