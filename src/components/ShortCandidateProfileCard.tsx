@@ -26,6 +26,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   const [loading, setLoading] = useState(true);
   const [employerId, setEmployerId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [hasAlreadyLiked, setHasAlreadyLiked] = useState(false);
 
   useEffect(() => {
     const getUser = async () => {
@@ -40,17 +41,32 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     const jobIdFromState = (location.state as any)?.jobId;
     const jobIdFromParams = searchParams.get("jobId");
     
-    console.log("ShortCandidateProfile - jobIdFromState:", jobIdFromState);
-    console.log("ShortCandidateProfile - jobIdFromParams:", jobIdFromParams);
-    
     if (jobIdFromState) {
       setSelectedJobId(String(jobIdFromState));
-      console.log("ShortCandidateProfile - Set selectedJobId from state:", String(jobIdFromState));
     } else if (jobIdFromParams) {
       setSelectedJobId(jobIdFromParams);
-      console.log("ShortCandidateProfile - Set selectedJobId from params:", jobIdFromParams);
     }
   }, [location.state, searchParams]);
+
+  // Check if already liked
+  useEffect(() => {
+    const checkIfLiked = async () => {
+      if (!employerId || !selectedJobId || !candidateId) return;
+
+      const { data } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("liker_id", employerId)
+        .eq("liker_type", "employer")
+        .eq("liked_whv_id", candidateId)
+        .eq("liked_job_post_id", Number(selectedJobId))
+        .maybeSingle();
+
+      setHasAlreadyLiked(!!data);
+    };
+
+    checkIfLiked();
+  }, [employerId, selectedJobId, candidateId]);
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -136,11 +152,12 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   }, [candidateId]);
 
   const handleLikeCandidate = async () => {
-    console.log("handleLikeCandidate - employerId:", employerId);
-    console.log("handleLikeCandidate - selectedJobId:", selectedJobId);
-    
+    if (hasAlreadyLiked) {
+      alert("You've already liked this candidate for this job!");
+      return;
+    }
+
     if (!employerId || !selectedJobId) {
-      console.error("Missing required data - employerId:", employerId, "selectedJobId:", selectedJobId);
       alert("Please select a job post first.");
       return;
     }
@@ -154,8 +171,15 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       }]);
 
       if (error) {
-        console.error("Error liking candidate:", error);
+        if (error.code === "23505") {
+          setHasAlreadyLiked(true);
+          alert("You've already liked this candidate for this job!");
+        } else {
+          console.error("Error liking candidate:", error);
+          alert("Failed to like candidate. Please try again.");
+        }
       } else {
+        setHasAlreadyLiked(true);
         setShowLikeModal(true);
       }
     } catch (err) {
@@ -349,10 +373,15 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
               {/* Heart Button */}
               <Button
                 onClick={handleLikeCandidate}
-                className="w-full bg-[#EC5823] hover:bg-orange-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
+                disabled={hasAlreadyLiked}
+                className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md ${
+                  hasAlreadyLiked
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-[#EC5823] hover:bg-orange-600"
+                } text-white`}
               >
-                <Heart size={18} className="text-white" />
-                Heart to Match
+                <Heart size={18} className="text-white" fill={hasAlreadyLiked ? "white" : "none"} />
+                {hasAlreadyLiked ? "Already Liked" : "Heart to Match"}
               </Button>
             </div>
           </div>
