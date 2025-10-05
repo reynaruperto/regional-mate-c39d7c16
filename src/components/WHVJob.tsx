@@ -79,7 +79,7 @@ const WHVJobPreview: React.FC = () => {
             industry_role ( role, industry(name) ),
             user_id
           `)
-          .eq("job_id", parseInt(jobId))
+          .eq("job_id", Number(jobId))
           .maybeSingle();
 
         if (!job) return;
@@ -111,7 +111,7 @@ const WHVJobPreview: React.FC = () => {
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
-          .eq("job_id", job.job_id);
+          .eq("job_id", Number(job.job_id));
 
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
@@ -122,7 +122,7 @@ const WHVJobPreview: React.FC = () => {
             .from("likes")
             .select("id")
             .eq("liker_id", whvId)
-            .eq("liked_job_post_id", job.job_id)
+            .eq("liked_job_post_id", Number(job.job_id))
             .eq("liker_type", "whv")
             .maybeSingle();
           isLiked = !!like;
@@ -158,7 +158,7 @@ const WHVJobPreview: React.FC = () => {
     if (whvId) fetchJobDetails();
   }, [jobId, whvId]);
 
-  // ✅ Like/Unlike (same as BrowseJobs)
+  // ✅ Like/Unlike (matches BrowseJobs logic with int8 fix)
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
 
@@ -169,16 +169,22 @@ const WHVJobPreview: React.FC = () => {
           .delete()
           .eq("liker_id", whvId)
           .eq("liker_type", "whv")
-          .eq("liked_job_post_id", jobDetails.job_id);
+          .eq("liked_job_post_id", Number(jobDetails.job_id));
 
         setJobDetails({ ...jobDetails, isLiked: false });
       } else {
-        await supabase.from("likes").insert({
+        const { data, error } = await supabase.from("likes").insert({
           liker_id: whvId,
           liker_type: "whv",
-          liked_job_post_id: jobDetails.job_id,
+          liked_job_post_id: Number(jobDetails.job_id), // ✅ BIGINT safe
           liked_whv_id: null,
         });
+
+        if (error) {
+          console.error("Insert error:", error);
+          alert("Failed to save like: " + error.message);
+          return;
+        }
 
         setJobDetails({ ...jobDetails, isLiked: true });
         setShowLikeModal(true);
