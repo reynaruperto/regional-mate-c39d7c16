@@ -1699,26 +1699,27 @@ export type Database = {
           industry_pref: string[];
         }[];
       };
-      filter_makers_for_employer: {
-        Args: {
-          p_emp_id: string;
-          p_job_id?: number | null;
-          p_filter_state?: string | null;
-          p_filter_suburb_city_postcode?: string | null;
-          p_filter_work_industry_id?: number | null;
-          p_filter_work_years_experience?: string | null;
-          p_filter_industry_ids?: number[] | null;
-          p_filter_license_ids?: number[] | null;
-        };
-        Returns: {
-          maker_id: string;
-          given_name: string;
-          profile_photo: string;
-          work_experience: Json;
-          state_pref: string[];
-          industry_pref: string[];
-        }[];
-      };
+filter_makers_for_employer: {
+  Args: {
+    p_emp_id: string;
+    p_job_id?: number | null;
+    p_filter_state?: string | null;
+    p_filter_suburb_city_postcode?: string | null;
+    p_filter_work_industry_id?: number | null;
+    p_filter_work_years_experience?: string | null;
+    p_filter_industry_ids?: number[] | null;
+    p_filter_license_ids?: number[] | null;
+  };
+  Returns: {
+    maker_id: string;
+    given_name: string;
+    profile_photo: string;
+    work_experience: Json;
+    maker_states: string[];
+    pref_industries: string[];
+    licenses: string[];
+  }[];
+};
       fetch_whv_matches: {
         Args: {
           p_whv_id: string;
