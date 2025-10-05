@@ -21,7 +21,7 @@ const WHVNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ✅ Load user + notifications
+  // Load user and notifications once
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -29,19 +29,17 @@ const WHVNotifications: React.FC = () => {
 
       setUserId(user.id);
 
-      // Fetch notifications for WHV
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("notifications")
         .select("*")
         .eq("recipient_id", user.id)
         .eq("recipient_type", "whv")
         .order("created_at", { ascending: false });
 
-      if (error) console.error("Error fetching notifications:", error);
-      else setNotifications(data || []);
+      if (!error && data) setNotifications(data);
 
       // Fetch notification setting
-      const { data: setting } = await (supabase as any)
+      const { data: setting } = await supabase
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
@@ -54,12 +52,37 @@ const WHVNotifications: React.FC = () => {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Toggle notification settings
+  // ✅ Realtime subscription for new notifications
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel("realtime:notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${userId}`,
+        },
+        (payload) => {
+          setNotifications((prev) => [payload.new as NotificationItem, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  // Toggle on/off
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("notification_setting")
       .upsert({
         user_id: userId,
@@ -70,11 +93,11 @@ const WHVNotifications: React.FC = () => {
     if (error) console.error("Error updating notification setting:", error);
   };
 
-  // ✅ Mark notification as read + navigate
+  // Mark as read + navigate
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
-    await (supabase as any).rpc("mark_notification_read", {
+    await supabase.rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
@@ -84,7 +107,7 @@ const WHVNotifications: React.FC = () => {
       )
     );
 
-    // Navigate based on notification type
+    // Navigation
     if (notification.job_id) {
       if (notification.type === "mutual_match") {
         navigate(`/whv/job-full/${notification.job_id}`, {
@@ -98,7 +121,6 @@ const WHVNotifications: React.FC = () => {
     }
   };
 
-  // ✅ Get correct icon per type
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "job_like":
@@ -132,13 +154,15 @@ const WHVNotifications: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
             </div>
 
-            {/* Notification setting */}
+            {/* Switch */}
             <div className="bg-white rounded-2xl p-4 mx-6 mb-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">Turn Notifications On/Off</h3>
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    Turn Notifications On/Off
+                  </h3>
                   <p className="text-sm text-gray-500">
-                    You will be notified about new likes and mutual matches
+                    You’ll be notified about likes and mutual matches
                   </p>
                 </div>
                 <div className="flex items-center">
@@ -154,7 +178,7 @@ const WHVNotifications: React.FC = () => {
               </div>
             </div>
 
-            {/* Notification List */}
+            {/* List */}
             <div className="flex-1 px-6 overflow-y-auto">
               {notifications.length === 0 ? (
                 <p className="text-center text-gray-500 mt-10">No notifications yet.</p>
