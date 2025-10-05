@@ -1,4 +1,3 @@
-// src/components/PostJobForm.tsx
 import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -124,6 +123,38 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       toast({
         title: "Missing Job Role",
         description: "Please select a role before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!form.employmentType) {
+      toast({
+        title: "Missing Employment Type",
+        description: "Please select an employment type before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!form.salaryRange) {
+      toast({
+        title: "Missing Salary Range",
+        description: "Please select a salary range before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!form.experienceRange) {
+      toast({
+        title: "Missing Experience Range",
+        description: "Please select an experience range before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!form.description || form.description.trim() === "") {
+      toast({
+        title: "Missing Job Description",
+        description: "Please enter a job description before saving.",
         variant: "destructive",
       });
       return;
@@ -381,6 +412,17 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Job Description */}
+            <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
+              <h2 className="text-sm font-semibold mb-2">Job Description *</h2>
+              <Textarea
+                placeholder="Describe the job duties, requirements, and expectations..."
+                value={form.description}
+                onChange={(e) => handle("description", e.target.value)}
+                className="min-h-[120px] text-sm border rounded-lg p-2 resize-y"
+              />
             </div>
 
             {/* Start Date */}
