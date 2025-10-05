@@ -69,7 +69,7 @@ const BrowseCandidates: React.FC = () => {
       case "p_filter_work_years_experience":
         return `Experience: ${v}`;
       default:
-        return `${k.replace("p_filter_", "").replace(/_/g, " ")}: ${v}`;
+        return `${k.replace("p_filter_", "").replaceAll("_", " ")}: ${v}`;
     }
   };
 
