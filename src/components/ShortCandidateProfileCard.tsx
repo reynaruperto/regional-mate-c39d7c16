@@ -35,7 +35,16 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       if (user) setEmployerId(user.id);
     };
     getUser();
-  }, []);
+
+    // Get job ID from navigation state or search params
+    const jobIdFromState = (location.state as any)?.jobId;
+    const jobIdFromParams = searchParams.get("jobId");
+    if (jobIdFromState) {
+      setSelectedJobId(String(jobIdFromState));
+    } else if (jobIdFromParams) {
+      setSelectedJobId(jobIdFromParams);
+    }
+  }, [location.state, searchParams]);
 
   useEffect(() => {
     const fetchCandidate = async () => {

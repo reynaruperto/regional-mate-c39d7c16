@@ -162,6 +162,7 @@ const App = () => (
           <Route path="/browse-candidates" element={<BrowseCandidates />} />
           <Route path="/candidate-profile/:id" element={<CandidateProfile />} />
           <Route path="/short-candidate-profile/:id" element={<ShortCandidateProfile />} />
+          <Route path="/employer/full-candidate-profile/:id" element={<FullCandidateProfile />} />
           <Route path="/full-candidate-profile/:id" element={<FullCandidateProfile />} />
           <Route path="/job-details/:employerId/:jobId" element={<JobDetails />} />
           <Route path="/messages" element={<Messages />} />

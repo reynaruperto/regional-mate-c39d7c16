@@ -117,11 +117,11 @@ const EmployerNotifications: React.FC = () => {
 
     if (notification.type === "mutual_match" && notification.sender_id) {
       navigate(`/employer/full-candidate-profile/${notification.sender_id}`, {
-        state: { from: "notifications" },
+        state: { from: "notifications", jobId: notification.job_id },
       });
     } else if (notification.type === "job_like" && notification.sender_id) {
       navigate(`/short-candidate-profile/${notification.sender_id}`, {
-        state: { from: "notifications" },
+        state: { from: "notifications", jobId: notification.job_id },
       });
     }
   };
