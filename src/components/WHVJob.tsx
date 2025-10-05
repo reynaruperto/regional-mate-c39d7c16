@@ -39,7 +39,7 @@ const WHVJobPreview: React.FC = () => {
       if (!job_id) return;
       setLoading(true);
 
-      const { data: jobData, error } = await (supabase as any)
+      const { data: jobData, error } = await supabase
         .from("job")
         .select(
           `
@@ -55,9 +55,8 @@ const WHVJobPreview: React.FC = () => {
           job_status,
           industry_role_id,
           user_id,
-          industry_role:industry_role_id (role),
-          industry:industry_id (industry),
-          employer:user_id (company_name, tagline, company_photo)
+          industry_role:industry_role_id (role, industry:industry_id (name)),
+          employer:user_id (company_name, tagline, profile_photo)
         `
         )
         .eq("job_id", Number(job_id))
