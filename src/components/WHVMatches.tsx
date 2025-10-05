@@ -20,6 +20,7 @@ interface MatchCard {
   description?: string;
   isMutualMatch?: boolean;
   matchPercentage?: number;
+  isLiked?: boolean;
 }
 
 const WHVMatches: React.FC = () => {
@@ -29,6 +30,7 @@ const WHVMatches: React.FC = () => {
   const [matches, setMatches] = useState<MatchCard[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCard[]>([]);
   const [whvId, setWhvId] = useState<string | null>(null);
+  const [likedJobIds, setLikedJobIds] = useState<Set<number>>(new Set());
 
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedEmployerName, setLikedEmployerName] = useState("");
@@ -48,6 +50,29 @@ const WHVMatches: React.FC = () => {
     };
     getUser();
   }, []);
+
+  // Fetch all liked job IDs
+  useEffect(() => {
+    if (!whvId) return;
+    const fetchLikedJobs = async () => {
+      const { data, error } = await supabase
+        .from("likes")
+        .select("liked_job_post_id")
+        .eq("liker_id", whvId)
+        .eq("liker_type", "whv");
+
+      if (error) {
+        console.error("Error fetching liked jobs:", error);
+        return;
+      }
+
+      const likedIds = new Set(
+        data?.map((like) => like.liked_job_post_id).filter(Boolean) ?? []
+      );
+      setLikedJobIds(likedIds);
+    };
+    fetchLikedJobs();
+  }, [whvId]);
 
   // Fetch Matches
   useEffect(() => {
@@ -73,11 +98,12 @@ const WHVMatches: React.FC = () => {
           employment_type: m.employment_type,
           description: m.description,
           isMutualMatch: true,
+          isLiked: likedJobIds.has(m.job_id),
         })) ?? [];
       setMatches(formatted);
     };
     fetchMatches();
-  }, [whvId]);
+  }, [whvId, likedJobIds]);
 
   // Fetch Top Recommended
   useEffect(() => {
@@ -104,16 +130,24 @@ const WHVMatches: React.FC = () => {
           description: r.description,
           matchPercentage: Math.round(r.match_score),
           isMutualMatch: false,
+          isLiked: likedJobIds.has(r.job_id),
         })) ?? [];
       setTopRecommended(formatted);
     };
     fetchTopRecommended();
-  }, [whvId]);
+  }, [whvId, likedJobIds]);
 
   const currentEmployers = activeTab === "matches" ? matches : topRecommended;
 
   const handleLikeEmployer = async (employer: MatchCard) => {
     if (!whvId) return;
+
+    // If already liked, don't like again
+    if (employer.isLiked) {
+      console.log("Job already liked");
+      return;
+    }
+
     setLikedEmployerName(employer.company);
     setShowLikeModal(true);
 
@@ -124,7 +158,12 @@ const WHVMatches: React.FC = () => {
       liked_whv_id: null,
     });
 
-    if (error) console.error("Error liking employer:", error);
+    if (error) {
+      console.error("Error liking employer:", error);
+    } else {
+      // Update local state to mark as liked
+      setLikedJobIds((prev) => new Set(prev).add(employer.job_id));
+    }
   };
 
   return (
@@ -231,9 +270,16 @@ const WHVMatches: React.FC = () => {
                         {!e.isMutualMatch && (
                           <button
                             onClick={() => handleLikeEmployer(e)}
-                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            className={`h-11 w-11 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                              e.isLiked
+                                ? "bg-orange-500 border-2 border-orange-500"
+                                : "bg-white border-2 border-orange-300 hover:bg-orange-50"
+                            }`}
                           >
-                            <Heart size={20} className="text-orange-500" />
+                            <Heart
+                              size={20}
+                              className={e.isLiked ? "text-white fill-white" : "text-orange-500"}
+                            />
                           </button>
                         )}
                       </div>
