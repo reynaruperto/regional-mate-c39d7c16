@@ -1302,91 +1302,6 @@ export type Database = {
           },
         ]
       }
-      maker_visa_eligibility: {
-        Row: {
-          country_id: number | null
-          id: string
-          industry_id: number | null
-          stage_id: number | null
-        }
-        Insert: {
-          country_id?: number | null
-          id?: string
-          industry_id?: number | null
-          stage_id?: number | null
-        }
-        Update: {
-          country_id?: number | null
-          id?: string
-          industry_id?: number | null
-          stage_id?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "maker_visa_eligibility_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "country"
-            referencedColumns: ["country_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "vw_eligibility_visa_country_stage_industry"
-            referencedColumns: ["country_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "vw_eligible_visa_country_industry_role"
-            referencedColumns: ["country_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "vw_stage_eligible_countries"
-            referencedColumns: ["country_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "industry"
-            referencedColumns: ["industry_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "vw_eligible_visa_country_industry_role"
-            referencedColumns: ["industry_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "vw_industry_roles"
-            referencedColumns: ["industry_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "visa_stage"
-            referencedColumns: ["stage_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_eligibility_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "vw_stage_eligible_countries"
-            referencedColumns: ["stage_id"]
-          },
-        ]
-      }
       maker_work_experience: {
         Row: {
           company: string
@@ -1776,6 +1691,165 @@ export type Database = {
             columns: ["whv_id"]
             isOneToOne: false
             referencedRelation: "whv_maker"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      notification_setting: {
+        Row: {
+          created_at: string | null
+          notifications_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          notifications_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          user_type: string
+        }
+        Update: {
+          created_at?: string | null
+          notifications_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          user_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_setting_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: number
+          job_id: number
+          message: string
+          read_at: string | null
+          recipient_id: string
+          recipient_type: string | null
+          sender_id: string
+          sender_type: string | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          created_at?: string | null
+          id?: never
+          job_id: number
+          message: string
+          read_at?: string | null
+          recipient_id: string
+          recipient_type?: string | null
+          sender_id: string
+          sender_type?: string | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          created_at?: string | null
+          id?: never
+          job_id?: number
+          message?: string
+          read_at?: string | null
+          recipient_id?: string
+          recipient_type?: string | null
+          sender_id?: string
+          sender_type?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_private_active_jobs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_private_all_jobs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_private_inactive_jobs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
             referencedColumns: ["user_id"]
           },
         ]
@@ -3004,6 +3078,10 @@ export type Database = {
       get_years_experience_enum: {
         Args: Record<PropertyKey, never>
         Returns: string[]
+      }
+      mark_notification_read: {
+        Args: { p_notification_id: number }
+        Returns: undefined
       }
       update_emp_basic_details: {
         Args: {
