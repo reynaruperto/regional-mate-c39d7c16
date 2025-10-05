@@ -95,7 +95,7 @@ const WHVJobPreview: React.FC = () => {
           .delete()
           .eq("liker_id", whvId)
           .eq("liker_type", "whv")
-          .eq("liked_job_post_id", job_id);
+          .eq("liked_job_post_id",Number(job_id));
 
         setIsLiked(false);
       } else {
