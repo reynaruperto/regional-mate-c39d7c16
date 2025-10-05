@@ -24,7 +24,7 @@ interface Candidate {
   workExpIndustries: string[];
   experiences: string;
   preferredLocations: string[];
-  licenses?: string[];
+  licenses: (string | number)[];
   isLiked?: boolean;
 }
 
@@ -44,6 +44,9 @@ const BrowseCandidates: React.FC = () => {
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
+  const [licensesMap, setLicensesMap] = useState<Record<number, string>>({});
+  const [industriesMap, setIndustriesMap] = useState<Record<number, string>>({});
+
   // ---------- helpers ----------
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/default-avatar.png";
@@ -51,11 +54,36 @@ const BrowseCandidates: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
+  const mapLicenses = (ids: (string | number)[]) => {
+    if (!Array.isArray(ids) || ids.length === 0) return "None listed";
+    const names = ids.map((id) => licensesMap[Number(id)] || id).filter(Boolean);
+    return names.length ? names.join(", ") : "None listed";
+  };
+
   // ---------- auth ----------
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
+    })();
+  }, []);
+
+  // ---------- lookups ----------
+  useEffect(() => {
+    (async () => {
+      const { data: inds } = await supabase.from("industry").select("industry_id, name");
+      const indMap = (inds || []).reduce((acc: Record<number, string>, i: any) => {
+        acc[i.industry_id] = i.name;
+        return acc;
+      }, {});
+      setIndustriesMap(indMap);
+
+      const { data: lic } = await supabase.from("license").select("license_id, name");
+      const licMap = (lic || []).reduce((acc: Record<number, string>, l: any) => {
+        acc[l.license_id] = l.name;
+        return acc;
+      }, {});
+      setLicensesMap(licMap);
     })();
   }, []);
 
@@ -72,17 +100,18 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- fetch candidates for selected job ----------
-  const fetchCandidates = async () => {
+  // ---------- fetch candidates ----------
+  const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
     const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
       p_emp_id: employerId,
       p_job_id: selectedJobId,
+      ...filters,
     });
 
     if (error) {
-      console.error("Error fetching candidates:", error);
+      console.error("Eligible makers RPC error:", error);
       return;
     }
 
@@ -118,7 +147,7 @@ const BrowseCandidates: React.FC = () => {
   };
 
   useEffect(() => {
-    if (employerId && selectedJobId) fetchCandidates();
+    if (employerId && selectedJobId) fetchCandidates(selectedFilters);
   }, [employerId, selectedJobId]);
 
   // ---------- like/unlike ----------
@@ -141,9 +170,6 @@ const BrowseCandidates: React.FC = () => {
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
         );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
-        );
       } else {
         await supabase.from("likes").insert({
           liker_id: employerId,
@@ -155,10 +181,6 @@ const BrowseCandidates: React.FC = () => {
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
         );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-        );
-
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
@@ -167,18 +189,42 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ---------- remove/clear filters ----------
+  // ---------- filters ----------
+  const handleApplyFilters = async (filters: any) => {
+    setSelectedFilters(filters || {});
+    await fetchCandidates(filters);
+    setShowFilters(false);
+  };
+
   const handleRemoveFilter = (key: string) => {
-    const updated = { ...selectedFilters, [key]: null, [`${key}Label`]: null };
-    const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
-    setSelectedFilters(clean);
+    const updated = { ...selectedFilters };
+    delete updated[key];
+    setSelectedFilters(updated);
+    fetchCandidates(updated);
   };
 
   const handleClearFilters = () => {
     setSelectedFilters({});
+    fetchCandidates({});
   };
 
-  // ---------- visible candidates (search) ----------
+  // ---------- build chips ----------
+  const filterChips = useMemo(() => {
+    const chips: { key: string; label: string }[] = [];
+    if (selectedFilters.industryLabel)
+      chips.push({ key: "p_filter_industry_ids", label: selectedFilters.industryLabel });
+    if (selectedFilters.licenseLabel)
+      chips.push({ key: "p_filter_license_ids", label: selectedFilters.licenseLabel });
+    if (selectedFilters.state)
+      chips.push({ key: "p_filter_state", label: selectedFilters.state });
+    if (selectedFilters.suburbCityPostcode)
+      chips.push({ key: "p_filter_suburb_city_postcode", label: selectedFilters.suburbCityPostcode });
+    if (selectedFilters.yearsExperience)
+      chips.push({ key: "p_filter_work_years_experience", label: selectedFilters.yearsExperience });
+    return chips;
+  }, [selectedFilters]);
+
+  // ---------- search ----------
   const visibleCandidates = useMemo(() => {
     if (!searchQuery) return candidates;
     const q = searchQuery.toLowerCase();
@@ -191,29 +237,16 @@ const BrowseCandidates: React.FC = () => {
         c.experiences || "",
       ]
         .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(q))
+        .some((f) => f.toLowerCase().includes(q))
     );
   }, [candidates, searchQuery]);
-
-  // ---------- build chips like WHV ----------
-  const filterChips = [
-    selectedFilters.industryLabel && { key: "industryId", label: selectedFilters.industryLabel },
-    selectedFilters.licenseLabel && { key: "licenseId", label: selectedFilters.licenseLabel },
-    selectedFilters.state && { key: "state", label: selectedFilters.state },
-    selectedFilters.suburbCityPostcode && { key: "suburbCityPostcode", label: selectedFilters.suburbCityPostcode },
-    selectedFilters.yearsExperience && { key: "yearsExperience", label: selectedFilters.yearsExperience },
-  ].filter(Boolean) as { key: string; label: string }[];
 
   // ---------- render ----------
   if (showFilters) {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
-        onApplyFilters={(appliedFilters: any) => {
-          setSelectedFilters(appliedFilters);
-          setShowFilters(false);
-          // The filtering will happen automatically via the visibleCandidates useMemo
-        }}
+        onApplyFilters={handleApplyFilters}
       />
     );
   }
@@ -266,12 +299,9 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search */}
+            {/* Search + Filter */}
             <div className="relative mb-2 px-6">
-              <Search
-                className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
+              <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
                 placeholder="Search for candidates..."
                 value={searchQuery}
@@ -286,7 +316,7 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
-            {/* Chips */}
+            {/* Filter Chips */}
             {filterChips.length > 0 && (
               <div className="flex flex-wrap gap-2 px-6 mb-2">
                 {filterChips.map((chip) => (
@@ -314,52 +344,60 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidates */}
+            {/* Candidate Cards */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {visibleCandidates.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>No candidates found. Try adjusting your search or filters.</p>
+                  <p>No candidates found. Try adjusting your filters.</p>
                 </div>
               ) : (
                 visibleCandidates.map((c) => (
                   <div
                     key={c.user_id}
-                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
                   >
-                    <div className="flex items-start gap-4">
+                    <div className="flex gap-3 items-start">
                       <img
                         src={c.profileImage}
                         alt={c.name}
-                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border"
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-bold text-gray-900">{c.name}</h2>
-                        <p className="text-sm text-gray-600">
-                          {c.industries.join(", ") || "No industry preference"}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {(c.preferredLocations || []).join(", ") || "No preferred locations"}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Licenses: {(c.licenses || []).join(", ") || "None listed"}
-                        </p>
-                        <p className="text-sm text-gray-500">{c.experiences}</p>
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
 
-                        <div className="flex items-center gap-3 mt-4">
+                        <p className="text-sm text-gray-600">
+                          <strong>Preferred Locations:</strong>{" "}
+                          {(c.preferredLocations || []).join(", ") || "Not specified"}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          <strong>Preferred Industries:</strong>{" "}
+                          {(c.industries || []).join(", ") || "No preferences"}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          <strong>Licenses:</strong> {mapLicenses(c.licenses)}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          <strong>Experience:</strong> {c.experiences}
+                        </p>
+
+                        <div className="flex items-center gap-3 mt-3">
                           <Button
-                            className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
                             onClick={() =>
                               navigate(`/short-candidate-profile/${c.user_id}?from=browse-candidates`)
                             }
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >
                             View Profile
                           </Button>
                           <button
                             onClick={() => handleLikeCandidate(c.user_id)}
-                            className="h-11 w-11 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
                               size={20}
@@ -377,12 +415,11 @@ const BrowseCandidates: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom nav */}
+          {/* Bottom Navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like Modal */}
           <LikeConfirmationModal
             candidateName={likedCandidateName}
             onClose={() => setShowLikeModal(false)}
