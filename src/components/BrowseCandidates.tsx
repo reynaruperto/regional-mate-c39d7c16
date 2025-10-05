@@ -209,14 +209,11 @@ const BrowseCandidates: React.FC = () => {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
-        onResults={(filteredCandidates: Candidate[], appliedFilters: any) => {
-          setCandidates(filteredCandidates);
-          setAllCandidates(filteredCandidates);
+        onApplyFilters={(appliedFilters: any) => {
           setSelectedFilters(appliedFilters);
           setShowFilters(false);
+          // The filtering will happen automatically via the visibleCandidates useMemo
         }}
-        employerId={employerId}
-        jobId={selectedJobId}
       />
     );
   }
