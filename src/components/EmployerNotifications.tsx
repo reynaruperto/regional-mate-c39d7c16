@@ -48,11 +48,11 @@ const EmployerNotifications: React.FC = () => {
       setJobPosts(jobs || []);
 
       const { data: setting } = await supabase
-        .from("notification_setting")
+        .from("notification_setting" as any)
         .select("notifications_enabled")
         .eq("user_id", user.id)
         .eq("user_type", "employer")
-        .maybeSingle();
+        .maybeSingle() as any;
       setAlertNotifications(setting?.notifications_enabled ?? true);
     };
     fetchInitialData();
@@ -65,14 +65,14 @@ const EmployerNotifications: React.FC = () => {
     const fetchNotifications = async () => {
       setLoading(true);
       const { data, error } = await supabase
-        .from("notifications")
+        .from("notifications" as any)
         .select("*")
         .eq("recipient_id", userId)
         .eq("recipient_type", "employer")
         .eq("job_id", selectedJobId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }) as any;
 
-      if (!error && data) setNotifications(data);
+      if (!error && data) setNotifications(data as any);
       setLoading(false);
     };
 
@@ -83,17 +83,17 @@ const EmployerNotifications: React.FC = () => {
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
-    await supabase.from("notification_setting").upsert({
+    await supabase.from("notification_setting" as any).upsert({
       user_id: userId,
       user_type: "employer",
       notifications_enabled: value,
-    });
+    } as any);
   };
 
   // ✅ Handle notification click
   const handleNotificationClick = async (n: NotificationItem) => {
     if (!n.id) return;
-    await supabase.rpc("mark_notification_read", { p_notification_id: n.id });
+    await (supabase.rpc as any)("mark_notification_read", { p_notification_id: n.id });
 
     setNotifications((prev) =>
       prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x))
