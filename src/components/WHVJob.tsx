@@ -8,7 +8,6 @@ import {
   User,
   Heart,
   Image,
-  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -45,30 +44,29 @@ const WHVJobPreview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Determine where user came from
   const fromPage = (location.state as any)?.from;
 
+  // ✅ Get user robustly (works even on cold page load)
+  useEffect(() => {
+    const getUser = async () => {
+      let { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        user = sessionData?.session?.user || null;
+      }
+      if (user) setWhvId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // ✅ Fetch job details when ready
   useEffect(() => {
     const fetchJobDetails = async () => {
-      if (!jobId) {
-        setError("No job ID provided");
-        setLoading(false);
-        return;
-      }
+      if (!jobId) return;
 
       try {
-        console.log("Fetching job details for jobId:", jobId);
-        
-        // Get user first to ensure whvId is set
-        const { data: { user } } = await supabase.auth.getUser();
-        const currentWhvId = user?.id || null;
-        setWhvId(currentWhvId);
-        console.log("Current user ID:", currentWhvId);
-
-        // Fetch job with industry and role
-        const { data: job, error: jobError } = await supabase
+        const { data: job } = await supabase
           .from("job")
           .select(`
             job_id,
@@ -81,49 +79,19 @@ const WHVJobPreview: React.FC = () => {
             postcode,
             start_date,
             job_status,
-            industry_role_id,
+            industry_role ( role, industry(name) ),
             user_id
           `)
           .eq("job_id", Number(jobId))
           .maybeSingle();
 
-        if (jobError) {
-          console.error("Error fetching job:", jobError);
-          throw new Error(`Failed to fetch job: ${jobError.message}`);
-        }
+        if (!job) return;
 
-        if (!job) {
-          setError("Job not found");
-          setLoading(false);
-          return;
-        }
-
-        console.log("Job fetched:", job);
-
-        // Fetch industry_role separately
-        const { data: industryRole, error: roleError } = await supabase
-          .from("industry_role")
-          .select("role, industry:industry_id(name)")
-          .eq("industry_role_id", job.industry_role_id)
-          .maybeSingle();
-
-        if (roleError) {
-          console.error("Error fetching industry role:", roleError);
-        }
-
-        console.log("Industry role fetched:", industryRole);
-
-        const { data: employer, error: employerError } = await supabase
+        const { data: employer } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo")
           .eq("user_id", job.user_id)
           .maybeSingle();
-
-        if (employerError) {
-          console.error("Error fetching employer:", employerError);
-        }
-
-        console.log("Employer fetched:", employer);
 
         let companyPhoto: string | null = null;
         if (employer?.profile_photo) {
@@ -142,7 +110,6 @@ const WHVJobPreview: React.FC = () => {
           .from("employer_facility")
           .select("facility(name)")
           .eq("user_id", job.user_id);
-
         const facilities =
           facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
@@ -150,27 +117,20 @@ const WHVJobPreview: React.FC = () => {
           .from("job_license")
           .select("license(name)")
           .eq("job_id", job.job_id);
-
         const licenses =
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
         let isLiked = false;
-        if (currentWhvId) {
-          const { data: like, error: likeError } = await supabase
+        if (whvId) {
+          const { data: like } = await supabase
             .from("likes")
             .select("id")
-            .eq("liker_id", currentWhvId)
+            .eq("liker_id", whvId)
             .eq("liked_job_post_id", Number(job.job_id))
             .eq("liker_type", "whv")
             .maybeSingle();
-          
-          if (likeError) {
-            console.error("Error checking like status:", likeError);
-          }
           isLiked = !!like;
         }
-
-        console.log("Is job liked:", isLiked);
 
         setJobDetails({
           job_id: job.job_id,
@@ -183,8 +143,8 @@ const WHVJobPreview: React.FC = () => {
           postcode: job.postcode || "",
           start_date: job.start_date || new Date().toISOString(),
           job_status: job.job_status || "draft",
-          role: industryRole?.role || "Unknown Role",
-          industry: (industryRole?.industry as any)?.name || "Unknown Industry",
+          role: job.industry_role?.role || "Unknown Role",
+          industry: job.industry_role?.industry?.name || "Unknown Industry",
           company_name: employer?.company_name || "Unknown Company",
           tagline: employer?.tagline || "No tagline provided",
           company_photo: companyPhoto,
@@ -192,51 +152,51 @@ const WHVJobPreview: React.FC = () => {
           licenses,
           isLiked,
         });
-        
-        console.log("Job details set successfully");
-      } catch (err: any) {
+      } catch (err) {
         console.error("Error fetching job preview:", err);
-        setError(err?.message || "Failed to load job details");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchJobDetails();
-  }, [jobId]);
+    if (whvId) fetchJobDetails();
+  }, [jobId, whvId]);
 
+  // ✅ Like / Unlike with recovery if user not ready
   const handleLikeJob = async () => {
-    if (!whvId || !jobDetails) return;
+    if (!jobDetails) return;
+
+    let activeUserId = whvId;
+    if (!activeUserId) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
+      if (user) {
+        setWhvId(user.id);
+        activeUserId = user.id;
+      } else {
+        console.warn("User not authenticated yet — cannot like job.");
+        return;
+      }
+    }
 
     try {
       if (jobDetails.isLiked) {
         const { error } = await supabase
           .from("likes")
           .delete()
-          .eq("liker_id", whvId)
+          .eq("liker_id", activeUserId)
           .eq("liker_type", "whv")
           .eq("liked_job_post_id", Number(jobDetails.job_id));
-
-        if (error) {
-          console.error("Error deleting like:", error);
-          return;
-        }
-
+        if (error) console.error("Error deleting like:", error);
         setJobDetails((prev) => (prev ? { ...prev, isLiked: false } : prev));
       } else {
-        const { data, error } = await supabase.from("likes").insert({
-          liker_id: whvId,
+        const { error } = await supabase.from("likes").insert({
+          liker_id: activeUserId,
           liker_type: "whv",
           liked_job_post_id: Number(jobDetails.job_id),
           liked_whv_id: null,
         });
-
-        if (error) {
-          console.error("Error inserting like:", error);
-          return;
-        }
-
-        console.log("Like saved successfully:", data);
+        if (error) console.error("Error inserting like:", error);
         setJobDetails((prev) => (prev ? { ...prev, isLiked: true } : prev));
         setShowLikeModal(true);
       }
@@ -245,63 +205,30 @@ const WHVJobPreview: React.FC = () => {
     }
   };
 
-  // ✅ Fixed Back Navigation Logic
+  // ✅ Back navigation logic
   const handleBack = () => {
-    if (fromPage === "notifications") {
-      navigate("/whv/notifications");
-    } else if (fromPage === "browse") {
-      navigate("/whv/browse-jobs");
-    } else if (fromPage === "topRecommended") {
+    if (fromPage === "notifications") navigate("/whv/notifications");
+    else if (fromPage === "browse") navigate("/whv/browse-jobs");
+    else if (fromPage === "topRecommended")
       navigate("/whv/matches", { state: { tab: "topRecommended" } });
-    } else if (fromPage === "matches") {
+    else if (fromPage === "matches")
       navigate("/whv/matches", { state: { tab: "matches" } });
-    } else {
-      navigate(-1);
-    }
+    else navigate(-1);
   };
 
-  if (loading) {
+  if (loading)
     return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
-          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col items-center justify-center">
-            <p className="text-gray-600">Loading job details...</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
       </div>
     );
-  }
 
-  if (error || !jobDetails) {
+  if (!jobDetails)
     return (
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
-          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
-            <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-10 h-10"
-                onClick={handleBack}
-              >
-                <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
-              </Button>
-              <h1 className="text-lg font-semibold">Error</h1>
-              <div className="w-10" />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center px-6">
-              <p className="text-red-600 text-center mb-4">
-                {error || "Job not found"}
-              </p>
-              <Button onClick={() => window.location.reload()} className="bg-[#1E293B]">
-                Retry
-              </Button>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Job not found</p>
       </div>
     );
-  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -309,12 +236,7 @@ const WHVJobPreview: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10"
-              onClick={handleBack}
-            >
+            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </Button>
             <h1 className="text-lg font-semibold">Job Preview</h1>
@@ -343,7 +265,7 @@ const WHVJobPreview: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role + Industry + Status */}
+              {/* Job Info */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
@@ -362,13 +284,10 @@ const WHVJobPreview: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center mb-1">
                   <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Location
-                  </span>
+                  <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
                 <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                  {jobDetails.postcode}
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
                 </p>
               </div>
 
@@ -412,17 +331,12 @@ const WHVJobPreview: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? (
                     jobDetails.licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
                         {l}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No licenses required
-                    </p>
+                    <p className="text-sm text-gray-500">No licenses required</p>
                   )}
                 </div>
               </div>
@@ -433,22 +347,17 @@ const WHVJobPreview: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.facilities.length > 0 ? (
                     jobDetails.facilities.map((f, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
                         {f}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No facilities listed
-                    </p>
+                    <p className="text-sm text-gray-500">No facilities listed</p>
                   )}
                 </div>
               </div>
 
-              {/* Job Description */}
+              {/* Description */}
               <div>
                 <h4 className="font-semibold mb-2">Job Description</h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
@@ -459,14 +368,15 @@ const WHVJobPreview: React.FC = () => {
               {/* Heart Button */}
               <Button
                 onClick={handleLikeJob}
-                className="w-full bg-[#1E293B] hover:bg-[#0f172a] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md"
+                disabled={loading || !whvId}
+                className="w-full bg-[#1E293B] hover:bg-[#0f172a] text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Heart
                   size={18}
                   className={
                     jobDetails.isLiked
-                      ? "fill-red-500 text-red-500"
-                      : "text-white"
+                      ? "fill-orange-500 text-orange-500 transition-all duration-200"
+                      : "text-white transition-all duration-200"
                   }
                 />
                 {jobDetails.isLiked ? "Unlike Job" : "Heart to Match"}
@@ -477,15 +387,13 @@ const WHVJobPreview: React.FC = () => {
 
         {/* Like Modal */}
         {showLikeModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div className="pointer-events-auto w-full h-full flex items-center justify-center">
-              <LikeConfirmationModal
-                jobTitle={jobDetails.role}
-                companyName={jobDetails.company_name}
-                onClose={() => setShowLikeModal(false)}
-                isVisible={showLikeModal}
-              />
-            </div>
+          <div className="absolute inset-0 z-50 flex items-center justify-center">
+            <LikeConfirmationModal
+              jobTitle={jobDetails.role}
+              companyName={jobDetails.company_name}
+              onClose={() => setShowLikeModal(false)}
+              isVisible={showLikeModal}
+            />
           </div>
         )}
       </div>
