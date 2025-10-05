@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Clock, DollarSign, Briefcase, Calendar, Heart } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  DollarSign,
+  Briefcase,
+  Calendar,
+  Heart,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { useNavigate, useParams } from "react-router-dom";
@@ -18,7 +25,9 @@ const WHVJobPreview: React.FC = () => {
   // ✅ Fetch current WHV user
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setWhvId(user.id);
     };
     getUser();
@@ -30,7 +39,8 @@ const WHVJobPreview: React.FC = () => {
       if (!job_id) return;
       setLoading(true);
 
-      const { data: jobData, error } = await supabase
+      // ✅ Use "as any" to bypass Supabase type check for your custom view
+      const { data: jobData, error } = await (supabase as any)
         .from("vw_jobs_with_employers")
         .select("*")
         .eq("job_id", Number(job_id))
@@ -44,7 +54,7 @@ const WHVJobPreview: React.FC = () => {
 
       setJob(jobData);
 
-      // Check if this job is liked by WHV
+      // ✅ Check if WHV has liked this job
       if (whvId) {
         const { data: likes } = await supabase
           .from("likes")
@@ -62,7 +72,7 @@ const WHVJobPreview: React.FC = () => {
     fetchJobAndLikes();
   }, [job_id, whvId]);
 
-  // ✅ Handle like / unlike
+  // ✅ Like / Unlike Handler (same logic as Browse Jobs)
   const handleLikeJob = async () => {
     if (!whvId || !job_id) return;
     const jobIdNum = Number(job_id);
@@ -98,13 +108,19 @@ const WHVJobPreview: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
-  }
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
 
-  if (!job) {
-    return <div className="flex justify-center items-center min-h-screen">Job not found.</div>;
-  }
+  if (!job)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Job not found.
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -124,19 +140,38 @@ const WHVJobPreview: React.FC = () => {
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
+            {/* Job Header */}
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {job.role || "Job Role"}
+              </h2>
+              <p className="text-sm text-gray-600">
+                {job.company_name || "Employer not listed"}
+              </p>
+              <p className="text-sm text-gray-500">
+                {job.suburb_city}, {job.state} {job.postcode}
+              </p>
+            </div>
+
             {/* Job Info Grid */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-50 rounded-xl p-4 text-center">
                 <Clock className="w-5 h-5 mx-auto mb-2 text-orange-500" />
-                <p className="text-sm font-medium">{job.employment_type || "N/A"}</p>
+                <p className="text-sm font-medium">
+                  {job.employment_type || "N/A"}
+                </p>
               </div>
               <div className="bg-gray-50 rounded-xl p-4 text-center">
                 <DollarSign className="w-5 h-5 mx-auto mb-2 text-orange-500" />
-                <p className="text-sm font-medium">{job.salary_range || "Not specified"}</p>
+                <p className="text-sm font-medium">
+                  {job.salary_range || "Not specified"}
+                </p>
               </div>
               <div className="bg-gray-50 rounded-xl p-4 text-center">
                 <Briefcase className="w-5 h-5 mx-auto mb-2 text-orange-500" />
-                <p className="text-sm font-medium">{job.req_experience || "None"}</p>
+                <p className="text-sm font-medium">
+                  {job.req_experience || "None"}
+                </p>
               </div>
               <div className="bg-gray-50 rounded-xl p-4 text-center">
                 <Calendar className="w-5 h-5 mx-auto mb-2 text-orange-500" />
@@ -162,7 +197,9 @@ const WHVJobPreview: React.FC = () => {
             <Button
               onClick={handleLikeJob}
               className={`w-full h-12 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md ${
-                isLiked ? "bg-gray-800 text-white" : "bg-[#EC5823] text-white hover:bg-orange-600"
+                isLiked
+                  ? "bg-gray-800 text-white"
+                  : "bg-[#EC5823] text-white hover:bg-orange-600"
               }`}
             >
               <Heart size={18} className={isLiked ? "fill-white" : ""} />
@@ -172,6 +209,7 @@ const WHVJobPreview: React.FC = () => {
         </div>
       </div>
 
+      {/* ✅ Modal */}
       <LikeConfirmationModal
         candidateName={job.role}
         onClose={() => setShowLikeModal(false)}
