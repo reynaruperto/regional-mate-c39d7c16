@@ -208,7 +208,7 @@ const BrowseCandidates: React.FC = () => {
   };
 
   // ---------- render ----------
-  if (showFilters && employerId && selectedJobId) {
+  if (showFilters) {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
@@ -218,8 +218,6 @@ const BrowseCandidates: React.FC = () => {
           setSelectedFilters(appliedFilters);
           setShowFilters(false);
         }}
-        employerId={employerId}
-        jobId={selectedJobId}
       />
     );
   }

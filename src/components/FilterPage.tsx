@@ -14,11 +14,9 @@ import { supabase } from "@/integrations/supabase/client";
 interface FilterPageProps {
   onClose: () => void;
   onResults: (filteredCandidates: any[], appliedFilters: any) => void;
-  employerId: string;
-  jobId: number;
 }
 
-const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, employerId, jobId }) => {
+const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     p_filter_state: "",
     p_filter_suburb_city_postcode: "",
@@ -92,70 +90,16 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, employerId,
 
   // ✅ Apply filters and return results + labels
   const applyFilters = async () => {
+    const cleaned = Object.fromEntries(
+      Object.entries(selectedFilters).filter(([_, v]) => v && v.toString().trim() !== "")
+    );
+
     try {
-      // 🟢 First, fetch all eligible candidates
-      const { data: allCandidates, error } = await (supabase as any).rpc("view_all_eligible_makers", {
-        p_emp_id: employerId,
-        p_job_id: jobId,
-      });
-      
+      // 🟢 Call RPC to get filtered candidates
+      const { data, error } = await (supabase as any).rpc("filter_makers_for_employer", cleaned);
       if (error) {
-        console.error("Error fetching candidates:", error);
+        console.error("Error filtering candidates:", error);
         return;
-      }
-
-      // 🟢 Apply filters client-side
-      let filtered = allCandidates || [];
-
-      // Filter by work industry
-      if (selectedFilters.p_filter_work_industry_id) {
-        const industryName = industries.find(
-          (i) => i.id === Number(selectedFilters.p_filter_work_industry_id)
-        )?.name;
-        filtered = filtered.filter((c: any) =>
-          c.work_experience?.some((we: any) => we.industry === industryName)
-        );
-      }
-
-      // Filter by preferred industry
-      if (selectedFilters.p_filter_industry_ids) {
-        const industryName = industries.find(
-          (i) => i.id === Number(selectedFilters.p_filter_industry_ids)
-        )?.name;
-        filtered = filtered.filter((c: any) =>
-          c.industry_pref?.includes(industryName)
-        );
-      }
-
-      // Filter by state
-      if (selectedFilters.p_filter_state) {
-        filtered = filtered.filter((c: any) =>
-          c.state_pref?.includes(selectedFilters.p_filter_state)
-        );
-      }
-
-      // Filter by suburb/postcode
-      if (selectedFilters.p_filter_suburb_city_postcode) {
-        filtered = filtered.filter((c: any) =>
-          c.suburb_city_postcode?.includes(selectedFilters.p_filter_suburb_city_postcode)
-        );
-      }
-
-      // Filter by license
-      if (selectedFilters.p_filter_license_ids) {
-        const licenseName = licenses.find(
-          (l) => l.id === Number(selectedFilters.p_filter_license_ids)
-        )?.name;
-        filtered = filtered.filter((c: any) =>
-          c.licenses?.some((l: any) => l.name === licenseName)
-        );
-      }
-
-      // Filter by years of experience
-      if (selectedFilters.p_filter_work_years_experience) {
-        filtered = filtered.filter((c: any) =>
-          c.work_experience?.some((we: any) => we.years === selectedFilters.p_filter_work_years_experience)
-        );
       }
 
       // 🟢 Build human-readable labels
@@ -174,7 +118,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults, employerId,
       };
 
       // 🟢 Send both candidates + filters to parent
-      onResults(filtered, appliedFilters);
+      onResults(data || [], appliedFilters);
       onClose();
     } catch (err) {
       console.error("Unexpected filter error:", err);
