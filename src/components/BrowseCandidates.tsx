@@ -208,9 +208,11 @@ const BrowseCandidates: React.FC = () => {
   };
 
   // ---------- render ----------
-  if (showFilters) {
+  if (showFilters && employerId && selectedJobId) {
     return (
       <FilterPage
+        employerId={employerId}
+        jobId={selectedJobId}
         onClose={() => setShowFilters(false)}
         onResults={(filteredCandidates, appliedFilters) => {
           const mapped = mapRowsToCandidates(filteredCandidates);

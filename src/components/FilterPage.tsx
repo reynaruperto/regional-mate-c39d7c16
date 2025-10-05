@@ -12,11 +12,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 interface FilterPageProps {
+  employerId: string;
+  jobId: number;
   onClose: () => void;
   onResults: (filteredCandidates: any[], appliedFilters: any) => void;
 }
 
-const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
+const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onResults }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     p_filter_state: "",
     p_filter_suburb_city_postcode: "",
@@ -91,49 +93,43 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
   // ✅ Apply filters and return results + labels
   const applyFilters = async () => {
     try {
-      // 🟢 Build filter parameters matching filter_candidates function
-      const filterParams: any = {};
+      // 🟢 Build filter parameters for filter_makers_for_employer RPC
+      const filterParams: any = {
+        p_employer_id: employerId,
+        p_job_id: jobId,
+      };
       
       if (selectedFilters.p_filter_state) {
         filterParams.p_filter_state = selectedFilters.p_filter_state;
       }
       if (selectedFilters.p_filter_suburb_city_postcode) {
-        filterParams.p_filter_suburb_city = selectedFilters.p_filter_suburb_city_postcode;
+        filterParams.p_filter_suburb_city_postcode = selectedFilters.p_filter_suburb_city_postcode;
       }
       if (selectedFilters.p_filter_industry_ids) {
         filterParams.p_filter_industry_ids = [Number(selectedFilters.p_filter_industry_ids)];
       }
+      if (selectedFilters.p_filter_work_industry_id) {
+        filterParams.p_filter_work_industry_id = Number(selectedFilters.p_filter_work_industry_id);
+      }
+      if (selectedFilters.p_filter_license_ids) {
+        filterParams.p_filter_license_ids = [Number(selectedFilters.p_filter_license_ids)];
+      }
       if (selectedFilters.p_filter_work_years_experience) {
-        filterParams.p_filter_years_experience = selectedFilters.p_filter_work_years_experience;
+        filterParams.p_filter_work_years_experience = selectedFilters.p_filter_work_years_experience;
       }
 
-      // 🟢 Call RPC to get filtered candidate IDs
-      const { data: candidateIds, error } = await (supabase as any).rpc("filter_candidates", filterParams);
+      // 🟢 Call filter_makers_for_employer RPC to get filtered candidates
+      const { data: candidates, error } = await (supabase as any).rpc(
+        "filter_makers_for_employer",
+        filterParams
+      );
+
       if (error) {
         console.error("Error filtering candidates:", error);
         return;
       }
 
-      // 🟢 Fetch full candidate details for filtered IDs
-      const { data: candidates, error: fetchError } = await supabase
-        .from("whv_maker")
-        .select(`
-          user_id,
-          given_name,
-          profile_photo,
-          maker_pref_industry(industry(name)),
-          maker_pref_location(state),
-          maker_work_experience(industry(name)),
-          maker_license(license(name))
-        `)
-        .in("user_id", (candidateIds || []).map((c: any) => c.user_id));
-
-      if (fetchError) {
-        console.error("Error fetching candidate details:", fetchError);
-        return;
-      }
-
-      // 🟢 Build human-readable labels
+      // 🟢 Build human-readable labels for filter chips
       const appliedFilters = {
         industryLabel:
           industries.find((i) => i.id === Number(selectedFilters.p_filter_industry_ids))
