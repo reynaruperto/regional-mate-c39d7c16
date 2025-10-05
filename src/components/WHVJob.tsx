@@ -45,26 +45,30 @@ const WHVJobPreview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Determine where user came from
   const fromPage = (location.state as any)?.from;
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) setWhvId(user.id);
-    };
-    getUser();
-  }, []);
-
-  useEffect(() => {
     const fetchJobDetails = async () => {
-      if (!jobId) return;
+      if (!jobId) {
+        setError("No job ID provided");
+        setLoading(false);
+        return;
+      }
 
       try {
-        const { data: job } = await supabase
+        console.log("Fetching job details for jobId:", jobId);
+        
+        // Get user first to ensure whvId is set
+        const { data: { user } } = await supabase.auth.getUser();
+        const currentWhvId = user?.id || null;
+        setWhvId(currentWhvId);
+        console.log("Current user ID:", currentWhvId);
+
+        // Fetch job with industry and role
+        const { data: job, error: jobError } = await supabase
           .from("job")
           .select(`
             job_id,
@@ -77,19 +81,49 @@ const WHVJobPreview: React.FC = () => {
             postcode,
             start_date,
             job_status,
-            industry_role ( role, industry(name) ),
+            industry_role_id,
             user_id
           `)
           .eq("job_id", Number(jobId))
           .maybeSingle();
 
-        if (!job) return;
+        if (jobError) {
+          console.error("Error fetching job:", jobError);
+          throw new Error(`Failed to fetch job: ${jobError.message}`);
+        }
 
-        const { data: employer } = await supabase
+        if (!job) {
+          setError("Job not found");
+          setLoading(false);
+          return;
+        }
+
+        console.log("Job fetched:", job);
+
+        // Fetch industry_role separately
+        const { data: industryRole, error: roleError } = await supabase
+          .from("industry_role")
+          .select("role, industry:industry_id(name)")
+          .eq("industry_role_id", job.industry_role_id)
+          .maybeSingle();
+
+        if (roleError) {
+          console.error("Error fetching industry role:", roleError);
+        }
+
+        console.log("Industry role fetched:", industryRole);
+
+        const { data: employer, error: employerError } = await supabase
           .from("employer")
           .select("company_name, tagline, profile_photo")
           .eq("user_id", job.user_id)
           .maybeSingle();
+
+        if (employerError) {
+          console.error("Error fetching employer:", employerError);
+        }
+
+        console.log("Employer fetched:", employer);
 
         let companyPhoto: string | null = null;
         if (employer?.profile_photo) {
@@ -121,16 +155,22 @@ const WHVJobPreview: React.FC = () => {
           licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
         let isLiked = false;
-        if (whvId) {
-          const { data: like } = await supabase
+        if (currentWhvId) {
+          const { data: like, error: likeError } = await supabase
             .from("likes")
             .select("id")
-            .eq("liker_id", whvId)
+            .eq("liker_id", currentWhvId)
             .eq("liked_job_post_id", Number(job.job_id))
             .eq("liker_type", "whv")
             .maybeSingle();
+          
+          if (likeError) {
+            console.error("Error checking like status:", likeError);
+          }
           isLiked = !!like;
         }
+
+        console.log("Is job liked:", isLiked);
 
         setJobDetails({
           job_id: job.job_id,
@@ -143,8 +183,8 @@ const WHVJobPreview: React.FC = () => {
           postcode: job.postcode || "",
           start_date: job.start_date || new Date().toISOString(),
           job_status: job.job_status || "draft",
-          role: job.industry_role?.role || "Unknown Role",
-          industry: job.industry_role?.industry?.name || "Unknown Industry",
+          role: industryRole?.role || "Unknown Role",
+          industry: (industryRole?.industry as any)?.name || "Unknown Industry",
           company_name: employer?.company_name || "Unknown Company",
           tagline: employer?.tagline || "No tagline provided",
           company_photo: companyPhoto,
@@ -152,15 +192,18 @@ const WHVJobPreview: React.FC = () => {
           licenses,
           isLiked,
         });
-      } catch (err) {
+        
+        console.log("Job details set successfully");
+      } catch (err: any) {
         console.error("Error fetching job preview:", err);
+        setError(err?.message || "Failed to load job details");
       } finally {
         setLoading(false);
       }
     };
 
-    if (whvId) fetchJobDetails();
-  }, [jobId, whvId]);
+    fetchJobDetails();
+  }, [jobId]);
 
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
@@ -217,19 +260,48 @@ const WHVJobPreview: React.FC = () => {
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
+      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col items-center justify-center">
+            <p className="text-gray-600">Loading job details...</p>
+          </div>
+        </div>
       </div>
     );
+  }
 
-  if (!jobDetails)
+  if (error || !jobDetails) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Job not found</p>
+      <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+        <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
+          <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+            <div className="px-6 pt-16 pb-4 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-10 h-10"
+                onClick={handleBack}
+              >
+                <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
+              </Button>
+              <h1 className="text-lg font-semibold">Error</h1>
+              <div className="w-10" />
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center px-6">
+              <p className="text-red-600 text-center mb-4">
+                {error || "Job not found"}
+              </p>
+              <Button onClick={() => window.location.reload()} className="bg-[#1E293B]">
+                Retry
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
