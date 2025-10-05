@@ -1,7 +1,7 @@
 // src/pages/BrowseCandidates.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
+import { ArrowLeft, Search, Filter, Heart, X, MapPin, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
@@ -24,7 +24,6 @@ interface Candidate {
   workExpIndustries: string[];
   experiences: string;
   preferredLocations: string[];
-  licenses?: string[];
   isLiked?: boolean;
 }
 
@@ -35,16 +34,18 @@ const BrowseCandidates: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
+
   const [selectedFilters, setSelectedFilters] = useState<any>({});
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [employerId, setEmployerId] = useState<string | null>(null);
+
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
   const [industriesMap, setIndustriesMap] = useState<Record<number, string>>({});
   const [licensesMap, setLicensesMap] = useState<Record<number, string>>({});
 
-  // ---------- helpers ----------
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/default-avatar.png";
     if (val.startsWith("http")) return val;
@@ -64,11 +65,10 @@ const BrowseCandidates: React.FC = () => {
         user_id: row.maker_id || row.user_id,
         name: row.given_name,
         profileImage: resolvePhoto(row.profile_photo),
-        industries: row.pref_industries || ["No preferences"],
+        industries: (row.industry_pref as string[]) || [],
         workExpIndustries,
         experiences,
-        preferredLocations: row.states || ["Not specified"],
-        licenses: row.licenses || ["None listed"],
+        preferredLocations: (row.state_pref as string[]) || [],
         isLiked: false,
       };
     });
@@ -111,6 +111,7 @@ const BrowseCandidates: React.FC = () => {
         .select("job_id, description, job_status, industry_role(role)")
         .eq("user_id", employerId)
         .eq("job_status", "active");
+
       if (!error && data) setJobPosts(data);
     })();
   }, [employerId]);
@@ -119,49 +120,33 @@ const BrowseCandidates: React.FC = () => {
   const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
-    try {
-      const hasFilters = Object.keys(filters).length > 0;
-      let makersData: any[] = [];
-
-      if (hasFilters) {
-        console.log("Fetching with filters...");
-        const { data, error } = await (supabase as any).rpc("filter_makers_for_employer", {
-          p_emp_id: employerId,
-          p_job_id: selectedJobId,
-          ...filters,
-        });
-        if (error) throw error;
-        makersData = data || [];
-      } else {
-        console.log("Fetching all eligible candidates...");
-        const { data, error } = await (supabase as any).rpc("view_all_eligible_makers", {
-          p_emp_id: employerId,
-          p_job_id: selectedJobId,
-        });
-        if (error) throw error;
-        makersData = data || [];
-      }
-
-      const { data: likes } = await supabase
-        .from("likes")
-        .select("liked_whv_id")
-        .eq("liker_id", employerId)
-        .eq("liker_type", "employer")
-        .eq("liked_job_post_id", selectedJobId);
-
-      const likedIds = likes?.map((l) => l.liked_whv_id) || [];
-
-      const mapped = (makersData || []).map((row: any) => {
-        const c = mapRowsToCandidates([row])[0];
-        return { ...c, isLiked: likedIds.includes(c.user_id) };
-      });
-
-      setCandidates(mapped);
-      setAllCandidates(mapped);
-      setSelectedFilters(filters);
-    } catch (err) {
-      console.error("Error fetching candidates:", err);
+    const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
+      p_emp_id: employerId,
+      p_job_id: selectedJobId,
+      ...filters,
+    });
+    if (error) {
+      console.error("Eligible makers RPC error:", error);
+      return;
     }
+
+    const { data: likes } = await supabase
+      .from("likes")
+      .select("liked_whv_id")
+      .eq("liker_id", employerId)
+      .eq("liker_type", "employer")
+      .eq("liked_job_post_id", selectedJobId);
+
+    const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+
+    const mapped = (makers || []).map((row: any) => {
+      const c = mapRowsToCandidates([row])[0];
+      return { ...c, isLiked: likedIds.includes(c.user_id) };
+    });
+
+    setCandidates(mapped);
+    setAllCandidates(mapped);
+    setSelectedFilters(filters);
   };
 
   useEffect(() => {
@@ -188,6 +173,7 @@ const BrowseCandidates: React.FC = () => {
   // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
+
     const candidate = candidates.find((c) => c.user_id === candidateId);
     if (!candidate) return;
 
@@ -200,10 +186,8 @@ const BrowseCandidates: React.FC = () => {
           .eq("liker_type", "employer")
           .eq("liked_whv_id", candidateId)
           .eq("liked_job_post_id", selectedJobId);
+
         setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
-        );
-        setAllCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
         );
       } else {
@@ -213,12 +197,11 @@ const BrowseCandidates: React.FC = () => {
           liked_whv_id: candidateId,
           liked_job_post_id: selectedJobId,
         });
+
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
         );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-        );
+
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
@@ -227,7 +210,7 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ---------- filters ----------
+  // ---------- filter logic ----------
   const handleApplyFilters = async (filters: any) => {
     await fetchCandidates(filters);
     setShowFilters(false);
@@ -248,11 +231,10 @@ const BrowseCandidates: React.FC = () => {
       case "p_filter_license_ids":
         return `License: ${licensesMap[Number(v)] || v}`;
       case "p_filter_state":
-        return v;
       case "p_filter_suburb_city_postcode":
         return v;
       case "p_filter_work_years_experience":
-        return `Years: ${v}`;
+        return `Experience: ${v}`;
       default:
         return `${k}: ${v}`;
     }
@@ -267,6 +249,11 @@ const BrowseCandidates: React.FC = () => {
       />
     );
   }
+
+  const dropdownClasses =
+    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
+  const itemClasses =
+    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -288,7 +275,7 @@ const BrowseCandidates: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
             </div>
 
-            {/* Job Post Selector */}
+            {/* Job Selector */}
             <div className="px-6 mb-4">
               <Select
                 onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -297,17 +284,22 @@ const BrowseCandidates: React.FC = () => {
                 <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                   <SelectValue placeholder="Select an active job post" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={dropdownClasses}>
                   {jobPosts.map((job) => (
-                    <SelectItem key={job.job_id} value={String(job.job_id)}>
-                      {job.industry_role?.role || "Unknown Role"} – {job.description}
+                    <SelectItem
+                      key={job.job_id}
+                      value={String(job.job_id)}
+                      className={itemClasses}
+                    >
+                      {job.industry_role?.role || "Unknown Role"} –{" "}
+                      {job.description || `Job #${job.job_id}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Search and Filter */}
+            {/* Search */}
             <div className="relative mb-2 px-6">
               <Search
                 className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400"
@@ -332,13 +324,12 @@ const BrowseCandidates: React.FC = () => {
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
                   if (!v) return null;
-                  const value = String(v);
                   return (
                     <span
                       key={k}
                       className="flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
                     >
-                      {chipLabel(k, value)}
+                      {chipLabel(k, String(v))}
                       <X
                         size={12}
                         className="cursor-pointer"
@@ -359,7 +350,7 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidates List */}
+            {/* Candidate Cards */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -379,7 +370,7 @@ const BrowseCandidates: React.FC = () => {
                       <img
                         src={c.profileImage}
                         alt={c.name}
-                        className="w-14 h-14 rounded-lg object-cover mt-1"
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
                         }}
@@ -388,28 +379,23 @@ const BrowseCandidates: React.FC = () => {
                         <h3 className="font-semibold text-gray-900 text-lg truncate">
                           {c.name}
                         </h3>
-                        <p className="text-sm text-gray-600">
-                          <strong>Preferred Locations:</strong>{" "}
-                          {(c.preferredLocations || []).join(", ")}
+                        <p className="flex items-center text-sm text-gray-600 mt-1">
+                          <MapPin className="w-4 h-4 mr-1 text-gray-400" />
+                          {(c.preferredLocations as string[])?.join(", ") ||
+                            "No preferred locations"}
                         </p>
-                        <p className="text-sm text-gray-600">
-                          <strong>Preferred Industries:</strong>{" "}
-                          {(c.industries || []).join(", ")}
+                        <p className="flex items-center text-sm text-gray-600 mt-1">
+                          <Briefcase className="w-4 h-4 mr-1 text-gray-400" />
+                          {(c.industries as string[])?.join(", ") || "No industries set"}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 mt-1">
                           <strong>Experience:</strong> {c.experiences}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          <strong>Licenses:</strong>{" "}
-                          {(c.licenses || []).join(", ")}
                         </p>
 
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
-                              navigate(
-                                `/short-candidate-profile/${c.user_id}?from=browse-candidates`
-                              )
+                              navigate(`/short-candidate-profile/${c.user_id}?from=browse-candidates`)
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >
@@ -417,13 +403,11 @@ const BrowseCandidates: React.FC = () => {
                           </Button>
                           <button
                             onClick={() => handleLikeCandidate(c.user_id)}
-                            className="h-10 w-10 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
                               size={20}
-                              className={
-                                c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"
-                              }
+                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         </div>
@@ -440,7 +424,6 @@ const BrowseCandidates: React.FC = () => {
             <BottomNavigation />
           </div>
 
-          {/* Like Confirmation */}
           <LikeConfirmationModal
             candidateName={likedCandidateName}
             onClose={() => setShowLikeModal(false)}
