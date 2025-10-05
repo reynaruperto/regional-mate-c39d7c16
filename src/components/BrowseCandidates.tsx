@@ -251,7 +251,7 @@ const BrowseCandidates: React.FC = () => {
                 <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                   <SelectValue placeholder="Select an active job post" />
                 </SelectTrigger>
-                <SelectContent className="max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className="max-h-60 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg z-[9999]">
                   {jobPosts.map((job) => (
                     <SelectItem
                       key={job.job_id}

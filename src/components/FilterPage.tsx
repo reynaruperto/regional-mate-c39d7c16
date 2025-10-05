@@ -90,15 +90,46 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
 
   // ✅ Apply filters and return results + labels
   const applyFilters = async () => {
-    const cleaned = Object.fromEntries(
-      Object.entries(selectedFilters).filter(([_, v]) => v && v.toString().trim() !== "")
-    );
-
     try {
-      // 🟢 Call RPC to get filtered candidates
-      const { data, error } = await (supabase as any).rpc("filter_makers_for_employer", cleaned);
+      // 🟢 Build filter parameters matching filter_candidates function
+      const filterParams: any = {};
+      
+      if (selectedFilters.p_filter_state) {
+        filterParams.p_filter_state = selectedFilters.p_filter_state;
+      }
+      if (selectedFilters.p_filter_suburb_city_postcode) {
+        filterParams.p_filter_suburb_city = selectedFilters.p_filter_suburb_city_postcode;
+      }
+      if (selectedFilters.p_filter_industry_ids) {
+        filterParams.p_filter_industry_ids = [Number(selectedFilters.p_filter_industry_ids)];
+      }
+      if (selectedFilters.p_filter_work_years_experience) {
+        filterParams.p_filter_years_experience = selectedFilters.p_filter_work_years_experience;
+      }
+
+      // 🟢 Call RPC to get filtered candidate IDs
+      const { data: candidateIds, error } = await (supabase as any).rpc("filter_candidates", filterParams);
       if (error) {
         console.error("Error filtering candidates:", error);
+        return;
+      }
+
+      // 🟢 Fetch full candidate details for filtered IDs
+      const { data: candidates, error: fetchError } = await supabase
+        .from("whv_maker")
+        .select(`
+          user_id,
+          given_name,
+          profile_photo,
+          maker_pref_industry(industry(name)),
+          maker_pref_location(state),
+          maker_work_experience(industry(name)),
+          maker_license(license(name))
+        `)
+        .in("user_id", (candidateIds || []).map((c: any) => c.user_id));
+
+      if (fetchError) {
+        console.error("Error fetching candidate details:", fetchError);
         return;
       }
 
@@ -118,7 +149,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
       };
 
       // 🟢 Send both candidates + filters to parent
-      onResults(data || [], appliedFilters);
+      onResults(candidates || [], appliedFilters);
       onClose();
     } catch (err) {
       console.error("Unexpected filter error:", err);
@@ -159,7 +190,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+        <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-60 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm z-[9999]">
           {items.length > 0 ? (
             items.map((item) =>
               isObject ? (
