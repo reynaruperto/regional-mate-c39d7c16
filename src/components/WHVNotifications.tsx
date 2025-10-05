@@ -21,7 +21,7 @@ const WHVNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Load user and notifications once
+  // ✅ Fetch user + notifications
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -29,17 +29,18 @@ const WHVNotifications: React.FC = () => {
 
       setUserId(user.id);
 
-      const { data, error } = await supabase
+      // Fetch notifications (bypass type check)
+      const { data: notifData, error: notifErr } = await (supabase as any)
         .from("notifications")
         .select("*")
         .eq("recipient_id", user.id)
         .eq("recipient_type", "whv")
         .order("created_at", { ascending: false });
 
-      if (!error && data) setNotifications(data);
+      if (!notifErr && notifData) setNotifications(notifData);
 
-      // Fetch notification setting
-      const { data: setting } = await supabase
+      // Fetch notification setting (bypass type check)
+      const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
@@ -52,7 +53,7 @@ const WHVNotifications: React.FC = () => {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Realtime subscription for new notifications
+  // ✅ Real-time notification updates
   useEffect(() => {
     if (!userId) return;
 
@@ -77,12 +78,12 @@ const WHVNotifications: React.FC = () => {
     };
   }, [userId]);
 
-  // Toggle on/off
+  // ✅ Toggle notification setting
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("notification_setting")
       .upsert({
         user_id: userId,
@@ -90,14 +91,14 @@ const WHVNotifications: React.FC = () => {
         notifications_enabled: value,
       });
 
-    if (error) console.error("Error updating notification setting:", error);
+    if (error) console.error("Error updating setting:", error);
   };
 
-  // Mark as read + navigate
+  // ✅ Mark notification as read and navigate
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
-    await supabase.rpc("mark_notification_read", {
+    await (supabase as any).rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
@@ -107,7 +108,6 @@ const WHVNotifications: React.FC = () => {
       )
     );
 
-    // Navigation
     if (notification.job_id) {
       if (notification.type === "mutual_match") {
         navigate(`/whv/job-full/${notification.job_id}`, {
