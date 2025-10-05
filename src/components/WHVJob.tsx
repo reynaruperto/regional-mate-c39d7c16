@@ -167,24 +167,33 @@ const WHVJobPreview: React.FC = () => {
 
     try {
       if (jobDetails.isLiked) {
-        await supabase
+        const { error } = await supabase
           .from("likes")
           .delete()
           .eq("liker_id", whvId)
           .eq("liker_type", "whv")
           .eq("liked_job_post_id", Number(jobDetails.job_id));
 
-        // TS-safe state update (avoids spreading possibly-null)
+        if (error) {
+          console.error("Error deleting like:", error);
+          return;
+        }
+
         setJobDetails((prev) => (prev ? { ...prev, isLiked: false } : prev));
       } else {
-        // IMPORTANT: use liked_job_post_id (NOT job_post_id), and ensure BIGINT with Number()
-        await supabase.from("likes").insert({
+        const { data, error } = await supabase.from("likes").insert({
           liker_id: whvId,
           liker_type: "whv",
           liked_job_post_id: Number(jobDetails.job_id),
           liked_whv_id: null,
         });
 
+        if (error) {
+          console.error("Error inserting like:", error);
+          return;
+        }
+
+        console.log("Like saved successfully:", data);
         setJobDetails((prev) => (prev ? { ...prev, isLiked: true } : prev));
         setShowLikeModal(true);
       }
