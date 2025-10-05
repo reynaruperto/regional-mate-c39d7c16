@@ -16,6 +16,7 @@ interface Candidate {
   industries: string[];
   locations: string[];
   experience_summary: string;
+  licenses: string[];
   isLiked?: boolean;
 }
 
@@ -27,7 +28,7 @@ const BrowseCandidates: React.FC = () => {
   const [likedCandidateName, setLikedCandidateName] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
-  const [filters, setFilters] = useState<any>({});
+  const [filters, setFilters] = useState<Record<string, any>>({});
   const [employerId, setEmployerId] = useState<string | null>(null);
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -75,7 +76,6 @@ const BrowseCandidates: React.FC = () => {
       return;
     }
 
-    // Likes
     const { data: likes } = await supabase
       .from("likes")
       .select("liked_whv_id")
@@ -91,6 +91,7 @@ const BrowseCandidates: React.FC = () => {
       profile_photo: resolvePhoto(m.profile_photo),
       industries: m.industry_pref || [],
       locations: m.state_pref || [],
+      licenses: m.license_pref || [],
       experience_summary: Array.isArray(m.work_experience)
         ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
         : "No experience listed",
@@ -124,9 +125,6 @@ const BrowseCandidates: React.FC = () => {
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
         );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
-        );
       } else {
         await supabase.from("likes").insert({
           liker_id: employerId,
@@ -138,9 +136,6 @@ const BrowseCandidates: React.FC = () => {
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
         );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-        );
 
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
@@ -150,7 +145,7 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ✅ Filter chip logic
+  // ✅ Filters
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null, [`${key}Label`]: null };
     const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
@@ -163,21 +158,24 @@ const BrowseCandidates: React.FC = () => {
     fetchCandidates({});
   };
 
-  // ✅ Chips
-  const filterChips = [
-    filters.industryLabel && { key: "industry", label: filters.industryLabel },
-    filters.state && { key: "state", label: filters.state },
-    filters.suburbCityPostcode && { key: "suburbCityPostcode", label: filters.suburbCityPostcode },
-    filters.experience && { key: "experience", label: filters.experience },
-    filters.licenseLabel && { key: "license", label: filters.licenseLabel },
-  ].filter(Boolean) as { key: string; label: string }[];
+  // ✅ Chips with all label types
+  const filterChips = useMemo(() => {
+    if (!filters) return [];
+    return [
+      filters.industryLabel && { key: "industry", label: filters.industryLabel },
+      filters.licenseLabel && { key: "license", label: filters.licenseLabel },
+      filters.state && { key: "state", label: filters.state },
+      filters.suburbCityPostcode && { key: "suburbCityPostcode", label: filters.suburbCityPostcode },
+      filters.experience && { key: "experience", label: filters.experience },
+    ].filter(Boolean) as { key: string; label: string }[];
+  }, [filters]);
 
   // ✅ Search logic
   const visibleCandidates = useMemo(() => {
     if (!searchQuery) return candidates;
     const q = searchQuery.toLowerCase();
     return candidates.filter((c) =>
-      [c.name, ...c.industries, ...c.locations, c.experience_summary]
+      [c.name, ...c.industries, ...c.locations, ...c.licenses, c.experience_summary]
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(q))
     );
@@ -189,7 +187,7 @@ const BrowseCandidates: React.FC = () => {
       onApplyFilters={(filtered, appliedFilters) => {
         setCandidates(filtered);
         setAllCandidates(filtered);
-        setFilters(appliedFilters);
+        setFilters(appliedFilters || {});
         setShowFilters(false);
       }}
     />
@@ -234,7 +232,7 @@ const BrowseCandidates: React.FC = () => {
                 size={20}
               />
               <Input
-                placeholder="Search for candidates..."
+                placeholder="Search candidates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
@@ -247,7 +245,7 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
-            {/* Chips */}
+            {/* Filter Chips */}
             {filterChips.length > 0 && (
               <div className="flex flex-wrap gap-2 px-6 mb-2">
                 {filterChips.map((chip) => (
@@ -279,11 +277,11 @@ const BrowseCandidates: React.FC = () => {
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>Select a job post above to view matching candidates.</p>
+                  <p>Select a job post above to view candidates.</p>
                 </div>
               ) : visibleCandidates.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>No candidates found. Try adjusting your search or filters.</p>
+                  <p>No candidates found.</p>
                 </div>
               ) : (
                 visibleCandidates.map((c) => (
@@ -303,12 +301,17 @@ const BrowseCandidates: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <h2 className="text-lg font-bold text-gray-900">{c.name}</h2>
                         <p className="text-sm text-gray-600">
-                          {c.industries.join(", ") || "No industry preferences"}
+                          Industries: {c.industries.join(", ") || "None listed"}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {c.locations.join(", ") || "No preferred locations"}
+                          Locations: {c.locations.join(", ") || "None listed"}
                         </p>
-                        <p className="text-sm text-gray-500 mt-1">{c.experience_summary}</p>
+                        <p className="text-sm text-gray-500">
+                          Licenses: {c.licenses.join(", ") || "None"}
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Experience: {c.experience_summary}
+                        </p>
 
                         <div className="flex items-center gap-3 mt-3">
                           <Button
