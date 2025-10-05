@@ -15,10 +15,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface NotificationItem {
   id: number;
-  type: "whv_like" | "mutual_match";
+  type: "job_like" | "mutual_match" | "maker_like";
   title: string;
   message: string;
-  whv_id: string | null;
+  sender_id: string;
+  sender_type: string;
+  recipient_id: string;
+  recipient_type: string;
   job_id: number | null;
   read_at: string | null;
   created_at: string;
@@ -112,12 +115,12 @@ const EmployerNotifications: React.FC = () => {
       )
     );
 
-    if (notification.type === "mutual_match" && notification.whv_id) {
-      navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
+    if (notification.type === "mutual_match" && notification.sender_id) {
+      navigate(`/employer/full-candidate-profile/${notification.sender_id}`, {
         state: { from: "notifications" },
       });
-    } else if (notification.type === "whv_like" && notification.whv_id) {
-      navigate(`/short-candidate-profile/${notification.whv_id}`, {
+    } else if (notification.type === "job_like" && notification.sender_id) {
+      navigate(`/short-candidate-profile/${notification.sender_id}`, {
         state: { from: "notifications" },
       });
     }
@@ -126,7 +129,7 @@ const EmployerNotifications: React.FC = () => {
   // ---------- Notification icons ----------
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "whv_like":
+      case "job_like":
         return <Heart className="w-5 h-5 text-red-500" />;
       case "mutual_match":
         return <Heart className="w-5 h-5 text-pink-500" />;
