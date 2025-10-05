@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ interface Candidate {
 
 const BrowseCandidates: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -157,6 +158,18 @@ const BrowseCandidates: React.FC = () => {
 
   useEffect(() => {
     if (employerId && selectedJobId) fetchCandidates();
+  }, [employerId, selectedJobId]);
+
+  // Re-fetch when returning from profile page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && employerId && selectedJobId) {
+        fetchCandidates();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [employerId, selectedJobId]);
 
   useEffect(() => {
