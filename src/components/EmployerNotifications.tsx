@@ -115,7 +115,7 @@ const EmployerNotifications: React.FC = () => {
       )
     );
 
-    if (notification.type === "mutual_match" && notification.sender_id) {
+    if (notification.type === "maker_like" && notification.sender_id) {
       navigate(`/employer/full-candidate-profile/${notification.sender_id}`, {
         state: { from: "notifications", jobId: notification.job_id },
       });
@@ -131,7 +131,7 @@ const EmployerNotifications: React.FC = () => {
     switch (type) {
       case "job_like":
         return <Heart className="w-5 h-5 text-red-500" />;
-      case "mutual_match":
+      case "maker_like":
         return <Heart className="w-5 h-5 text-pink-500" />;
       default:
         return <User className="w-5 h-5 text-gray-500" />;
