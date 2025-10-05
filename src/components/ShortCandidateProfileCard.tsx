@@ -39,10 +39,16 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     // Get job ID from navigation state or search params
     const jobIdFromState = (location.state as any)?.jobId;
     const jobIdFromParams = searchParams.get("jobId");
+    
+    console.log("ShortCandidateProfile - jobIdFromState:", jobIdFromState);
+    console.log("ShortCandidateProfile - jobIdFromParams:", jobIdFromParams);
+    
     if (jobIdFromState) {
       setSelectedJobId(String(jobIdFromState));
+      console.log("ShortCandidateProfile - Set selectedJobId from state:", String(jobIdFromState));
     } else if (jobIdFromParams) {
       setSelectedJobId(jobIdFromParams);
+      console.log("ShortCandidateProfile - Set selectedJobId from params:", jobIdFromParams);
     }
   }, [location.state, searchParams]);
 
@@ -130,7 +136,11 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   }, [candidateId]);
 
   const handleLikeCandidate = async () => {
+    console.log("handleLikeCandidate - employerId:", employerId);
+    console.log("handleLikeCandidate - selectedJobId:", selectedJobId);
+    
     if (!employerId || !selectedJobId) {
+      console.error("Missing required data - employerId:", employerId, "selectedJobId:", selectedJobId);
       alert("Please select a job post first.");
       return;
     }
