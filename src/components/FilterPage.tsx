@@ -13,16 +13,16 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface FilterPageProps {
   onClose: () => void;
-  onApplyFilters: (filters: any) => void;
+  onResults: (filteredCandidates: any[], appliedFilters: any) => void;
 }
 
-const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
+const FilterPage: React.FC<FilterPageProps> = ({ onClose, onResults }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     p_filter_state: "",
     p_filter_suburb_city_postcode: "",
     p_filter_work_industry_id: "",
     p_filter_work_years_experience: "",
-    p_filter_industry_ids: "",   // Preferred Industry
+    p_filter_industry_ids: "",
     p_filter_license_ids: "",
   });
 
@@ -38,11 +38,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       const { data, error } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode");
-
-      if (error) {
-        console.error("Error fetching locations:", error);
-        return;
-      }
+      if (error) return console.error("Error fetching locations:", error);
 
       if (data) {
         setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
@@ -57,7 +53,6 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
         ]);
       }
     };
-
     fetchLocations();
   }, []);
 
@@ -65,15 +60,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase.from("industry").select("industry_id, name");
-
-      if (error) {
-        console.error("Error fetching industries:", error);
-        return;
-      }
-
-      if (data) {
-        setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
-      }
+      if (error) return console.error("Error fetching industries:", error);
+      if (data) setIndustries(data.map((r) => ({ id: r.industry_id, name: r.name })));
     };
     fetchIndustries();
   }, []);
@@ -82,13 +70,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   useEffect(() => {
     const fetchLicenses = async () => {
       const { data, error } = await supabase.from("license").select("license_id, name");
-      if (error) {
-        console.error("Error fetching licenses:", error);
-        return;
-      }
-      if (data) {
-        setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
-      }
+      if (error) return console.error("Error fetching licenses:", error);
+      if (data) setLicenses(data.map((r) => ({ id: r.license_id, name: r.name })));
     };
     fetchLicenses();
   }, []);
@@ -105,12 +88,42 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     }));
   };
 
-  const applyFilters = () => {
+  // ✅ Apply filters and return results + labels
+  const applyFilters = async () => {
     const cleaned = Object.fromEntries(
       Object.entries(selectedFilters).filter(([_, v]) => v && v.toString().trim() !== "")
     );
-    onApplyFilters(cleaned);
-    onClose();
+
+    try {
+      // 🟢 Call RPC to get filtered candidates
+      const { data, error } = await (supabase as any).rpc("filter_makers_for_employer", cleaned);
+      if (error) {
+        console.error("Error filtering candidates:", error);
+        return;
+      }
+
+      // 🟢 Build human-readable labels
+      const appliedFilters = {
+        ...cleaned,
+        industryLabel:
+          industries.find((i) => i.id === Number(selectedFilters.p_filter_industry_ids))
+            ?.name || "",
+        workIndustryLabel:
+          industries.find((i) => i.id === Number(selectedFilters.p_filter_work_industry_id))
+            ?.name || "",
+        licenseLabel:
+          licenses.find((l) => l.id === Number(selectedFilters.p_filter_license_ids))?.name || "",
+        state: selectedFilters.p_filter_state || "",
+        suburbCityPostcode: selectedFilters.p_filter_suburb_city_postcode || "",
+        yearsExperience: selectedFilters.p_filter_work_years_experience || "",
+      };
+
+      // 🟢 Send both candidates + filters to parent
+      onResults(data || [], appliedFilters);
+      onClose();
+    } catch (err) {
+      console.error("Unexpected filter error:", err);
+    }
   };
 
   const clearFilters = () => {
@@ -191,9 +204,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               <button onClick={onClose}>
                 <ArrowLeft size={24} className="text-gray-600" />
               </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Candidate Filters
-              </h1>
+              <h1 className="text-lg font-medium text-gray-900">Candidate Filters</h1>
             </div>
           </div>
 
@@ -204,14 +215,14 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               items={industries}
               category="p_filter_work_industry_id"
               placeholder="Any industry"
-              isObject={true}
+              isObject
             />
             <DropdownSection
               title="Preferred Industry"
               items={industries}
               category="p_filter_industry_ids"
               placeholder="Any preferred industry"
-              isObject={true}
+              isObject
             />
             <DropdownSection
               title="Candidate State"
@@ -230,7 +241,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               items={licenses}
               category="p_filter_license_ids"
               placeholder="Any license"
-              isObject={true}
+              isObject
             />
             <DropdownSection
               title="Years of Work Experience"

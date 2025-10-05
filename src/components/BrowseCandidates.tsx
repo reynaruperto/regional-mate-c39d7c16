@@ -24,7 +24,7 @@ interface Candidate {
   workExpIndustries: string[];
   experiences: string;
   preferredLocations: string[];
-  licenses: (string | number)[];
+  licenses: string[];
   isLiked?: boolean;
 }
 
@@ -44,46 +44,46 @@ const BrowseCandidates: React.FC = () => {
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
-  const [licensesMap, setLicensesMap] = useState<Record<number, string>>({});
-  const [industriesMap, setIndustriesMap] = useState<Record<number, string>>({});
-
-  // ---------- helpers ----------
+  // ---------- helper ----------
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/default-avatar.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  const mapLicenses = (ids: (string | number)[]) => {
-    if (!Array.isArray(ids) || ids.length === 0) return "None listed";
-    const names = ids.map((id) => licensesMap[Number(id)] || id).filter(Boolean);
-    return names.length ? names.join(", ") : "None listed";
-  };
+  const mapRowsToCandidates = (rows: any[]): Candidate[] =>
+    (rows || []).map((row: any) => {
+      const workExp = Array.isArray(row.work_experience) ? row.work_experience : [];
+      const workExpIndustries = workExp.map((we: any) => we?.industry).filter(Boolean);
+      const experiences =
+        workExp.length > 0
+          ? workExp.map((we: any) => `${we?.industry}: ${we?.years}`).join(", ")
+          : "No experience listed";
+
+      const licenses = Array.isArray(row.licenses)
+        ? row.licenses.map((l: any) => l.name)
+        : row.license_names
+        ? row.license_names.split(",")
+        : [];
+
+      return {
+        user_id: row.maker_id || row.user_id,
+        name: row.given_name,
+        profileImage: resolvePhoto(row.profile_photo),
+        industries: (row.industry_pref as string[]) || [],
+        workExpIndustries,
+        experiences,
+        preferredLocations: (row.state_pref as string[]) || [],
+        licenses,
+        isLiked: false,
+      };
+    });
 
   // ---------- auth ----------
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
-    })();
-  }, []);
-
-  // ---------- lookups ----------
-  useEffect(() => {
-    (async () => {
-      const { data: inds } = await supabase.from("industry").select("industry_id, name");
-      const indMap = (inds || []).reduce((acc: Record<number, string>, i: any) => {
-        acc[i.industry_id] = i.name;
-        return acc;
-      }, {});
-      setIndustriesMap(indMap);
-
-      const { data: lic } = await supabase.from("license").select("license_id, name");
-      const licMap = (lic || []).reduce((acc: Record<number, string>, l: any) => {
-        acc[l.license_id] = l.name;
-        return acc;
-      }, {});
-      setLicensesMap(licMap);
     })();
   }, []);
 
@@ -100,16 +100,14 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- fetch candidates ----------
-  const fetchCandidates = async (filters: any = {}) => {
+  // ---------- fetch all candidates ----------
+  const fetchCandidates = async () => {
     if (!employerId || !selectedJobId) return;
 
     const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
       p_emp_id: employerId,
       p_job_id: selectedJobId,
-      ...filters,
     });
-
     if (error) {
       console.error("Eligible makers RPC error:", error);
       return;
@@ -123,23 +121,9 @@ const BrowseCandidates: React.FC = () => {
       .eq("liked_job_post_id", selectedJobId);
 
     const likedIds = likes?.map((l) => l.liked_whv_id) || [];
-
-    const mapped = (makers || []).map((row: any) => ({
-      user_id: row.maker_id || row.user_id,
-      name: row.given_name || "Unnamed",
-      profileImage: resolvePhoto(row.profile_photo),
-      industries: row.industry_pref || [],
-      workExpIndustries:
-        Array.isArray(row.work_experience) && row.work_experience.length > 0
-          ? row.work_experience.map((we: any) => we?.industry).filter(Boolean)
-          : [],
-      experiences:
-        Array.isArray(row.work_experience) && row.work_experience.length > 0
-          ? row.work_experience.map((we: any) => `${we?.industry}: ${we?.years}`).join(", ")
-          : "No experience listed",
-      preferredLocations: row.state_pref || [],
-      licenses: row.license_pref || [],
-      isLiked: likedIds.includes(row.maker_id || row.user_id),
+    const mapped = mapRowsToCandidates(makers || []).map((c) => ({
+      ...c,
+      isLiked: likedIds.includes(c.user_id),
     }));
 
     setCandidates(mapped);
@@ -147,13 +131,25 @@ const BrowseCandidates: React.FC = () => {
   };
 
   useEffect(() => {
-    if (employerId && selectedJobId) fetchCandidates(selectedFilters);
+    if (employerId && selectedJobId) fetchCandidates();
   }, [employerId, selectedJobId]);
+
+  // ---------- search ----------
+  const visibleCandidates = useMemo(() => {
+    if (!searchQuery) return candidates;
+    const q = searchQuery.toLowerCase();
+    return candidates.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.workExpIndustries.some((i) => i.toLowerCase().includes(q)) ||
+        c.preferredLocations.some((l) => l.toLowerCase().includes(q)) ||
+        c.licenses.some((l) => l.toLowerCase().includes(q))
+    );
+  }, [searchQuery, candidates]);
 
   // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
-
     const candidate = candidates.find((c) => c.user_id === candidateId);
     if (!candidate) return;
 
@@ -170,6 +166,9 @@ const BrowseCandidates: React.FC = () => {
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
         );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
       } else {
         await supabase.from("likes").insert({
           liker_id: employerId,
@@ -181,6 +180,10 @@ const BrowseCandidates: React.FC = () => {
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
         );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
@@ -189,79 +192,43 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ---------- filters ----------
-  const handleApplyFilters = async (filters: any) => {
-    setSelectedFilters(filters || {});
-    await fetchCandidates(filters);
-    setShowFilters(false);
-  };
-
-  const handleRemoveFilter = (key: string) => {
-    const updated = { ...selectedFilters };
-    delete updated[key];
-    setSelectedFilters(updated);
-    fetchCandidates(updated);
-  };
+  // ---------- filter chips ----------
+  const filterChips = [
+    selectedFilters.workIndustryLabel && { key: "workIndustryLabel", label: selectedFilters.workIndustryLabel },
+    selectedFilters.industryLabel && { key: "industryLabel", label: selectedFilters.industryLabel },
+    selectedFilters.licenseLabel && { key: "licenseLabel", label: selectedFilters.licenseLabel },
+    selectedFilters.state && { key: "state", label: selectedFilters.state },
+    selectedFilters.suburbCityPostcode && { key: "suburbCityPostcode", label: selectedFilters.suburbCityPostcode },
+    selectedFilters.yearsExperience && { key: "yearsExperience", label: selectedFilters.yearsExperience },
+  ].filter(Boolean);
 
   const handleClearFilters = () => {
     setSelectedFilters({});
-    fetchCandidates({});
+    fetchCandidates();
   };
-
-  // ---------- build chips ----------
-  const filterChips = useMemo(() => {
-    const chips: { key: string; label: string }[] = [];
-    if (selectedFilters.p_filter_industry_ids?.length > 0)
-      chips.push({ key: "p_filter_industry_ids", label: `Industry: ${selectedFilters.industryLabel || 'Selected'}` });
-    if (selectedFilters.p_filter_license_ids?.length > 0)
-      chips.push({ key: "p_filter_license_ids", label: `License: ${selectedFilters.licenseLabel || 'Selected'}` });
-    if (selectedFilters.p_filter_state)
-      chips.push({ key: "p_filter_state", label: `State: ${selectedFilters.p_filter_state}` });
-    if (selectedFilters.p_filter_suburb_city_postcode)
-      chips.push({ key: "p_filter_suburb_city_postcode", label: `Location: ${selectedFilters.p_filter_suburb_city_postcode}` });
-    if (selectedFilters.p_filter_work_years_experience)
-      chips.push({ key: "p_filter_work_years_experience", label: `Experience: ${selectedFilters.p_filter_work_years_experience}` });
-    return chips;
-  }, [selectedFilters]);
-
-  // ---------- search ----------
-  const visibleCandidates = useMemo(() => {
-    if (!searchQuery) return candidates;
-    const q = searchQuery.toLowerCase();
-    return candidates.filter((c) =>
-      [
-        c.name,
-        ...(c.industries || []),
-        ...(c.preferredLocations || []),
-        ...(c.licenses || []).map(String),
-        c.experiences || "",
-      ]
-        .filter(Boolean)
-        .some((f) => String(f).toLowerCase().includes(q))
-    );
-  }, [candidates, searchQuery]);
 
   // ---------- render ----------
   if (showFilters) {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
-        onApplyFilters={handleApplyFilters}
+        onResults={(filteredCandidates, appliedFilters) => {
+          setCandidates(filteredCandidates);
+          setAllCandidates(filteredCandidates);
+          setSelectedFilters(appliedFilters);
+          setShowFilters(false);
+        }}
       />
     );
   }
-
-  const dropdownClasses =
-    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
-  const itemClasses =
-    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
-          <div className="flex flex-col h-full bg-gray-50">
+
+          <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
               <Button
@@ -275,7 +242,7 @@ const BrowseCandidates: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
             </div>
 
-            {/* Job Selector */}
+            {/* Job Post Selector */}
             <div className="px-6 mb-4">
               <Select
                 onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -284,22 +251,21 @@ const BrowseCandidates: React.FC = () => {
                 <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                   <SelectValue placeholder="Select an active job post" />
                 </SelectTrigger>
-                <SelectContent className={dropdownClasses}>
+                <SelectContent className="max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
                   {jobPosts.map((job) => (
                     <SelectItem
                       key={job.job_id}
                       value={String(job.job_id)}
-                      className={itemClasses}
+                      className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
                     >
-                      {job.industry_role?.role || "Unknown Role"} –{" "}
-                      {job.description || `Job #${job.job_id}`}
+                      {job.industry_role?.role || "Unknown Role"} – {job.description || `Job #${job.job_id}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Search + Filter */}
+            {/* Search */}
             <div className="relative mb-2 px-6">
               <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
@@ -308,15 +274,12 @@ const BrowseCandidates: React.FC = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
               />
-              <button
-                onClick={() => setShowFilters(true)}
-                className="absolute right-9 top-1/2 -translate-y-1/2"
-              >
+              <button onClick={() => setShowFilters(true)} className="absolute right-9 top-1/2 -translate-y-1/2">
                 <Filter className="text-gray-400" size={20} />
               </button>
             </div>
 
-            {/* Filter Chips */}
+            {/* Chips */}
             {filterChips.length > 0 && (
               <div className="flex flex-wrap gap-2 px-6 mb-2">
                 {filterChips.map((chip) => (
@@ -327,7 +290,7 @@ const BrowseCandidates: React.FC = () => {
                     {chip.label}
                     <button
                       className="ml-2 text-orange-600 hover:text-orange-900"
-                      onClick={() => handleRemoveFilter(chip.key)}
+                      onClick={() => handleClearFilters()}
                     >
                       <X size={12} />
                     </button>
@@ -344,18 +307,19 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidate Cards */}
+            {/* Candidates */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
-              {visibleCandidates.length === 0 ? (
+              {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
-                  <p>No candidates found. Try adjusting your filters.</p>
+                  <p>Please select a job post above to view matching candidates.</p>
+                </div>
+              ) : visibleCandidates.length === 0 ? (
+                <div className="text-center text-gray-600 mt-10">
+                  <p>No candidates match this job yet.</p>
                 </div>
               ) : (
                 visibleCandidates.map((c) => (
-                  <div
-                    key={c.user_id}
-                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
-                  >
+                  <div key={c.user_id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
                     <div className="flex gap-3 items-start">
                       <img
                         src={c.profileImage}
@@ -369,23 +333,16 @@ const BrowseCandidates: React.FC = () => {
                         <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
 
                         <p className="text-sm text-gray-600">
-                          <strong>Preferred Locations:</strong>{" "}
-                          {(c.preferredLocations || []).join(", ") || "Not specified"}
+                          <strong>Preferred Locations:</strong> {c.preferredLocations.join(", ") || "Not specified"}
                         </p>
-
                         <p className="text-sm text-gray-600">
-                          <strong>Preferred Industries:</strong>{" "}
-                          {(c.industries || []).join(", ") || "No preferences"}
+                          <strong>Preferred Industries:</strong> {c.industries.join(", ") || "No preferences"}
                         </p>
-
-                        {c.licenses && c.licenses.length > 0 && (
-                          <p className="text-sm text-gray-600">
-                            <strong>Licenses:</strong> {mapLicenses(c.licenses)}
-                          </p>
-                        )}
-
                         <p className="text-sm text-gray-600">
                           <strong>Experience:</strong> {c.experiences}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <strong>Licenses:</strong> {c.licenses.join(", ") || "None listed"}
                         </p>
 
                         <div className="flex items-center gap-3 mt-3">
@@ -403,9 +360,7 @@ const BrowseCandidates: React.FC = () => {
                           >
                             <Heart
                               size={20}
-                              className={
-                                c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"
-                              }
+                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         </div>
