@@ -22,7 +22,7 @@ const WHVNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ✅ Fetch user and initial notifications
+  // ✅ Fetch user and notifications
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -54,7 +54,7 @@ const WHVNotifications: React.FC = () => {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Real-time notifications (instant updates)
+  // ✅ Real-time notifications
   useEffect(() => {
     if (!userId) return;
 
@@ -69,8 +69,6 @@ const WHVNotifications: React.FC = () => {
         },
         (payload) => {
           const newNotif = payload.new as any;
-
-          // only for this user
           if (newNotif?.recipient_id === userId) {
             if (payload.eventType === "INSERT") {
               setNotifications((prev) => [newNotif, ...prev]);
@@ -109,34 +107,43 @@ const WHVNotifications: React.FC = () => {
     if (error) console.error("Error updating setting:", error);
   };
 
-  // ✅ Mark notification as read & navigate
+  // ✅ Mark as read & navigate to correct screen
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
+    // Mark as read
     await (supabase as any).rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
+    // Update UI
     setNotifications((prev) =>
       prev.map((n) =>
         n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n
       )
     );
 
+    // Navigate by type
     if (notification.job_id) {
-      if (notification.type === "mutual_match") {
-        navigate(`/whv/job-full/${notification.job_id}`, {
-          state: { from: "notifications" },
-        });
-      } else {
-        navigate(`/whv/job/${notification.job_id}`, {
-          state: { from: "notifications" },
-        });
+      switch (notification.type) {
+        case "mutual_match":
+          navigate(`/whv/job-full/${notification.job_id}`, {
+            state: { from: "notifications" },
+          });
+          break;
+        case "job_like":
+        case "maker_like":
+          navigate(`/whv/job/${notification.job_id}`, {
+            state: { from: "notifications" },
+          });
+          break;
+        default:
+          break;
       }
     }
   };
 
-  // ✅ Icons per type
+  // ✅ Notification icons
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "job_like":
@@ -168,7 +175,9 @@ const WHVNotifications: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Notifications
+              </h1>
             </div>
 
             {/* Toggle */}
@@ -218,7 +227,13 @@ const WHVNotifications: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center mb-1">
-                          <h4 className="font-semibold text-gray-900">
+                          <h4
+                            className={`font-semibold ${
+                              n.type === "mutual_match"
+                                ? "text-pink-600"
+                                : "text-gray-900"
+                            }`}
+                          >
                             {n.title || "Notification"}
                           </h4>
                           {!n.read_at && (
