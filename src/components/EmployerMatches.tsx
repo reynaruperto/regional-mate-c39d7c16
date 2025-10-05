@@ -84,6 +84,7 @@ const EmployerMatches: React.FC = () => {
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
+      console.log("[DEBUG] Fetching matches for job ID:", selectedJobId);
       const { data, error } = await (supabase as any).rpc("fetch_job_matches", {
         p_job_id: selectedJobId,
       });
@@ -91,8 +92,11 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching matches:", error);
         return;
       }
+      console.log("[DEBUG] Raw matches data:", data);
+      console.log("[DEBUG] First match maker_id:", data?.[0]?.maker_id);
+      console.log("[DEBUG] First match whv_id:", data?.[0]?.whv_id);
       const formatted = (data || []).map((m: any) => ({
-        id: m.maker_id,
+        id: m.maker_id || m.whv_id,
         name: m.given_name,
         profileImage: resolvePhoto(m.profile_photo),
         preferredLocations: m.state_pref || [],
@@ -102,6 +106,8 @@ const EmployerMatches: React.FC = () => {
           : "No experience listed",
         isMutualMatch: true,
       }));
+      console.log("[DEBUG] Formatted matches:", formatted);
+      console.log("[DEBUG] First formatted match ID:", formatted?.[0]?.id);
       setMatches(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
@@ -110,6 +116,7 @@ const EmployerMatches: React.FC = () => {
   useEffect(() => {
     if (!selectedJobId) return;
     (async () => {
+      console.log("[DEBUG] Fetching recommendations for job ID:", selectedJobId);
       const { data, error } = await (supabase as any).rpc("fetch_job_recommendations", {
         p_job_id: selectedJobId,
       });
@@ -117,8 +124,9 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching recommendations:", error);
         return;
       }
+      console.log("[DEBUG] Raw recommendations data:", data);
       const formatted = (data || []).map((r: any) => ({
-        id: r.maker_id,
+        id: r.maker_id || r.whv_id,
         name: r.given_name,
         profileImage: resolvePhoto(r.profile_photo),
         preferredLocations: r.state_pref || [],
@@ -128,6 +136,7 @@ const EmployerMatches: React.FC = () => {
           : "No experience listed",
         matchPercentage: Math.round(r.match_score),
       }));
+      console.log("[DEBUG] Formatted recommendations:", formatted);
       setTopRecommended(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
@@ -182,9 +191,15 @@ const EmployerMatches: React.FC = () => {
 
   // ---------- View Profile ----------
   const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
+    console.log("[DEBUG] handleViewProfile called with id:", id, "isMutualMatch:", isMutualMatch);
+    if (!id) {
+      console.error("❌ Cannot navigate: candidate ID is undefined");
+      return;
+    }
     const route = isMutualMatch
       ? `/full-candidate-profile/${id}`
       : `/short-candidate-profile/${id}`;
+    console.log("[DEBUG] Navigating to:", `${route}?from=employer-matches&tab=${activeTab}`);
     navigate(`${route}?from=employer-matches&tab=${activeTab}`);
   };
 
