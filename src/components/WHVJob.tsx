@@ -39,15 +39,60 @@ const WHVJobPreview: React.FC = () => {
       if (!job_id) return;
       setLoading(true);
 
-      // ✅ bypass type-check for custom view
-      const { data: jobData, error } = await (supabase as any)
+      let jobData = null;
+      let error = null;
+
+      // Try to fetch from view
+      const { data: viewData, error: viewError } = await (supabase as any)
         .from("vw_jobs_with_employers")
         .select("*")
         .eq("job_id", Number(job_id))
         .maybeSingle();
 
+      if (viewData) {
+        jobData = viewData;
+      } else {
+        console.warn("vw_jobs_with_employers not found or empty, falling back to job + employer join");
+        // Fallback to direct join query
+        const { data: joinData, error: joinError } = await supabase
+          .from("job")
+          .select(
+            `
+            job_id,
+            description,
+            employment_type,
+            salary_range,
+            req_experience,
+            state,
+            suburb_city,
+            postcode,
+            start_date,
+            job_status,
+            industry_role_id,
+            user_id,
+            employer:employer_id (
+              company_name,
+              tagline,
+              company_photo
+            ),
+            industry:industry_id (industry),
+            industry_role:industry_role_id (role)
+          `
+          )
+          .eq("job_id", Number(job_id))
+          .maybeSingle();
+        jobData = joinData;
+        error = joinError;
+      }
+
       if (error) {
         console.error("Error fetching job:", error);
+        setLoading(false);
+        return;
+      }
+
+      if (!jobData) {
+        console.error("No job data found for id", job_id);
         setLoading(false);
         return;
       }
@@ -73,7 +118,7 @@ const WHVJobPreview: React.FC = () => {
     fetchJobAndLikes();
   }, [job_id, whvId]);
 
-  // ✅ Like / Unlike Logic (copied from Browse Jobs)
+  // ✅ Like / Unlike Logic (same as Browse Jobs)
   const handleLikeJob = async (targetJobId?: number) => {
     const jobIdNum = targetJobId ?? Number(job_id);
     if (!whvId || !jobIdNum) return;
@@ -89,7 +134,6 @@ const WHVJobPreview: React.FC = () => {
           .eq("liked_job_post_id", jobIdNum);
 
         setIsLiked(false);
-        console.log("💔 Like removed");
       } else {
         // Like
         const { error } = await supabase.from("likes").insert({
@@ -100,10 +144,8 @@ const WHVJobPreview: React.FC = () => {
         });
 
         if (error) throw error;
-
         setIsLiked(true);
         setShowLikeModal(true);
-        console.log("❤️ Like saved successfully!");
       }
     } catch (err) {
       console.error("Error toggling like:", err);
@@ -114,14 +156,14 @@ const WHVJobPreview: React.FC = () => {
   if (loading)
     return (
       <div className="flex justify-center items-center min-h-screen">
-        Loading...
+        <p className="text-gray-600">Loading...</p>
       </div>
     );
 
   if (!job)
     return (
       <div className="flex justify-center items-center min-h-screen">
-        Job not found.
+        <p className="text-gray-600">Job not found.</p>
       </div>
     );
 
@@ -146,10 +188,12 @@ const WHVJobPreview: React.FC = () => {
             {/* Job Header */}
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900">
-                {job.role || "Job Role"}
+                {job.role || job.industry_role?.role || "Job Role"}
               </h2>
               <p className="text-sm text-gray-600">
-                {job.company_name || "Employer not listed"}
+                {job.company_name ||
+                  job.employer?.company_name ||
+                  "Employer not listed"}
               </p>
               <p className="text-sm text-gray-500">
                 {job.suburb_city}, {job.state} {job.postcode}
@@ -214,7 +258,9 @@ const WHVJobPreview: React.FC = () => {
 
       {/* ✅ Like Confirmation Modal */}
       <LikeConfirmationModal
-        candidateName={job.role}
+        candidateName={
+          job.role || job.industry_role?.role || "Job successfully liked"
+        }
         onClose={() => setShowLikeModal(false)}
         isVisible={showLikeModal}
       />
