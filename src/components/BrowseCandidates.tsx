@@ -120,57 +120,32 @@ const BrowseCandidates: React.FC = () => {
   const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
-    try {
-      // Step 1: Get eligible makers first
-      const { data: eligibleMakers, error: err1 } = await (supabase as any).rpc(
-        "view_all_eligible_makers",
-        {
-          p_emp_id: employerId,
-          p_job_id: selectedJobId,
-        }
-      );
-      if (err1) throw err1;
-
-      // Step 2: Refine with filter_makers_for_employer (enrich details)
-      const { data: enrichedMakers, error: err2 } = await (supabase as any).rpc(
-        "filter_makers_for_employer",
-        {
-          p_emp_id: employerId,
-          p_job_id: selectedJobId,
-        }
-      );
-      if (err2) throw err2;
-
-      // Merge enriched data into eligible makers
-      const merged = (eligibleMakers || []).map((em: any) => {
-        const extra = (enrichedMakers || []).find(
-          (fm: any) => fm.maker_id === em.maker_id
-        );
-        return { ...em, ...extra };
-      });
-
-      // Step 3: Fetch likes
-      const { data: likes } = await supabase
-        .from("likes")
-        .select("liked_whv_id")
-        .eq("liker_id", employerId)
-        .eq("liker_type", "employer")
-        .eq("liked_job_post_id", selectedJobId);
-
-      const likedIds = likes?.map((l) => l.liked_whv_id) || [];
-
-      // Step 4: Map and set state
-      const mapped = (merged || []).map((row: any) => {
-        const c = mapRowsToCandidates([row])[0];
-        return { ...c, isLiked: likedIds.includes(c.user_id) };
-      });
-
-      setCandidates(mapped);
-      setAllCandidates(mapped);
-      setSelectedFilters(filters);
-    } catch (err) {
-      console.error("Error fetching candidates:", err);
+    const { data: makers, error } = await (supabase as any).rpc("filter_makers_for_employer", {
+      p_emp_id: employerId,
+      p_job_id: selectedJobId,
+    });
+    if (error) {
+      console.error("Eligible makers RPC error:", error);
+      return;
     }
+
+    const { data: likes } = await supabase
+      .from("likes")
+      .select("liked_whv_id")
+      .eq("liker_id", employerId)
+      .eq("liker_type", "employer")
+      .eq("liked_job_post_id", selectedJobId);
+
+    const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+
+    const mapped = (makers || []).map((row: any) => {
+      const c = mapRowsToCandidates([row])[0];
+      return { ...c, isLiked: likedIds.includes(c.user_id) };
+    });
+
+    setCandidates(mapped);
+    setAllCandidates(mapped);
+    setSelectedFilters(filters);
   };
 
   useEffect(() => {
@@ -210,7 +185,11 @@ const BrowseCandidates: React.FC = () => {
           .eq("liker_type", "employer")
           .eq("liked_whv_id", candidateId)
           .eq("liked_job_post_id", selectedJobId);
+
         setCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+        );
+        setAllCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
         );
       } else {
@@ -220,9 +199,14 @@ const BrowseCandidates: React.FC = () => {
           liked_whv_id: candidateId,
           liked_job_post_id: selectedJobId,
         });
+
         setCandidates((prev) =>
           prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
         );
+        setAllCandidates((prev) =>
+          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+        );
+
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
@@ -231,15 +215,51 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
+  // ---------- filters ----------
+  const handleApplyFilters = async (filters: any) => {
+    await fetchCandidates(filters);
+    setShowFilters(false);
+  };
+
+  const removeFilter = async (key: string) => {
+    const updated = { ...selectedFilters };
+    delete updated[key];
+    await fetchCandidates(updated);
+  };
+
+  const chipLabel = (k: string, v: string) => {
+    switch (k) {
+      case "p_filter_work_industry_id":
+        return `Work Exp Industry: ${industriesMap[Number(v)] || v}`;
+      case "p_filter_industry_ids":
+        return `Preferred Industry: ${industriesMap[Number(v)] || v}`;
+      case "p_filter_license_ids":
+        return `License: ${licensesMap[Number(v)] || v}`;
+      case "p_filter_state":
+        return v;
+      case "p_filter_suburb_city_postcode":
+        return v;
+      case "p_filter_work_years_experience":
+        return `Years: ${v}`;
+      default:
+        return `${k}: ${v}`;
+    }
+  };
+
   // ---------- render ----------
   if (showFilters) {
     return (
       <FilterPage
         onClose={() => setShowFilters(false)}
-        onApplyFilters={(filters) => fetchCandidates(filters)}
+        onApplyFilters={handleApplyFilters}
       />
     );
   }
+
+  const dropdownClasses =
+    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
+  const itemClasses =
+    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -261,7 +281,7 @@ const BrowseCandidates: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
             </div>
 
-            {/* Job Selector */}
+            {/* Job Post Selector */}
             <div className="px-6 mb-4">
               <Select
                 onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -270,18 +290,75 @@ const BrowseCandidates: React.FC = () => {
                 <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                   <SelectValue placeholder="Select an active job post" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={dropdownClasses}>
                   {jobPosts.map((job) => (
-                    <SelectItem key={job.job_id} value={String(job.job_id)}>
-                      {job.industry_role?.role || "Unknown Role"} – {job.description}
+                    <SelectItem
+                      key={job.job_id}
+                      value={String(job.job_id)}
+                      className={itemClasses}
+                    >
+                      {job.industry_role?.role || "Unknown Role"} –{" "}
+                      {job.description || `Job #${job.job_id}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Search */}
+            <div className="relative mb-2 px-6">
+              <Search
+                className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400"
+                size={20}
+              />
+              <Input
+                placeholder="Search for candidates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
+              />
+              <button
+                onClick={() => setShowFilters(true)}
+                className="absolute right-9 top-1/2 -translate-y-1/2"
+              >
+                <Filter className="text-gray-400" size={20} />
+              </button>
+            </div>
+
+            {/* Filter chips */}
+            {Object.keys(selectedFilters).length > 0 && (
+              <div className="px-6 flex flex-wrap gap-2 mb-3">
+                {Object.entries(selectedFilters).map(([k, v]) => {
+                  if (!v) return null;
+                  const value = String(v);
+                  return (
+                    <span
+                      key={k}
+                      className="flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
+                    >
+                      {chipLabel(k, value)}
+                      <X
+                        size={12}
+                        className="cursor-pointer"
+                        onClick={() => removeFilter(k)}
+                      />
+                    </span>
+                  );
+                })}
+                <button
+                  onClick={() => {
+                    setSelectedFilters({});
+                    fetchCandidates({});
+                  }}
+                  className="text-xs text-blue-600 underline"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+
             {/* Candidates */}
-            <div className="flex-1 px-6 overflow-y-auto">
+            <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
                   <p>Please select a job post above to view matching candidates.</p>
@@ -292,37 +369,49 @@ const BrowseCandidates: React.FC = () => {
                 </div>
               ) : (
                 candidates.map((c) => (
-                  <div key={c.user_id} className="bg-white rounded-2xl p-4 shadow-sm mb-4">
+                  <div
+                    key={c.user_id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
+                  >
                     <div className="flex gap-3 items-start">
                       <img
                         src={c.profileImage}
                         alt={c.name}
-                        className="w-14 h-14 rounded-lg object-cover mt-1"
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
+                        }}
                       />
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900 text-lg truncate">
                           {c.name}
                         </h3>
+
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Locations:</strong>{" "}
-                          {(c.preferredLocations || []).join(", ")}
+                          {(c.preferredLocations as string[])?.join(", ") || "Not specified"}
                         </p>
+
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Industries:</strong>{" "}
-                          {(c.industries || []).join(", ")}
+                          {(c.industries as string[])?.join(", ") || "No preferences"}
                         </p>
+
                         <p className="text-sm text-gray-600">
                           <strong>Experience:</strong> {c.experiences}
                         </p>
+
                         <p className="text-sm text-gray-600">
                           <strong>Licenses:</strong>{" "}
-                          {(c.licenses || []).join(", ")}
+                          {(c.licenses as string[])?.join(", ") || "None listed"}
                         </p>
 
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
-                              navigate(`/short-candidate-profile/${c.user_id}?from=browse-candidates`)
+                              navigate(
+                                `/short-candidate-profile/${c.user_id}?from=browse-candidates`
+                              )
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >
@@ -330,7 +419,7 @@ const BrowseCandidates: React.FC = () => {
                           </Button>
                           <button
                             onClick={() => handleLikeCandidate(c.user_id)}
-                            className="h-10 w-10 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50"
+                            className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
                               size={20}
@@ -346,6 +435,7 @@ const BrowseCandidates: React.FC = () => {
             </div>
           </div>
 
+          {/* Bottom Navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
