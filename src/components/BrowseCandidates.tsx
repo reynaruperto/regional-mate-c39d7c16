@@ -21,7 +21,7 @@ interface Candidate {
   maker_id: string;
   given_name: string;
   profile_photo: string;
-  work_experience: WorkExpItem[]; // normalized array
+  work_experience: WorkExpItem[];
   maker_states: string[];
   pref_industries: string[];
   licenses: string[];
@@ -53,13 +53,9 @@ const BrowseCandidates: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  // Normalizes work_experience from RPC (stringified JSON or already an array)
   const normalizeWorkExp = (we: unknown): WorkExpItem[] => {
     if (!we) return [];
-    if (Array.isArray(we)) {
-      // Already array of objects
-      return we as WorkExpItem[];
-    }
+    if (Array.isArray(we)) return we as WorkExpItem[];
     if (typeof we === "string") {
       try {
         const parsed = JSON.parse(we);
@@ -73,9 +69,7 @@ const BrowseCandidates: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
     })();
   }, []);
@@ -246,6 +240,12 @@ const BrowseCandidates: React.FC = () => {
         return `Preferred Industry: ${industriesMap[Number(v)] || v}`;
       case "p_filter_license_ids":
         return `License: ${licensesMap[Number(v)] || v}`;
+      case "p_filter_state":
+        return `Candidate State: ${v}`;
+      case "p_filter_suburb_city_postcode":
+        return `Suburb/Postcode: ${v}`;
+      case "p_filter_work_years_experience":
+        return `Experience: ${v}`;
       default:
         return v;
     }
@@ -267,7 +267,6 @@ const BrowseCandidates: React.FC = () => {
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
           <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
               <Button
                 variant="ghost"
@@ -280,7 +279,6 @@ const BrowseCandidates: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
             </div>
 
-            {/* Job Post Selector */}
             <div className="px-6 mb-4">
               <Select
                 onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -300,7 +298,6 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search */}
             <div className="relative mb-2 px-6">
               <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
@@ -317,7 +314,6 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
-            {/* Filter chips */}
             {Object.keys(selectedFilters).length > 0 && (
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
@@ -345,7 +341,6 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidate list */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
