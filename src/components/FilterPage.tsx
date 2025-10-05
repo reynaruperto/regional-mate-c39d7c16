@@ -1,4 +1,3 @@
-// src/components/FilterPage.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,14 +10,12 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 
-interface FilterPageProps {
-  employerId: string;
-  jobId: number;
+export interface FilterPageProps {
   onClose: () => void;
-  onResults: (filteredCandidates: any[], appliedFilters: any) => void;
+  onApplyFilters: (filters: any) => void;
 }
 
-const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onResults }) => {
+const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   const [selectedFilters, setSelectedFilters] = useState({
     p_filter_state: "",
     p_filter_suburb_city_postcode: "",
@@ -40,7 +37,11 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
       const { data, error } = await supabase
         .from("maker_pref_location")
         .select("state, suburb_city, postcode");
-      if (error) return console.error("Error fetching locations:", error);
+
+      if (error) {
+        console.error("Error fetching locations:", error);
+        return;
+      }
 
       if (data) {
         setStates([...new Set(data.map((l) => l.state).filter(Boolean))]);
@@ -55,6 +56,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
         ]);
       }
     };
+
     fetchLocations();
   }, []);
 
@@ -62,8 +64,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase.from("industry").select("industry_id, name");
-      if (error) return console.error("Error fetching industries:", error);
-      if (data) setIndustries(data.map((r) => ({ id: r.industry_id, name: r.name })));
+      if (error) {
+        console.error("Error fetching industries:", error);
+        return;
+      }
+      if (data) {
+        setIndustries(data.map((row) => ({ id: row.industry_id, name: row.name })));
+      }
     };
     fetchIndustries();
   }, []);
@@ -72,8 +79,13 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
   useEffect(() => {
     const fetchLicenses = async () => {
       const { data, error } = await supabase.from("license").select("license_id, name");
-      if (error) return console.error("Error fetching licenses:", error);
-      if (data) setLicenses(data.map((r) => ({ id: r.license_id, name: r.name })));
+      if (error) {
+        console.error("Error fetching licenses:", error);
+        return;
+      }
+      if (data) {
+        setLicenses(data.map((row) => ({ id: row.license_id, name: row.name })));
+      }
     };
     fetchLicenses();
   }, []);
@@ -90,69 +102,15 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
     }));
   };
 
-  // ✅ Apply filters and return results + labels
-  const applyFilters = async () => {
-    try {
-      // 🟢 Build filter parameters for filter_makers_for_employer RPC
-      const filterParams: any = {
-        p_employer_id: employerId,
-        p_job_id: jobId,
-      };
-      
-      if (selectedFilters.p_filter_state) {
-        filterParams.p_filter_state = selectedFilters.p_filter_state;
-      }
-      if (selectedFilters.p_filter_suburb_city_postcode) {
-        filterParams.p_filter_suburb_city_postcode = selectedFilters.p_filter_suburb_city_postcode;
-      }
-      if (selectedFilters.p_filter_industry_ids) {
-        filterParams.p_filter_industry_ids = [Number(selectedFilters.p_filter_industry_ids)];
-      }
-      if (selectedFilters.p_filter_work_industry_id) {
-        filterParams.p_filter_work_industry_id = Number(selectedFilters.p_filter_work_industry_id);
-      }
-      if (selectedFilters.p_filter_license_ids) {
-        filterParams.p_filter_license_ids = [Number(selectedFilters.p_filter_license_ids)];
-      }
-      if (selectedFilters.p_filter_work_years_experience) {
-        filterParams.p_filter_work_years_experience = selectedFilters.p_filter_work_years_experience;
-      }
-
-      // 🟢 Call filter_makers_for_employer RPC to get filtered candidates
-      const { data: candidates, error } = await (supabase as any).rpc(
-        "filter_makers_for_employer",
-        filterParams
-      );
-
-      if (error) {
-        console.error("Error filtering candidates:", error);
-        return;
-      }
-
-      // 🟢 Build human-readable labels for filter chips
-      const appliedFilters = {
-        industryLabel:
-          industries.find((i) => i.id === Number(selectedFilters.p_filter_industry_ids))
-            ?.name || "",
-        workIndustryLabel:
-          industries.find((i) => i.id === Number(selectedFilters.p_filter_work_industry_id))
-            ?.name || "",
-        licenseLabel:
-          licenses.find((l) => l.id === Number(selectedFilters.p_filter_license_ids))?.name || "",
-        state: selectedFilters.p_filter_state || "",
-        suburbCityPostcode: selectedFilters.p_filter_suburb_city_postcode || "",
-        yearsExperience: selectedFilters.p_filter_work_years_experience || "",
-      };
-
-      // 🟢 Send both candidates + filters to parent
-      onResults(candidates || [], appliedFilters);
-      onClose();
-    } catch (err) {
-      console.error("Unexpected filter error:", err);
-    }
+  const applyFilters = () => {
+    const cleaned = Object.fromEntries(
+      Object.entries(selectedFilters).filter(([_, v]) => v && v.toString().trim() !== "")
+    );
+    onApplyFilters(cleaned);
+    onClose();
   };
 
-  const clearFilters = () => {
+  const clearFilters = () =>
     setSelectedFilters({
       p_filter_state: "",
       p_filter_suburb_city_postcode: "",
@@ -161,9 +119,8 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
       p_filter_industry_ids: "",
       p_filter_license_ids: "",
     });
-  };
 
-  // ---------- dropdown section ----------
+  // ---------- dropdown reusable section ----------
   const DropdownSection = ({
     title,
     items,
@@ -186,7 +143,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
         <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-60 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm z-[9999]">
+        <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
           {items.length > 0 ? (
             items.map((item) =>
               isObject ? (
@@ -234,7 +191,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
             </div>
           </div>
 
-          {/* Scrollable Filters */}
+          {/* Scrollable filter list */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
             <DropdownSection
               title="Industry of Work Experience"
@@ -299,3 +256,4 @@ const FilterPage: React.FC<FilterPageProps> = ({ employerId, jobId, onClose, onR
 };
 
 export default FilterPage;
+export type { FilterPageProps };

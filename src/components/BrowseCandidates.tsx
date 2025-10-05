@@ -1,11 +1,10 @@
-// src/pages/BrowseCandidates.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
-import FilterPage, { FilterPageProps } from "@/components/FilterPage";
+import FilterPage from "@/components/FilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -117,7 +116,7 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- fetch candidates with likes ----------
+  // ---------- fetch candidates ----------
   const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
@@ -173,7 +172,6 @@ const BrowseCandidates: React.FC = () => {
   // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
-
     const candidate = candidates.find((c) => c.user_id === candidateId);
     if (!candidate) return;
 
@@ -236,13 +234,8 @@ const BrowseCandidates: React.FC = () => {
         return `Preferred Industry: ${industriesMap[Number(v)] || v}`;
       case "p_filter_license_ids":
         return `License: ${licensesMap[Number(v)] || v}`;
-      case "p_filter_state":
-      case "p_filter_suburb_city_postcode":
-        return v;
-      case "p_filter_work_years_experience":
-        return `Years: ${v}`;
       default:
-        return `${k}: ${v}`;
+        return v;
     }
   };
 
@@ -302,7 +295,7 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search bar */}
+            {/* Search */}
             <div className="relative mb-2 px-6">
               <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
@@ -331,11 +324,7 @@ const BrowseCandidates: React.FC = () => {
                       className="flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
                     >
                       {chipLabel(k, value)}
-                      <X
-                        size={12}
-                        className="cursor-pointer"
-                        onClick={() => removeFilter(k)}
-                      />
+                      <X size={12} className="cursor-pointer" onClick={() => removeFilter(k)} />
                     </span>
                   );
                 })}
@@ -351,7 +340,7 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidate cards */}
+            {/* Candidate list */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -392,7 +381,9 @@ const BrowseCandidates: React.FC = () => {
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
-                              navigate(`/short-candidate-profile/${c.user_id}?from=browse-candidates`)
+                              navigate(
+                                `/short-candidate-profile/${c.user_id}?from=browse-candidates`
+                              )
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >
@@ -404,7 +395,11 @@ const BrowseCandidates: React.FC = () => {
                           >
                             <Heart
                               size={20}
-                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                              className={
+                                c.isLiked
+                                  ? "text-orange-500 fill-orange-500"
+                                  : "text-orange-500"
+                              }
                             />
                           </button>
                         </div>
@@ -416,7 +411,7 @@ const BrowseCandidates: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom nav + like modal */}
+          {/* Bottom navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
