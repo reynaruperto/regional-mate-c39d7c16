@@ -1,3 +1,4 @@
+// src/components/WHVNotifications.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Heart, User, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ const WHVNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ✅ Fetch user + notifications
+  // ✅ Fetch user and initial notifications
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -29,7 +30,7 @@ const WHVNotifications: React.FC = () => {
 
       setUserId(user.id);
 
-      // Fetch notifications (bypass type check)
+      // Fetch notifications
       const { data: notifData, error: notifErr } = await (supabase as any)
         .from("notifications")
         .select("*")
@@ -39,7 +40,7 @@ const WHVNotifications: React.FC = () => {
 
       if (!notifErr && notifData) setNotifications(notifData);
 
-      // Fetch notification setting (bypass type check)
+      // Fetch notification setting
       const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
@@ -53,22 +54,36 @@ const WHVNotifications: React.FC = () => {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Real-time notification updates
+  // ✅ Real-time notifications (instant updates)
   useEffect(() => {
     if (!userId) return;
 
     const channel = supabase
-      .channel("realtime:notifications")
+      .channel("notifications-realtime")
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "notifications",
-          filter: `recipient_id=eq.${userId}`,
         },
         (payload) => {
-          setNotifications((prev) => [payload.new as NotificationItem, ...prev]);
+          const newNotif = payload.new as NotificationItem;
+
+          // only for this user
+          if (newNotif?.recipient_id === userId) {
+            if (payload.eventType === "INSERT") {
+              setNotifications((prev) => [newNotif, ...prev]);
+            } else if (payload.eventType === "UPDATE") {
+              setNotifications((prev) =>
+                prev.map((n) => (n.id === newNotif.id ? newNotif : n))
+              );
+            } else if (payload.eventType === "DELETE") {
+              setNotifications((prev) =>
+                prev.filter((n) => n.id !== payload.old.id)
+              );
+            }
+          }
         }
       )
       .subscribe();
@@ -94,7 +109,7 @@ const WHVNotifications: React.FC = () => {
     if (error) console.error("Error updating setting:", error);
   };
 
-  // ✅ Mark notification as read and navigate
+  // ✅ Mark notification as read & navigate
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
@@ -121,6 +136,7 @@ const WHVNotifications: React.FC = () => {
     }
   };
 
+  // ✅ Icons per type
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "job_like":
@@ -138,6 +154,7 @@ const WHVNotifications: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          {/* Top Bar */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-200">
@@ -154,7 +171,7 @@ const WHVNotifications: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
             </div>
 
-            {/* Switch */}
+            {/* Toggle */}
             <div className="bg-white rounded-2xl p-4 mx-6 mb-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -178,10 +195,12 @@ const WHVNotifications: React.FC = () => {
               </div>
             </div>
 
-            {/* List */}
+            {/* Notifications List */}
             <div className="flex-1 px-6 overflow-y-auto">
               {notifications.length === 0 ? (
-                <p className="text-center text-gray-500 mt-10">No notifications yet.</p>
+                <p className="text-center text-gray-500 mt-10">
+                  No notifications yet.
+                </p>
               ) : (
                 notifications.map((n) => (
                   <button
@@ -206,13 +225,15 @@ const WHVNotifications: React.FC = () => {
                             <div className="w-2 h-2 bg-orange-500 rounded-full ml-2"></div>
                           )}
                         </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">{n.message}</p>
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {n.message}
+                        </p>
                       </div>
                     </div>
                   </button>
                 ))
               )}
-              <div className="h-20"></div>
+              <div className="h-20" />
             </div>
           </div>
         </div>
