@@ -139,18 +139,24 @@ const BrowseCandidates: React.FC = () => {
       .eq("liked_job_post_id", selectedJobId);
 
     const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+    console.log("[BrowseCandidates] Liked candidate IDs for job", selectedJobId, ":", likedIds);
 
-    const mapped: Candidate[] = (makers || []).map((row: any) => ({
-      maker_id: row.maker_id,
-      given_name: row.given_name,
-      profile_photo: resolvePhoto(row.profile_photo),
-      work_experience: normalizeWorkExp(row.work_experience),
-      maker_states: row.maker_states || [],
-      pref_industries: row.pref_industries || [],
-      licenses: row.licenses || [],
-      isLiked: likedIds.includes(row.maker_id),
-    }));
+    const mapped: Candidate[] = (makers || []).map((row: any) => {
+      const isLiked = likedIds.includes(row.maker_id);
+      console.log(`[BrowseCandidates] Candidate ${row.given_name} (${row.maker_id}): isLiked = ${isLiked}`);
+      return {
+        maker_id: row.maker_id,
+        given_name: row.given_name,
+        profile_photo: resolvePhoto(row.profile_photo),
+        work_experience: normalizeWorkExp(row.work_experience),
+        maker_states: row.maker_states || [],
+        pref_industries: row.pref_industries || [],
+        licenses: row.licenses || [],
+        isLiked,
+      };
+    });
 
+    console.log("[BrowseCandidates] Total candidates:", mapped.length, "Liked:", mapped.filter(c => c.isLiked).length);
     setCandidates(mapped);
     setAllCandidates(mapped);
     setSelectedFilters(filters);

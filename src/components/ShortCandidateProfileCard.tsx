@@ -49,23 +49,43 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
   }, [location.state, searchParams]);
 
   // Check if already liked
-  useEffect(() => {
-    const checkIfLiked = async () => {
-      if (!employerId || !selectedJobId || !candidateId) return;
+  const checkIfLiked = async () => {
+    if (!employerId || !selectedJobId || !candidateId) {
+      console.log("[ShortProfile] Missing data for like check:", { employerId, selectedJobId, candidateId });
+      return;
+    }
 
-      const { data } = await supabase
-        .from("likes")
-        .select("id")
-        .eq("liker_id", employerId)
-        .eq("liker_type", "employer")
-        .eq("liked_whv_id", candidateId)
-        .eq("liked_job_post_id", Number(selectedJobId))
-        .maybeSingle();
+    console.log("[ShortProfile] Checking if liked:", { employerId, selectedJobId, candidateId });
+    const { data, error } = await supabase
+      .from("likes")
+      .select("id")
+      .eq("liker_id", employerId)
+      .eq("liker_type", "employer")
+      .eq("liked_whv_id", candidateId)
+      .eq("liked_job_post_id", Number(selectedJobId))
+      .maybeSingle();
 
+    if (error) {
+      console.error("[ShortProfile] Error checking like:", error);
+    } else {
+      console.log("[ShortProfile] Like check result:", data ? "ALREADY LIKED" : "NOT LIKED");
       setHasAlreadyLiked(!!data);
-    };
+    }
+  };
 
+  useEffect(() => {
     checkIfLiked();
+  }, [employerId, selectedJobId, candidateId]);
+
+  // Re-check when page becomes visible
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log("[ShortProfile] Window focused, re-checking like status");
+      checkIfLiked();
+    };
+    
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [employerId, selectedJobId, candidateId]);
 
   useEffect(() => {
