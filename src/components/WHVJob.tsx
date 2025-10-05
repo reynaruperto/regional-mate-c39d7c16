@@ -54,12 +54,12 @@ const WHVJobPreview: React.FC = () => {
       const { data, error } = await supabase
         .from("job")
         .select(
-          "job_id, employment_type, salary_range, req_experience, start_date, description, industry_role(role)"
+          "job_id, role, employment_type, salary_range, req_experience, start_date, description"
         )
         .eq("job_id", Number(jobId))
         .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
         console.error("Error fetching job:", error);
         setLoading(false);
         return;
@@ -77,16 +77,7 @@ const WHVJobPreview: React.FC = () => {
         isLiked = !!likeRows?.length;
       }
 
-      setJobDetails({
-        job_id: data.job_id,
-        role: (data.industry_role as any)?.role || "N/A",
-        employment_type: data.employment_type,
-        salary_range: data.salary_range,
-        req_experience: data.req_experience,
-        start_date: data.start_date,
-        description: data.description,
-        isLiked
-      });
+      setJobDetails({ ...data, isLiked });
       setLoading(false);
     };
 
@@ -113,6 +104,7 @@ const WHVJobPreview: React.FC = () => {
           return;
         }
 
+        // ✅ Fixed spread update
         setJobDetails((prev) =>
           prev ? { ...prev, isLiked: false } : prev
         );
@@ -133,6 +125,8 @@ const WHVJobPreview: React.FC = () => {
         }
 
         console.log("✅ Like saved:", data);
+
+        // ✅ Fixed spread update
         setJobDetails((prev) =>
           prev ? { ...prev, isLiked: true } : prev
         );
