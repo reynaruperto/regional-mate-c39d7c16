@@ -54,12 +54,12 @@ const WHVJobPreview: React.FC = () => {
       const { data, error } = await supabase
         .from("job")
         .select(
-          "job_id, role, employment_type, salary_range, req_experience, start_date, description"
+          "job_id, employment_type, salary_range, req_experience, start_date, description, industry_role(role)"
         )
         .eq("job_id", Number(jobId))
         .maybeSingle();
 
-      if (error) {
+      if (error || !data) {
         console.error("Error fetching job:", error);
         setLoading(false);
         return;
@@ -77,7 +77,16 @@ const WHVJobPreview: React.FC = () => {
         isLiked = !!likeRows?.length;
       }
 
-      setJobDetails({ ...data, isLiked });
+      setJobDetails({
+        job_id: data.job_id,
+        role: (data.industry_role as any)?.role || "N/A",
+        employment_type: data.employment_type,
+        salary_range: data.salary_range,
+        req_experience: data.req_experience,
+        start_date: data.start_date,
+        description: data.description,
+        isLiked
+      });
       setLoading(false);
     };
 

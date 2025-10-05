@@ -68,7 +68,7 @@ const WHVNotifications: React.FC = () => {
           table: "notifications",
         },
         (payload) => {
-          const newNotif = payload.new as NotificationItem;
+          const newNotif = payload.new as any;
 
           // only for this user
           if (newNotif?.recipient_id === userId) {

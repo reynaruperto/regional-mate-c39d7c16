@@ -127,12 +127,12 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     }
 
     try {
-      const { error } = await supabase.from("likes").insert({
+      const { error } = await supabase.from("likes").insert([{
         liker_id: employerId,
         liker_type: "employer",
         liked_whv_id: candidateId,
-        liked_job_post_id: selectedJobId,
-      });
+        liked_job_post_id: Number(selectedJobId),
+      }]);
 
       if (error) {
         console.error("Error liking candidate:", error);
