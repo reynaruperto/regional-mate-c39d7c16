@@ -158,7 +158,7 @@ const WHVJobPreview: React.FC = () => {
     if (whvId) fetchJobDetails();
   }, [jobId, whvId]);
 
-  // ✅ Like/Unlike (matches BrowseJobs logic)
+  // ✅ Like/Unlike (same as BrowseJobs)
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
 
@@ -173,18 +173,12 @@ const WHVJobPreview: React.FC = () => {
 
         setJobDetails({ ...jobDetails, isLiked: false });
       } else {
-        const { error } = await supabase.from("likes").insert({
+        await supabase.from("likes").insert({
           liker_id: whvId,
           liker_type: "whv",
           liked_job_post_id: jobDetails.job_id,
           liked_whv_id: null,
         });
-
-        if (error) {
-          console.error("Error liking job:", error);
-          alert("Failed to save like.");
-          return;
-        }
 
         setJobDetails({ ...jobDetails, isLiked: true });
         setShowLikeModal(true);
