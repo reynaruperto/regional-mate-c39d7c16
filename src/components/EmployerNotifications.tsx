@@ -1,27 +1,16 @@
-// src/components/EmployerNotifications.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Heart, User, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface NotificationItem {
   id: number;
-  type: "job_like" | "mutual_match" | "maker_like";
+  type: "whv_like" | "mutual_match" | "job_update";
   title: string;
   message: string;
-  sender_id: string;
-  sender_type: string;
-  recipient_id: string;
-  recipient_type: string;
+  whv_id: string | null;
   job_id: number | null;
   read_at: string | null;
   created_at: string;
@@ -32,24 +21,27 @@ const EmployerNotifications: React.FC = () => {
   const [alertNotifications, setAlertNotifications] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-  const [jobPosts, setJobPosts] = useState<any[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
-  // ---------- Fetch employer + jobs ----------
+  // ✅ Fetch employer notifications
   useEffect(() => {
-    const fetchEmployerAndJobs = async () => {
+    const fetchUserAndNotifications = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
 
-      // Fetch active jobs
-      const { data: jobs } = await supabase
-        .from("job")
-        .select("job_id, description, industry_role(role)")
-        .eq("user_id", user.id)
-        .eq("job_status", "active");
+      // Fetch notifications
+      const { data, error } = await (supabase as any)
+        .from("notifications")
+        .select("*")
+        .eq("recipient_id", user.id)
+        .eq("recipient_type", "employer")
+        .order("created_at", { ascending: false });
 
-      if (jobs) setJobPosts(jobs);
+      if (error) {
+        console.error("Error fetching employer notifications:", error);
+      } else {
+        setNotifications(data || []);
+      }
 
       // Fetch notification setting
       const { data: setting } = await (supabase as any)
@@ -62,30 +54,10 @@ const EmployerNotifications: React.FC = () => {
       if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
     };
 
-    fetchEmployerAndJobs();
+    fetchUserAndNotifications();
   }, []);
 
-  // ---------- Fetch notifications ----------
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!userId || !selectedJobId) return;
-
-      const { data, error } = await (supabase as any)
-        .from("notifications")
-        .select("*")
-        .eq("recipient_id", userId)
-        .eq("recipient_type", "employer")
-        .eq("job_id", selectedJobId)
-        .order("created_at", { ascending: false });
-
-      if (error) console.error("Error fetching employer notifications:", error);
-      else setNotifications(data || []);
-    };
-
-    fetchNotifications();
-  }, [userId, selectedJobId]);
-
-  // ---------- Toggle notifications ----------
+  // ✅ Toggle notifications on/off
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
@@ -101,57 +73,70 @@ const EmployerNotifications: React.FC = () => {
     if (error) console.error("Error updating notification setting:", error);
   };
 
-  // ---------- Handle notification click ----------
+  // ✅ Handle notification click & route correctly
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
+    // Mark as read in Supabase
     await (supabase as any).rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
+    // Update UI instantly
     setNotifications((prev) =>
       prev.map((n) =>
         n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n
       )
     );
 
-    if (notification.type === "maker_like" && notification.sender_id) {
-      navigate(`/employer/full-candidate-profile/${notification.sender_id}`, {
-        state: { from: "notifications", jobId: notification.job_id },
+    // Normalize notification type
+    const type = notification.type?.toLowerCase().trim();
+
+    console.log("Routing notification type:", type, notification);
+
+    // ✅ Routing logic
+    if (type === "mutual_match" && notification.whv_id) {
+      // → Go to FULL candidate profile (EMPCandidateFull)
+      navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
+        state: { from: "notifications" },
       });
-    } else if (notification.type === "job_like" && notification.sender_id) {
-      navigate(`/short-candidate-profile/${notification.sender_id}`, {
-        state: { from: "notifications", jobId: notification.job_id },
+    } else if (type === "whv_like" && notification.whv_id) {
+      // → Go to SHORT candidate profile (ShortCandidateProfileCard)
+      navigate(`/short-candidate-profile/${notification.whv_id}`, {
+        state: { from: "notifications" },
       });
+    } else if (type === "job_update" && notification.job_id) {
+      // → Go to Employer Job Preview
+      navigate(`/employer/job-preview/${notification.job_id}`, {
+        state: { from: "notifications" },
+      });
+    } else {
+      console.warn("Unknown notification type:", notification.type);
     }
   };
 
-  // ---------- Notification icons ----------
+  // ✅ Notification icons
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "job_like":
+      case "whv_like":
         return <Heart className="w-5 h-5 text-red-500" />;
-      case "maker_like":
+      case "mutual_match":
         return <Heart className="w-5 h-5 text-pink-500" />;
+      case "job_update":
+        return <Bell className="w-5 h-5 text-blue-500" />;
       default:
         return <User className="w-5 h-5 text-gray-500" />;
     }
   };
 
-  // ---------- Dropdown styles ----------
-  const dropdownClasses =
-    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
-  const itemClasses =
-    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
-
-  // ---------- UI ----------
+  // ✅ UI
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
-          <div className="w-full h-full flex flex-col relative bg-gray-50">
+          <div className="w-full h-full flex flex-col relative bg-gray-200">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
               <Button
@@ -162,13 +147,11 @@ const EmployerNotifications: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">
-                Notifications
-              </h1>
+              <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
             </div>
 
-            {/* Notification Toggle */}
-            <div className="bg-white rounded-2xl p-4 mx-6 mb-4 shadow-sm">
+            {/* Toggle Setting */}
+            <div className="bg-white rounded-2xl p-4 mx-6 mb-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-1">
@@ -191,40 +174,10 @@ const EmployerNotifications: React.FC = () => {
               </div>
             </div>
 
-            {/* Job Post Selector */}
-            <div className="px-6 mb-4">
-              <Select
-                onValueChange={(value) => setSelectedJobId(Number(value))}
-                value={selectedJobId ? String(selectedJobId) : ""}
-              >
-                <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
-                  <SelectValue placeholder="Select a job post to view notifications" />
-                </SelectTrigger>
-                <SelectContent className={dropdownClasses}>
-                  {jobPosts.map((job) => (
-                    <SelectItem
-                      key={job.job_id}
-                      value={String(job.job_id)}
-                      className={itemClasses}
-                    >
-                      {job.industry_role?.role || "Unknown Role"} –{" "}
-                      {job.description || `Job #${job.job_id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Notifications List */}
+            {/* Notification List */}
             <div className="flex-1 px-6 overflow-y-auto">
-              {!selectedJobId ? (
-                <p className="text-center text-gray-500 mt-10">
-                  Please select a job post to view notifications.
-                </p>
-              ) : notifications.length === 0 ? (
-                <p className="text-center text-gray-500 mt-10">
-                  No notifications yet for this job.
-                </p>
+              {notifications.length === 0 ? (
+                <p className="text-center text-gray-500 mt-10">No notifications yet.</p>
               ) : (
                 notifications.map((n) => (
                   <button
@@ -249,15 +202,13 @@ const EmployerNotifications: React.FC = () => {
                             <div className="w-2 h-2 bg-orange-500 rounded-full ml-2"></div>
                           )}
                         </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">
-                          {n.message}
-                        </p>
+                        <p className="text-gray-600 text-sm leading-relaxed">{n.message}</p>
                       </div>
                     </div>
                   </button>
                 ))
               )}
-              <div className="h-20" />
+              <div className="h-20"></div>
             </div>
           </div>
         </div>
