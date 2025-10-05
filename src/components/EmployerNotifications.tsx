@@ -14,10 +14,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface NotificationItem {
   id: number;
-  type: "whv_like" | "mutual_match";
+  type: "whv_like" | "mutual_match" | "job_like" | "maker_like";
   title: string;
   message: string;
-  whv_id: string | null;
+  sender_id: string;
+  sender_type: string | null;
+  recipient_id: string;
+  recipient_type: string | null;
   job_id: number | null;
   read_at: string | null;
   created_at: string;
@@ -46,7 +49,7 @@ const EmployerNotifications: React.FC = () => {
         .eq("job_status", "active");
       setJobPosts(jobs || []);
 
-      const { data: setting } = await supabase
+      const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
@@ -63,7 +66,7 @@ const EmployerNotifications: React.FC = () => {
 
     const fetchNotifications = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("notifications")
         .select("*")
         .eq("recipient_id", userId)
@@ -71,7 +74,7 @@ const EmployerNotifications: React.FC = () => {
         .eq("job_id", selectedJobId)
         .order("created_at", { ascending: false });
 
-      if (!error && data) setNotifications(data);
+      if (!error && data) setNotifications(data as NotificationItem[]);
       setLoading(false);
     };
 
@@ -102,7 +105,7 @@ const EmployerNotifications: React.FC = () => {
             );
           } else if (payload.eventType === "DELETE") {
             setNotifications((prev) =>
-              prev.filter((n) => n.id !== payload.old.id)
+              prev.filter((n) => n.id !== (payload.old as any).id)
             );
           }
         }
@@ -118,7 +121,7 @@ const EmployerNotifications: React.FC = () => {
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
-    await supabase.from("notification_setting").upsert({
+    await (supabase as any).from("notification_setting").upsert({
       user_id: userId,
       user_type: "employer",
       notifications_enabled: value,
@@ -128,18 +131,18 @@ const EmployerNotifications: React.FC = () => {
   // ✅ Handle click
   const handleNotificationClick = async (n: NotificationItem) => {
     if (!n.id) return;
-    await supabase.rpc("mark_notification_read", { p_notification_id: n.id });
+    await (supabase as any).rpc("mark_notification_read", { p_notification_id: n.id });
 
     setNotifications((prev) =>
       prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x))
     );
 
-    if (n.type === "mutual_match" && n.whv_id) {
-      navigate(`/employer/full-candidate-profile/${n.whv_id}`, {
+    if (n.type === "mutual_match" && n.sender_id) {
+      navigate(`/employer/full-candidate-profile/${n.sender_id}`, {
         state: { from: "notifications" },
       });
-    } else if (n.type === "whv_like" && n.whv_id) {
-      navigate(`/short-candidate-profile/${n.whv_id}`, {
+    } else if (n.type === "job_like" && n.sender_id) {
+      navigate(`/short-candidate-profile/${n.sender_id}`, {
         state: { from: "notifications" },
       });
     }
@@ -147,7 +150,7 @@ const EmployerNotifications: React.FC = () => {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "whv_like":
+      case "job_like":
         return <Heart className="w-5 h-5 text-red-500" />;
       case "mutual_match":
         return <Heart className="w-5 h-5 text-pink-500" />;
