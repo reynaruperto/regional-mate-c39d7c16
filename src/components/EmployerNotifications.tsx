@@ -22,26 +22,24 @@ const EmployerNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ✅ Fetch employer notifications
+  // ✅ Fetch employer and notifications
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
 
       // Fetch notifications
-      const { data, error } = await (supabase as any)
+      const { data: notifData, error: notifErr } = await (supabase as any)
         .from("notifications")
         .select("*")
         .eq("recipient_id", user.id)
         .eq("recipient_type", "employer")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching employer notifications:", error);
-      } else {
-        setNotifications(data || []);
-      }
+      if (!notifErr && notifData) setNotifications(notifData);
 
       // Fetch notification setting
       const { data: setting } = await (supabase as any)
@@ -56,6 +54,39 @@ const EmployerNotifications: React.FC = () => {
 
     fetchUserAndNotifications();
   }, []);
+
+  // ✅ Real-time notifications for employer
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel("employer-notifications-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications" },
+        (payload) => {
+          const newNotif = payload.new as any;
+          if (newNotif?.recipient_id === userId) {
+            if (payload.eventType === "INSERT") {
+              setNotifications((prev) => [newNotif, ...prev]);
+            } else if (payload.eventType === "UPDATE") {
+              setNotifications((prev) =>
+                prev.map((n) => (n.id === newNotif.id ? newNotif : n))
+              );
+            } else if (payload.eventType === "DELETE") {
+              setNotifications((prev) =>
+                prev.filter((n) => n.id !== payload.old.id)
+              );
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   // ✅ Toggle notifications on/off
   const toggleNotifications = async (value: boolean) => {
@@ -73,45 +104,47 @@ const EmployerNotifications: React.FC = () => {
     if (error) console.error("Error updating notification setting:", error);
   };
 
-  // ✅ Handle notification click & route correctly
+  // ✅ Mark as read & navigate
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
-    // Mark as read in Supabase
     await (supabase as any).rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
-    // Update UI instantly
     setNotifications((prev) =>
       prev.map((n) =>
         n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n
       )
     );
 
-    // Normalize notification type
     const type = notification.type?.toLowerCase().trim();
 
-    console.log("Routing notification type:", type, notification);
-
-    // ✅ Routing logic
-    if (type === "mutual_match" && notification.whv_id) {
-      // → Go to FULL candidate profile (EMPCandidateFull)
-      navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
-        state: { from: "notifications" },
-      });
-    } else if (type === "whv_like" && notification.whv_id) {
-      // → Go to SHORT candidate profile (ShortCandidateProfileCard)
-      navigate(`/short-candidate-profile/${notification.whv_id}`, {
-        state: { from: "notifications" },
-      });
-    } else if (type === "job_update" && notification.job_id) {
-      // → Go to Employer Job Preview
+    // ✅ Routing Logic
+    if (notification.whv_id) {
+      switch (type) {
+        case "mutual_match":
+          // 🔗 When it’s a match → Go to full candidate profile
+          navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
+            state: { from: "notifications" },
+          });
+          break;
+        case "whv_like":
+          // ❤️ When candidate likes employer → Go to short profile
+          navigate(`/short-candidate-profile/${notification.whv_id}`, {
+            state: { from: "notifications" },
+          });
+          break;
+        default:
+          console.warn("Unknown type with WHV ID:", type);
+      }
+    } else if (notification.job_id && type === "job_update") {
+      // 🧾 If job updated
       navigate(`/employer/job-preview/${notification.job_id}`, {
         state: { from: "notifications" },
       });
     } else {
-      console.warn("Unknown notification type:", notification.type);
+      console.warn("Unhandled notification type:", type);
     }
   };
 
@@ -129,11 +162,11 @@ const EmployerNotifications: React.FC = () => {
     }
   };
 
-  // ✅ UI
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
+          {/* Top Bar */}
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-200">
@@ -147,10 +180,12 @@ const EmployerNotifications: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Notifications
+              </h1>
             </div>
 
-            {/* Toggle Setting */}
+            {/* Toggle */}
             <div className="bg-white rounded-2xl p-4 mx-6 mb-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -158,7 +193,7 @@ const EmployerNotifications: React.FC = () => {
                     Turn Notifications On/Off
                   </h3>
                   <p className="text-sm text-gray-500">
-                    You’ll receive updates about WHV likes and mutual matches
+                    You’ll get updates about likes and matches
                   </p>
                 </div>
                 <div className="flex items-center">
@@ -174,10 +209,12 @@ const EmployerNotifications: React.FC = () => {
               </div>
             </div>
 
-            {/* Notification List */}
+            {/* Notifications List */}
             <div className="flex-1 px-6 overflow-y-auto">
               {notifications.length === 0 ? (
-                <p className="text-center text-gray-500 mt-10">No notifications yet.</p>
+                <p className="text-center text-gray-500 mt-10">
+                  No notifications yet.
+                </p>
               ) : (
                 notifications.map((n) => (
                   <button
@@ -195,20 +232,28 @@ const EmployerNotifications: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center mb-1">
-                          <h4 className="font-semibold text-gray-900">
+                          <h4
+                            className={`font-semibold ${
+                              n.type === "mutual_match"
+                                ? "text-pink-600"
+                                : "text-gray-900"
+                            }`}
+                          >
                             {n.title || "Notification"}
                           </h4>
                           {!n.read_at && (
                             <div className="w-2 h-2 bg-orange-500 rounded-full ml-2"></div>
                           )}
                         </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">{n.message}</p>
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {n.message}
+                        </p>
                       </div>
                     </div>
                   </button>
                 ))
               )}
-              <div className="h-20"></div>
+              <div className="h-20" />
             </div>
           </div>
         </div>
