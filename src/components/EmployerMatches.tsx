@@ -1,6 +1,6 @@
 // src/pages/EmployerMatches.tsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BottomNavigation from "@/components/BottomNavigation";
@@ -28,6 +28,7 @@ interface MatchCandidate {
 
 const EmployerMatches: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<"matches" | "topRecommended">("matches");
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedCandidateName, setLikedCandidateName] = useState("");
@@ -140,6 +141,64 @@ const EmployerMatches: React.FC = () => {
       setTopRecommended(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
+
+  // Re-fetch when navigating back to this page
+  useEffect(() => {
+    const handleFocus = () => {
+      if (selectedJobId) {
+        console.log("[EmployerMatches] Refreshing on focus");
+        // Re-fetch both matches and recommendations
+        (async () => {
+          const { data: matchData } = await (supabase as any).rpc("fetch_job_matches", {
+            p_job_id: selectedJobId,
+          });
+          if (matchData) {
+            const formatted = (matchData || []).map((m: any) => ({
+              id: m.maker_id || m.whv_id,
+              name: m.given_name,
+              profileImage: resolvePhoto(m.profile_photo),
+              preferredLocations: m.state_pref || [],
+              preferredIndustries: m.industry_pref || [],
+              experiences: m.work_experience
+                ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
+                : "No experience listed",
+              isMutualMatch: true,
+            }));
+            setMatches(await mergeLikes(formatted));
+          }
+
+          const { data: recData } = await (supabase as any).rpc("fetch_job_recommendations", {
+            p_job_id: selectedJobId,
+          });
+          if (recData) {
+            const formatted = (recData || []).map((r: any) => ({
+              id: r.maker_id || r.whv_id,
+              name: r.given_name,
+              profileImage: resolvePhoto(r.profile_photo),
+              preferredLocations: r.state_pref || [],
+              preferredIndustries: r.industry_pref || [],
+              experiences: r.work_experience
+                ? r.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
+                : "No experience listed",
+              matchPercentage: Math.round(r.match_score),
+            }));
+            setTopRecommended(await mergeLikes(formatted));
+          }
+        })();
+      }
+    };
+    
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [selectedJobId]);
+
+  // Also refresh when location state changes
+  useEffect(() => {
+    if (location.state?.refreshMatches && selectedJobId) {
+      console.log("[EmployerMatches] Refreshing due to navigation state");
+      window.location.reload();
+    }
+  }, [location.state, selectedJobId]);
 
   // ---------- Like/Unlike ----------
   const handleLike = async (candidate: MatchCandidate) => {

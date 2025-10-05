@@ -160,17 +160,26 @@ const BrowseCandidates: React.FC = () => {
     if (employerId && selectedJobId) fetchCandidates();
   }, [employerId, selectedJobId]);
 
-  // Re-fetch when returning from profile page
+  // Re-fetch when navigating back to this page
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && employerId && selectedJobId) {
+    const handleFocus = () => {
+      if (employerId && selectedJobId) {
+        console.log("[BrowseCandidates] Refreshing candidates on focus");
         fetchCandidates();
       }
     };
     
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [employerId, selectedJobId]);
+
+  // Also refresh when location state changes (coming back from navigation)
+  useEffect(() => {
+    if (location.state?.refreshCandidates && employerId && selectedJobId) {
+      console.log("[BrowseCandidates] Refreshing due to navigation state");
+      fetchCandidates();
+    }
+  }, [location.state, employerId, selectedJobId]);
 
   useEffect(() => {
     if (!searchQuery) {

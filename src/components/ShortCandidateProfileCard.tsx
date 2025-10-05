@@ -192,13 +192,16 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
     const fromPage = (location.state as any)?.from || searchParams.get("from");
 
     if (fromPage === "notifications") {
-      navigate("/employer/notifications");
+      navigate("/employer/notifications", { state: { refreshCandidates: true } });
     } else if (fromPage === "matches") {
-      navigate("/employer/matches", { state: { tab: "matches" } });
+      navigate("/employer/matches", { state: { tab: "matches", refreshMatches: true } });
     } else if (fromPage === "topRecommended") {
-      navigate("/employer/matches", { state: { tab: "topRecommended" } });
+      navigate("/employer/matches", { state: { tab: "topRecommended", refreshMatches: true } });
     } else if (fromPage === "browse-candidates") {
-      navigate("/browse-candidates");
+      navigate("/browse-candidates", { state: { refreshCandidates: true } });
+    } else if (fromPage === "employer-matches") {
+      const tab = (location.state as any)?.tab || "matches";
+      navigate("/employer/matches", { state: { tab, refreshMatches: true } });
     } else {
       navigate(-1);
     }
