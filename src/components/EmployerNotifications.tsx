@@ -1,4 +1,3 @@
-// src/components/EmployerNotifications.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Heart, User, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,39 +28,36 @@ const EmployerNotifications: React.FC = () => {
   const [alertNotifications, setAlertNotifications] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
 
-  // ✅ Fetch employer notifications + jobs
+  // ✅ Fetch employer data and notifications
   useEffect(() => {
-    const fetchUserAndNotifications = async () => {
+    const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       setUserId(user.id);
 
-      // Fetch job posts for dropdown
-      const { data: jobs } = await supabase
+      // ✅ Fetch job posts for dropdown
+      const { data: jobs } = await (supabase as any)
         .from("job")
         .select("job_id, description, job_status, industry_role(role)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-
       if (jobs) setJobPosts(jobs);
 
-      // Fetch all notifications for employer
-      const { data, error } = await supabase
+      // ✅ Fetch notifications
+      const { data: notifData, error: notifErr } = await (supabase as any)
         .from("notifications")
         .select("*")
         .eq("recipient_id", user.id)
         .eq("recipient_type", "employer")
         .order("created_at", { ascending: false });
 
-      if (!error && data) setNotifications(data);
+      if (!notifErr && notifData) setNotifications(notifData);
 
-      // Fetch notification setting
-      const { data: setting } = await supabase
+      // ✅ Fetch notification setting
+      const { data: setting } = await (supabase as any)
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
@@ -71,7 +67,7 @@ const EmployerNotifications: React.FC = () => {
       if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
     };
 
-    fetchUserAndNotifications();
+    fetchData();
   }, []);
 
   // ✅ Toggle notifications on/off
@@ -79,7 +75,7 @@ const EmployerNotifications: React.FC = () => {
     setAlertNotifications(value);
     if (!userId) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("notification_setting")
       .upsert({
         user_id: userId,
@@ -90,31 +86,31 @@ const EmployerNotifications: React.FC = () => {
     if (error) console.error("Error updating notification setting:", error);
   };
 
-  // ✅ Handle notification click & route correctly
-  const handleNotificationClick = async (notification: NotificationItem) => {
-    if (!notification.id) return;
+  // ✅ Handle click
+  const handleNotificationClick = async (n: NotificationItem) => {
+    if (!n.id) return;
 
-    await supabase.rpc("mark_notification_read", {
-      p_notification_id: notification.id,
+    await (supabase as any).rpc("mark_notification_read", {
+      p_notification_id: n.id,
     });
 
     setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n
+      prev.map((notif) =>
+        notif.id === n.id ? { ...notif, read_at: new Date().toISOString() } : notif
       )
     );
 
-    // Route logic
-    if (notification.type === "mutual_match" && notification.whv_id) {
-      navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
+    // ✅ Navigation logic
+    if (n.type === "mutual_match" && n.whv_id) {
+      navigate(`/employer/full-candidate-profile/${n.whv_id}`, {
         state: { from: "notifications" },
       });
-    } else if (notification.type === "whv_like" && notification.whv_id) {
-      navigate(`/short-candidate-profile/${notification.whv_id}`, {
+    } else if (n.type === "whv_like" && n.whv_id) {
+      navigate(`/short-candidate-profile/${n.whv_id}`, {
         state: { from: "notifications" },
       });
-    } else if (notification.type === "job_update" && notification.job_id) {
-      navigate(`/employer/job-preview/${notification.job_id}`, {
+    } else if (n.type === "job_update" && n.job_id) {
+      navigate(`/employer/job-preview/${n.job_id}`, {
         state: { from: "notifications" },
       });
     }
@@ -134,18 +130,25 @@ const EmployerNotifications: React.FC = () => {
     }
   };
 
-  // ✅ Filter notifications by job selection
+  // ✅ Filter notifications by job
   const filteredNotifications =
     !selectedJobId || selectedJobId === "all"
       ? notifications
       : notifications.filter((n) => n.job_id === Number(selectedJobId));
 
+  // ---------- Dropdown Style (same as BrowseCandidates) ----------
+  const dropdownClasses =
+    "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
+  const itemClasses =
+    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
+
+  // ✅ UI
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           {/* Top Bar */}
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           <div className="w-full h-full flex flex-col relative bg-gray-200">
             {/* Header */}
@@ -163,7 +166,7 @@ const EmployerNotifications: React.FC = () => {
               </h1>
             </div>
 
-            {/* Toggle Setting */}
+            {/* Toggle */}
             <div className="bg-white rounded-2xl p-4 mx-6 mb-3 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -196,13 +199,13 @@ const EmployerNotifications: React.FC = () => {
                 <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
                   <SelectValue placeholder="Select a job post to view notifications" />
                 </SelectTrigger>
-                <SelectContent className="max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg">
+                <SelectContent className={dropdownClasses}>
                   <SelectItem value="all">All Jobs</SelectItem>
                   {jobPosts.map((job) => (
                     <SelectItem
                       key={job.job_id}
                       value={String(job.job_id)}
-                      className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                      className={itemClasses}
                     >
                       {job.industry_role?.role || "Unknown Role"} –{" "}
                       {job.description || `Job #${job.job_id}`}
@@ -212,7 +215,7 @@ const EmployerNotifications: React.FC = () => {
               </Select>
             </div>
 
-            {/* Notification List */}
+            {/* Notifications List */}
             <div className="flex-1 px-6 overflow-y-auto">
               {!selectedJobId ? (
                 <p className="text-center text-gray-500 mt-10">
