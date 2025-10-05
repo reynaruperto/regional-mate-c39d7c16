@@ -5,7 +5,7 @@ import { ArrowLeft, Search, Filter, Heart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BottomNavigation from "@/components/BottomNavigation";
-import FilterPage from "@/components/FilterPage";
+import FilterPage, { FilterPageProps } from "@/components/FilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -237,7 +237,6 @@ const BrowseCandidates: React.FC = () => {
       case "p_filter_license_ids":
         return `License: ${licensesMap[Number(v)] || v}`;
       case "p_filter_state":
-        return v;
       case "p_filter_suburb_city_postcode":
         return v;
       case "p_filter_work_years_experience":
@@ -269,7 +268,6 @@ const BrowseCandidates: React.FC = () => {
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
-
           <div className="w-full h-full flex flex-col relative bg-gray-50">
             {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
@@ -295,11 +293,7 @@ const BrowseCandidates: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent className={dropdownClasses}>
                   {jobPosts.map((job) => (
-                    <SelectItem
-                      key={job.job_id}
-                      value={String(job.job_id)}
-                      className={itemClasses}
-                    >
+                    <SelectItem key={job.job_id} value={String(job.job_id)} className={itemClasses}>
                       {job.industry_role?.role || "Unknown Role"} –{" "}
                       {job.description || `Job #${job.job_id}`}
                     </SelectItem>
@@ -308,12 +302,9 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search */}
+            {/* Search bar */}
             <div className="relative mb-2 px-6">
-              <Search
-                className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
+              <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
                 placeholder="Search for candidates..."
                 value={searchQuery}
@@ -321,10 +312,7 @@ const BrowseCandidates: React.FC = () => {
                 className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
               />
               <button
-                onClick={() => {
-                  console.log("Filter clicked");
-                  setShowFilters(true);
-                }}
+                onClick={() => setShowFilters(true)}
                 className="absolute right-9 top-1/2 -translate-y-1/2 z-50 cursor-pointer"
               >
                 <Filter className="text-gray-400" size={20} />
@@ -363,7 +351,7 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidates */}
+            {/* Candidate cards */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -389,30 +377,22 @@ const BrowseCandidates: React.FC = () => {
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 text-lg truncate">
-                          {c.name}
-                        </h3>
-
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Locations:</strong>{" "}
                           {(c.preferredLocations as string[])?.join(", ") || "Not specified"}
                         </p>
-
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Industries:</strong>{" "}
                           {(c.industries as string[])?.join(", ") || "No preferences"}
                         </p>
-
                         <p className="text-sm text-gray-600">
                           <strong>Experience:</strong> {c.experiences}
                         </p>
-
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
-                              navigate(
-                                `/short-candidate-profile/${c.user_id}?from=browse-candidates`
-                              )
+                              navigate(`/short-candidate-profile/${c.user_id}?from=browse-candidates`)
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
                           >
@@ -436,7 +416,7 @@ const BrowseCandidates: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Navigation */}
+          {/* Bottom nav + like modal */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
