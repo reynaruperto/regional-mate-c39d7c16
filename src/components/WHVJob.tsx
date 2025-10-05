@@ -39,7 +39,7 @@ const WHVJobPreview: React.FC = () => {
       if (!job_id) return;
       setLoading(true);
 
-      // ✅ Use "as any" to bypass Supabase type check for your custom view
+      // ✅ bypass type-check for custom view
       const { data: jobData, error } = await (supabase as any)
         .from("vw_jobs_with_employers")
         .select("*")
@@ -54,14 +54,15 @@ const WHVJobPreview: React.FC = () => {
 
       setJob(jobData);
 
-      // ✅ Check if WHV has liked this job
+      // ✅ Check if WHV liked this job
       if (whvId) {
-        const { data: likes } = await supabase
+        const { data: likes, error: likeError } = await supabase
           .from("likes")
           .select("liked_job_post_id")
           .eq("liker_id", whvId)
           .eq("liker_type", "whv");
 
+        if (likeError) console.error("Error fetching likes:", likeError);
         const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
         setIsLiked(likedIds.includes(Number(job_id)));
       }
@@ -72,10 +73,10 @@ const WHVJobPreview: React.FC = () => {
     fetchJobAndLikes();
   }, [job_id, whvId]);
 
-  // ✅ Like / Unlike Handler (same logic as Browse Jobs)
-  const handleLikeJob = async () => {
-    if (!whvId || !job_id) return;
-    const jobIdNum = Number(job_id);
+  // ✅ Like / Unlike Logic (copied from Browse Jobs)
+  const handleLikeJob = async (targetJobId?: number) => {
+    const jobIdNum = targetJobId ?? Number(job_id);
+    if (!whvId || !jobIdNum) return;
 
     try {
       if (isLiked) {
@@ -88,6 +89,7 @@ const WHVJobPreview: React.FC = () => {
           .eq("liked_job_post_id", jobIdNum);
 
         setIsLiked(false);
+        console.log("💔 Like removed");
       } else {
         // Like
         const { error } = await supabase.from("likes").insert({
@@ -101,9 +103,10 @@ const WHVJobPreview: React.FC = () => {
 
         setIsLiked(true);
         setShowLikeModal(true);
+        console.log("❤️ Like saved successfully!");
       }
     } catch (err) {
-      console.error("Error liking/unliking job:", err);
+      console.error("Error toggling like:", err);
       alert("Failed to save like. Please try again.");
     }
   };
@@ -195,7 +198,7 @@ const WHVJobPreview: React.FC = () => {
           {/* Heart Button */}
           <div className="px-6 pb-8">
             <Button
-              onClick={handleLikeJob}
+              onClick={() => handleLikeJob(Number(job_id))}
               className={`w-full h-12 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-md ${
                 isLiked
                   ? "bg-gray-800 text-white"
@@ -209,7 +212,7 @@ const WHVJobPreview: React.FC = () => {
         </div>
       </div>
 
-      {/* ✅ Modal */}
+      {/* ✅ Like Confirmation Modal */}
       <LikeConfirmationModal
         candidateName={job.role}
         onClose={() => setShowLikeModal(false)}
