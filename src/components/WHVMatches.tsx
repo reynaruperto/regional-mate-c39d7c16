@@ -272,13 +272,13 @@ const WHVMatches: React.FC = () => {
                             onClick={() => handleLikeEmployer(e)}
                             className={`h-11 w-11 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 ${
                               e.isLiked
-                                ? "bg-orange-500 border-2 border-orange-500"
+                                ? "bg-orange-100 border-2 border-orange-100"
                                 : "bg-white border-2 border-orange-300 hover:bg-orange-50"
                             }`}
                           >
                             <Heart
                               size={20}
-                              className={e.isLiked ? "text-white fill-white" : "text-orange-500"}
+                              className={e.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         )}
