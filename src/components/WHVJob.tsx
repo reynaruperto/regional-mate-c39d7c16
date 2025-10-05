@@ -46,11 +46,14 @@ const WHVJobPreview: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [showLikeModal, setShowLikeModal] = useState(false);
 
+  // Determine where user came from
   const fromPage = (location.state as any)?.from;
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setWhvId(user.id);
     };
     getUser();
@@ -59,6 +62,7 @@ const WHVJobPreview: React.FC = () => {
   useEffect(() => {
     const fetchJobDetails = async () => {
       if (!jobId) return;
+
       try {
         const { data: job } = await supabase
           .from("job")
@@ -89,12 +93,13 @@ const WHVJobPreview: React.FC = () => {
 
         let companyPhoto: string | null = null;
         if (employer?.profile_photo) {
-          if (employer.profile_photo.startsWith("http")) {
-            companyPhoto = employer.profile_photo;
+          const photoPath = employer.profile_photo;
+          if (photoPath.startsWith("http")) {
+            companyPhoto = photoPath;
           } else {
             const { data } = supabase.storage
               .from("profile_photo")
-              .getPublicUrl(employer.profile_photo);
+              .getPublicUrl(photoPath);
             companyPhoto = data.publicUrl;
           }
         }
@@ -103,13 +108,17 @@ const WHVJobPreview: React.FC = () => {
           .from("employer_facility")
           .select("facility(name)")
           .eq("user_id", job.user_id);
-        const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
+
+        const facilities =
+          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
         const { data: licenseRows } = await supabase
           .from("job_license")
           .select("license(name)")
           .eq("job_id", job.job_id);
-        const licenses = licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
+
+        const licenses =
+          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
 
         let isLiked = false;
         if (whvId) {
@@ -153,9 +162,9 @@ const WHVJobPreview: React.FC = () => {
     if (whvId) fetchJobDetails();
   }, [jobId, whvId]);
 
-  // ✅ Like / Unlike Job
   const handleLikeJob = async () => {
     if (!whvId || !jobDetails) return;
+
     try {
       if (jobDetails.isLiked) {
         await supabase
@@ -164,39 +173,48 @@ const WHVJobPreview: React.FC = () => {
           .eq("liker_id", whvId)
           .eq("liked_job_post_id", jobDetails.job_id)
           .eq("liker_type", "whv");
+
         setJobDetails({ ...jobDetails, isLiked: false });
       } else {
-        await supabase.from("likes").insert({
+        const { error } = await supabase.from("likes").insert({
           liker_id: whvId,
           liker_type: "whv",
           liked_job_post_id: jobDetails.job_id,
           liked_whv_id: null,
         });
-        setJobDetails({ ...jobDetails, isLiked: true });
-        setShowLikeModal(true);
+
+        if (error) console.error("Like insert error:", error);
+        else {
+          setJobDetails({ ...jobDetails, isLiked: true });
+          setShowLikeModal(true);
+        }
       }
     } catch (err) {
       console.error("Error toggling like:", err);
     }
   };
 
-  // ✅ Fixed Back Navigation
+  // ✅ Fixed Back Navigation Logic
   const handleBack = () => {
-    if (fromPage === "browse") {
+    if (fromPage === "notifications") {
+      navigate("/whv/notifications");
+    } else if (fromPage === "browse") {
       navigate("/whv/browse-jobs");
-    } else if (fromPage === "matches") {
-      navigate("/whv/matches", { state: { tab: "matches" } });
     } else if (fromPage === "topRecommended") {
       navigate("/whv/matches", { state: { tab: "topRecommended" } });
-    } else if (fromPage === "notifications") {
-      navigate("/whv/notifications");
+    } else if (fromPage === "matches") {
+      navigate("/whv/matches", { state: { tab: "matches" } });
     } else {
       navigate(-1);
     }
   };
 
   if (loading)
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
 
   if (!jobDetails)
     return (
@@ -211,7 +229,12 @@ const WHVJobPreview: React.FC = () => {
         <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-6 pt-16 pb-4 flex items-center justify-between">
-            <Button variant="ghost" size="icon" className="w-10 h-10" onClick={handleBack}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-10 h-10"
+              onClick={handleBack}
+            >
               <ArrowLeft className="w-5 h-5 text-[#1E293B]" />
             </Button>
             <h1 className="text-lg font-semibold">Job Preview</h1>
@@ -259,10 +282,13 @@ const WHVJobPreview: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center mb-1">
                   <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">Location</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    Location
+                  </span>
                 </div>
                 <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
+                  {jobDetails.postcode}
                 </p>
               </div>
 
@@ -306,12 +332,17 @@ const WHVJobPreview: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.licenses.length > 0 ? (
                     jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                      <span
+                        key={i}
+                        className="px-3 py-1 border text-xs rounded-full"
+                      >
                         {l}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">No licenses required</p>
+                    <p className="text-sm text-gray-500">
+                      No licenses required
+                    </p>
                   )}
                 </div>
               </div>
@@ -322,12 +353,17 @@ const WHVJobPreview: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.facilities.length > 0 ? (
                     jobDetails.facilities.map((f, i) => (
-                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
+                      <span
+                        key={i}
+                        className="px-3 py-1 border text-xs rounded-full"
+                      >
                         {f}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">No facilities listed</p>
+                    <p className="text-sm text-gray-500">
+                      No facilities listed
+                    </p>
                   )}
                 </div>
               </div>
@@ -347,7 +383,11 @@ const WHVJobPreview: React.FC = () => {
               >
                 <Heart
                   size={18}
-                  className={jobDetails.isLiked ? "fill-red-500 text-red-500" : "text-white"}
+                  className={
+                    jobDetails.isLiked
+                      ? "fill-red-500 text-red-500"
+                      : "text-white"
+                  }
                 />
                 {jobDetails.isLiked ? "Unlike Job" : "Heart to Match"}
               </Button>
