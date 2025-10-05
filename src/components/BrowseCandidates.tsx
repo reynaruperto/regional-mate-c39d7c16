@@ -53,26 +53,25 @@ const BrowseCandidates: React.FC = () => {
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  const mapRowsToCandidates = (rows: any[]): Candidate[] =>
-    (rows || []).map((row: any) => {
-      const workExp = Array.isArray(row.work_experience) ? row.work_experience : [];
-      const workExpIndustries = workExp.map((we: any) => we?.industry).filter(Boolean);
-      const experiences =
-        workExp.length > 0
-          ? workExp.map((we: any) => `${we?.industry}: ${we?.years}`).join(", ")
-          : "No experience listed";
-
-      return {
-        user_id: row.maker_id || row.user_id,
-        name: row.given_name,
-        profileImage: resolvePhoto(row.profile_photo),
-        industries: (row.industry_pref as string[]) || [],
-        workExpIndustries,
-        experiences,
-        preferredLocations: (row.state_pref as string[]) || [],
-        isLiked: false,
-      };
-    });
+  // ---------- chip label ----------
+  const chipLabel = (k: string, v: string) => {
+    switch (k) {
+      case "p_filter_work_industry_id":
+        return `Work Industry: ${industriesMap[Number(v)] || v}`;
+      case "p_filter_industry_ids":
+        return `Preferred Industry: ${industriesMap[Number(v)] || v}`;
+      case "p_filter_license_ids":
+        return `License: ${licensesMap[Number(v)] || v}`;
+      case "p_filter_state":
+        return `State: ${v}`;
+      case "p_filter_suburb_city_postcode":
+        return `Location: ${v}`;
+      case "p_filter_work_years_experience":
+        return `Experience: ${v}`;
+      default:
+        return `${k.replace("p_filter_", "").replaceAll("_", " ")}: ${v}`;
+    }
+  };
 
   // ---------- auth ----------
   useEffect(() => {
@@ -117,41 +116,69 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- fetch candidates with likes ----------
+  // ---------- fetch candidates ----------
   const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
-    // 1. Eligible candidates
-    const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
-      p_emp_id: employerId,
-      p_job_id: selectedJobId,
-    });
-    if (error) {
-      console.error("Eligible makers RPC error:", error);
-      return;
+    try {
+      const { data: makers, error } = await (supabase as any).rpc(
+        "filter_makers_for_employer",
+        {
+          p_emp_id: employerId,
+          p_job_id: selectedJobId,
+          ...filters, // 🔸 Pass all filters directly to RPC
+        }
+      );
+
+      if (error) {
+        console.error("Error fetching makers:", error);
+        return;
+      }
+
+      // Likes
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_whv_id")
+        .eq("liker_id", employerId)
+        .eq("liker_type", "employer")
+        .eq("liked_job_post_id", selectedJobId);
+
+      const likedIds = likes?.map((l) => l.liked_whv_id) || [];
+
+      const mapped = (makers || []).map((row: any) => {
+        const workExp = Array.isArray(row.work_experience)
+          ? row.work_experience
+          : [];
+        const workExpIndustries = workExp
+          .map((we: any) => we?.industry)
+          .filter(Boolean);
+
+        const experiences =
+          workExp.length > 0
+            ? workExp.map((we: any) => `${we.industry}: ${we.years}`).join(", ")
+            : "No experience listed";
+
+        return {
+          user_id: row.maker_id,
+          name: row.given_name,
+          profileImage: resolvePhoto(row.profile_photo),
+          industries: (row.pref_industries as string[]) || [],
+          workExpIndustries,
+          experiences,
+          preferredLocations: (row.states as string[]) || [],
+          isLiked: likedIds.includes(row.maker_id),
+        };
+      });
+
+      setCandidates(mapped);
+      setAllCandidates(mapped);
+      setSelectedFilters(filters);
+    } catch (err) {
+      console.error("Unexpected error fetching candidates:", err);
     }
-
-    // 2. Likes for this job
-    const { data: likes } = await supabase
-      .from("likes")
-      .select("liked_whv_id")
-      .eq("liker_id", employerId)
-      .eq("liker_type", "employer")
-      .eq("liked_job_post_id", selectedJobId);
-
-    const likedIds = likes?.map((l) => l.liked_whv_id) || [];
-
-    // 3. Merge
-    const mapped = (makers || []).map((row: any) => {
-      const c = mapRowsToCandidates([row])[0];
-      return { ...c, isLiked: likedIds.includes(c.user_id) };
-    });
-
-    setCandidates(mapped);
-    setAllCandidates(mapped);
-    setSelectedFilters(filters);
   };
 
+  // ---------- fetch when job changes ----------
   useEffect(() => {
     if (employerId && selectedJobId) fetchCandidates();
   }, [employerId, selectedJobId]);
@@ -167,8 +194,8 @@ const BrowseCandidates: React.FC = () => {
       allCandidates.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          (c.workExpIndustries as string[]).some((i) => i.toLowerCase().includes(q)) ||
-          (c.preferredLocations as string[]).some((l) => l.toLowerCase().includes(q))
+          c.workExpIndustries.some((i) => i.toLowerCase().includes(q)) ||
+          c.preferredLocations.some((l) => l.toLowerCase().includes(q))
       )
     );
   }, [searchQuery, allCandidates]);
@@ -189,13 +216,6 @@ const BrowseCandidates: React.FC = () => {
           .eq("liker_type", "employer")
           .eq("liked_whv_id", candidateId)
           .eq("liked_job_post_id", selectedJobId);
-
-        setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
-        );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
-        );
       } else {
         await supabase.from("likes").insert({
           liker_id: employerId,
@@ -203,23 +223,26 @@ const BrowseCandidates: React.FC = () => {
           liked_whv_id: candidateId,
           liked_job_post_id: selectedJobId,
         });
-
-        setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-        );
-        setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
-        );
-
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
+
+      setCandidates((prev) =>
+        prev.map((c) =>
+          c.user_id === candidateId ? { ...c, isLiked: !c.isLiked } : c
+        )
+      );
+      setAllCandidates((prev) =>
+        prev.map((c) =>
+          c.user_id === candidateId ? { ...c, isLiked: !c.isLiked } : c
+        )
+      );
     } catch (err) {
       console.error("Error toggling like:", err);
     }
   };
 
-  // ---------- filters ----------
+  // ---------- apply / remove / clear ----------
   const handleApplyFilters = async (filters: any) => {
     await fetchCandidates(filters);
     setShowFilters(false);
@@ -228,26 +251,13 @@ const BrowseCandidates: React.FC = () => {
   const removeFilter = async (key: string) => {
     const updated = { ...selectedFilters };
     delete updated[key];
+    setSelectedFilters(updated);
     await fetchCandidates(updated);
   };
 
-  const chipLabel = (k: string, v: string) => {
-    switch (k) {
-      case "p_filter_work_industry_id":
-        return `Work Exp Industry: ${industriesMap[Number(v)] || v}`;
-      case "p_filter_industry_ids":
-        return `Preferred Industry: ${industriesMap[Number(v)] || v}`;
-      case "p_filter_license_ids":
-        return `License: ${licensesMap[Number(v)] || v}`;
-      case "p_filter_state":
-        return v;
-      case "p_filter_suburb_city_postcode":
-        return v;
-      case "p_filter_work_years_experience":
-        return `Years: ${v}`;
-      default:
-        return `${k}: ${v}`;
-    }
+  const handleClearAllFilters = async () => {
+    setSelectedFilters({});
+    await fetchCandidates({});
   };
 
   // ---------- render ----------
@@ -282,7 +292,9 @@ const BrowseCandidates: React.FC = () => {
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Browse Candidates
+              </h1>
             </div>
 
             {/* Job Post Selector */}
@@ -309,7 +321,7 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search */}
+            {/* Search + Filters */}
             <div className="relative mb-2 px-6">
               <Search
                 className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400"
@@ -322,14 +334,20 @@ const BrowseCandidates: React.FC = () => {
                 className="pl-10 pr-12 h-12 rounded-xl border-gray-200 bg-white w-full"
               />
               <button
-                onClick={() => setShowFilters(true)}
+                onClick={() => {
+                  if (!selectedJobId) {
+                    alert("Please select a job post first.");
+                    return;
+                  }
+                  setShowFilters(true);
+                }}
                 className="absolute right-9 top-1/2 -translate-y-1/2"
               >
                 <Filter className="text-gray-400" size={20} />
               </button>
             </div>
 
-            {/* Filter chips */}
+            {/* Filter Chips */}
             {Object.keys(selectedFilters).length > 0 && (
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
@@ -350,10 +368,7 @@ const BrowseCandidates: React.FC = () => {
                   );
                 })}
                 <button
-                  onClick={() => {
-                    setSelectedFilters({});
-                    fetchCandidates({});
-                  }}
+                  onClick={handleClearAllFilters}
                   className="text-xs text-blue-600 underline"
                 >
                   Clear All
@@ -393,7 +408,8 @@ const BrowseCandidates: React.FC = () => {
 
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Locations:</strong>{" "}
-                          {(c.preferredLocations as string[])?.join(", ") || "Not specified"}
+                          {(c.preferredLocations as string[])?.join(", ") ||
+                            "Not specified"}
                         </p>
 
                         <p className="text-sm text-gray-600">
@@ -422,7 +438,11 @@ const BrowseCandidates: React.FC = () => {
                           >
                             <Heart
                               size={20}
-                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
+                              className={
+                                c.isLiked
+                                  ? "text-orange-500 fill-orange-500"
+                                  : "text-orange-500"
+                              }
                             />
                           </button>
                         </div>
