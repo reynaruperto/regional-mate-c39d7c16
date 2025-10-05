@@ -1,3 +1,4 @@
+// src/components/WHVNotifications.tsx
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Heart, User, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,28 +8,26 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface NotificationItem {
   id: number;
-  type: "whv_like" | "mutual_match" | "job_update";
+  type: "job_like" | "maker_like" | "mutual_match";
   title: string;
   message: string;
-  whv_id: string | null;
   job_id: number | null;
   read_at: string | null;
   created_at: string;
 }
 
-const EmployerNotifications: React.FC = () => {
+const WHVNotifications: React.FC = () => {
   const navigate = useNavigate();
   const [alertNotifications, setAlertNotifications] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ✅ Fetch employer and notifications
+  // ✅ Fetch user and notifications
   useEffect(() => {
     const fetchUserAndNotifications = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
       setUserId(user.id);
 
       // Fetch notifications
@@ -36,7 +35,7 @@ const EmployerNotifications: React.FC = () => {
         .from("notifications")
         .select("*")
         .eq("recipient_id", user.id)
-        .eq("recipient_type", "employer")
+        .eq("recipient_type", "whv")
         .order("created_at", { ascending: false });
 
       if (!notifErr && notifData) setNotifications(notifData);
@@ -46,7 +45,7 @@ const EmployerNotifications: React.FC = () => {
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
-        .eq("user_type", "employer")
+        .eq("user_type", "whv")
         .maybeSingle();
 
       if (setting) setAlertNotifications(setting.notifications_enabled ?? true);
@@ -55,15 +54,19 @@ const EmployerNotifications: React.FC = () => {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Real-time notifications for employer
+  // ✅ Real-time notifications
   useEffect(() => {
     if (!userId) return;
 
     const channel = supabase
-      .channel("employer-notifications-realtime")
+      .channel("notifications-realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+        },
         (payload) => {
           const newNotif = payload.new as any;
           if (newNotif?.recipient_id === userId) {
@@ -88,7 +91,7 @@ const EmployerNotifications: React.FC = () => {
     };
   }, [userId]);
 
-  // ✅ Toggle notifications on/off
+  // ✅ Toggle notification setting
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
@@ -97,68 +100,60 @@ const EmployerNotifications: React.FC = () => {
       .from("notification_setting")
       .upsert({
         user_id: userId,
-        user_type: "employer",
+        user_type: "whv",
         notifications_enabled: value,
       });
 
-    if (error) console.error("Error updating notification setting:", error);
+    if (error) console.error("Error updating setting:", error);
   };
 
-  // ✅ Mark as read & navigate
+  // ✅ Mark as read & navigate to correct screen
   const handleNotificationClick = async (notification: NotificationItem) => {
     if (!notification.id) return;
 
+    // Mark as read
     await (supabase as any).rpc("mark_notification_read", {
       p_notification_id: notification.id,
     });
 
+    // Update UI
     setNotifications((prev) =>
       prev.map((n) =>
         n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n
       )
     );
 
-    const type = notification.type?.toLowerCase().trim();
-
-    // ✅ Routing Logic
-    if (notification.whv_id) {
-      switch (type) {
+    // Navigate by type
+    if (notification.job_id) {
+      switch (notification.type) {
         case "mutual_match":
-          // 🔗 When it’s a match → Go to full candidate profile
-          navigate(`/employer/full-candidate-profile/${notification.whv_id}`, {
+        case "job_like":
+          navigate(`/whv/job-full/${notification.job_id}`, {
             state: { from: "notifications" },
           });
           break;
-        case "whv_like":
-          // ❤️ When candidate likes employer → Go to short profile
-          navigate(`/short-candidate-profile/${notification.whv_id}`, {
+        case "maker_like":
+          navigate(`/whv/job/${notification.job_id}`, {
             state: { from: "notifications" },
           });
           break;
         default:
-          console.warn("Unknown type with WHV ID:", type);
+          break;
       }
-    } else if (notification.job_id && type === "job_update") {
-      // 🧾 If job updated
-      navigate(`/employer/job-preview/${notification.job_id}`, {
-        state: { from: "notifications" },
-      });
-    } else {
-      console.warn("Unhandled notification type:", type);
     }
   };
 
   // ✅ Notification icons
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "whv_like":
+      case "job_like":
         return <Heart className="w-5 h-5 text-red-500" />;
+      case "maker_like":
+        return <User className="w-5 h-5 text-green-500" />;
       case "mutual_match":
         return <Heart className="w-5 h-5 text-pink-500" />;
-      case "job_update":
-        return <Bell className="w-5 h-5 text-blue-500" />;
       default:
-        return <User className="w-5 h-5 text-gray-500" />;
+        return <Bell className="w-5 h-5 text-gray-500" />;
     }
   };
 
@@ -176,7 +171,7 @@ const EmployerNotifications: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 className="w-12 h-12 bg-white rounded-xl shadow-sm mr-4"
-                onClick={() => navigate("/employer/dashboard")}
+                onClick={() => navigate("/whv/dashboard")}
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700" />
               </Button>
@@ -193,7 +188,7 @@ const EmployerNotifications: React.FC = () => {
                     Turn Notifications On/Off
                   </h3>
                   <p className="text-sm text-gray-500">
-                    You’ll get updates about likes and matches
+                    You’ll be notified about likes and mutual matches
                   </p>
                 </div>
                 <div className="flex items-center">
@@ -262,4 +257,4 @@ const EmployerNotifications: React.FC = () => {
   );
 };
 
-export default EmployerNotifications;
+export default WHVNotifications;
