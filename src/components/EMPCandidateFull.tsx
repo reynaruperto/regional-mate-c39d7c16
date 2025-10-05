@@ -1,6 +1,6 @@
 // src/pages/EMPCandidateFull.tsx
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   User,
@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 const EMPCandidateFull: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
 
@@ -127,7 +129,16 @@ const EMPCandidateFull: React.FC = () => {
   }, [id]);
 
   const handleBack = () => {
-    navigate("/employer/matches?tab=matches");
+    const fromPage = (location.state as any)?.from || searchParams.get("from");
+
+    if (fromPage === "notifications") {
+      navigate("/employer/notifications");
+    } else if (fromPage === "matches") {
+      navigate("/employer/matches?tab=matches");
+    } else {
+      // Default fallback to matches
+      navigate("/employer/matches?tab=matches");
+    }
   };
 
   const formatDate = (d: string) =>
