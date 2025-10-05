@@ -33,57 +33,35 @@ const WHVJobPreview: React.FC = () => {
     getUser();
   }, []);
 
-  // ✅ Fetch job + like status
+  // ✅ Fetch job and check if liked
   useEffect(() => {
-    const fetchJobAndLikes = async () => {
+    const fetchJob = async () => {
       if (!job_id) return;
       setLoading(true);
 
-      let jobData = null;
-      let error = null;
-
-      // Try to fetch from view
-      const { data: viewData, error: viewError } = await (supabase as any)
-        .from("vw_jobs_with_employers")
-        .select("*")
+      const { data: jobData, error } = await (supabase as any)
+        .from("job")
+        .select(
+          `
+          job_id,
+          description,
+          employment_type,
+          salary_range,
+          req_experience,
+          state,
+          suburb_city,
+          postcode,
+          start_date,
+          job_status,
+          industry_role_id,
+          user_id,
+          industry_role:industry_role_id (role),
+          industry:industry_id (industry),
+          employer:user_id (company_name, tagline, company_photo)
+        `
+        )
         .eq("job_id", Number(job_id))
         .maybeSingle();
-
-      if (viewData) {
-        jobData = viewData;
-      } else {
-        console.warn("vw_jobs_with_employers not found or empty, falling back to job + employer join");
-        // Fallback to direct join query
-        const { data: joinData, error: joinError } = await supabase
-          .from("job")
-          .select(
-            `
-            job_id,
-            description,
-            employment_type,
-            salary_range,
-            req_experience,
-            state,
-            suburb_city,
-            postcode,
-            start_date,
-            job_status,
-            industry_role_id,
-            user_id,
-            employer:employer_id (
-              company_name,
-              tagline,
-              company_photo
-            ),
-            industry:industry_id (industry),
-            industry_role:industry_role_id (role)
-          `
-          )
-          .eq("job_id", Number(job_id))
-          .maybeSingle();
-        jobData = joinData;
-        error = joinError;
-      }
 
       if (error) {
         console.error("Error fetching job:", error);
@@ -91,23 +69,16 @@ const WHVJobPreview: React.FC = () => {
         return;
       }
 
-      if (!jobData) {
-        console.error("No job data found for id", job_id);
-        setLoading(false);
-        return;
-      }
-
       setJob(jobData);
 
-      // ✅ Check if WHV liked this job
+      // ✅ Fetch if this job is liked by the user
       if (whvId) {
-        const { data: likes, error: likeError } = await supabase
+        const { data: likes } = await supabase
           .from("likes")
           .select("liked_job_post_id")
           .eq("liker_id", whvId)
           .eq("liker_type", "whv");
 
-        if (likeError) console.error("Error fetching likes:", likeError);
         const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
         setIsLiked(likedIds.includes(Number(job_id)));
       }
@@ -115,17 +86,16 @@ const WHVJobPreview: React.FC = () => {
       setLoading(false);
     };
 
-    fetchJobAndLikes();
+    fetchJob();
   }, [job_id, whvId]);
 
-  // ✅ Like / Unlike Logic (same as Browse Jobs)
+  // ✅ Like / Unlike Logic (copied directly from Browse Jobs)
   const handleLikeJob = async (targetJobId?: number) => {
     const jobIdNum = targetJobId ?? Number(job_id);
     if (!whvId || !jobIdNum) return;
 
     try {
       if (isLiked) {
-        // Unlike
         await supabase
           .from("likes")
           .delete()
@@ -135,7 +105,6 @@ const WHVJobPreview: React.FC = () => {
 
         setIsLiked(false);
       } else {
-        // Like
         const { error } = await supabase.from("likes").insert({
           liker_id: whvId,
           liker_type: "whv",
@@ -144,6 +113,7 @@ const WHVJobPreview: React.FC = () => {
         });
 
         if (error) throw error;
+
         setIsLiked(true);
         setShowLikeModal(true);
       }
@@ -191,9 +161,7 @@ const WHVJobPreview: React.FC = () => {
                 {job.role || job.industry_role?.role || "Job Role"}
               </h2>
               <p className="text-sm text-gray-600">
-                {job.company_name ||
-                  job.employer?.company_name ||
-                  "Employer not listed"}
+                {job.employer?.company_name || "Employer not listed"}
               </p>
               <p className="text-sm text-gray-500">
                 {job.suburb_city}, {job.state} {job.postcode}
