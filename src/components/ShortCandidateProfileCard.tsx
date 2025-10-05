@@ -50,13 +50,9 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
 
   // Check if already liked
   const checkIfLiked = async () => {
-    if (!employerId || !selectedJobId || !candidateId) {
-      console.log("[ShortProfile] Missing data for like check:", { employerId, selectedJobId, candidateId });
-      return;
-    }
+    if (!employerId || !selectedJobId || !candidateId) return;
 
-    console.log("[ShortProfile] Checking if liked:", { employerId, selectedJobId, candidateId });
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("likes")
       .select("id")
       .eq("liker_id", employerId)
@@ -65,12 +61,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
       .eq("liked_job_post_id", Number(selectedJobId))
       .maybeSingle();
 
-    if (error) {
-      console.error("[ShortProfile] Error checking like:", error);
-    } else {
-      console.log("[ShortProfile] Like check result:", data ? "ALREADY LIKED" : "NOT LIKED");
-      setHasAlreadyLiked(!!data);
-    }
+    setHasAlreadyLiked(!!data);
   };
 
   useEffect(() => {
@@ -79,10 +70,7 @@ const ShortCandidateProfileCard: React.FC<ShortCandidateProfileCardProps> = ({
 
   // Re-check when page becomes visible
   useEffect(() => {
-    const handleFocus = () => {
-      console.log("[ShortProfile] Window focused, re-checking like status");
-      checkIfLiked();
-    };
+    const handleFocus = () => checkIfLiked();
     
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
