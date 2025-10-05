@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 
+// ✅ Only this one export — remove the duplicate one at the bottom
 export interface FilterPageProps {
   onClose: () => void;
   onApplyFilters: (filters: any) => void;
@@ -120,7 +121,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       p_filter_license_ids: "",
     });
 
-  // ---------- dropdown reusable section ----------
+  // ---------- reusable dropdown ----------
   const DropdownSection = ({
     title,
     items,
@@ -191,7 +192,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
             </div>
           </div>
 
-          {/* Scrollable filter list */}
+          {/* Scrollable Filters */}
           <div className="flex-1 px-4 py-4 overflow-y-auto">
             <DropdownSection
               title="Industry of Work Experience"
@@ -256,4 +257,3 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
 };
 
 export default FilterPage;
-export type { FilterPageProps };
