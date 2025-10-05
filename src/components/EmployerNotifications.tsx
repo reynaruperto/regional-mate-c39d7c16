@@ -19,6 +19,7 @@ interface NotificationItem {
   title: string;
   message: string;
   whv_id: string | null;
+  job_id: number | null;
   read_at: string | null;
   created_at: string;
 }
@@ -30,17 +31,15 @@ const EmployerNotifications: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [jobPosts, setJobPosts] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // ✅ Fetch employer + notifications
+  // ✅ Fetch employer job posts + settings
   useEffect(() => {
-    const fetchData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const fetchInitialData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
 
-      // Fetch active job posts
       const { data: jobs } = await supabase
         .from("job")
         .select("job_id, description, job_status, industry_role(role)")
@@ -48,34 +47,42 @@ const EmployerNotifications: React.FC = () => {
         .eq("job_status", "active");
       setJobPosts(jobs || []);
 
-      // Fetch notifications
-      const { data: notifData } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("recipient_id", user.id)
-        .eq("recipient_type", "employer")
-        .order("created_at", { ascending: false });
-
-      setNotifications(notifData || []);
-
-      // Fetch alert setting
       const { data: setting } = await supabase
         .from("notification_setting")
         .select("notifications_enabled")
         .eq("user_id", user.id)
         .eq("user_type", "employer")
         .maybeSingle();
-
       setAlertNotifications(setting?.notifications_enabled ?? true);
     };
-    fetchData();
+    fetchInitialData();
   }, []);
 
-  // ✅ Toggle notifications on/off
+  // ✅ Fetch notifications when a job is selected
+  useEffect(() => {
+    if (!userId || !selectedJobId) return;
+
+    const fetchNotifications = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("recipient_id", userId)
+        .eq("recipient_type", "employer")
+        .eq("job_id", selectedJobId)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) setNotifications(data);
+      setLoading(false);
+    };
+
+    fetchNotifications();
+  }, [userId, selectedJobId]);
+
+  // ✅ Toggle notification setting
   const toggleNotifications = async (value: boolean) => {
     setAlertNotifications(value);
     if (!userId) return;
-
     await supabase.from("notification_setting").upsert({
       user_id: userId,
       user_type: "employer",
@@ -83,11 +90,9 @@ const EmployerNotifications: React.FC = () => {
     });
   };
 
-  // ✅ Handle click & navigation
+  // ✅ Handle notification click
   const handleNotificationClick = async (n: NotificationItem) => {
     if (!n.id) return;
-
-    // Mark as read
     await supabase.rpc("mark_notification_read", { p_notification_id: n.id });
 
     setNotifications((prev) =>
@@ -107,12 +112,14 @@ const EmployerNotifications: React.FC = () => {
 
   // ✅ Notification icons
   const getIcon = (type: string) => {
-    if (type === "mutual_match")
-      return <Heart className="w-5 h-5 text-pink-500" />;
-    return <Heart className="w-5 h-5 text-red-500" />;
+    return type === "mutual_match" ? (
+      <Heart className="w-5 h-5 text-pink-500" />
+    ) : (
+      <Heart className="w-5 h-5 text-red-500" />
+    );
   };
 
-  // ✅ Dropdown styles (same as BrowseCandidates)
+  // ✅ Dropdown classes (same as BrowseCandidates)
   const dropdownClasses =
     "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
   const itemClasses =
@@ -135,14 +142,14 @@ const EmployerNotifications: React.FC = () => {
             <h1 className="text-lg font-semibold text-gray-900">Notifications</h1>
           </div>
 
-          {/* Job Filter */}
+          {/* Job Selector */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(v) => setSelectedJobId(Number(v))}
               value={selectedJobId ? String(selectedJobId) : ""}
             >
               <SelectTrigger className="w-full h-12 border border-gray-300 rounded-xl px-3 bg-white">
-                <SelectValue placeholder="Filter by job post (optional)" />
+                <SelectValue placeholder="Select a job post first" />
               </SelectTrigger>
               <SelectContent className={dropdownClasses}>
                 {jobPosts.map((job) => (
@@ -159,7 +166,7 @@ const EmployerNotifications: React.FC = () => {
             </Select>
           </div>
 
-          {/* Toggle */}
+          {/* Toggle Setting */}
           <div className="bg-white rounded-2xl p-4 mx-6 mb-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -183,55 +190,55 @@ const EmployerNotifications: React.FC = () => {
             </div>
           </div>
 
-          {/* Notification List */}
+          {/* Notifications List */}
           <div className="flex-1 px-6 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {!selectedJobId ? (
+              <div className="text-center text-gray-600 mt-10">
+                <p>Please select a job post above to view notifications.</p>
+              </div>
+            ) : loading ? (
+              <div className="text-center text-gray-600 mt-10">Loading...</div>
+            ) : notifications.length === 0 ? (
               <p className="text-center text-gray-500 mt-10">
-                No notifications yet.
+                No notifications for this job post.
               </p>
             ) : (
-              notifications
-                .filter((n) =>
-                  selectedJobId
-                    ? n.message.includes(`#${selectedJobId}`)
-                    : true
-                )
-                .map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => handleNotificationClick(n)}
-                    className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow text-left mb-3 ${
-                      n.read_at ? "opacity-70" : ""
-                    }`}
-                  >
-                    <div className="flex items-start">
-                      <div className="mr-4 mt-1 flex-shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                          {getIcon(n.type)}
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center mb-1">
-                          <h4
-                            className={`font-semibold ${
-                              n.type === "mutual_match"
-                                ? "text-pink-600"
-                                : "text-gray-900"
-                            }`}
-                          >
-                            {n.title || "Notification"}
-                          </h4>
-                          {!n.read_at && (
-                            <div className="w-2 h-2 bg-orange-500 rounded-full ml-2" />
-                          )}
-                        </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">
-                          {n.message}
-                        </p>
+              notifications.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => handleNotificationClick(n)}
+                  className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow text-left mb-3 ${
+                    n.read_at ? "opacity-70" : ""
+                  }`}
+                >
+                  <div className="flex items-start">
+                    <div className="mr-4 mt-1 flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                        {getIcon(n.type)}
                       </div>
                     </div>
-                  </button>
-                ))
+                    <div className="flex-1">
+                      <div className="flex items-center mb-1">
+                        <h4
+                          className={`font-semibold ${
+                            n.type === "mutual_match"
+                              ? "text-pink-600"
+                              : "text-gray-900"
+                          }`}
+                        >
+                          {n.title || "Notification"}
+                        </h4>
+                        {!n.read_at && (
+                          <div className="w-2 h-2 bg-orange-500 rounded-full ml-2" />
+                        )}
+                      </div>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        {n.message}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))
             )}
             <div className="h-20" />
           </div>
