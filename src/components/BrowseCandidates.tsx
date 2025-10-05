@@ -16,13 +16,13 @@ import {
 } from "@/components/ui/select";
 
 interface Candidate {
-  user_id: string;
-  name: string;
-  profileImage: string;
-  industries: string[];
-  workExpIndustries: string[];
-  experiences: string;
-  preferredLocations: string[];
+  maker_id: string;
+  given_name: string;
+  profile_photo: string;
+  work_experience: any;
+  maker_states: string[];
+  pref_industries: string[];
+  licenses: string[];
   isLiked?: boolean;
 }
 
@@ -45,35 +45,12 @@ const BrowseCandidates: React.FC = () => {
   const [industriesMap, setIndustriesMap] = useState<Record<number, string>>({});
   const [licensesMap, setLicensesMap] = useState<Record<number, string>>({});
 
-  // ---------- helpers ----------
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/default-avatar.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  const mapRowsToCandidates = (rows: any[]): Candidate[] =>
-    (rows || []).map((row: any) => {
-      const workExp = Array.isArray(row.work_experience) ? row.work_experience : [];
-      const workExpIndustries = workExp.map((we: any) => we?.industry).filter(Boolean);
-      const experiences =
-        workExp.length > 0
-          ? workExp.map((we: any) => `${we?.industry}: ${we?.years}`).join(", ")
-          : "No experience listed";
-
-      return {
-        user_id: row.maker_id || row.user_id,
-        name: row.given_name,
-        profileImage: resolvePhoto(row.profile_photo),
-        industries: (row.industry_pref as string[]) || [],
-        workExpIndustries,
-        experiences,
-        preferredLocations: (row.state_pref as string[]) || [],
-        isLiked: false,
-      };
-    });
-
-  // ---------- auth ----------
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -81,7 +58,6 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, []);
 
-  // ---------- lookups ----------
   useEffect(() => {
     (async () => {
       const { data: inds } = await supabase.from("industry").select("industry_id, name");
@@ -102,7 +78,6 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, []);
 
-  // ---------- job posts ----------
   useEffect(() => {
     if (!employerId) return;
     (async () => {
@@ -116,16 +91,26 @@ const BrowseCandidates: React.FC = () => {
     })();
   }, [employerId]);
 
-  // ---------- fetch candidates ----------
   const fetchCandidates = async (filters: any = {}) => {
     if (!employerId || !selectedJobId) return;
 
-    const { data: makers, error } = await (supabase as any).rpc("view_all_eligible_makers", {
+    const { data: makers, error } = await (supabase as any).rpc("filter_makers_for_employer", {
       p_emp_id: employerId,
       p_job_id: selectedJobId,
+      p_filter_state: filters.p_filter_state || null,
+      p_filter_suburb_city_postcode: filters.p_filter_suburb_city_postcode || null,
+      p_filter_work_industry_id: filters.p_filter_work_industry_id || null,
+      p_filter_work_years_experience: filters.p_filter_work_years_experience || null,
+      p_filter_industry_ids: filters.p_filter_industry_ids
+        ? [Number(filters.p_filter_industry_ids)]
+        : null,
+      p_filter_license_ids: filters.p_filter_license_ids
+        ? [Number(filters.p_filter_license_ids)]
+        : null,
     });
+
     if (error) {
-      console.error("Eligible makers RPC error:", error);
+      console.error("RPC error:", error);
       return;
     }
 
@@ -138,10 +123,16 @@ const BrowseCandidates: React.FC = () => {
 
     const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-    const mapped = (makers || []).map((row: any) => {
-      const c = mapRowsToCandidates([row])[0];
-      return { ...c, isLiked: likedIds.includes(c.user_id) };
-    });
+    const mapped: Candidate[] = (makers || []).map((row: any) => ({
+      maker_id: row.maker_id,
+      given_name: row.given_name,
+      profile_photo: resolvePhoto(row.profile_photo),
+      work_experience: row.work_experience || [],
+      maker_states: row.maker_states || [],
+      pref_industries: row.pref_industries || [],
+      licenses: row.licenses || [],
+      isLiked: likedIds.includes(row.maker_id),
+    }));
 
     setCandidates(mapped);
     setAllCandidates(mapped);
@@ -152,7 +143,6 @@ const BrowseCandidates: React.FC = () => {
     if (employerId && selectedJobId) fetchCandidates();
   }, [employerId, selectedJobId]);
 
-  // ---------- search ----------
   useEffect(() => {
     if (!searchQuery) {
       setCandidates(allCandidates);
@@ -162,17 +152,16 @@ const BrowseCandidates: React.FC = () => {
     setCandidates(
       allCandidates.filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.workExpIndustries as string[]).some((i) => i.toLowerCase().includes(q)) ||
-          (c.preferredLocations as string[]).some((l) => l.toLowerCase().includes(q))
+          c.given_name.toLowerCase().includes(q) ||
+          c.pref_industries.some((i) => i.toLowerCase().includes(q)) ||
+          c.maker_states.some((l) => l.toLowerCase().includes(q))
       )
     );
   }, [searchQuery, allCandidates]);
 
-  // ---------- like/unlike ----------
   const handleLikeCandidate = async (candidateId: string) => {
     if (!employerId || !selectedJobId) return;
-    const candidate = candidates.find((c) => c.user_id === candidateId);
+    const candidate = candidates.find((c) => c.maker_id === candidateId);
     if (!candidate) return;
 
     try {
@@ -186,10 +175,10 @@ const BrowseCandidates: React.FC = () => {
           .eq("liked_job_post_id", selectedJobId);
 
         setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+          prev.map((c) => (c.maker_id === candidateId ? { ...c, isLiked: false } : c))
         );
         setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: false } : c))
+          prev.map((c) => (c.maker_id === candidateId ? { ...c, isLiked: false } : c))
         );
       } else {
         await supabase.from("likes").insert({
@@ -200,13 +189,13 @@ const BrowseCandidates: React.FC = () => {
         });
 
         setCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+          prev.map((c) => (c.maker_id === candidateId ? { ...c, isLiked: true } : c))
         );
         setAllCandidates((prev) =>
-          prev.map((c) => (c.user_id === candidateId ? { ...c, isLiked: true } : c))
+          prev.map((c) => (c.maker_id === candidateId ? { ...c, isLiked: true } : c))
         );
 
-        setLikedCandidateName(candidate.name);
+        setLikedCandidateName(candidate.given_name);
         setShowLikeModal(true);
       }
     } catch (err) {
@@ -214,7 +203,6 @@ const BrowseCandidates: React.FC = () => {
     }
   };
 
-  // ---------- filters ----------
   const handleApplyFilters = async (filters: any) => {
     await fetchCandidates(filters);
     setShowFilters(false);
@@ -241,28 +229,20 @@ const BrowseCandidates: React.FC = () => {
 
   const dropdownClasses =
     "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
-  const itemClasses =
-    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
+  const itemClasses = "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
-  // ---------- render ----------
   return (
     <div className="relative min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* Filter overlay */}
       {showFilters && (
         <div className="absolute inset-0 z-50 bg-white rounded-[48px] overflow-hidden">
-          <FilterPage
-            onClose={() => setShowFilters(false)}
-            onApplyFilters={handleApplyFilters}
-          />
+          <FilterPage onClose={() => setShowFilters(false)} onApplyFilters={handleApplyFilters} />
         </div>
       )}
 
-      {/* Main content */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
         <div className="w-full h-full bg-background rounded-[48px] overflow-hidden relative">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50" />
           <div className="w-full h-full flex flex-col relative bg-gray-50">
-            {/* Header */}
             <div className="px-6 pt-16 pb-4 flex items-center">
               <Button
                 variant="ghost"
@@ -275,7 +255,6 @@ const BrowseCandidates: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-900">Browse Candidates</h1>
             </div>
 
-            {/* Job Post Selector */}
             <div className="px-6 mb-4">
               <Select
                 onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -295,7 +274,6 @@ const BrowseCandidates: React.FC = () => {
               </Select>
             </div>
 
-            {/* Search */}
             <div className="relative mb-2 px-6">
               <Search className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <Input
@@ -312,7 +290,6 @@ const BrowseCandidates: React.FC = () => {
               </button>
             </div>
 
-            {/* Filter chips */}
             {Object.keys(selectedFilters).length > 0 && (
               <div className="px-6 flex flex-wrap gap-2 mb-3">
                 {Object.entries(selectedFilters).map(([k, v]) => {
@@ -340,7 +317,6 @@ const BrowseCandidates: React.FC = () => {
               </div>
             )}
 
-            {/* Candidate list */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {!selectedJobId ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -353,36 +329,46 @@ const BrowseCandidates: React.FC = () => {
               ) : (
                 candidates.map((c) => (
                   <div
-                    key={c.user_id}
+                    key={c.maker_id}
                     className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
                   >
                     <div className="flex gap-3 items-start">
                       <img
-                        src={c.profileImage}
-                        alt={c.name}
+                        src={c.profile_photo}
+                        alt={c.given_name}
                         className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">
+                          {c.given_name}
+                        </h3>
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Locations:</strong>{" "}
-                          {(c.preferredLocations as string[])?.join(", ") || "Not specified"}
+                          {c.maker_states.join(", ") || "Not specified"}
                         </p>
                         <p className="text-sm text-gray-600">
                           <strong>Preferred Industries:</strong>{" "}
-                          {(c.industries as string[])?.join(", ") || "No preferences"}
+                          {c.pref_industries.join(", ") || "No preferences"}
                         </p>
                         <p className="text-sm text-gray-600">
-                          <strong>Experience:</strong> {c.experiences}
+                          <strong>Licenses:</strong> {c.licenses.join(", ") || "None"}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <strong>Experience:</strong>{" "}
+                          {Array.isArray(c.work_experience)
+                            ? c.work_experience
+                                .map((we: any) => `${we.industry}: ${we.years}`)
+                                .join(", ")
+                            : "No experience listed"}
                         </p>
                         <div className="flex items-center gap-3 mt-3">
                           <Button
                             onClick={() =>
                               navigate(
-                                `/short-candidate-profile/${c.user_id}?from=browse-candidates`
+                                `/short-candidate-profile/${c.maker_id}?from=browse-candidates`
                               )
                             }
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-white h-10 rounded-xl"
@@ -390,7 +376,7 @@ const BrowseCandidates: React.FC = () => {
                             View Profile
                           </Button>
                           <button
-                            onClick={() => handleLikeCandidate(c.user_id)}
+                            onClick={() => handleLikeCandidate(c.maker_id)}
                             className="h-10 w-10 flex-shrink-0 bg-white border-2 border-orange-300 rounded-xl flex items-center justify-center hover:bg-orange-50 transition-all duration-200"
                           >
                             <Heart
@@ -411,7 +397,6 @@ const BrowseCandidates: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
