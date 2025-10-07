@@ -88,11 +88,15 @@ const WHVProfileSetup: React.FC = () => {
     if (!dob) return false;
     const date = new Date(dob);
     const now = new Date();
-    const age =
-      now.getFullYear() -
-      date.getFullYear() -
-      (now < new Date(now.getFullYear(), date.getMonth(), date.getDate()) ? 1 : 0);
-    return age >= 18 && age <= 35;
+    const birthYear = date.getFullYear();
+
+    if (birthYear < 1000 || birthYear > 9999) return false;
+
+    const age = now.getFullYear() - birthYear;
+    const monthDiff = now.getMonth() - date.getMonth();
+    const actualAge = monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate()) ? age - 1 : age;
+
+    return actualAge >= 18 && actualAge <= 35;
   };
 
   const isValidExpiry = (date: string) => {
@@ -158,6 +162,8 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
+    const mappedVisaType = getVisaEnumValue(selectedStage);
+
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -209,15 +215,12 @@ const WHVProfileSetup: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      {/* Outer frame */}
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
-        {/* Inner screen */}
-        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
-          {/* Dynamic Island */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
+        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
 
           {/* Header */}
-          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between flex-shrink-0 bg-white z-10">
+          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between">
             <button
               onClick={() => navigate("/whv/email-confirmation")}
               className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
@@ -228,9 +231,10 @@ const WHVProfileSetup: React.FC = () => {
             <span className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-full text-sm">3/6</span>
           </div>
 
-          {/* Scrollable Form */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-            <form onSubmit={handleSubmit} className="space-y-6 pb-40">
+          {/* Form */}
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Name fields */}
               <div>
                 <Label>
                   Given Name/s <span className="text-red-500">*</span>
@@ -250,6 +254,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.familyName && <p className="text-red-500">{errors.familyName}</p>}
               </div>
 
+              {/* Country */}
               <div>
                 <Label>
                   Nationality <span className="text-red-500">*</span>
@@ -272,6 +277,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.nationality && <p className="text-red-500">{errors.nationality}</p>}
               </div>
 
+              {/* Visa */}
               {filteredStages.length > 0 && (
                 <div>
                   <Label>
@@ -293,6 +299,7 @@ const WHVProfileSetup: React.FC = () => {
                 </div>
               )}
 
+              {/* DOB */}
               <div>
                 <Label>
                   Date of Birth <span className="text-red-500">*</span>
@@ -301,6 +308,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.dateOfBirth && <p className="text-red-500">{errors.dateOfBirth}</p>}
               </div>
 
+              {/* Visa expiry */}
               <div>
                 <Label>
                   Visa Expiry <span className="text-red-500">*</span>
@@ -309,6 +317,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.visaExpiry && <p className="text-red-500">{errors.visaExpiry}</p>}
               </div>
 
+              {/* Phone */}
               <div>
                 <Label>
                   Phone <span className="text-red-500">*</span>
@@ -322,6 +331,7 @@ const WHVProfileSetup: React.FC = () => {
                 {errors.phone && <p className="text-red-500">{errors.phone}</p>}
               </div>
 
+              {/* Address */}
               <div>
                 <Label>
                   Address Line 1 <span className="text-red-500">*</span>
@@ -365,20 +375,18 @@ const WHVProfileSetup: React.FC = () => {
                 <Input name="postcode" value={formData.postcode} onChange={handleChange} maxLength={4} />
                 {errors.postcode && <p className="text-red-500">{errors.postcode}</p>}
               </div>
-            </form>
-          </div>
 
-          {/* Fixed Continue Button */}
-          <div className="absolute bottom-5 left-0 w-full px-6 z-20">
-            <div className="bg-white/90 backdrop-blur-lg border border-gray-200 shadow-lg rounded-3xl px-4 py-4 mx-2">
-              <Button
-                type="submit"
-                onClick={handleSubmit}
-                className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-2xl"
-              >
-                Continue →
-              </Button>
-            </div>
+              {/* Fixed Continue Button */}
+              <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t z-20 rounded-b-[54px]">
+                <Button
+                  type="submit"
+                  onClick={handleSubmit}
+                  className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl"
+                >
+                  Continue →
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
