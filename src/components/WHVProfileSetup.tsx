@@ -88,15 +88,11 @@ const WHVProfileSetup: React.FC = () => {
     if (!dob) return false;
     const date = new Date(dob);
     const now = new Date();
-    const birthYear = date.getFullYear();
-
-    if (birthYear < 1000 || birthYear > 9999) return false;
-
-    const age = now.getFullYear() - birthYear;
-    const monthDiff = now.getMonth() - date.getMonth();
-    const actualAge = monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate()) ? age - 1 : age;
-
-    return actualAge >= 18 && actualAge <= 35;
+    const age =
+      now.getFullYear() -
+      date.getFullYear() -
+      (now < new Date(now.getFullYear(), date.getMonth(), date.getDate()) ? 1 : 0);
+    return age >= 18 && age <= 35;
   };
 
   const isValidExpiry = (date: string) => {
@@ -162,8 +158,6 @@ const WHVProfileSetup: React.FC = () => {
       return;
     }
 
-    const mappedVisaType = getVisaEnumValue(selectedStage);
-
     const { error: whvError } = await supabase.from("whv_maker").upsert(
       {
         user_id: user.id,
@@ -215,8 +209,10 @@ const WHVProfileSetup: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* Outer frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col relative">
+        {/* Inner screen */}
+        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
 
@@ -234,8 +230,7 @@ const WHVProfileSetup: React.FC = () => {
 
           {/* Scrollable Form */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-            <form onSubmit={handleSubmit} className="space-y-6 pb-32">
-              {/* --- all your form fields exactly as before --- */}
+            <form onSubmit={handleSubmit} className="space-y-6 pb-40">
               <div>
                 <Label>
                   Given Name/s <span className="text-red-500">*</span>
@@ -243,12 +238,10 @@ const WHVProfileSetup: React.FC = () => {
                 <Input name="givenName" value={formData.givenName} onChange={handleChange} />
                 {errors.givenName && <p className="text-red-500">{errors.givenName}</p>}
               </div>
-
               <div>
                 <Label>Middle Name</Label>
                 <Input name="middleName" value={formData.middleName} onChange={handleChange} />
               </div>
-
               <div>
                 <Label>
                   Family Name/s <span className="text-red-500">*</span>
@@ -336,12 +329,10 @@ const WHVProfileSetup: React.FC = () => {
                 <Input name="address1" value={formData.address1} onChange={handleChange} />
                 {errors.address1 && <p className="text-red-500">{errors.address1}</p>}
               </div>
-
               <div>
                 <Label>Address Line 2</Label>
                 <Input name="address2" value={formData.address2} onChange={handleChange} />
               </div>
-
               <div>
                 <Label>
                   Suburb <span className="text-red-500">*</span>
@@ -349,7 +340,6 @@ const WHVProfileSetup: React.FC = () => {
                 <Input name="suburb" value={formData.suburb} onChange={handleChange} />
                 {errors.suburb && <p className="text-red-500">{errors.suburb}</p>}
               </div>
-
               <div>
                 <Label>
                   State <span className="text-red-500">*</span>
@@ -368,7 +358,6 @@ const WHVProfileSetup: React.FC = () => {
                 </Select>
                 {errors.state && <p className="text-red-500">{errors.state}</p>}
               </div>
-
               <div>
                 <Label>
                   Postcode <span className="text-red-500">*</span>
@@ -380,10 +369,16 @@ const WHVProfileSetup: React.FC = () => {
           </div>
 
           {/* Fixed Continue Button */}
-          <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t z-20">
-            <Button type="submit" onClick={handleSubmit} className="w-full h-14 bg-orange-500 text-white rounded-xl">
-              Continue →
-            </Button>
+          <div className="absolute bottom-5 left-0 w-full px-6 z-20">
+            <div className="bg-white/90 backdrop-blur-lg border border-gray-200 shadow-lg rounded-3xl px-4 py-4 mx-2">
+              <Button
+                type="submit"
+                onClick={handleSubmit}
+                className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-2xl"
+              >
+                Continue →
+              </Button>
+            </div>
           </div>
         </div>
       </div>
