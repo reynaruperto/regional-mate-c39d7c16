@@ -55,10 +55,10 @@ const WHVBrowseJobs: React.FC = () => {
 
       setWhvId(user.id);
 
-      // Fetch visa info linked via maker_visa and joined to country
+      // Fetch visa info
       const { data: visaData, error: visaError } = await supabase
         .from("maker_visa")
-        .select("stage_id, country:country_id(subclass)")
+        .select("stage_id")
         .eq("user_id", user.id)
         .single();
 
@@ -74,15 +74,6 @@ const WHVBrowseJobs: React.FC = () => {
           3: "Third Working Holiday Visa",
         };
 
-        // Optional subclass detection (not shown in header to save space)
-        const subclassLabel =
-          visaData.country?.subclass === 417
-            ? "Subclass 417"
-            : visaData.country?.subclass === 462
-              ? "Subclass 462"
-              : "";
-
-        // We only show the stage part in the header for simplicity
         const label = stageLabelMap[visaData.stage_id] || "Working Holiday Visa";
         setVisaStageLabel(label);
       } else {
