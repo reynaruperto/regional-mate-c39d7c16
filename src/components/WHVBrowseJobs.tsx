@@ -34,23 +34,66 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  // Helper to resolve photo URL
+  // ✅ Resolve profile photo URL
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/placeholder.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  // ✅ Get logged-in WHV ID
+  // ✅ Fetch user + visa info
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setWhvId(user.id);
+    const getUserAndVisa = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (error || !user) {
+        console.error("Error fetching user:", error);
+        return;
+      }
+
+      setWhvId(user.id);
+
+      // Fetch visa info linked via maker_visa and joined to country
+      const { data: visaData, error: visaError } = await supabase
+        .from("maker_visa")
+        .select("stage_id, country:country_id(subclass)")
+        .eq("user_id", user.id)
+        .single();
+
+      if (visaError) {
+        console.error("Error fetching visa info:", visaError);
+        return;
+      }
+
+      if (visaData) {
+        const stageLabelMap: Record<number, string> = {
+          1: "First Working Holiday Visa",
+          2: "Second Working Holiday Visa",
+          3: "Third Working Holiday Visa",
+        };
+
+        // Optional subclass detection (not shown in header to save space)
+        const subclassLabel =
+          visaData.country?.subclass === 417
+            ? "Subclass 417"
+            : visaData.country?.subclass === 462
+              ? "Subclass 462"
+              : "";
+
+        // We only show the stage part in the header for simplicity
+        const label = stageLabelMap[visaData.stage_id] || "Working Holiday Visa";
+        setVisaStageLabel(label);
+      } else {
+        setVisaStageLabel("Visa not registered");
+      }
     };
-    getUser();
+
+    getUserAndVisa();
   }, []);
 
-  // ✅ Fetch jobs (eligible)
+  // ✅ Fetch eligible jobs
   const fetchJobs = async (activeFilters: any = {}) => {
     if (!whvId) return;
 
@@ -68,9 +111,10 @@ const WHVBrowseJobs: React.FC = () => {
       console.error("Error fetching jobs:", error);
       return;
     }
+
     if (!jobsData) return;
 
-    // Likes
+    // Fetch liked jobs
     const { data: likes } = await supabase
       .from("likes")
       .select("liked_job_post_id")
@@ -100,7 +144,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  // ✅ Like/unlike
+  // ✅ Handle Like/Unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -136,7 +180,7 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
-  // ✅ Remove single filter chip
+  // ✅ Remove individual filter
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null, [`${key}Label`]: null };
     const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
@@ -150,7 +194,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs({});
   };
 
-  // ✅ Build filter chips using labels only
+  // ✅ Build chips
   const filterChips = [
     filters.industryLabel && { key: "industryId", label: filters.industryLabel },
     filters.state && { key: "state", label: filters.state },
@@ -160,22 +204,14 @@ const WHVBrowseJobs: React.FC = () => {
     filters.facilityLabel && { key: "facilityId", label: filters.facilityLabel },
   ].filter(Boolean) as { key: string; label: string }[];
 
-  // ✅ Apply search query across ALL fields
+  // ✅ Apply search query across job fields
   const visibleJobs = useMemo(() => {
     if (!searchQuery) return jobs;
     const q = searchQuery.toLowerCase();
     return jobs.filter((j) =>
-      [
-        j.role,
-        j.company,
-        j.industry,
-        j.location,
-        j.salary_range,
-        j.job_type,
-        j.description,
-      ]
-        .filter(Boolean) // skip nulls
-        .some((field) => field.toLowerCase().includes(q))
+      [j.role, j.company, j.industry, j.location, j.salary_range, j.job_type, j.description]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(q)),
     );
   }, [jobs, searchQuery]);
 
@@ -237,19 +273,14 @@ const WHVBrowseJobs: React.FC = () => {
             {/* Visa Info */}
             <div className="bg-gray-100 px-6 py-2 text-sm text-gray-700 text-center">
               <p>
-                Your visa: <strong>{visaStageLabel || "Unknown"}</strong>
+                Your visa: <strong>{visaStageLabel || "Loading..."}</strong>
               </p>
-              <p className="text-xs text-gray-500">
-                Only jobs eligible for your visa will appear here.
-              </p>
+              <p className="text-xs text-gray-500">Only jobs eligible for your visa will appear here.</p>
             </div>
 
             {/* Search */}
             <div className="relative mb-2 px-6 mt-2">
-              <Search
-                className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400"
-                size={20}
-              />
+              <Search className="absolute left-9 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <Input
                 placeholder="Search jobs..."
                 value={searchQuery}
@@ -292,7 +323,7 @@ const WHVBrowseJobs: React.FC = () => {
               </div>
             )}
 
-            {/* Jobs */}
+            {/* Jobs List */}
             <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
               {visibleJobs.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10">
@@ -300,10 +331,7 @@ const WHVBrowseJobs: React.FC = () => {
                 </div>
               ) : (
                 visibleJobs.map((job) => (
-                  <div
-                    key={job.job_id}
-                    className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4"
-                  >
+                  <div key={job.job_id} className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-4">
                     <div className="flex items-start gap-4">
                       <img
                         src={job.profile_photo}
@@ -329,13 +357,10 @@ const WHVBrowseJobs: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* Buttons */}
                         <div className="flex items-center gap-3 mt-4">
                           <Button
                             className="flex-1 bg-[#1E293B] hover:bg-[#0f172a] text-white h-11 rounded-xl"
-                            onClick={() =>
-                              navigate(`/whv/job/${job.job_id}`, { state: { from: "browse" } })
-                            }
+                            onClick={() => navigate(`/whv/job/${job.job_id}`, { state: { from: "browse" } })}
                           >
                             View Details
                           </Button>
@@ -358,12 +383,12 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom nav */}
+          {/* Bottom Navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like Modal */}
+          {/* Like Confirmation */}
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
