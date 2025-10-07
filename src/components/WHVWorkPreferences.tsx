@@ -259,17 +259,17 @@ const WHVWorkPreferences: React.FC = () => {
   };
 
   // ==========================
-  // UI
+  // UI Layout
   // ==========================
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
-        <div className="w-full h-full bg-white rounded-[54px] flex flex-col relative overflow-hidden">
+        <div className="w-full h-full bg-white rounded-[54px] flex flex-col relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
 
           {/* Header */}
-          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between flex-shrink-0 bg-white z-10">
+          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between bg-white z-10">
             <button
               onClick={() => navigate("/whv/profile-setup")}
               className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
@@ -280,9 +280,9 @@ const WHVWorkPreferences: React.FC = () => {
             <span className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-full text-sm">4/6</span>
           </div>
 
-          {/* Scrollable Content */}
+          {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 pb-40">
-            {/* Tagline */}
+            {/* Section 1: Tagline */}
             <div className="border rounded-lg">
               <button
                 type="button"
@@ -308,8 +308,157 @@ const WHVWorkPreferences: React.FC = () => {
               )}
             </div>
 
-            {/* Other expandable sections remain unchanged */}
-            {/* ... (Industries, Preferred Locations, Review) ... */}
+            {/* Section 2: Industries & Roles */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() => setExpandedSections((p) => ({ ...p, industries: !p.industries }))}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">2. Industries & Roles</span>
+                {expandedSections.industries ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+              </button>
+              {expandedSections.industries && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  <Label>Select one industry *</Label>
+                  {industries.map((industry) => (
+                    <label key={industry.id} className="flex items-center space-x-2 py-1">
+                      <input
+                        type="radio"
+                        checked={selectedIndustries.includes(industry.id)}
+                        onChange={() => handleIndustrySelect(industry.id)}
+                        className="h-4 w-4"
+                        name="industry"
+                      />
+                      <span>{industry.name}</span>
+                    </label>
+                  ))}
+
+                  {selectedIndustries.map((industryId) => {
+                    const industry = industries.find((i) => i.id === industryId);
+                    const industryRoles = roles.filter((r) => r.industryId === industryId);
+                    return (
+                      <div key={industryId}>
+                        <Label>Roles for {industry?.name}</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {industryRoles.map((role) => (
+                            <button
+                              type="button"
+                              key={role.id}
+                              onClick={() => toggleRole(role.id)}
+                              className={`px-3 py-1.5 rounded-full text-xs border ${
+                                selectedRoles.includes(role.id)
+                                  ? "bg-orange-500 text-white border-orange-500"
+                                  : "bg-white text-gray-700 border-gray-300"
+                              }`}
+                            >
+                              {role.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Preferred Locations */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() => setExpandedSections((p) => ({ ...p, states: !p.states }))}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">3. Preferred Locations</span>
+                {expandedSections.states ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+              </button>
+              {expandedSections.states && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  {selectedIndustries.length > 0 &&
+                    [...new Set(regions.map((r) => r.state))].map((state) => (
+                      <div key={state} className="mb-4">
+                        <label className="flex items-center space-x-2 py-1 font-medium">
+                          <input
+                            type="checkbox"
+                            checked={preferredStates.includes(state)}
+                            onChange={() =>
+                              setPreferredStates((prev) =>
+                                prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state],
+                              )
+                            }
+                          />
+                          <span>{state}</span>
+                        </label>
+
+                        {preferredStates.includes(state) && (
+                          <div className="ml-6 space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-white">
+                            {getAreasForState(state).map((locKey) => {
+                              const [suburb_city, postcode] = locKey.split("::");
+                              return (
+                                <label key={locKey} className="flex items-center space-x-2 py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={preferredAreas.includes(locKey)}
+                                    onChange={() => togglePreferredArea(locKey)}
+                                  />
+                                  <span>
+                                    {suburb_city} ({postcode})
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 4: Review */}
+            <div className="border rounded-lg">
+              <button
+                type="button"
+                onClick={() => setExpandedSections((p) => ({ ...p, summary: !p.summary }))}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <span className="text-lg font-medium">4. Review</span>
+                {expandedSections.summary ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+              </button>
+              {expandedSections.summary && (
+                <div className="px-4 pb-4 border-t space-y-3 text-sm">
+                  <p>
+                    <strong>Visa:</strong> {visaLabel}
+                  </p>
+                  <p>
+                    <strong>Tagline:</strong> {tagline}
+                  </p>
+                  <p>
+                    <strong>Date Available:</strong> {dateAvailable}
+                  </p>
+                  <p>
+                    <strong>Industries:</strong>{" "}
+                    {selectedIndustries.map((id) => industries.find((i) => i.id === id)?.name).join(", ")}
+                  </p>
+                  <p>
+                    <strong>Roles:</strong> {selectedRoles.map((id) => roles.find((r) => r.id === id)?.name).join(", ")}
+                  </p>
+                  <p>
+                    <strong>States:</strong> {preferredStates.join(", ")}
+                  </p>
+                  <p>
+                    <strong>Suburbs:</strong>{" "}
+                    {preferredAreas
+                      .map((locKey) => {
+                        const [suburb_city, postcode] = locKey.split("::");
+                        return `${suburb_city} (${postcode})`;
+                      })
+                      .join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ✅ Fixed Continue Button */}
@@ -329,6 +478,21 @@ const WHVWorkPreferences: React.FC = () => {
               Continue →
             </Button>
           </div>
+
+          {/* Popup */}
+          {showPopup && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl p-6 w-80 shadow-lg text-center">
+                <h2 className="text-lg font-semibold mb-3">Not Eligible</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your country/visa stage is not eligible for any work industries.
+                </p>
+                <Button onClick={() => setShowPopup(false)} className="w-full bg-slate-800 text-white rounded-lg">
+                  OK
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
