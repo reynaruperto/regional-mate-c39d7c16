@@ -166,10 +166,21 @@ const WHVBrowseJobs: React.FC = () => {
 
   //  Remove individual filter
   const handleRemoveFilter = (key: string) => {
-    const updated = { ...filters, [key]: null, [`${key}Label`]: null };
-    const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
-    setFilters(clean);
-    fetchJobs(clean);
+    const updated = { ...filters };
+    
+    // Handle both the key and its label variant
+    if (key === "industryId") {
+      delete updated.industryId;
+      delete updated.industryLabel;
+    } else if (key === "facilityId") {
+      delete updated.facilityId;
+      delete updated.facilityLabel;
+    } else {
+      delete updated[key];
+    }
+    
+    setFilters(updated);
+    fetchJobs(updated);
   };
 
   //  Clear all filters
