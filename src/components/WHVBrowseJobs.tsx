@@ -34,14 +34,14 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  //  Resolve profile photo URL
+  //  Resolve photo
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/placeholder.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  //  Fetch user + visa info
+  //  Fetch WHV + visa info
   useEffect(() => {
     const getUserAndVisa = async () => {
       const {
@@ -55,7 +55,7 @@ const WHVBrowseJobs: React.FC = () => {
 
       setWhvId(user.id);
 
-      // Fetch visa info with stage label
+      // Fetch visa info via relationship join
       const { data: visaData, error: visaError } = await supabase
         .from("maker_visa")
         .select("stage_id, visa_stage:stage_id(label)")
@@ -98,7 +98,6 @@ const WHVBrowseJobs: React.FC = () => {
 
     if (!jobsData) return;
 
-    // Fetch liked jobs
     const { data: likes } = await supabase
       .from("likes")
       .select("liked_job_post_id")
@@ -128,7 +127,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  //  Handle Like/Unlike
+  //  Like/unlike jobs
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -164,12 +163,14 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
-  //  Remove individual filter
+  //  FIXED — Remove individual filter instantly and update chips
   const handleRemoveFilter = (key: string) => {
-    const updated = { ...filters, [key]: null, [`${key}Label`]: null };
-    const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
-    setFilters(clean);
-    fetchJobs(clean);
+    const updated = { ...filters };
+    delete updated[key];
+    delete updated[`${key}Label`];
+
+    setFilters(updated);
+    fetchJobs(updated);
   };
 
   //  Clear all filters
@@ -178,7 +179,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs({});
   };
 
-  //  Build chips
+  //  Build visible filter chips
   const filterChips = [
     filters.industryLabel && { key: "industryId", label: filters.industryLabel },
     filters.state && { key: "state", label: filters.state },
@@ -188,7 +189,7 @@ const WHVBrowseJobs: React.FC = () => {
     filters.facilityLabel && { key: "facilityId", label: filters.facilityLabel },
   ].filter(Boolean) as { key: string; label: string }[];
 
-  //  Apply search query across job fields
+  //  Apply search query
   const visibleJobs = useMemo(() => {
     if (!searchQuery) return jobs;
     const q = searchQuery.toLowerCase();
@@ -279,7 +280,7 @@ const WHVBrowseJobs: React.FC = () => {
               </button>
             </div>
 
-            {/* Chips */}
+            {/* Filter Chips */}
             {filterChips.length > 0 && (
               <div className="flex flex-wrap gap-2 px-6 mb-2">
                 {filterChips.map((chip) => (
@@ -367,12 +368,12 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Navigation */}
+          {/* Bottom Nav */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like Confirmation */}
+          {/* Like Modal */}
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
