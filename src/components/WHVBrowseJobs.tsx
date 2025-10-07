@@ -29,12 +29,11 @@ const WHVBrowseJobs: React.FC = () => {
   const [showLikeModal, setShowLikeModal] = useState(false);
   const [likedJobTitle, setLikedJobTitle] = useState("");
   const [jobs, setJobs] = useState<JobCard[]>([]);
-  const [allJobs, setAllJobs] = useState<JobCard[]>([]);
   const [filters, setFilters] = useState<any>({});
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  //  Resolve photo
+  //  Resolve photo URL
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/placeholder.png";
     if (val.startsWith("http")) return val;
@@ -55,7 +54,7 @@ const WHVBrowseJobs: React.FC = () => {
 
       setWhvId(user.id);
 
-      // Fetch visa info via relationship join
+      // Fetch visa info with join to visa_stage table
       const { data: visaData, error: visaError } = await supabase
         .from("maker_visa")
         .select("stage_id, visa_stage:stage_id(label)")
@@ -77,57 +76,56 @@ const WHVBrowseJobs: React.FC = () => {
     getUserAndVisa();
   }, []);
 
-  //  Fetch eligible jobs
-  const fetchJobs = async (activeFilters: any = {}) => {
-    if (!whvId) return;
-
-    const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
-      p_maker_id: whvId,
-      p_filter_state: activeFilters.state || null,
-      p_filter_suburb_city_postcode: activeFilters.suburbCityPostcode || null,
-      p_filter_industry_ids: activeFilters.industryId ? [activeFilters.industryId] : null,
-      p_filter_job_type: activeFilters.jobType || null,
-      p_filter_salary_range: activeFilters.salaryRange || null,
-      p_filter_facility_ids: activeFilters.facilityId ? [activeFilters.facilityId] : null,
-    });
-
-    if (error) {
-      console.error("Error fetching jobs:", error);
-      return;
-    }
-
-    if (!jobsData) return;
-
-    const { data: likes } = await supabase
-      .from("likes")
-      .select("liked_job_post_id")
-      .eq("liker_id", whvId)
-      .eq("liker_type", "whv");
-
-    const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
-
-    const mapped: JobCard[] = (jobsData as any[]).map((job: any) => ({
-      job_id: job.job_id,
-      company: job.company || "Employer not listed",
-      profile_photo: resolvePhoto(job.profile_photo),
-      role: job.role || "Role not specified",
-      industry: job.industry || "General",
-      location: job.location || "Location not specified",
-      salary_range: job.salary_range || "Pay not disclosed",
-      job_type: job.job_type || "Employment type not specified",
-      description: job.description || "No description provided",
-      isLiked: likedIds.includes(job.job_id),
-    }));
-
-    setJobs(mapped);
-    setAllJobs(mapped);
-  };
-
+  //  Fetch jobs whenever WHV ID or filters change
   useEffect(() => {
-    fetchJobs();
-  }, [whvId]);
+    if (!whvId) return;
+    const fetchJobs = async () => {
+      const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
+        p_maker_id: whvId,
+        p_filter_state: filters.state || null,
+        p_filter_suburb_city_postcode: filters.suburbCityPostcode || null,
+        p_filter_industry_ids: filters.industryId ? [filters.industryId] : null,
+        p_filter_job_type: filters.jobType || null,
+        p_filter_salary_range: filters.salaryRange || null,
+        p_filter_facility_ids: filters.facilityId ? [filters.facilityId] : null,
+      });
 
-  //  Like/unlike jobs
+      if (error) {
+        console.error("Error fetching jobs:", error);
+        return;
+      }
+
+      if (!jobsData) return;
+
+      // Get liked jobs for this user
+      const { data: likes } = await supabase
+        .from("likes")
+        .select("liked_job_post_id")
+        .eq("liker_id", whvId)
+        .eq("liker_type", "whv");
+
+      const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
+
+      const mapped: JobCard[] = (jobsData as any[]).map((job: any) => ({
+        job_id: job.job_id,
+        company: job.company || "Employer not listed",
+        profile_photo: resolvePhoto(job.profile_photo),
+        role: job.role || "Role not specified",
+        industry: job.industry || "General",
+        location: job.location || "Location not specified",
+        salary_range: job.salary_range || "Pay not disclosed",
+        job_type: job.job_type || "Employment type not specified",
+        description: job.description || "No description provided",
+        isLiked: likedIds.includes(job.job_id),
+      }));
+
+      setJobs(mapped);
+    };
+
+    fetchJobs();
+  }, [whvId, filters]);
+
+  //  Like/unlike handler
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -141,9 +139,7 @@ const WHVBrowseJobs: React.FC = () => {
           .eq("liker_id", whvId)
           .eq("liker_type", "whv")
           .eq("liked_job_post_id", jobId);
-
         setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
-        setAllJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: false } : j)));
       } else {
         await supabase.from("likes").insert({
           liker_id: whvId,
@@ -151,10 +147,7 @@ const WHVBrowseJobs: React.FC = () => {
           liked_job_post_id: jobId,
           liked_whv_id: null,
         });
-
         setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
-        setAllJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, isLiked: true } : j)));
-
         setLikedJobTitle(job.role);
         setShowLikeModal(true);
       }
@@ -163,23 +156,22 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
-  //  FIXED — Remove individual filter instantly and update chips
+  //  Remove single filter — chips now update instantly
   const handleRemoveFilter = (key: string) => {
-    const updated = { ...filters };
-    delete updated[key];
-    delete updated[`${key}Label`];
-
-    setFilters(updated);
-    fetchJobs(updated);
+    setFilters((prev: any) => {
+      const updated = { ...prev };
+      delete updated[key];
+      delete updated[`${key}Label`];
+      return updated;
+    });
   };
 
   //  Clear all filters
   const handleClearFilters = () => {
     setFilters({});
-    fetchJobs({});
   };
 
-  //  Build visible filter chips
+  //  Build chips
   const filterChips = [
     filters.industryLabel && { key: "industryId", label: filters.industryLabel },
     filters.state && { key: "state", label: filters.state },
@@ -189,7 +181,7 @@ const WHVBrowseJobs: React.FC = () => {
     filters.facilityLabel && { key: "facilityId", label: filters.facilityLabel },
   ].filter(Boolean) as { key: string; label: string }[];
 
-  //  Apply search query
+  //  Apply search filter
   const visibleJobs = useMemo(() => {
     if (!searchQuery) return jobs;
     const q = searchQuery.toLowerCase();
@@ -203,30 +195,7 @@ const WHVBrowseJobs: React.FC = () => {
   return showFilters ? (
     <WHVFilterPage
       onClose={() => setShowFilters(false)}
-      onResults={async (jobs, appliedFilters) => {
-        const { data: likes } = await supabase
-          .from("likes")
-          .select("liked_job_post_id")
-          .eq("liker_id", whvId)
-          .eq("liker_type", "whv");
-
-        const likedIds = likes?.map((l) => l.liked_job_post_id) || [];
-
-        const mapped: JobCard[] = jobs.map((job: any) => ({
-          job_id: job.job_id,
-          company: job.company || "Employer not listed",
-          profile_photo: resolvePhoto(job.profile_photo),
-          role: job.role || "Role not specified",
-          industry: job.industry || "General",
-          location: job.location || "Location not specified",
-          salary_range: job.salary_range || "Pay not disclosed",
-          job_type: job.job_type || "Employment type not specified",
-          description: job.description || "No description provided",
-          isLiked: likedIds.includes(job.job_id),
-        }));
-
-        setJobs(mapped);
-        setAllJobs(mapped);
+      onResults={(jobs, appliedFilters) => {
         setFilters(appliedFilters);
         setShowFilters(false);
       }}
@@ -368,12 +337,12 @@ const WHVBrowseJobs: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Nav */}
+          {/* Bottom Navigation */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 rounded-b-[48px]">
             <BottomNavigation />
           </div>
 
-          {/* Like Modal */}
+          {/* Like Confirmation Modal */}
           <LikeConfirmationModal
             candidateName={likedJobTitle}
             onClose={() => setShowLikeModal(false)}
