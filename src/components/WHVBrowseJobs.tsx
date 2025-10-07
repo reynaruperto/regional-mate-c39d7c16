@@ -55,10 +55,10 @@ const WHVBrowseJobs: React.FC = () => {
 
       setWhvId(user.id);
 
-      // Fetch visa info
+      // Fetch visa info with stage label
       const { data: visaData, error: visaError } = await supabase
         .from("maker_visa")
-        .select("stage_id")
+        .select("stage_id, visa_stage:stage_id(label)")
         .eq("user_id", user.id)
         .single();
 
@@ -67,15 +67,8 @@ const WHVBrowseJobs: React.FC = () => {
         return;
       }
 
-      if (visaData) {
-        const stageLabelMap: Record<number, string> = {
-          1: "First Working Holiday Visa",
-          2: "Second Working Holiday Visa",
-          3: "Third Working Holiday Visa",
-        };
-
-        const label = stageLabelMap[visaData.stage_id] || "Working Holiday Visa";
-        setVisaStageLabel(label);
+      if (visaData?.visa_stage) {
+        setVisaStageLabel(visaData.visa_stage.label);
       } else {
         setVisaStageLabel("Visa not registered");
       }
