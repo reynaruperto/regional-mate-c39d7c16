@@ -74,6 +74,42 @@ const WHVProfileSetup: React.FC = () => {
       if (countriesData) setCountries(countriesData as any);
       if (stagesData) setVisaStages(stagesData as any);
       if (eligibilityData) setEligibility(eligibilityData as any);
+
+      // Fetch existing user data to prefill form
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: whvData } = await supabase
+        .from("whv_maker")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const { data: visaData } = await supabase
+        .from("maker_visa")
+        .select("country_id, stage_id, dob, expiry_date")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (whvData) {
+        const selectedStage = stagesData?.find((s: any) => s.stage_id === visaData?.stage_id);
+        
+        setFormData({
+          givenName: whvData.given_name || "",
+          middleName: whvData.middle_name || "",
+          familyName: whvData.family_name || "",
+          dateOfBirth: whvData.birth_date || "",
+          countryId: visaData?.country_id || null,
+          visaType: selectedStage?.label || "",
+          visaExpiry: visaData?.expiry_date || "",
+          phone: whvData.mobile_num || "",
+          address1: whvData.address_line1 || "",
+          address2: whvData.address_line2 || "",
+          suburb: whvData.suburb || "",
+          state: whvData.state || "",
+          postcode: whvData.postcode || "",
+        });
+      }
     };
     fetchData();
   }, []);

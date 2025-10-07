@@ -56,10 +56,14 @@ const WHVWorkExperience: React.FC = () => {
   const [otherLicense, setOtherLicense] = useState("");
 
   // ==========================
-  // Load industries, roles, licenses
+  // Load industries, roles, licenses + existing data
   // ==========================
   useEffect(() => {
     const loadData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Load lookup tables
       const { data: industryData } = await supabase
         .from("industry")
         .select("industry_id, name");
@@ -89,6 +93,59 @@ const WHVWorkExperience: React.FC = () => {
         setAllLicenses(
           licenseData.map((l) => ({ id: l.license_id, name: l.name }))
         );
+      }
+
+      // Load existing work experiences
+      const { data: savedExperiences } = await supabase
+        .from("maker_work_experience")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (savedExperiences && savedExperiences.length > 0 && roleData) {
+        const mappedExperiences: WorkExperience[] = savedExperiences.map((exp) => {
+          const role = roleData.find((r) => r.role === exp.position);
+          return {
+            id: exp.work_experience_id.toString(),
+            industryId: exp.industry_id,
+            roleId: role?.industry_role_id || null,
+            company: exp.company || "",
+            location: exp.location || "",
+            startDate: exp.start_date || "",
+            endDate: exp.end_date || "",
+            description: exp.job_description || "",
+          };
+        });
+        setWorkExperiences(mappedExperiences);
+      }
+
+      // Load existing references
+      const { data: savedReferences } = await supabase
+        .from("maker_reference")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (savedReferences && savedReferences.length > 0) {
+        const mappedReferences: JobReference[] = savedReferences.map((ref) => ({
+          id: ref.reference_id.toString(),
+          name: ref.name || "",
+          businessName: ref.business_name || "",
+          email: ref.email || "",
+          phone: ref.mobile_num || "",
+          role: ref.role || "",
+        }));
+        setJobReferences(mappedReferences);
+      }
+
+      // Load existing licenses
+      const { data: savedLicenses } = await supabase
+        .from("maker_license")
+        .select("license_id, other")
+        .eq("user_id", user.id);
+
+      if (savedLicenses && savedLicenses.length > 0) {
+        setLicenses(savedLicenses.map((l) => l.license_id));
+        const otherLic = savedLicenses.find((l) => l.other);
+        if (otherLic?.other) setOtherLicense(otherLic.other);
       }
     };
     loadData();
