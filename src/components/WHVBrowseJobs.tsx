@@ -34,14 +34,14 @@ const WHVBrowseJobs: React.FC = () => {
   const [whvId, setWhvId] = useState<string | null>(null);
   const [visaStageLabel, setVisaStageLabel] = useState<string>("");
 
-  // ✅ Resolve profile photo URL
+  //  Resolve profile photo URL
   const resolvePhoto = (val?: string | null) => {
     if (!val) return "/placeholder.png";
     if (val.startsWith("http")) return val;
     return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
   };
 
-  // ✅ Fetch user + visa info
+  //  Fetch user + visa info
   useEffect(() => {
     const getUserAndVisa = async () => {
       const {
@@ -93,7 +93,7 @@ const WHVBrowseJobs: React.FC = () => {
     getUserAndVisa();
   }, []);
 
-  // ✅ Fetch eligible jobs
+  //  Fetch eligible jobs
   const fetchJobs = async (activeFilters: any = {}) => {
     if (!whvId) return;
 
@@ -144,7 +144,7 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs();
   }, [whvId]);
 
-  // ✅ Handle Like/Unlike
+  //  Handle Like/Unlike
   const handleLikeJob = async (jobId: number) => {
     if (!whvId) return;
     const job = jobs.find((j) => j.job_id === jobId);
@@ -180,7 +180,7 @@ const WHVBrowseJobs: React.FC = () => {
     }
   };
 
-  // ✅ Remove individual filter
+  //  Remove individual filter
   const handleRemoveFilter = (key: string) => {
     const updated = { ...filters, [key]: null, [`${key}Label`]: null };
     const clean = Object.fromEntries(Object.entries(updated).filter(([_, v]) => v));
@@ -188,13 +188,13 @@ const WHVBrowseJobs: React.FC = () => {
     fetchJobs(clean);
   };
 
-  // ✅ Clear all filters
+  //  Clear all filters
   const handleClearFilters = () => {
     setFilters({});
     fetchJobs({});
   };
 
-  // ✅ Build chips
+  //  Build chips
   const filterChips = [
     filters.industryLabel && { key: "industryId", label: filters.industryLabel },
     filters.state && { key: "state", label: filters.state },
@@ -204,7 +204,7 @@ const WHVBrowseJobs: React.FC = () => {
     filters.facilityLabel && { key: "facilityId", label: filters.facilityLabel },
   ].filter(Boolean) as { key: string; label: string }[];
 
-  // ✅ Apply search query across job fields
+  //  Apply search query across job fields
   const visibleJobs = useMemo(() => {
     if (!searchQuery) return jobs;
     const q = searchQuery.toLowerCase();
