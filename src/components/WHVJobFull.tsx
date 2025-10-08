@@ -50,7 +50,6 @@ const WHVJobFull: React.FC = () => {
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Updated handleBack
   const handleBack = () => {
     if (fromPage === "browse") {
       navigate("/whv/browse-jobs");
@@ -59,7 +58,7 @@ const WHVJobFull: React.FC = () => {
     } else if (fromPage === "matches") {
       navigate("/whv/matches", { state: { tab: "matches" } });
     } else {
-      navigate(-1); // Go back to Notifications or previous page
+      navigate(-1);
     }
   };
 
@@ -74,10 +73,10 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // Fetch job details
         const { data: jobData } = await supabase
           .from("job")
-          .select(`
+          .select(
+            `
             job_id,
             description,
             employment_type,
@@ -90,7 +89,8 @@ const WHVJobFull: React.FC = () => {
             job_status,
             user_id,
             industry_role ( role, industry(name) )
-          `)
+          `,
+          )
           .eq("job_id", Number(jobId))
           .maybeSingle();
 
@@ -99,10 +99,10 @@ const WHVJobFull: React.FC = () => {
           return;
         }
 
-        // Fetch employer details
         const { data: employerData } = await supabase
           .from("employer")
-          .select(`
+          .select(
+            `
             user_id,
             company_name,
             tagline,
@@ -110,48 +110,49 @@ const WHVJobFull: React.FC = () => {
             abn,
             website,
             mobile_num
-          `)
+          `,
+          )
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // Fetch profile email
         const { data: profileData } = await supabase
           .from("profile")
           .select("email")
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // Get company photo
         let companyPhoto: string | null = null;
         if (employerData?.profile_photo) {
           let photoPath = employerData.profile_photo;
           if (photoPath.includes("/profile_photo/")) {
             photoPath = photoPath.split("/profile_photo/")[1];
           }
-          const { data: signed } = await supabase.storage
-            .from("profile_photo")
-            .createSignedUrl(photoPath, 3600);
+          const { data: signed } = await supabase.storage.from("profile_photo").createSignedUrl(photoPath, 3600);
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
           .eq("user_id", jobData.user_id);
 
-        const facilities =
-          facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
+        const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // Licenses
-        const { data: licenseRows } = await supabase
+        // ✅ FIXED LICENSE QUERY
+        const { data: licenseRows, error: licenseError } = await supabase
           .from("job_license")
-          .select("license:license_id(name), other")
+          .select(
+            `
+            license_id,
+            other,
+            license:license_id ( name )
+          `,
+          )
           .eq("job_id", jobData.job_id);
 
-        const licenses = (licenseRows || []).map((l: any) =>
-          l.license?.name === "Other" ? l.other : l.license?.name
-        ).filter(Boolean);
+        if (licenseError) console.error("License fetch error:", licenseError);
+
+        const licenses = licenseRows?.map((l: any) => l.other || l.license?.name).filter(Boolean) || [];
 
         setJobDetails({
           job_id: jobData.job_id,
@@ -186,12 +187,7 @@ const WHVJobFull: React.FC = () => {
     fetchJobDetails();
   }, [jobId]);
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
+  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
 
   if (!jobDetails)
     return (
@@ -223,11 +219,7 @@ const WHVJobFull: React.FC = () => {
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
-                    <img
-                      src={jobDetails.company_photo}
-                      alt="Company"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={jobDetails.company_photo} alt="Company" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
                       <Image size={32} />
@@ -244,9 +236,7 @@ const WHVJobFull: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
                 <span
                   className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium ${
-                    jobDetails.job_status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
+                    jobDetails.job_status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {jobDetails.job_status}
@@ -255,16 +245,12 @@ const WHVJobFull: React.FC = () => {
 
               {/* Employer Info */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-3 text-center">
-                {/* ABN */}
                 {jobDetails.abn && jobDetails.abn !== "N/A" ? (
                   <div className="flex items-center justify-center gap-2">
                     <Hash size={14} />
                     <span className="font-medium">ABN:</span>
                     <a
-                      href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(
-                        /\s/g,
-                        ""
-                      )}`}
+                      href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(/\s/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
@@ -281,14 +267,10 @@ const WHVJobFull: React.FC = () => {
                   <p className="text-gray-500">⚠️ No ABN provided</p>
                 )}
 
-                {/* Email */}
                 {jobDetails.email ? (
                   <div className="flex items-center justify-center gap-2">
                     <Mail size={14} />
-                    <a
-                      href={`mailto:${jobDetails.email}`}
-                      className="text-blue-600 hover:underline"
-                    >
+                    <a href={`mailto:${jobDetails.email}`} className="text-blue-600 hover:underline">
                       {jobDetails.email}
                     </a>
                     <Copy
@@ -301,14 +283,10 @@ const WHVJobFull: React.FC = () => {
                   <p className="text-gray-500">⚠️ No email found</p>
                 )}
 
-                {/* Phone */}
                 {jobDetails.mobile_num && (
                   <div className="flex items-center justify-center gap-2">
                     <Phone size={14} />
-                    <a
-                      href={`tel:${jobDetails.mobile_num}`}
-                      className="text-blue-600 hover:underline"
-                    >
+                    <a href={`tel:${jobDetails.mobile_num}`} className="text-blue-600 hover:underline">
                       {jobDetails.mobile_num}
                     </a>
                     <Copy
@@ -319,15 +297,12 @@ const WHVJobFull: React.FC = () => {
                   </div>
                 )}
 
-                {/* Website */}
                 {jobDetails.website && jobDetails.website !== "Not provided" ? (
                   <div className="flex items-center justify-center gap-2">
                     <Globe size={14} />
                     <a
                       href={
-                        jobDetails.website.startsWith("http")
-                          ? jobDetails.website
-                          : `https://${jobDetails.website}`
+                        jobDetails.website.startsWith("http") ? jobDetails.website : `https://${jobDetails.website}`
                       }
                       target="_blank"
                       rel="noopener noreferrer"
@@ -345,13 +320,10 @@ const WHVJobFull: React.FC = () => {
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center mb-1">
                   <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Location
-                  </span>
+                  <span className="text-sm font-medium text-gray-600">Location</span>
                 </div>
                 <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state}{" "}
-                  {jobDetails.postcode}
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
                 </p>
               </div>
 
@@ -383,25 +355,25 @@ const WHVJobFull: React.FC = () => {
                     <Calendar className="w-5 h-5 mr-2" />
                     <span>Start Date</span>
                   </div>
-                  <p className="font-semibold">
-                    {new Date(jobDetails.start_date).toLocaleDateString()}
-                  </p>
+                  <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
                 </div>
               </div>
 
               {/* Licenses */}
-              {jobDetails.licenses.length > 0 && (
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <h4 className="font-semibold mb-2">Licenses Required</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {jobDetails.licenses.map((l, i) => (
-                      <span key={i} className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <h4 className="font-semibold mb-2">Licenses Required</h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobDetails.licenses.length > 0 ? (
+                    jobDetails.licenses.map((l, i) => (
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
                         {l}
                       </span>
-                    ))}
-                  </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No licenses required</p>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Facilities */}
               <div className="bg-gray-50 rounded-2xl p-4">
@@ -409,17 +381,12 @@ const WHVJobFull: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {jobDetails.facilities.length > 0 ? (
                     jobDetails.facilities.map((f, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border text-xs rounded-full"
-                      >
+                      <span key={i} className="px-3 py-1 border text-xs rounded-full">
                         {f}
                       </span>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No facilities listed
-                    </p>
+                    <p className="text-sm text-gray-500">No facilities listed</p>
                   )}
                 </div>
               </div>
