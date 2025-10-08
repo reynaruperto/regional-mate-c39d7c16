@@ -138,21 +138,29 @@ const WHVJobFull: React.FC = () => {
 
         const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // ✅ FIXED LICENSE QUERY
-        const { data: licenseRows, error: licenseError } = await supabase
+        // ✅ FIXED LICENSE FETCH (explicit join using .in())
+        const { data: jobLicenseRows, error: jobLicenseError } = await supabase
           .from("job_license")
-          .select(
-            `
-            license_id,
-            other,
-            license:license_id ( name )
-          `,
-          )
+          .select("license_id, other")
           .eq("job_id", jobData.job_id);
 
-        if (licenseError) console.error("License fetch error:", licenseError);
+        if (jobLicenseError) console.error("job_license fetch error:", jobLicenseError);
 
-        const licenses = licenseRows?.map((l: any) => l.other || l.license?.name).filter(Boolean) || [];
+        let licenses: string[] = [];
+
+        if (jobLicenseRows && jobLicenseRows.length > 0) {
+          const licenseIds = jobLicenseRows.map((row) => row.license_id);
+          const { data: licenseNames, error: licenseNameError } = await supabase
+            .from("license")
+            .select("name")
+            .in("license_id", licenseIds);
+
+          if (licenseNameError) console.error("license name fetch error:", licenseNameError);
+
+          const otherLicenses = jobLicenseRows.map((l) => l.other).filter((v) => v && v.trim() !== "");
+
+          licenses = [...(licenseNames?.map((l) => l.name) || []), ...otherLicenses];
+        }
 
         setJobDetails({
           job_id: jobData.job_id,
