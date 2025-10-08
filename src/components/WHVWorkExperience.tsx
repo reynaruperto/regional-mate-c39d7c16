@@ -436,11 +436,11 @@ const WHVWorkExperience: React.FC = () => {
                             Number(e.target.value)
                           )
                         }
-                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
+                        className="w-full h-10 bg-gray-100 border rounded px-4 text-sm truncate"
                       >
-                        <option value="">Select industry</option>
+                        <option value="" className="pl-4 truncate">Select industry</option>
                         {industries.map((ind) => (
-                          <option key={ind.id} value={ind.id}>
+                          <option key={ind.id} value={ind.id} className="pl-4 truncate">
                             {ind.name}
                           </option>
                         ))}
@@ -461,13 +461,13 @@ const WHVWorkExperience: React.FC = () => {
                             Number(e.target.value)
                           )
                         }
-                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
+                        className="w-full h-10 bg-gray-100 border rounded px-4 text-sm truncate"
                       >
-                        <option value="">Select position</option>
+                        <option value="" className="pl-4 truncate">Select position</option>
                         {roles
                           .filter((r) => r.industryId === exp.industryId)
                           .map((role) => (
-                            <option key={role.id} value={role.id}>
+                            <option key={role.id} value={role.id} className="pl-4 truncate">
                               {role.name}
                             </option>
                           ))}
