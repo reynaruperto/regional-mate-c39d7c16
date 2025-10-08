@@ -43,6 +43,7 @@ const WHVWorkPreferences: React.FC = () => {
   const navigate = useNavigate();
 
   const [tagline, setTagline] = useState("");
+  const [taglineError, setTaglineError] = useState("");
   const [dateAvailable, setDateAvailable] = useState("");
 
   const [industries, setIndustries] = useState<Industry[]>([]);
@@ -73,23 +74,16 @@ const WHVWorkPreferences: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // --- Get tagline ---
       const { data: profile } = await supabase.from("whv_maker").select("tagline").eq("user_id", user.id).maybeSingle();
-
       if (profile?.tagline) setTagline(profile.tagline);
 
-      // --- Get availability ---
       const { data: availability } = await (supabase as any)
         .from("maker_pref_availability")
         .select("available_from")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (availability?.available_from) setDateAvailable(availability.available_from);
 
-      if (availability?.available_from) {
-        setDateAvailable(availability.available_from);
-      }
-
-      // --- Get visa ---
       const { data: visa } = await supabase
         .from("maker_visa")
         .select(
@@ -103,10 +97,8 @@ const WHVWorkPreferences: React.FC = () => {
         .maybeSingle();
 
       if (!visa) return;
-
       setVisaLabel(`${visa.visa_stage.sub_class} – Stage ${visa.visa_stage.stage} (${visa.country.name})`);
 
-      // --- Fetch eligible industries ---
       const { data: eligibleIndustries, error: indError } = await (supabase as any)
         .from("vw_eligibility_visa_country_stage_industry")
         .select("industry_id, industry")
@@ -127,25 +119,19 @@ const WHVWorkPreferences: React.FC = () => {
         id: item.industry_id,
         name: item.industry,
       }));
-
       setIndustries(uniqueIndustries);
 
-      // --- Load saved prefs ---
       const { data: savedIndustries } = await supabase
         .from("maker_pref_industry")
         .select("industry_id")
         .eq("user_id", user.id);
-      if (savedIndustries) {
-        setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
-      }
+      if (savedIndustries) setSelectedIndustries(savedIndustries.map((i) => i.industry_id));
 
       const { data: savedRoles } = await supabase
         .from("maker_pref_industry_role")
         .select("industry_role_id")
         .eq("user_id", user.id);
-      if (savedRoles) {
-        setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
-      }
+      if (savedRoles) setSelectedRoles(savedRoles.map((r) => r.industry_role_id));
 
       const { data: savedLocations } = await supabase
         .from("maker_pref_location")
@@ -156,9 +142,20 @@ const WHVWorkPreferences: React.FC = () => {
         setPreferredAreas(savedLocations.map((l) => `${l.suburb_city}::${l.postcode}`));
       }
     };
-
     loadData();
   }, []);
+
+  // ==========================
+  // Tagline Validation
+  // ==========================
+  useEffect(() => {
+    const trimmed = tagline.trim();
+    if (trimmed.length > 0 && trimmed.length < 50) {
+      setTaglineError("Tag line must be at least 50 characters");
+    } else {
+      setTaglineError("");
+    }
+  }, [tagline]);
 
   // ==========================
   // Fetch roles when industry selected
@@ -205,7 +202,6 @@ const WHVWorkPreferences: React.FC = () => {
       if (!user) return;
 
       const { data: visa } = await supabase.from("maker_visa").select("stage_id").eq("user_id", user.id).maybeSingle();
-
       if (!visa) return;
 
       let allRegions: Region[] = [];
@@ -257,7 +253,6 @@ const WHVWorkPreferences: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Update tagline
     await supabase
       .from("whv_maker")
       .update({
@@ -266,7 +261,6 @@ const WHVWorkPreferences: React.FC = () => {
       })
       .eq("user_id", user.id);
 
-    // Update availability
     await (supabase as any).from("maker_pref_availability").delete().eq("user_id", user.id);
     if (dateAvailable) {
       await (supabase as any).from("maker_pref_availability").insert([
@@ -277,7 +271,6 @@ const WHVWorkPreferences: React.FC = () => {
       ]);
     }
 
-    // Update preferences
     await supabase.from("maker_pref_industry").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_industry_role").delete().eq("user_id", user.id);
     await supabase.from("maker_pref_location").delete().eq("user_id", user.id);
@@ -333,7 +326,7 @@ const WHVWorkPreferences: React.FC = () => {
       setSelectedIndustries([]);
       setSelectedRoles([]);
     } else {
-      setSelectedIndustries([industryId]); // only one industry at a time
+      setSelectedIndustries([industryId]);
       setSelectedRoles([]);
     }
   };
@@ -357,6 +350,10 @@ const WHVWorkPreferences: React.FC = () => {
   // ==========================
   // Render
   // ==========================
+  const charCount = tagline.trim().length;
+  const counterColor =
+    charCount === 0 ? "text-gray-400" : charCount < 50 ? "text-orange-500" : "text-green-600 font-medium";
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       {/* Outer frame */}
@@ -401,6 +398,10 @@ const WHVWorkPreferences: React.FC = () => {
                     onChange={(e) => setTagline(e.target.value)}
                     placeholder="e.g. Backpacker ready for farm work"
                   />
+                  <div className="flex justify-between text-xs mt-1">
+                    <p className={`${counterColor}`}>{charCount} / 50 characters</p>
+                    {taglineError && <p className="text-red-500">{taglineError}</p>}
+                  </div>
                   <div>
                     <Label>
                       Date Available to Start Work <span className="text-red-500">*</span>
@@ -570,13 +571,13 @@ const WHVWorkPreferences: React.FC = () => {
               type="button"
               onClick={handleContinue}
               disabled={
-                !tagline.trim() ||
+                charCount < 50 ||
                 !dateAvailable ||
                 selectedIndustries.length === 0 ||
                 preferredStates.length === 0 ||
                 preferredAreas.length === 0
               }
-              className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl"
+              className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Continue →
             </Button>
