@@ -146,11 +146,12 @@ const WHVJobFull: React.FC = () => {
         // Licenses
         const { data: licenseRows } = await supabase
           .from("job_license")
-          .select("license(name)")
+          .select("license:license_id(name), other")
           .eq("job_id", jobData.job_id);
 
-        const licenses =
-          licenseRows?.map((l: any) => l.license?.name).filter(Boolean) || [];
+        const licenses = (licenseRows || []).map((l: any) =>
+          l.license?.name === "Other" ? l.other : l.license?.name
+        ).filter(Boolean);
 
         setJobDetails({
           job_id: jobData.job_id,
@@ -389,25 +390,15 @@ const WHVJobFull: React.FC = () => {
               </div>
 
               {/* Licenses */}
-              <div className="bg-gray-50 rounded-2xl p-4">
-                <h4 className="font-semibold mb-2">Licenses Required</h4>
+              {jobDetails.licenses.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.length > 0 ? (
-                    jobDetails.licenses.map((l, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 border text-xs rounded-full"
-                      >
-                        {l}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      No licenses required
-                    </p>
-                  )}
+                  {jobDetails.licenses.map((l, i) => (
+                    <span key={i} className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
+                      {l}
+                    </span>
+                  ))}
                 </div>
-              </div>
+              )}
 
               {/* Facilities */}
               <div className="bg-gray-50 rounded-2xl p-4">
