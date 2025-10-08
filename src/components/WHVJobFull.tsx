@@ -67,7 +67,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // ===================== JOB =====================
+        // ✅ Job Details
         const { data: jobData } = await supabase
           .from("job")
           .select(
@@ -94,7 +94,7 @@ const WHVJobFull: React.FC = () => {
           return;
         }
 
-        // ===================== EMPLOYER =====================
+        // ✅ Employer Details
         const { data: employerData } = await supabase
           .from("employer")
           .select(
@@ -111,14 +111,14 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // ===================== PROFILE EMAIL =====================
+        // ✅ Profile Email
         const { data: profileData } = await supabase
           .from("profile")
           .select("email")
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // ===================== COMPANY PHOTO =====================
+        // ✅ Company Photo
         let companyPhoto: string | null = null;
         if (employerData?.profile_photo) {
           let photoPath = employerData.profile_photo;
@@ -129,7 +129,7 @@ const WHVJobFull: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // ===================== FACILITIES =====================
+        // ✅ Facilities
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -137,37 +137,40 @@ const WHVJobFull: React.FC = () => {
 
         const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // ===================== LICENSES (FULL FIX) =====================
-        const { data: jobLicenseRows, error: jobLicenseError } = await supabase
-          .from("job_license")
-          .select("license_id, other")
-          .eq("job_id", Number(jobData.job_id)); // ensure numeric match
-
-        console.log("jobLicenseRows →", jobLicenseRows);
-        if (jobLicenseError) console.error("job_license fetch error:", jobLicenseError);
-
+        // ✅ Licenses (Array-based Fix)
         let licenses: string[] = [];
+        const { data: licenseArrayRow, error: licenseArrayError } = await supabase
+          .from("job_license")
+          .select("license_ids, other")
+          .eq("job_id", Number(jobData.job_id))
+          .maybeSingle();
 
-        if (jobLicenseRows && jobLicenseRows.length > 0) {
-          const licenseIds = jobLicenseRows.map((row) => row.license_id);
-          console.log("licenseIds →", licenseIds);
+        console.log("licenseArrayRow →", licenseArrayRow);
 
-          const { data: licenseNames, error: licenseNameError } = await supabase
-            .from("license")
-            .select("license_id, name")
-            .in("license_id", licenseIds);
+        if (licenseArrayError) {
+          console.error("Error fetching job_license:", licenseArrayError);
+        } else if (licenseArrayRow) {
+          const licenseIds = licenseArrayRow.license_ids || [];
+          const otherLicense = licenseArrayRow.other || null;
 
-          console.log("licenseNames →", licenseNames);
-          if (licenseNameError) console.error("license name fetch error:", licenseNameError);
+          if (licenseIds.length > 0) {
+            const { data: licenseNames, error: licenseNameError } = await supabase
+              .from("license")
+              .select("name")
+              .in("license_id", licenseIds);
 
-          const otherLicenses = jobLicenseRows.map((l) => l.other).filter((v) => v && v.trim() !== "");
+            if (licenseNameError) console.error("Error fetching license names:", licenseNameError);
+            licenses = licenseNames?.map((l) => l.name) || [];
+          }
 
-          licenses = [...(licenseNames?.map((l) => l.name) || []), ...otherLicenses];
-
-          console.log("Final merged licenses →", licenses);
+          if (otherLicense && otherLicense.trim() !== "") {
+            licenses.push(otherLicense);
+          }
         }
 
-        // ===================== SET STATE =====================
+        console.log("Final licenses →", licenses);
+
+        // ✅ Set All Job Details
         setJobDetails({
           job_id: jobData.job_id,
           description: jobData.description || "No description available",
@@ -210,7 +213,7 @@ const WHVJobFull: React.FC = () => {
       </div>
     );
 
-  // ===================== RENDER =====================
+  // ✅ Render
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
@@ -227,10 +230,10 @@ const WHVJobFull: React.FC = () => {
             <div className="w-10" />
           </div>
 
-          {/* Scrollable Content */}
+          {/* Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-              {/* Company Info */}
+              {/* Company */}
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
@@ -245,7 +248,7 @@ const WHVJobFull: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role and Industry */}
+              {/* Role */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
@@ -290,7 +293,7 @@ const WHVJobFull: React.FC = () => {
                 </div>
               </div>
 
-              {/* Description */}
+              {/* Job Description */}
               <div>
                 <h4 className="font-semibold mb-2">Job Description</h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
