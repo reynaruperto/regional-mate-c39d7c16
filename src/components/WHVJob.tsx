@@ -115,10 +115,10 @@ const WHVJobPreview: React.FC = () => {
 
         const { data: licenseRows } = await supabase
           .from("job_license")
-          .select("license:license_id(name), other")
+          .select("other, license_id!inner(name)")
           .eq("job_id", job.job_id);
         const licenses = (licenseRows || []).map((l: any) =>
-          l.license?.name === "Other" ? l.other : l.license?.name
+          l.other || l.license_id?.name
         ).filter(Boolean);
 
         let isLiked = false;

@@ -143,54 +143,15 @@ const WHVJobFull: React.FC = () => {
 
         const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // ---------------- Licenses (robust) ----------------
-        let licenses: string[] = [];
-
-        // Try FK join first (license:license_id(name))
-        const { data: joinRows, error: joinErr } = await supabase
+        // ---------------- Licenses ----------------
+        const { data: licenseRows } = await supabase
           .from("job_license")
-          .select(
-            `
-            license_id,
-            other,
-            license:license_id ( name )
-          `,
-          )
+          .select("other, license_id!inner(name)")
           .eq("job_id", Number(jobData.job_id));
 
-        console.log("license join rows →", joinRows, "error →", joinErr);
-
-        if (joinRows && joinRows.length > 0) {
-          licenses = joinRows.map((l: any) => l.other || l.license?.name).filter(Boolean) || [];
-        } else {
-          // Fallback: get IDs then names via .in()
-          const { data: jlRows, error: jlErr } = await supabase
-            .from("job_license")
-            .select("license_id, other")
-            .eq("job_id", Number(jobData.job_id));
-
-          console.log("job_license rows (fallback) →", jlRows, "error →", jlErr);
-
-          if (jlRows && jlRows.length > 0) {
-            const ids = jlRows.map((r: any) => r.license_id).filter(Boolean);
-            const custom = jlRows.map((r: any) => r.other).filter((v: string | null) => v && v.trim() !== "");
-
-            if (ids.length > 0) {
-              const { data: names, error: namesErr } = await supabase
-                .from("license")
-                .select("license_id, name")
-                .in("license_id", ids);
-
-              console.log("license names (fallback) →", names, "error →", namesErr);
-
-              licenses = [...(names?.map((n: any) => n.name) || []), ...custom];
-            } else {
-              licenses = custom;
-            }
-          }
-        }
-
-        console.log("resolved licenses →", licenses, "for job", jobData.job_id);
+        const licenses = (licenseRows || []).map((l: any) =>
+          l.other || l.license_id?.name
+        ).filter(Boolean);
 
         setJobDetails({
           job_id: jobData.job_id,
