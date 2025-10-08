@@ -89,6 +89,7 @@ const WHVBrowseJobs: React.FC = () => {
         p_filter_job_type: filters.jobType || null,
         p_filter_salary_range: filters.salaryRange || null,
         p_filter_facility_ids: filters.facilityId ? [filters.facilityId] : null,
+        p_filter_license_ids: filters.licenseId ? [filters.licenseId] : null,
       });
 
       if (error) {
@@ -167,6 +168,9 @@ const WHVBrowseJobs: React.FC = () => {
       } else if (key === "facilityId") {
         delete updated.facilityId;
         delete updated.facilityLabel;
+      } else if (key === "licenseId") {
+        delete updated.licenseId;
+        delete updated.licenseLabel;
       } else {
         delete updated[key];
       }
@@ -187,6 +191,7 @@ const WHVBrowseJobs: React.FC = () => {
     filters.jobType && { key: "jobType", label: filters.jobType },
     filters.salaryRange && { key: "salaryRange", label: filters.salaryRange },
     filters.facilityLabel && { key: "facilityId", label: filters.facilityLabel },
+    filters.licenseLabel && { key: "licenseId", label: filters.licenseLabel },
   ].filter(Boolean) as { key: string; label: string }[];
 
   // ✅ Search filter
