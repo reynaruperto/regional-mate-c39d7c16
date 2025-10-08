@@ -24,7 +24,7 @@ const EmployerPhotoUpload: React.FC = () => {
       if (!user) return;
 
       const { data, error } = await supabase
-        .from("employer") // 👈 use employer table
+        .from("employer")
         .select("profile_photo")
         .eq("user_id", user.id)
         .maybeSingle();
@@ -35,10 +35,7 @@ const EmployerPhotoUpload: React.FC = () => {
       }
 
       if (data?.profile_photo) {
-        // Build public URL from relative path
-        const { data: urlData } = supabase.storage
-          .from("profile_photo")
-          .getPublicUrl(data.profile_photo);
+        const { data: urlData } = supabase.storage.from("profile_photo").getPublicUrl(data.profile_photo);
         setSelectedImage(urlData.publicUrl);
       }
     };
@@ -62,9 +59,7 @@ const EmployerPhotoUpload: React.FC = () => {
       if (finalFile.type.startsWith("image/")) {
         setSelectedFile(finalFile);
         const reader = new FileReader();
-        reader.onload = (e) => {
-          setSelectedImage(e.target?.result as string);
-        };
+        reader.onload = (e) => setSelectedImage(e.target?.result as string);
         reader.readAsDataURL(finalFile);
       } else {
         toast({
@@ -112,7 +107,6 @@ const EmployerPhotoUpload: React.FC = () => {
     }
 
     try {
-      // 1. Delete old photo if exists (using relative path from DB)
       const { data: employerData } = await supabase
         .from("employer")
         .select("profile_photo")
@@ -120,11 +114,9 @@ const EmployerPhotoUpload: React.FC = () => {
         .maybeSingle();
 
       if (employerData?.profile_photo) {
-        // profile_photo is now a relative path, use it directly
         await supabase.storage.from("profile_photo").remove([employerData.profile_photo]);
       }
 
-      // 2. Upload new file (sanitize filename)
       const cleanFileName = selectedFile.name.replace(/\s+/g, "_");
       const filePath = `${user.id}/${Date.now()}-${cleanFileName}`;
       const { error: uploadError } = await supabase.storage
@@ -133,17 +125,14 @@ const EmployerPhotoUpload: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // 3. Save relative path to DB (not full URL)
       const { error: dbError } = await supabase
-        .from("employer") // 👈 update employer table
+        .from("employer")
         .update({ profile_photo: filePath })
         .eq("user_id", user.id);
 
       if (dbError) throw dbError;
 
-      // 4. Get public URL for display only
       const { data } = supabase.storage.from("profile_photo").getPublicUrl(filePath);
-      
       setSelectedImage(data.publicUrl);
 
       toast({
@@ -168,43 +157,38 @@ const EmployerPhotoUpload: React.FC = () => {
   // Render
   // ==========================
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-[390px] h-[844px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden relative flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
+        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
+
           {/* Header */}
-          <div className="px-4 py-3 border-b bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/employer/about-business")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">Account Set Up</h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                <span className="text-sm font-medium text-gray-600">5/5</span>
-              </div>
+          <div className="px-6 pt-16 pb-4 border-b bg-white flex-shrink-0 flex items-center justify-between">
+            <button
+              onClick={() => navigate("/employer/about-business")}
+              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">Account Set Up</h1>
+            <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+              <span className="text-sm font-medium text-gray-600">5/5</span>
             </div>
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto pt-16">
-            <div className="flex flex-col items-center px-4 pb-40">
-              <div className="text-center mb-12">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                  Upload your business photo
-                </h2>
+          <div className="flex-1 overflow-y-auto px-4 py-6 pb-40">
+            <div className="flex flex-col items-center">
+              <div className="text-center mb-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload your business photo</h2>
               </div>
 
               {/* Upload area */}
               <div className="w-full max-w-sm mb-8">
                 {selectedImage ? (
                   <div className="w-full h-64 bg-gray-100 rounded-2xl flex items-center justify-center overflow-hidden">
-                    <img
-                      src={selectedImage}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={selectedImage} alt="Profile" className="w-full h-full object-cover" />
                   </div>
                 ) : (
                   <div
@@ -212,21 +196,13 @@ const EmployerPhotoUpload: React.FC = () => {
                     onClick={handleUploadClick}
                   >
                     <Camera className="w-12 h-12 text-gray-400 mb-3" />
-                    <p className="text-gray-500 text-sm text-center">
-                      Tap to upload business photo
-                    </p>
+                    <p className="text-gray-500 text-sm text-center">Tap to upload business photo</p>
                   </div>
                 )}
               </div>
 
               {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
 
               {/* Re-upload button */}
               {selectedImage && (
@@ -241,19 +217,15 @@ const EmployerPhotoUpload: React.FC = () => {
             </div>
           </div>
 
-          {/* Continue + Skip */}
-          <div className="px-4 pb-8 space-y-3">
+          {/* Continue + Skip - Fixed Bottom */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-4 pb-8 pt-4 border-t rounded-b-[54px] space-y-3 z-20">
             <Button
               onClick={handleSubmit}
               className="w-full h-14 text-lg rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium"
             >
               Continue →
             </Button>
-            <Button
-              onClick={handleSkip}
-              variant="ghost"
-              className="w-full h-12 text-gray-600 hover:text-gray-800"
-            >
+            <Button onClick={handleSkip} variant="ghost" className="w-full h-12 text-gray-600 hover:text-gray-800">
               Skip for now
             </Button>
           </div>
@@ -276,17 +248,18 @@ async function convertHeicToJpeg(file: File): Promise<File> {
   ctx?.drawImage(imageBitmap, 0, 0);
 
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const converted = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
-        type: "image/jpeg",
-      });
-      resolve(converted);
-    }, "image/jpeg", 0.9);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const converted = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
+          type: "image/jpeg",
+        });
+        resolve(converted);
+      },
+      "image/jpeg",
+      0.9,
+    );
   });
 }
 
 export default EmployerPhotoUpload;
-
-
-
