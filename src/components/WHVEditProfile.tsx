@@ -143,6 +143,7 @@ const WHVEditProfile: React.FC = () => {
 
   // Step 2: Preferences
   const [tagline, setTagline] = useState("");
+  const [taglineError, setTaglineError] = useState("");
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -160,6 +161,7 @@ const WHVEditProfile: React.FC = () => {
 
   // ✅ Preferred Availability
   const [availableFrom, setAvailableFrom] = useState("");
+  const [availableFromError, setAvailableFromError] = useState("");
 
   // Step 3: Experience
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
@@ -167,6 +169,7 @@ const WHVEditProfile: React.FC = () => {
   const [allLicenses, setAllLicenses] = useState<License[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
+  const [workExperienceDateErrors, setWorkExperienceDateErrors] = useState<Record<string, boolean>>({});
 
   const [allIndustries, setAllIndustries] = useState<Industry[]>([]);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
@@ -179,6 +182,11 @@ const WHVEditProfile: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return expiryDate > today;
+  };
+
+  const hasInvalidDateRange = (exp: WorkExperience): boolean => {
+    if (!exp.startDate || !exp.endDate) return false;
+    return new Date(exp.startDate) > new Date(exp.endDate);
   };
 
   // ============= Load Data =============
@@ -458,6 +466,45 @@ const WHVEditProfile: React.FC = () => {
 
     loadData();
   }, []);
+
+  // ============= Validation Effects =============
+  // Tagline validation
+  useEffect(() => {
+    const trimmed = tagline.trim();
+    if (trimmed.length > 0 && trimmed.length < 50) {
+      setTaglineError("Tag line must be at least 50 characters");
+    } else {
+      setTaglineError("");
+    }
+  }, [tagline]);
+
+  // Available From validation
+  useEffect(() => {
+    if (availableFrom) {
+      const selectedDate = new Date(availableFrom);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        setAvailableFromError("Please select a valid date");
+      } else {
+        setAvailableFromError("");
+      }
+    } else {
+      setAvailableFromError("");
+    }
+  }, [availableFrom]);
+
+  // Work experience date validation
+  useEffect(() => {
+    const errors: Record<string, boolean> = {};
+    workExperiences.forEach((exp) => {
+      if (hasInvalidDateRange(exp)) {
+        errors[exp.id] = true;
+      }
+    });
+    setWorkExperienceDateErrors(errors);
+  }, [workExperiences]);
+
   // ============= Handlers =============
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -540,9 +587,21 @@ const WHVEditProfile: React.FC = () => {
     field: keyof WorkExperience,
     value: any
   ) => {
-    setWorkExperiences((prev) =>
-      prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp))
-    );
+    setWorkExperiences((prev) => {
+      const updated = prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp));
+      // Clear error when dates are updated
+      if (field === 'startDate' || field === 'endDate') {
+        const exp = updated.find(e => e.id === id);
+        if (exp && !hasInvalidDateRange(exp)) {
+          setWorkExperienceDateErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[id];
+            return newErrors;
+          });
+        }
+      }
+      return updated;
+    });
   };
 
   const removeWorkExperience = (id: string) => {
@@ -595,6 +654,34 @@ const WHVEditProfile: React.FC = () => {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Validate before saving
+    if (tagline.trim().length < 50) {
+      toast({
+        title: "Validation Error",
+        description: "Tag line must be at least 50 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (availableFromError) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a valid available from date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (Object.keys(workExperienceDateErrors).length > 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix invalid date ranges in work experience.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       // Save personal info
@@ -966,7 +1053,33 @@ const WHVEditProfile: React.FC = () => {
                         onChange={(e) => setTagline(e.target.value)}
                         placeholder="e.g. Backpacker ready for farm work"
                       />
+                      <div className="flex justify-between text-xs mt-1">
+                        <p className={`${
+                          tagline.trim().length === 0 
+                            ? "text-gray-400" 
+                            : tagline.trim().length < 50 
+                            ? "text-orange-500" 
+                            : "text-green-600 font-medium"
+                        }`}>
+                          {tagline.trim().length} / 50 characters
+                        </p>
+                        {taglineError && <p className="text-red-500">{taglineError}</p>}
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Available From - Right after Tagline */}
+                <div className="border rounded-lg p-4">
+                  <Label>Available From <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="date"
+                    value={availableFrom}
+                    onChange={(e) => setAvailableFrom(e.target.value)}
+                    className="mt-2"
+                  />
+                  {availableFromError && (
+                    <p className="text-red-500 text-xs mt-1">{availableFromError}</p>
                   )}
                 </div>
 
@@ -1100,17 +1213,6 @@ const WHVEditProfile: React.FC = () => {
                     </div>
                   )}
                 </div>
-
-                {/* ✅ Available From (after Preferred Locations) */}
-                <div className="border rounded-lg p-4">
-                  <Label>Available From *</Label>
-                  <Input
-                    type="date"
-                    value={availableFrom}
-                    onChange={(e) => setAvailableFrom(e.target.value)}
-                    className="mt-2"
-                  />
-                </div>
               </div>
             )}
 
@@ -1234,23 +1336,30 @@ const WHVEditProfile: React.FC = () => {
                       />
 
                       {/* Dates */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <Input
-                          type="date"
-                          value={exp.startDate}
-                          onChange={(e) =>
-                            updateWorkExperience(exp.id, "startDate", e.target.value)
-                          }
-                          className="h-10 bg-gray-100 border-0 text-sm"
-                        />
-                        <Input
-                          type="date"
-                          value={exp.endDate}
-                          onChange={(e) =>
-                            updateWorkExperience(exp.id, "endDate", e.target.value)
-                          }
-                          className="h-10 bg-gray-100 border-0 text-sm"
-                        />
+                      <div className="space-y-1">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input
+                            type="date"
+                            value={exp.startDate}
+                            onChange={(e) =>
+                              updateWorkExperience(exp.id, "startDate", e.target.value)
+                            }
+                            className="h-10 bg-gray-100 border-0 text-sm"
+                          />
+                          <Input
+                            type="date"
+                            value={exp.endDate}
+                            onChange={(e) =>
+                              updateWorkExperience(exp.id, "endDate", e.target.value)
+                            }
+                            className="h-10 bg-gray-100 border-0 text-sm"
+                          />
+                        </div>
+                        {workExperienceDateErrors[exp.id] && (
+                          <p className="text-red-500 text-xs mt-1">
+                            End date cannot be before start date
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1400,7 +1509,14 @@ const WHVEditProfile: React.FC = () => {
                 Back
               </Button>
               <Button
-                disabled={step === 3}
+                disabled={
+                  step === 3 || 
+                  (step === 2 && (
+                    tagline.trim().length < 50 || 
+                    !availableFrom || 
+                    availableFromError !== ""
+                  ))
+                }
                 onClick={() => setStep(step + 1)}
                 className="bg-orange-500 text-white"
               >

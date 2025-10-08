@@ -54,6 +54,7 @@ const WHVWorkExperience: React.FC = () => {
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
+  const [workExperienceDateErrors, setWorkExperienceDateErrors] = useState<Record<string, boolean>>({});
 
   // ==========================
   // Load industries, roles, licenses + existing data
@@ -177,9 +178,26 @@ const WHVWorkExperience: React.FC = () => {
     field: keyof WorkExperience,
     value: any
   ) => {
-    setWorkExperiences((prev) =>
-      prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp))
-    );
+    setWorkExperiences((prev) => {
+      const updated = prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp));
+      // Clear error when dates are updated and valid
+      if (field === 'startDate' || field === 'endDate') {
+        const exp = updated.find(e => e.id === id);
+        if (exp && exp.startDate && exp.endDate) {
+          const hasError = new Date(exp.startDate) > new Date(exp.endDate);
+          setWorkExperienceDateErrors(prev => {
+            if (hasError) {
+              return { ...prev, [id]: true };
+            } else {
+              const newErrors = { ...prev };
+              delete newErrors[id];
+              return newErrors;
+            }
+          });
+        }
+      }
+      return updated;
+    });
   };
 
   const removeWorkExperience = (id: string) => {
@@ -308,6 +326,22 @@ const WHVWorkExperience: React.FC = () => {
   // ==========================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate date ranges
+    const invalidExperiences = workExperiences.filter(exp => {
+      if (!exp.startDate || !exp.endDate) return false;
+      return new Date(exp.startDate) > new Date(exp.endDate);
+    });
+
+    if (invalidExperiences.length > 0) {
+      const { toast } = await import("@/hooks/use-toast");
+      toast({
+        title: "Validation Error",
+        description: "Please fix invalid date ranges in work experience. End date cannot be before start date.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const {
       data: { user },
@@ -475,29 +509,36 @@ const WHVWorkExperience: React.FC = () => {
                     />
 
                     {/* Dates */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        type="date"
-                        value={exp.startDate}
-                        onChange={(e) =>
-                          updateWorkExperience(
-                            exp.id,
-                            "startDate",
-                            e.target.value
-                          )
-                        }
-                        className="h-10 bg-gray-100 border-0 text-sm"
-                        required
-                      />
-                      <Input
-                        type="date"
-                        value={exp.endDate}
-                        onChange={(e) =>
-                          updateWorkExperience(exp.id, "endDate", e.target.value)
-                        }
-                        className="h-10 bg-gray-100 border-0 text-sm"
-                        required
-                      />
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          type="date"
+                          value={exp.startDate}
+                          onChange={(e) =>
+                            updateWorkExperience(
+                              exp.id,
+                              "startDate",
+                              e.target.value
+                            )
+                          }
+                          className="h-10 bg-gray-100 border-0 text-sm"
+                          required
+                        />
+                        <Input
+                          type="date"
+                          value={exp.endDate}
+                          onChange={(e) =>
+                            updateWorkExperience(exp.id, "endDate", e.target.value)
+                          }
+                          className="h-10 bg-gray-100 border-0 text-sm"
+                          required
+                        />
+                      </div>
+                      {workExperienceDateErrors[exp.id] && (
+                        <p className="text-red-500 text-xs mt-1">
+                          End date cannot be before start date
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
