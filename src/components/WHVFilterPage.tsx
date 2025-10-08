@@ -30,6 +30,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
     jobType: "",
     salaryRange: "",
     facility: null,
+    license: null,
   });
 
   const [industries, setIndustries] = useState<{ id: number; industry: string }[]>([]);
@@ -37,6 +38,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
   const [allSuburbs, setAllSuburbs] = useState<{ state: string; location: string }[]>([]);
   const [suburbs, setSuburbs] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<{ id: number; name: string }[]>([]);
+  const [licenses, setLicenses] = useState<{ id: number; name: string }[]>([]);
   const [jobTypes, setJobTypes] = useState<string[]>([]);
   const [salaryRanges, setSalaryRanges] = useState<string[]>([]);
 
@@ -52,6 +54,11 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       const { data: facilityData } = await supabase.from("facility").select("facility_id, name");
       setFacilities(
         facilityData?.map((f: any) => ({ id: f.facility_id, name: f.name })) || []
+      );
+
+      const { data: licenseData } = await supabase.from("license").select("license_id, name");
+      setLicenses(
+        licenseData?.map((l: any) => ({ id: l.license_id, name: l.name })) || []
       );
 
       const { data: jobTypesData } = await (supabase as any).rpc("get_enum_values", {
@@ -119,6 +126,7 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       p_filter_job_type: selectedFilters.jobType || null,
       p_filter_salary_range: selectedFilters.salaryRange || null,
       p_filter_facility_ids: selectedFilters.facility ? [selectedFilters.facility.id] : null,
+      p_filter_license_ids: selectedFilters.license ? [selectedFilters.license.id] : null,
     });
 
     if (error) {
@@ -137,6 +145,8 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
       salaryRange: selectedFilters.salaryRange || "",
       facilityId: selectedFilters.facility?.id || null,
       facilityLabel: selectedFilters.facility?.name || "",
+      licenseId: selectedFilters.license?.id || null,
+      licenseLabel: selectedFilters.license?.name || "",
     });
     onClose();
   };
@@ -295,6 +305,31 @@ const WHVFilterPage: React.FC<WHVFilterPageProps> = ({ onClose, onResults, user 
                     {facilities.map((f) => (
                       <SelectItem key={f.id} value={f.id.toString()}>
                         {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* License */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  License Required
+                </label>
+                <Select
+                  value={selectedFilters.license?.id?.toString() || ""}
+                  onValueChange={(v) => {
+                    const selected = licenses.find((l) => l.id.toString() === v) || null;
+                    setSelectedFilters((prev: any) => ({ ...prev, license: selected }));
+                  }}
+                >
+                  <SelectTrigger className="w-full h-12 rounded-xl">
+                    <SelectValue placeholder="Select license" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {licenses.map((l) => (
+                      <SelectItem key={l.id} value={l.id.toString()}>
+                        {l.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
