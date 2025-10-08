@@ -12,7 +12,6 @@ import {
   Phone,
   Mail,
   Copy,
-  Award,
 } from "lucide-react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,21 +44,16 @@ const WHVJobFull: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { jobId } = useParams();
-
   const fromPage = (location.state as any)?.from;
+
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
   const handleBack = () => {
-    if (fromPage === "browse") {
-      navigate("/whv/browse-jobs");
-    } else if (fromPage === "topRecommended") {
-      navigate("/whv/matches", { state: { tab: "topRecommended" } });
-    } else if (fromPage === "matches") {
-      navigate("/whv/matches", { state: { tab: "matches" } });
-    } else {
-      navigate(-1);
-    }
+    if (fromPage === "browse") navigate("/whv/browse-jobs");
+    else if (fromPage === "topRecommended") navigate("/whv/matches", { state: { tab: "topRecommended" } });
+    else if (fromPage === "matches") navigate("/whv/matches", { state: { tab: "matches" } });
+    else navigate(-1);
   };
 
   const handleCopy = (text: string) => {
@@ -73,6 +67,7 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
+        // ===================== JOB =====================
         const { data: jobData } = await supabase
           .from("job")
           .select(
@@ -99,6 +94,7 @@ const WHVJobFull: React.FC = () => {
           return;
         }
 
+        // ===================== EMPLOYER =====================
         const { data: employerData } = await supabase
           .from("employer")
           .select(
@@ -115,12 +111,14 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
+        // ===================== PROFILE EMAIL =====================
         const { data: profileData } = await supabase
           .from("profile")
           .select("email")
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
+        // ===================== COMPANY PHOTO =====================
         let companyPhoto: string | null = null;
         if (employerData?.profile_photo) {
           let photoPath = employerData.profile_photo;
@@ -131,6 +129,7 @@ const WHVJobFull: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
+        // ===================== FACILITIES =====================
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -138,30 +137,37 @@ const WHVJobFull: React.FC = () => {
 
         const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // ✅ FIXED LICENSE FETCH (explicit join using .in())
+        // ===================== LICENSES (FULL FIX) =====================
         const { data: jobLicenseRows, error: jobLicenseError } = await supabase
           .from("job_license")
           .select("license_id, other")
-          .eq("job_id", jobData.job_id);
+          .eq("job_id", Number(jobData.job_id)); // ensure numeric match
 
+        console.log("jobLicenseRows →", jobLicenseRows);
         if (jobLicenseError) console.error("job_license fetch error:", jobLicenseError);
 
         let licenses: string[] = [];
 
         if (jobLicenseRows && jobLicenseRows.length > 0) {
           const licenseIds = jobLicenseRows.map((row) => row.license_id);
+          console.log("licenseIds →", licenseIds);
+
           const { data: licenseNames, error: licenseNameError } = await supabase
             .from("license")
-            .select("name")
+            .select("license_id, name")
             .in("license_id", licenseIds);
 
+          console.log("licenseNames →", licenseNames);
           if (licenseNameError) console.error("license name fetch error:", licenseNameError);
 
           const otherLicenses = jobLicenseRows.map((l) => l.other).filter((v) => v && v.trim() !== "");
 
           licenses = [...(licenseNames?.map((l) => l.name) || []), ...otherLicenses];
+
+          console.log("Final merged licenses →", licenses);
         }
 
+        // ===================== SET STATE =====================
         setJobDetails({
           job_id: jobData.job_id,
           description: jobData.description || "No description available",
@@ -204,6 +210,7 @@ const WHVJobFull: React.FC = () => {
       </div>
     );
 
+  // ===================== RENDER =====================
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
@@ -220,10 +227,10 @@ const WHVJobFull: React.FC = () => {
             <div className="w-10" />
           </div>
 
-          {/* Content */}
+          {/* Scrollable Content */}
           <div className="flex-1 px-6 py-6 overflow-y-auto">
             <div className="border-2 border-[#1E293B] rounded-2xl p-6 space-y-6">
-              {/* Company */}
+              {/* Company Info */}
               <div className="flex flex-col items-center text-center">
                 <div className="w-28 h-28 rounded-full border-4 border-[#1E293B] overflow-hidden mb-3">
                   {jobDetails.company_photo ? (
@@ -238,7 +245,7 @@ const WHVJobFull: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role + Industry + Status */}
+              {/* Role and Industry */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
@@ -249,122 +256,6 @@ const WHVJobFull: React.FC = () => {
                 >
                   {jobDetails.job_status}
                 </span>
-              </div>
-
-              {/* Employer Info */}
-              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-3 text-center">
-                {jobDetails.abn && jobDetails.abn !== "N/A" ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Hash size={14} />
-                    <span className="font-medium">ABN:</span>
-                    <a
-                      href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(/\s/g, "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {jobDetails.abn}
-                    </a>
-                    <Copy
-                      size={14}
-                      className="cursor-pointer text-gray-500 hover:text-gray-700"
-                      onClick={() => handleCopy(jobDetails.abn!)}
-                    />
-                  </div>
-                ) : (
-                  <p className="text-gray-500">⚠️ No ABN provided</p>
-                )}
-
-                {jobDetails.email ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Mail size={14} />
-                    <a href={`mailto:${jobDetails.email}`} className="text-blue-600 hover:underline">
-                      {jobDetails.email}
-                    </a>
-                    <Copy
-                      size={14}
-                      className="cursor-pointer text-gray-500 hover:text-gray-700"
-                      onClick={() => handleCopy(jobDetails.email!)}
-                    />
-                  </div>
-                ) : (
-                  <p className="text-gray-500">⚠️ No email found</p>
-                )}
-
-                {jobDetails.mobile_num && (
-                  <div className="flex items-center justify-center gap-2">
-                    <Phone size={14} />
-                    <a href={`tel:${jobDetails.mobile_num}`} className="text-blue-600 hover:underline">
-                      {jobDetails.mobile_num}
-                    </a>
-                    <Copy
-                      size={14}
-                      className="cursor-pointer text-gray-500 hover:text-gray-700"
-                      onClick={() => handleCopy(jobDetails.mobile_num!)}
-                    />
-                  </div>
-                )}
-
-                {jobDetails.website && jobDetails.website !== "Not provided" ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Globe size={14} />
-                    <a
-                      href={
-                        jobDetails.website.startsWith("http") ? jobDetails.website : `https://${jobDetails.website}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {jobDetails.website}
-                    </a>
-                  </div>
-                ) : (
-                  <p className="text-gray-500">🌐 No website provided</p>
-                )}
-              </div>
-
-              {/* Location */}
-              <div className="bg-gray-50 rounded-2xl p-4">
-                <div className="flex items-center mb-1">
-                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
-                  <span className="text-sm font-medium text-gray-600">Location</span>
-                </div>
-                <p className="text-gray-900 font-semibold">
-                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
-                </p>
-              </div>
-
-              {/* Details Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <Clock className="w-5 h-5 mr-2" />
-                    <span>Type</span>
-                  </div>
-                  <p className="font-semibold">{jobDetails.employment_type}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <DollarSign className="w-5 h-5 mr-2" />
-                    <span>Salary</span>
-                  </div>
-                  <p className="font-semibold">{jobDetails.salary_range}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <User className="w-5 h-5 mr-2" />
-                    <span>Experience Required</span>
-                  </div>
-                  <p className="font-semibold">{jobDetails.req_experience}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-center mb-1">
-                    <Calendar className="w-5 h-5 mr-2" />
-                    <span>Start Date</span>
-                  </div>
-                  <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
-                </div>
               </div>
 
               {/* Licenses */}
@@ -399,7 +290,7 @@ const WHVJobFull: React.FC = () => {
                 </div>
               </div>
 
-              {/* Job Description */}
+              {/* Description */}
               <div>
                 <h4 className="font-semibold mb-2">Job Description</h4>
                 <div className="bg-gray-50 rounded-2xl p-4">
