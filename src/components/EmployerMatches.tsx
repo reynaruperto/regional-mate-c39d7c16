@@ -6,20 +6,16 @@ import { Button } from "@/components/ui/button";
 import BottomNavigation from "@/components/BottomNavigation";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MatchCandidate {
   id: string;
   name: string;
   profileImage: string;
+  location?: string; // ✅ Added
   preferredLocations: string[];
   preferredIndustries: string[];
+  licenses?: string[]; // ✅ Added
   experiences: string;
   isMutualMatch?: boolean;
   matchPercentage?: number;
@@ -49,7 +45,9 @@ const EmployerMatches: React.FC = () => {
   // ---------- Auth ----------
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setEmployerId(user.id);
     })();
   }, []);
@@ -93,22 +91,23 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching matches:", error);
         return;
       }
+
       console.log("[DEBUG] Raw matches data:", data);
-      console.log("[DEBUG] First match maker_id:", data?.[0]?.maker_id);
-      console.log("[DEBUG] First match whv_id:", data?.[0]?.whv_id);
+
       const formatted = (data || []).map((m: any) => ({
         id: m.maker_id || m.whv_id,
         name: m.given_name,
         profileImage: resolvePhoto(m.profile_photo),
+        location: m.location || "Not specified", // ✅ Added
         preferredLocations: m.state_pref || [],
         preferredIndustries: m.industry_pref || [],
+        licenses: m.licenses || [], // ✅ Added
         experiences: m.work_experience
           ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
           : "No experience listed",
         isMutualMatch: true,
       }));
-      console.log("[DEBUG] Formatted matches:", formatted);
-      console.log("[DEBUG] First formatted match ID:", formatted?.[0]?.id);
+
       setMatches(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
@@ -125,29 +124,30 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching recommendations:", error);
         return;
       }
-      console.log("[DEBUG] Raw recommendations data:", data);
+
       const formatted = (data || []).map((r: any) => ({
         id: r.maker_id || r.whv_id,
         name: r.given_name,
         profileImage: resolvePhoto(r.profile_photo),
+        location: r.location || "Not specified", // ✅ Added
         preferredLocations: r.state_pref || [],
         preferredIndustries: r.industry_pref || [],
+        licenses: r.licenses || [], // ✅ Added
         experiences: r.work_experience
           ? r.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
           : "No experience listed",
         matchPercentage: Math.round(r.match_score),
       }));
-      console.log("[DEBUG] Formatted recommendations:", formatted);
+
       setTopRecommended(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
 
-  // Re-fetch when navigating back to this page
+  // ---------- Refresh on focus ----------
   useEffect(() => {
     const handleFocus = () => {
       if (selectedJobId) {
         console.log("[EmployerMatches] Refreshing on focus");
-        // Re-fetch both matches and recommendations
         (async () => {
           const { data: matchData } = await (supabase as any).rpc("fetch_job_matches", {
             p_job_id: selectedJobId,
@@ -157,8 +157,10 @@ const EmployerMatches: React.FC = () => {
               id: m.maker_id || m.whv_id,
               name: m.given_name,
               profileImage: resolvePhoto(m.profile_photo),
+              location: m.location || "Not specified", // ✅ Added
               preferredLocations: m.state_pref || [],
               preferredIndustries: m.industry_pref || [],
+              licenses: m.licenses || [], // ✅ Added
               experiences: m.work_experience
                 ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
                 : "No experience listed",
@@ -175,8 +177,10 @@ const EmployerMatches: React.FC = () => {
               id: r.maker_id || r.whv_id,
               name: r.given_name,
               profileImage: resolvePhoto(r.profile_photo),
+              location: r.location || "Not specified", // ✅ Added
               preferredLocations: r.state_pref || [],
               preferredIndustries: r.industry_pref || [],
+              licenses: r.licenses || [], // ✅ Added
               experiences: r.work_experience
                 ? r.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
                 : "No experience listed",
@@ -187,18 +191,10 @@ const EmployerMatches: React.FC = () => {
         })();
       }
     };
-    
+
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, [selectedJobId]);
-
-  // Also refresh when location state changes
-  useEffect(() => {
-    if (location.state?.refreshMatches && selectedJobId) {
-      console.log("[EmployerMatches] Refreshing due to navigation state");
-      window.location.reload();
-    }
-  }, [location.state, selectedJobId]);
 
   // ---------- Like/Unlike ----------
   const handleLike = async (candidate: MatchCandidate) => {
@@ -214,13 +210,9 @@ const EmployerMatches: React.FC = () => {
           .eq("liked_job_post_id", selectedJobId);
 
         if (activeTab === "matches") {
-          setMatches((prev) =>
-            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c))
-          );
+          setMatches((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c)));
         } else {
-          setTopRecommended((prev) =>
-            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c))
-          );
+          setTopRecommended((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c)));
         }
       } else {
         await supabase.from("likes").insert({
@@ -231,13 +223,9 @@ const EmployerMatches: React.FC = () => {
         });
 
         if (activeTab === "matches") {
-          setMatches((prev) =>
-            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c))
-          );
+          setMatches((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c)));
         } else {
-          setTopRecommended((prev) =>
-            prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c))
-          );
+          setTopRecommended((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c)));
         }
 
         setLikedCandidateName(candidate.name);
@@ -250,15 +238,8 @@ const EmployerMatches: React.FC = () => {
 
   // ---------- View Profile ----------
   const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
-    console.log("[DEBUG] handleViewProfile called with id:", id, "isMutualMatch:", isMutualMatch);
-    if (!id) {
-      console.error("❌ Cannot navigate: candidate ID is undefined");
-      return;
-    }
-    const route = isMutualMatch
-      ? `/full-candidate-profile/${id}`
-      : `/short-candidate-profile/${id}`;
-    console.log("[DEBUG] Navigating to:", route, "with jobId:", selectedJobId);
+    if (!id) return;
+    const route = isMutualMatch ? `/full-candidate-profile/${id}` : `/short-candidate-profile/${id}`;
     navigate(route, {
       state: {
         from: "employer-matches",
@@ -273,8 +254,7 @@ const EmployerMatches: React.FC = () => {
   // ---------- Dropdown Classes ----------
   const dropdownClasses =
     "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
-  const itemClasses =
-    "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
+  const itemClasses = "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
@@ -290,12 +270,10 @@ const EmployerMatches: React.FC = () => {
             >
               <ArrowLeft className="w-6 h-6 text-gray-700" />
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Matches & Recommendations
-            </h1>
+            <h1 className="text-lg font-semibold text-gray-900">Matches & Recommendations</h1>
           </div>
 
-          {/* Job Post Selector (identical to BrowseCandidates) */}
+          {/* Job Post Selector */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -306,13 +284,8 @@ const EmployerMatches: React.FC = () => {
               </SelectTrigger>
               <SelectContent className={dropdownClasses}>
                 {jobPosts.map((job) => (
-                  <SelectItem
-                    key={job.job_id}
-                    value={String(job.job_id)}
-                    className={itemClasses}
-                  >
-                    {job.industry_role?.role || "Unknown Role"} –{" "}
-                    {job.description || `Job #${job.job_id}`}
+                  <SelectItem key={job.job_id} value={String(job.job_id)} className={itemClasses}>
+                    {job.industry_role?.role || "Unknown Role"} – {job.description || `Job #${job.job_id}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -324,9 +297,7 @@ const EmployerMatches: React.FC = () => {
             <button
               onClick={() => setActiveTab("matches")}
               className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                activeTab === "matches"
-                  ? "bg-[#1E293B] text-white"
-                  : "text-gray-600 hover:text-gray-800"
+                activeTab === "matches" ? "bg-[#1E293B] text-white" : "text-gray-600 hover:text-gray-800"
               }`}
             >
               Matches
@@ -334,9 +305,7 @@ const EmployerMatches: React.FC = () => {
             <button
               onClick={() => setActiveTab("topRecommended")}
               className={`flex-1 py-2 rounded-full text-sm font-medium ${
-                activeTab === "topRecommended"
-                  ? "bg-[#1E293B] text-white"
-                  : "text-gray-600 hover:text-gray-800"
+                activeTab === "topRecommended" ? "bg-[#1E293B] text-white" : "text-gray-600 hover:text-gray-800"
               }`}
             >
               Top Recommended
@@ -355,10 +324,7 @@ const EmployerMatches: React.FC = () => {
               </div>
             ) : (
               currentList.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4"
-                >
+                <div key={c.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
                   <div className="flex gap-3 items-start">
                     <img
                       src={c.profileImage}
@@ -371,15 +337,19 @@ const EmployerMatches: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
                       <p className="text-sm text-gray-600">
-                        <strong>Preferred Locations:</strong>{" "}
-                        {c.preferredLocations.join(", ") || "Not specified"}
+                        <strong>Preferred Locations:</strong> {c.preferredLocations.join(", ") || "Not specified"}
                       </p>
                       <p className="text-sm text-gray-600">
-                        <strong>Preferred Industries:</strong>{" "}
-                        {c.preferredIndustries.join(", ") || "No preferences"}
+                        <strong>Preferred Industries:</strong> {c.preferredIndustries.join(", ") || "No preferences"}
                       </p>
                       <p className="text-sm text-gray-600">
                         <strong>Experience:</strong> {c.experiences}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <strong>Current Location:</strong> {c.location || "Not specified"}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <strong>Licenses:</strong> {c.licenses?.join(", ") || "None"}
                       </p>
 
                       <div className="flex items-center gap-3 mt-3">
@@ -396,11 +366,7 @@ const EmployerMatches: React.FC = () => {
                           >
                             <Heart
                               size={20}
-                              className={
-                                c.isLiked
-                                  ? "text-orange-500 fill-orange-500"
-                                  : "text-orange-500"
-                              }
+                              className={c.isLiked ? "text-orange-500 fill-orange-500" : "text-orange-500"}
                             />
                           </button>
                         )}
@@ -408,9 +374,7 @@ const EmployerMatches: React.FC = () => {
                     </div>
                     {!c.isMutualMatch && c.matchPercentage && (
                       <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-lg font-bold text-orange-500">
-                          {c.matchPercentage}%
-                        </div>
+                        <div className="text-lg font-bold text-orange-500">{c.matchPercentage}%</div>
                         <div className="text-xs font-semibold text-orange-500">Match</div>
                       </div>
                     )}
