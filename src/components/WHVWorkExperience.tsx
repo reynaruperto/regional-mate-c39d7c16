@@ -443,7 +443,7 @@ const WHVWorkExperience: React.FC = () => {
                         <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
                           <SelectValue placeholder="Select industry" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" className="max-h-[200px] overflow-y-auto rounded-lg shadow-lg bg-white border z-50">
                           {industries.map((ind) => (
                             <SelectItem key={ind.id} value={String(ind.id)}>
                               {ind.name}
@@ -467,7 +467,7 @@ const WHVWorkExperience: React.FC = () => {
                         <SelectTrigger className="h-10 bg-gray-100 border-0 text-sm">
                           <SelectValue placeholder="Select position" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" className="max-h-[200px] overflow-y-auto rounded-lg shadow-lg bg-white border z-50">
                           {roles
                             .filter((r) => r.industryId === exp.industryId)
                             .map((role) => (
