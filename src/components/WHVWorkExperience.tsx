@@ -1,10 +1,10 @@
 // src/components/WHVWorkExperience.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, X, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, X, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Industry {
@@ -26,7 +26,7 @@ interface License {
 interface WorkExperience {
   id: string;
   industryId: number | null;
-  roleIds: number[];
+  roleId: number | null;
   company: string;
   location: string;
   startDate: string;
@@ -52,8 +52,9 @@ const WHVWorkExperience: React.FC = () => {
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
+  const [openDropdown, setOpenDropdown] = useState<{ id: string; type: "industry" | "role" } | null>(null);
 
-  // ========== LOAD DATA ==========
+  // Load data
   useEffect(() => {
     const loadData = async () => {
       const {
@@ -66,13 +67,7 @@ const WHVWorkExperience: React.FC = () => {
 
       const { data: roleData } = await supabase.from("industry_role").select("industry_role_id, role, industry_id");
       if (roleData)
-        setRoles(
-          roleData.map((r) => ({
-            id: r.industry_role_id,
-            name: r.role,
-            industryId: r.industry_id,
-          })),
-        );
+        setRoles(roleData.map((r) => ({ id: r.industry_role_id, name: r.role, industryId: r.industry_id })));
 
       const { data: licData } = await supabase.from("license").select("license_id, name");
       if (licData) setAllLicenses(licData.map((l) => ({ id: l.license_id, name: l.name })));
@@ -80,10 +75,11 @@ const WHVWorkExperience: React.FC = () => {
       const { data: expData } = await supabase.from("maker_work_experience").select("*").eq("user_id", user.id);
       if (expData)
         setWorkExperiences(
-          expData.map((e) => ({
+          expData.map((e: any) => ({
             id: String(e.work_experience_id),
             industryId: e.industry_id,
-            roleIds: roles.filter((r) => r.role === e.position).map((r) => r.id),
+            roleId:
+              roleData?.find((r) => r.role === e.position && r.industry_id === e.industry_id)?.industry_role_id || null,
             company: e.company || "",
             location: e.location || "",
             startDate: e.start_date || "",
@@ -118,7 +114,19 @@ const WHVWorkExperience: React.FC = () => {
     loadData();
   }, []);
 
-  // ========== HANDLERS ==========
+  // Click outside dropdown to close
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Helpers
   const addWorkExperience = () => {
     if (workExperiences.length < 8)
       setWorkExperiences([
@@ -126,7 +134,7 @@ const WHVWorkExperience: React.FC = () => {
         {
           id: Date.now().toString(),
           industryId: null,
-          roleIds: [],
+          roleId: null,
           company: "",
           location: "",
           startDate: "",
@@ -144,21 +152,6 @@ const WHVWorkExperience: React.FC = () => {
     setWorkExperiences((prev) => prev.filter((exp) => exp.id !== id));
   };
 
-  const toggleRole = (expId: string, roleId: number) => {
-    setWorkExperiences((prev) =>
-      prev.map((exp) =>
-        exp.id === expId
-          ? {
-              ...exp,
-              roleIds: exp.roleIds.includes(roleId)
-                ? exp.roleIds.filter((r) => r !== roleId)
-                : [...exp.roleIds, roleId],
-            }
-          : exp,
-      ),
-    );
-  };
-
   const toggleLicense = (licenseId: number) => {
     setLicenses((prev) => (prev.includes(licenseId) ? prev.filter((l) => l !== licenseId) : [...prev, licenseId]));
   };
@@ -167,14 +160,7 @@ const WHVWorkExperience: React.FC = () => {
     if (jobReferences.length < 5)
       setJobReferences([
         ...jobReferences,
-        {
-          id: Date.now().toString(),
-          name: "",
-          businessName: "",
-          email: "",
-          phone: "",
-          role: "",
-        },
+        { id: Date.now().toString(), name: "", businessName: "", email: "", phone: "", role: "" },
       ]);
   };
 
@@ -186,7 +172,6 @@ const WHVWorkExperience: React.FC = () => {
     setJobReferences((prev) => prev.filter((ref) => ref.id !== id));
   };
 
-  // ========== SAVE ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const {
@@ -194,33 +179,33 @@ const WHVWorkExperience: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Save experiences
+    // Save work experiences
     await supabase.from("maker_work_experience").delete().eq("user_id", user.id);
-    const workRows = workExperiences
-      .filter((exp) => exp.industryId && exp.roleIds.length)
-      .map((exp) => ({
+    const rows = workExperiences
+      .filter((e) => e.industryId && e.roleId)
+      .map((e) => ({
         user_id: user.id,
-        company: exp.company,
-        industry_id: exp.industryId!,
-        position: roles.find((r) => r.id === exp.roleIds[0])?.name || "",
-        start_date: exp.startDate,
-        end_date: exp.endDate,
-        location: exp.location,
-        job_description: exp.description,
+        company: e.company,
+        industry_id: e.industryId!,
+        position: roles.find((r) => r.id === e.roleId)?.name || "",
+        start_date: e.startDate,
+        end_date: e.endDate,
+        location: e.location,
+        job_description: e.description,
       }));
-    if (workRows.length) await supabase.from("maker_work_experience").insert(workRows);
+    if (rows.length) await supabase.from("maker_work_experience").insert(rows);
 
-    // Save references
+    // Save job references
     await supabase.from("maker_reference").delete().eq("user_id", user.id);
     if (jobReferences.length)
       await supabase.from("maker_reference").insert(
-        jobReferences.map((ref) => ({
+        jobReferences.map((r) => ({
           user_id: user.id,
-          name: ref.name,
-          business_name: ref.businessName,
-          email: ref.email,
-          mobile_num: ref.phone,
-          role: ref.role,
+          name: r.name,
+          business_name: r.businessName,
+          email: r.email,
+          mobile_num: r.phone,
+          role: r.role,
         })),
       );
 
@@ -238,11 +223,10 @@ const WHVWorkExperience: React.FC = () => {
     navigate("/whv/photo-upload");
   };
 
-  // ========== RENDER ==========
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
-        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
+        <div className="w-full h-full bg-white rounded-[54px] flex flex-col overflow-hidden relative">
           {/* Header */}
           <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between">
             <button
@@ -255,67 +239,101 @@ const WHVWorkExperience: React.FC = () => {
             <span className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-full text-sm">5/6</span>
           </div>
 
-          {/* Form */}
+          {/* Scrollable Form */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-            {workExperiences.map((exp, index) => (
-              <div key={exp.id} className="border rounded-lg p-4 space-y-4">
+            {workExperiences.map((exp, i) => (
+              <div key={exp.id} className="border rounded-lg p-4 space-y-4 relative" ref={dropdownRef}>
                 <div className="flex justify-between items-center">
-                  <h3 className="font-medium text-gray-800">Experience {index + 1}</h3>
+                  <h3 className="font-medium text-gray-800">Experience {i + 1}</h3>
                   <Button variant="ghost" onClick={() => removeWorkExperience(exp.id)} className="text-red-500">
                     <X size={16} />
                   </Button>
                 </div>
 
-                {/* Industry */}
+                {/* Custom Dropdown - Industry */}
                 <div className="space-y-2">
                   <Label>Industry *</Label>
-                  {industries.map((ind) => (
-                    <label key={ind.id} className="flex items-center space-x-2 py-1">
-                      <input
-                        type="radio"
-                        checked={exp.industryId === ind.id}
-                        onChange={() => updateWorkExperience(exp.id, "industryId", ind.id)}
-                        className="h-4 w-4"
-                      />
-                      <span>{ind.name}</span>
-                    </label>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenDropdown((prev) =>
+                        prev?.id === exp.id && prev?.type === "industry" ? null : { id: exp.id, type: "industry" },
+                      )
+                    }
+                    className="w-full h-10 bg-gray-100 border rounded px-3 text-left text-sm flex items-center justify-between"
+                  >
+                    {industries.find((i) => i.id === exp.industryId)?.name || "Select industry"}
+                    <ChevronDown size={16} className="text-gray-500" />
+                  </button>
+
+                  {openDropdown?.id === exp.id && openDropdown?.type === "industry" && (
+                    <div className="absolute mt-1 w-full bg-white border rounded-lg shadow max-h-40 overflow-y-auto z-30">
+                      {industries.map((ind) => (
+                        <div
+                          key={ind.id}
+                          onClick={() => {
+                            updateWorkExperience(exp.id, "industryId", ind.id);
+                            updateWorkExperience(exp.id, "roleId", null);
+                            setOpenDropdown(null);
+                          }}
+                          className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                        >
+                          {ind.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Role */}
-                {exp.industryId && (
-                  <div className="space-y-2">
-                    <Label>Roles *</Label>
-                    <div className="flex flex-wrap gap-2">
+                {/* Custom Dropdown - Role */}
+                <div className="space-y-2">
+                  <Label>Position *</Label>
+                  <button
+                    type="button"
+                    disabled={!exp.industryId}
+                    onClick={() =>
+                      setOpenDropdown((prev) =>
+                        prev?.id === exp.id && prev?.type === "role" ? null : { id: exp.id, type: "role" },
+                      )
+                    }
+                    className={`w-full h-10 border rounded px-3 text-left text-sm flex items-center justify-between ${
+                      exp.industryId ? "bg-gray-100" : "bg-gray-50 text-gray-400"
+                    }`}
+                  >
+                    {roles.find((r) => r.id === exp.roleId)?.name || "Select position"}
+                    <ChevronDown size={16} className="text-gray-500" />
+                  </button>
+
+                  {openDropdown?.id === exp.id && openDropdown?.type === "role" && (
+                    <div className="absolute mt-1 w-full bg-white border rounded-lg shadow max-h-40 overflow-y-auto z-30">
                       {roles
                         .filter((r) => r.industryId === exp.industryId)
                         .map((r) => (
-                          <button
-                            type="button"
+                          <div
                             key={r.id}
-                            onClick={() => toggleRole(exp.id, r.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs border ${
-                              exp.roleIds.includes(r.id)
-                                ? "bg-orange-500 text-white border-orange-500"
-                                : "bg-white text-gray-700 border-gray-300"
-                            }`}
+                            onClick={() => {
+                              updateWorkExperience(exp.id, "roleId", r.id);
+                              setOpenDropdown(null);
+                            }}
+                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
                           >
                             {r.name}
-                          </button>
+                          </div>
                         ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
+                {/* Rest of Fields */}
                 <Input
+                  placeholder="Company"
                   value={exp.company}
                   onChange={(e) => updateWorkExperience(exp.id, "company", e.target.value)}
-                  placeholder="Company"
                 />
                 <Input
+                  placeholder="Location"
                   value={exp.location}
                   onChange={(e) => updateWorkExperience(exp.id, "location", e.target.value)}
-                  placeholder="Location"
                 />
                 <textarea
                   value={exp.description}
@@ -347,14 +365,10 @@ const WHVWorkExperience: React.FC = () => {
             <div>
               <h2 className="text-xl font-semibold mb-2">Licenses & Tickets</h2>
               <div className="max-h-48 overflow-y-auto bg-gray-100 rounded-lg p-3 space-y-2">
-                {allLicenses.map((license) => (
-                  <label key={license.id} className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={licenses.includes(license.id)}
-                      onChange={() => toggleLicense(license.id)}
-                    />
-                    <span>{license.name}</span>
+                {allLicenses.map((l) => (
+                  <label key={l.id} className="flex items-center gap-3">
+                    <input type="checkbox" checked={licenses.includes(l.id)} onChange={() => toggleLicense(l.id)} />
+                    <span>{l.name}</span>
                   </label>
                 ))}
               </div>
@@ -412,8 +426,8 @@ const WHVWorkExperience: React.FC = () => {
             </div>
           </div>
 
-          {/* Continue */}
-          <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t z-20 rounded-b-[54px]">
+          {/* Continue Button */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t rounded-b-[54px]">
             <Button
               onClick={handleSubmit}
               className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl"
