@@ -44,16 +44,21 @@ const WHVJobFull: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { jobId } = useParams();
-  const fromPage = (location.state as any)?.from;
 
+  const fromPage = (location.state as any)?.from;
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
   const handleBack = () => {
-    if (fromPage === "browse") navigate("/whv/browse-jobs");
-    else if (fromPage === "topRecommended") navigate("/whv/matches", { state: { tab: "topRecommended" } });
-    else if (fromPage === "matches") navigate("/whv/matches", { state: { tab: "matches" } });
-    else navigate(-1);
+    if (fromPage === "browse") {
+      navigate("/whv/browse-jobs");
+    } else if (fromPage === "topRecommended") {
+      navigate("/whv/matches", { state: { tab: "topRecommended" } });
+    } else if (fromPage === "matches") {
+      navigate("/whv/matches", { state: { tab: "matches" } });
+    } else {
+      navigate(-1);
+    }
   };
 
   const handleCopy = (text: string) => {
@@ -67,8 +72,8 @@ const WHVJobFull: React.FC = () => {
       if (!jobId) return;
 
       try {
-        // ✅ Job Details
-        const { data: jobData } = await supabase
+        // ---------------- Job ----------------
+        const { data: jobData, error: jobErr } = await supabase
           .from("job")
           .select(
             `
@@ -89,12 +94,13 @@ const WHVJobFull: React.FC = () => {
           .eq("job_id", Number(jobId))
           .maybeSingle();
 
+        if (jobErr) console.error("job fetch error:", jobErr);
         if (!jobData) {
           setLoading(false);
           return;
         }
 
-        // ✅ Employer Details
+        // ---------------- Employer ----------------
         const { data: employerData } = await supabase
           .from("employer")
           .select(
@@ -111,14 +117,14 @@ const WHVJobFull: React.FC = () => {
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // ✅ Profile Email
+        // ---------------- Profile (email) ----------------
         const { data: profileData } = await supabase
           .from("profile")
           .select("email")
           .eq("user_id", jobData.user_id)
           .maybeSingle();
 
-        // ✅ Company Photo
+        // ---------------- Company photo ----------------
         let companyPhoto: string | null = null;
         if (employerData?.profile_photo) {
           let photoPath = employerData.profile_photo;
@@ -129,7 +135,7 @@ const WHVJobFull: React.FC = () => {
           companyPhoto = signed?.signedUrl || null;
         }
 
-        // ✅ Facilities
+        // ---------------- Facilities ----------------
         const { data: facilityRows } = await supabase
           .from("employer_facility")
           .select("facility(name)")
@@ -137,40 +143,55 @@ const WHVJobFull: React.FC = () => {
 
         const facilities = facilityRows?.map((f: any) => f.facility?.name).filter(Boolean) || [];
 
-        // ✅ Licenses (Array-based Fix)
+        // ---------------- Licenses (robust) ----------------
         let licenses: string[] = [];
-        const { data: licenseArrayRow, error: licenseArrayError } = await supabase
+
+        // Try FK join first (license:license_id(name))
+        const { data: joinRows, error: joinErr } = await supabase
           .from("job_license")
-          .select("license_ids, other")
-          .eq("job_id", Number(jobData.job_id))
-          .maybeSingle();
+          .select(
+            `
+            license_id,
+            other,
+            license:license_id ( name )
+          `,
+          )
+          .eq("job_id", Number(jobData.job_id));
 
-        console.log("licenseArrayRow →", licenseArrayRow);
+        console.log("license join rows →", joinRows, "error →", joinErr);
 
-        if (licenseArrayError) {
-          console.error("Error fetching job_license:", licenseArrayError);
-        } else if (licenseArrayRow) {
-          const licenseIds = licenseArrayRow.license_ids || [];
-          const otherLicense = licenseArrayRow.other || null;
+        if (joinRows && joinRows.length > 0) {
+          licenses = joinRows.map((l: any) => l.other || l.license?.name).filter(Boolean) || [];
+        } else {
+          // Fallback: get IDs then names via .in()
+          const { data: jlRows, error: jlErr } = await supabase
+            .from("job_license")
+            .select("license_id, other")
+            .eq("job_id", Number(jobData.job_id));
 
-          if (licenseIds.length > 0) {
-            const { data: licenseNames, error: licenseNameError } = await supabase
-              .from("license")
-              .select("name")
-              .in("license_id", licenseIds);
+          console.log("job_license rows (fallback) →", jlRows, "error →", jlErr);
 
-            if (licenseNameError) console.error("Error fetching license names:", licenseNameError);
-            licenses = licenseNames?.map((l) => l.name) || [];
-          }
+          if (jlRows && jlRows.length > 0) {
+            const ids = jlRows.map((r: any) => r.license_id).filter(Boolean);
+            const custom = jlRows.map((r: any) => r.other).filter((v: string | null) => v && v.trim() !== "");
 
-          if (otherLicense && otherLicense.trim() !== "") {
-            licenses.push(otherLicense);
+            if (ids.length > 0) {
+              const { data: names, error: namesErr } = await supabase
+                .from("license")
+                .select("license_id, name")
+                .in("license_id", ids);
+
+              console.log("license names (fallback) →", names, "error →", namesErr);
+
+              licenses = [...(names?.map((n: any) => n.name) || []), ...custom];
+            } else {
+              licenses = custom;
+            }
           }
         }
 
-        console.log("Final licenses →", licenses);
+        console.log("resolved licenses →", licenses, "for job", jobData.job_id);
 
-        // ✅ Set All Job Details
         setJobDetails({
           job_id: jobData.job_id,
           description: jobData.description || "No description available",
@@ -213,7 +234,6 @@ const WHVJobFull: React.FC = () => {
       </div>
     );
 
-  // ✅ Render
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
@@ -248,7 +268,7 @@ const WHVJobFull: React.FC = () => {
                 <p className="text-sm text-gray-600">{jobDetails.tagline}</p>
               </div>
 
-              {/* Role */}
+              {/* Role + Industry + Status */}
               <div className="text-center">
                 <h3 className="text-2xl font-bold">{jobDetails.role}</h3>
                 <p className="text-sm text-gray-600">{jobDetails.industry}</p>
@@ -259,6 +279,122 @@ const WHVJobFull: React.FC = () => {
                 >
                   {jobDetails.job_status}
                 </span>
+              </div>
+
+              {/* Employer Info */}
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-3 text-center">
+                {jobDetails.abn && jobDetails.abn !== "N/A" ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Hash size={14} />
+                    <span className="font-medium">ABN:</span>
+                    <a
+                      href={`https://abr.business.gov.au/ABN/View?abn=${jobDetails.abn.replace(/\s/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {jobDetails.abn}
+                    </a>
+                    <Copy
+                      size={14}
+                      className="cursor-pointer text-gray-500 hover:text-gray-700"
+                      onClick={() => handleCopy(jobDetails.abn!)}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-gray-500">⚠️ No ABN provided</p>
+                )}
+
+                {jobDetails.email ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Mail size={14} />
+                    <a href={`mailto:${jobDetails.email}`} className="text-blue-600 hover:underline">
+                      {jobDetails.email}
+                    </a>
+                    <Copy
+                      size={14}
+                      className="cursor-pointer text-gray-500 hover:text-gray-700"
+                      onClick={() => handleCopy(jobDetails.email!)}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-gray-500">⚠️ No email found</p>
+                )}
+
+                {jobDetails.mobile_num && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Phone size={14} />
+                    <a href={`tel:${jobDetails.mobile_num}`} className="text-blue-600 hover:underline">
+                      {jobDetails.mobile_num}
+                    </a>
+                    <Copy
+                      size={14}
+                      className="cursor-pointer text-gray-500 hover:text-gray-700"
+                      onClick={() => handleCopy(jobDetails.mobile_num!)}
+                    />
+                  </div>
+                )}
+
+                {jobDetails.website && jobDetails.website !== "Not provided" ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Globe size={14} />
+                    <a
+                      href={
+                        jobDetails.website.startsWith("http") ? jobDetails.website : `https://${jobDetails.website}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {jobDetails.website}
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">🌐 No website provided</p>
+                )}
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center mb-1">
+                  <MapPin className="w-5 h-5 text-[#1E293B] mr-2" />
+                  <span className="text-sm font-medium text-gray-600">Location</span>
+                </div>
+                <p className="text-gray-900 font-semibold">
+                  {jobDetails.suburb_city}, {jobDetails.state} {jobDetails.postcode}
+                </p>
+              </div>
+
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <Clock className="w-5 h-5 mr-2" />
+                    <span>Type</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.employment_type}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    <span>Salary</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.salary_range}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <User className="w-5 h-5 mr-2" />
+                    <span>Experience Required</span>
+                  </div>
+                  <p className="font-semibold">{jobDetails.req_experience}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center mb-1">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    <span>Start Date</span>
+                  </div>
+                  <p className="font-semibold">{new Date(jobDetails.start_date).toLocaleDateString()}</p>
+                </div>
               </div>
 
               {/* Licenses */}
