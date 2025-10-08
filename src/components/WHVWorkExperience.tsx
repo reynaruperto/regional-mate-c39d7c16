@@ -52,7 +52,6 @@ interface JobReference {
 
 const WHVWorkExperience: React.FC = () => {
   const navigate = useNavigate();
-  const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
 
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -376,7 +375,7 @@ const WHVWorkExperience: React.FC = () => {
       {/* Outer frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
         {/* Inner screen */}
-        <div ref={setContainerRef} className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
+        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
 
@@ -449,7 +448,7 @@ const WHVWorkExperience: React.FC = () => {
                           <SelectValue placeholder="Select industry" />
                         </SelectTrigger>
                         <SelectContent 
-                          container={containerRef}
+                          portal={false}
                           position="popper" 
                           sideOffset={4} 
                           className="max-h-[250px] overflow-y-auto z-50 bg-white rounded-lg shadow-lg"
@@ -482,7 +481,7 @@ const WHVWorkExperience: React.FC = () => {
                           <SelectValue placeholder="Select position" />
                         </SelectTrigger>
                         <SelectContent 
-                          container={containerRef}
+                          portal={false}
                           position="popper" 
                           sideOffset={4} 
                           className="max-h-[250px] overflow-y-auto z-50 bg-white rounded-lg shadow-lg"
