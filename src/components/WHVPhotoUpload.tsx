@@ -34,10 +34,7 @@ const WHVPhotoUpload: React.FC = () => {
       }
 
       if (data?.profile_photo) {
-        // Build public URL from relative path
-        const { data: urlData } = supabase.storage
-          .from("profile_photo")
-          .getPublicUrl(data.profile_photo);
+        const { data: urlData } = supabase.storage.from("profile_photo").getPublicUrl(data.profile_photo);
         setSelectedImage(urlData.publicUrl);
       }
     };
@@ -104,7 +101,7 @@ const WHVPhotoUpload: React.FC = () => {
     }
 
     try {
-      // 1. Delete old photo if exists (using relative path from DB)
+      // 1. Delete old photo if exists
       const { data: makerData } = await supabase
         .from("whv_maker")
         .select("profile_photo")
@@ -112,22 +109,18 @@ const WHVPhotoUpload: React.FC = () => {
         .maybeSingle();
 
       if (makerData?.profile_photo) {
-        // profile_photo is now a relative path, use it directly
         await supabase.storage.from("profile_photo").remove([makerData.profile_photo]);
       }
 
       // 2. Upload new file
       const filePath = `${user.id}/${Date.now()}-${selectedFile.name}`;
       const { error: uploadError } = await supabase.storage
-        .from("profile_photo") // ✅ use correct bucket
-        .upload(filePath, selectedFile, {
-          cacheControl: "3600",
-          upsert: true,
-        });
+        .from("profile_photo")
+        .upload(filePath, selectedFile, { cacheControl: "3600", upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 3. Save relative path to DB (not full URL)
+      // 3. Save relative path to DB
       const { error: dbError } = await supabase
         .from("whv_maker")
         .update({ profile_photo: filePath })
@@ -135,11 +128,8 @@ const WHVPhotoUpload: React.FC = () => {
 
       if (dbError) throw dbError;
 
-      // 4. Get public URL for display only
-      const { data } = supabase.storage
-        .from("profile_photo")
-        .getPublicUrl(filePath);
-      
+      // 4. Get public URL
+      const { data } = supabase.storage.from("profile_photo").getPublicUrl(filePath);
       setSelectedImage(data.publicUrl);
 
       toast({
@@ -164,45 +154,38 @@ const WHVPhotoUpload: React.FC = () => {
   // Render
   // ==========================
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden relative flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4">
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
+        <div className="w-full h-full bg-white rounded-[54px] flex flex-col relative overflow-hidden">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
+
           {/* Header */}
-          <div className="px-4 py-3 border-b bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/whv/work-experience")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Account Set Up
-              </h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                <span className="text-sm font-medium text-gray-600">6/6</span>
-              </div>
+          <div className="px-6 pt-16 pb-4 border-b bg-white flex items-center justify-between">
+            <button
+              onClick={() => navigate("/whv/work-experience")}
+              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">Account Set Up</h1>
+            <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+              <span className="text-sm font-medium text-gray-600">6/6</span>
             </div>
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto pt-16">
-            <div className="flex flex-col items-center px-4 pb-40">
-              <div className="text-center mb-12">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                  Upload your photo
-                </h2>
+          <div className="flex-1 overflow-y-auto px-4 py-6 pb-40">
+            <div className="flex flex-col items-center">
+              <div className="text-center mb-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload your photo</h2>
               </div>
 
               {/* Upload area */}
               <div className="w-full max-w-sm mb-8">
                 {selectedImage ? (
                   <div className="w-full h-64 bg-gray-100 rounded-2xl flex items-center justify-center overflow-hidden">
-                    <img
-                      src={selectedImage}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={selectedImage} alt="Profile" className="w-full h-full object-cover" />
                   </div>
                 ) : (
                   <div
@@ -210,21 +193,13 @@ const WHVPhotoUpload: React.FC = () => {
                     onClick={handleUploadClick}
                   >
                     <Camera className="w-12 h-12 text-gray-400 mb-3" />
-                    <p className="text-gray-500 text-sm text-center">
-                      Tap to upload photo
-                    </p>
+                    <p className="text-gray-500 text-sm text-center">Tap to upload photo</p>
                   </div>
                 )}
               </div>
 
               {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
 
               {/* Re-upload button */}
               {selectedImage && (
@@ -239,19 +214,15 @@ const WHVPhotoUpload: React.FC = () => {
             </div>
           </div>
 
-          {/* Continue + Skip */}
-          <div className="px-4 pb-8 space-y-3">
+          {/* Continue + Skip - Fixed Bottom */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-4 pb-8 pt-4 border-t rounded-b-[54px] space-y-3 z-20">
             <Button
               onClick={handleSubmit}
               className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
             >
               Continue →
             </Button>
-            <Button
-              onClick={handleSkip}
-              variant="ghost"
-              className="w-full h-12 text-gray-600 hover:text-gray-800"
-            >
+            <Button onClick={handleSkip} variant="ghost" className="w-full h-12 text-gray-600 hover:text-gray-800">
               Skip for now
             </Button>
           </div>
