@@ -20,6 +20,7 @@ interface JobCard {
   job_type: string;
   description?: string;
   isLiked?: boolean;
+  licenses?: string[];
 }
 
 const WHVBrowseJobs: React.FC = () => {
@@ -119,6 +120,7 @@ const WHVBrowseJobs: React.FC = () => {
         job_type: job.job_type || "Employment type not specified",
         description: job.description || "No description provided",
         isLiked: likedIds.includes(job.job_id),
+        licenses: job.licenses || [],
       }));
 
       setJobs(mapped);
@@ -323,6 +325,24 @@ const WHVBrowseJobs: React.FC = () => {
                             {job.salary_range}
                           </span>
                         </div>
+
+                        {job.licenses && job.licenses.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {job.licenses.slice(0, 2).map((license, idx) => (
+                              <span 
+                                key={idx} 
+                                className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700"
+                              >
+                                {license}
+                              </span>
+                            ))}
+                            {job.licenses.length > 2 && (
+                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
+                                +{job.licenses.length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-3 mt-4">
                           <Button
