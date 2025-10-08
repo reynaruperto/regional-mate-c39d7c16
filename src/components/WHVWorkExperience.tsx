@@ -4,13 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -375,7 +368,7 @@ const WHVWorkExperience: React.FC = () => {
       {/* Outer frame */}
       <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
         {/* Inner screen */}
-        <div className="w-full h-full bg-white rounded-[54px] overflow-visible flex flex-col relative">
+        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
           {/* Dynamic Island */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
 
@@ -434,32 +427,24 @@ const WHVWorkExperience: React.FC = () => {
                       <Label className="text-sm font-medium text-gray-700">
                         Industry <span className="text-red-500">*</span>
                       </Label>
-                      <Select
-                        value={exp.industryId?.toString() || ""}
-                        onValueChange={(value) =>
+                      <select
+                        value={exp.industryId || ""}
+                        onChange={(e) =>
                           updateWorkExperience(
                             exp.id,
                             "industryId",
-                            Number(value)
+                            Number(e.target.value)
                           )
                         }
+                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
                       >
-                        <SelectTrigger className="w-full h-10 bg-gray-100 border rounded px-2 text-sm">
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
-                        <SelectContent 
-                          portal={false}
-                          position="popper" 
-                          sideOffset={4} 
-                          className="max-h-[250px] overflow-y-auto z-50 bg-white rounded-lg shadow-lg"
-                        >
-                          {industries.map((ind) => (
-                            <SelectItem key={ind.id} value={ind.id.toString()}>
-                              {ind.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select industry</option>
+                        {industries.map((ind) => (
+                          <option key={ind.id} value={ind.id}>
+                            {ind.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Role / Position */}
@@ -467,34 +452,26 @@ const WHVWorkExperience: React.FC = () => {
                       <Label className="text-sm font-medium text-gray-700">
                         Position <span className="text-red-500">*</span>
                       </Label>
-                      <Select
-                        value={exp.roleId?.toString() || ""}
-                        onValueChange={(value) =>
+                      <select
+                        value={exp.roleId || ""}
+                        onChange={(e) =>
                           updateWorkExperience(
                             exp.id,
                             "roleId",
-                            Number(value)
+                            Number(e.target.value)
                           )
                         }
+                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
                       >
-                        <SelectTrigger className="w-full h-10 bg-gray-100 border rounded px-2 text-sm">
-                          <SelectValue placeholder="Select position" />
-                        </SelectTrigger>
-                        <SelectContent 
-                          portal={false}
-                          position="popper" 
-                          sideOffset={4} 
-                          className="max-h-[250px] overflow-y-auto z-50 bg-white rounded-lg shadow-lg"
-                        >
-                          {roles
-                            .filter((r) => r.industryId === exp.industryId)
-                            .map((role) => (
-                              <SelectItem key={role.id} value={role.id.toString()}>
-                                {role.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select position</option>
+                        {roles
+                          .filter((r) => r.industryId === exp.industryId)
+                          .map((role) => (
+                            <option key={role.id} value={role.id}>
+                              {role.name}
+                            </option>
+                          ))}
+                      </select>
                     </div>
 
                     {/* Company */}
