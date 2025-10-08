@@ -53,23 +53,22 @@ const WHVWorkExperience: React.FC = () => {
   const [jobReferences, setJobReferences] = useState<JobReference[]>([]);
   const [licenses, setLicenses] = useState<number[]>([]);
   const [otherLicense, setOtherLicense] = useState("");
-
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  // 🧩 New multi-ref system to prevent auto-closing all dropdowns
+  const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(null);
-      }
+      const isInsideAny = Object.values(dropdownRefs.current).some((ref) => ref && ref.contains(event.target as Node));
+      if (!isInsideAny) setOpenDropdown(null);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // ==========================
-  // Load industries, roles, licenses + existing data
+  // Load data from Supabase
   // ==========================
   useEffect(() => {
     const loadData = async () => {
@@ -117,7 +116,6 @@ const WHVWorkExperience: React.FC = () => {
       }
 
       const { data: savedReferences } = await supabase.from("maker_reference").select("*").eq("user_id", user.id);
-
       if (savedReferences)
         setJobReferences(
           savedReferences.map((ref) => ({
@@ -134,8 +132,7 @@ const WHVWorkExperience: React.FC = () => {
         .from("maker_license")
         .select("license_id, other")
         .eq("user_id", user.id);
-
-      if (savedLicenses && savedLicenses.length > 0) {
+      if (savedLicenses) {
         setLicenses(savedLicenses.map((l) => l.license_id));
         const otherLic = savedLicenses.find((l) => l.other);
         if (otherLic?.other) setOtherLicense(otherLic.other);
@@ -174,7 +171,7 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   // ==========================
-  // Job Reference handlers
+  // Job Reference Handlers
   // ==========================
   const addJobReference = () => {
     if (jobReferences.length < 5) {
@@ -201,74 +198,15 @@ const WHVWorkExperience: React.FC = () => {
   };
 
   // ==========================
-  // License handlers
+  // License Handlers
   // ==========================
   const toggleLicense = (licenseId: number) => {
     setLicenses((prev) => (prev.includes(licenseId) ? prev.filter((l) => l !== licenseId) : [...prev, licenseId]));
   };
 
   // ==========================
-  // Save helpers
+  // Save and Submit
   // ==========================
-  const saveWorkExperiences = async (userId: string) => {
-    await supabase
-      .from("maker_work_experience" as any)
-      .delete()
-      .eq("user_id", userId);
-
-    const valid = workExperiences.filter(
-      (exp) => exp.company.trim() && exp.roleId !== null && exp.industryId !== null && exp.startDate && exp.endDate,
-    );
-    if (!valid.length) return;
-
-    const rows = valid.map((exp) => ({
-      user_id: userId,
-      company: exp.company.trim(),
-      industry_id: exp.industryId!,
-      position: roles.find((r) => r.id === exp.roleId)?.name || "",
-      start_date: exp.startDate,
-      end_date: exp.endDate,
-      location: exp.location || null,
-      job_description: exp.description || null,
-    }));
-
-    await supabase.from("maker_work_experience" as any).insert(rows);
-  };
-
-  const saveJobReferences = async (userId: string) => {
-    await supabase
-      .from("maker_reference" as any)
-      .delete()
-      .eq("user_id", userId);
-    if (!jobReferences.length) return;
-
-    const rows = jobReferences.map((ref) => ({
-      user_id: userId,
-      name: ref.name.trim(),
-      business_name: ref.businessName.trim(),
-      email: ref.email.trim(),
-      mobile_num: ref.phone.trim().substring(0, 10),
-      role: ref.role.trim(),
-    }));
-
-    await supabase.from("maker_reference" as any).insert(rows);
-  };
-
-  const saveLicenses = async (userId: string) => {
-    await supabase
-      .from("maker_license" as any)
-      .delete()
-      .eq("user_id", userId);
-    if (!licenses.length) return;
-
-    const rows = licenses.map((id) => ({
-      user_id: userId,
-      license_id: id,
-      other: allLicenses.find((l) => l.id === id)?.name === "Other" ? otherLicense : null,
-    }));
-    await supabase.from("maker_license" as any).insert(rows);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const {
@@ -276,21 +214,56 @@ const WHVWorkExperience: React.FC = () => {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    await saveWorkExperiences(user.id);
-    await saveJobReferences(user.id);
-    await saveLicenses(user.id);
+    await supabase.from("maker_work_experience").delete().eq("user_id", user.id);
+    await supabase.from("maker_reference").delete().eq("user_id", user.id);
+    await supabase.from("maker_license").delete().eq("user_id", user.id);
+
+    if (workExperiences.length) {
+      const expRows = workExperiences.map((exp) => ({
+        user_id: user.id,
+        company: exp.company.trim(),
+        industry_id: exp.industryId!,
+        position: roles.find((r) => r.id === exp.roleId)?.name || "",
+        start_date: exp.startDate,
+        end_date: exp.endDate,
+        location: exp.location || null,
+        job_description: exp.description || null,
+      }));
+      await supabase.from("maker_work_experience").insert(expRows);
+    }
+
+    if (jobReferences.length) {
+      const refRows = jobReferences.map((ref) => ({
+        user_id: user.id,
+        name: ref.name.trim(),
+        business_name: ref.businessName.trim(),
+        email: ref.email.trim(),
+        mobile_num: ref.phone.trim().substring(0, 10),
+        role: ref.role.trim(),
+      }));
+      await supabase.from("maker_reference").insert(refRows);
+    }
+
+    if (licenses.length) {
+      const licRows = licenses.map((id) => ({
+        user_id: user.id,
+        license_id: id,
+        other: allLicenses.find((l) => l.id === id)?.name === "Other" ? otherLicense : null,
+      }));
+      await supabase.from("maker_license").insert(licRows);
+    }
 
     navigate("/whv/photo-upload");
   };
 
   // ==========================
-  // Render
+  // Render UI
   // ==========================
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
-        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl overflow-hidden">
+        <div className="w-full h-full bg-white rounded-[54px] flex flex-col relative overflow-hidden">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full"></div>
 
           <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between bg-white">
             <button
@@ -300,7 +273,7 @@ const WHVWorkExperience: React.FC = () => {
               <ArrowLeft className="w-6 h-6 text-gray-700" />
             </button>
             <h1 className="text-lg font-semibold text-gray-900">Work Experience</h1>
-            <span className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-full text-sm">5/6</span>
+            <span className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-sm">5/6</span>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
@@ -333,8 +306,8 @@ const WHVWorkExperience: React.FC = () => {
                       </Button>
                     </div>
 
-                    {/* Industry */}
-                    <div className="relative space-y-2" ref={dropdownRef}>
+                    {/* Industry Dropdown */}
+                    <div className="relative space-y-2" ref={(el) => (dropdownRefs.current[exp.id + "industry"] = el)}>
                       <Label className="text-sm font-medium text-gray-700">Industry *</Label>
                       <button
                         type="button"
@@ -348,7 +321,7 @@ const WHVWorkExperience: React.FC = () => {
                       </button>
 
                       {openDropdown === exp.id + "industry" && (
-                        <div className="absolute top-full left-0 w-full bg-gray-100 rounded shadow mt-1 max-h-40 overflow-y-auto z-10">
+                        <div className="absolute top-full left-0 w-full bg-gray-100 rounded mt-1 max-h-40 overflow-y-auto z-10 shadow">
                           {industries.map((ind) => (
                             <div
                               key={ind.id}
@@ -366,8 +339,8 @@ const WHVWorkExperience: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Role */}
-                    <div className="relative space-y-2" ref={dropdownRef}>
+                    {/* Role Dropdown */}
+                    <div className="relative space-y-2" ref={(el) => (dropdownRefs.current[exp.id + "role"] = el)}>
                       <Label className="text-sm font-medium text-gray-700">Position *</Label>
                       <button
                         type="button"
@@ -382,7 +355,7 @@ const WHVWorkExperience: React.FC = () => {
                       </button>
 
                       {openDropdown === exp.id + "role" && (
-                        <div className="absolute top-full left-0 w-full bg-gray-100 rounded shadow mt-1 max-h-40 overflow-y-auto z-10">
+                        <div className="absolute top-full left-0 w-full bg-gray-100 rounded mt-1 max-h-40 overflow-y-auto z-10 shadow">
                           {roles
                             .filter((r) => r.industryId === exp.industryId)
                             .map((role) => (
@@ -401,6 +374,7 @@ const WHVWorkExperience: React.FC = () => {
                       )}
                     </div>
 
+                    {/* Company & Details */}
                     <Input
                       type="text"
                       value={exp.company}
@@ -409,7 +383,6 @@ const WHVWorkExperience: React.FC = () => {
                       placeholder="Company"
                       required
                     />
-
                     <Input
                       type="text"
                       value={exp.location}
@@ -417,7 +390,6 @@ const WHVWorkExperience: React.FC = () => {
                       className="h-10 bg-gray-100 border-0 text-sm"
                       placeholder="Location"
                     />
-
                     <textarea
                       value={exp.description}
                       onChange={(e) => updateWorkExperience(exp.id, "description", e.target.value)}
@@ -425,7 +397,6 @@ const WHVWorkExperience: React.FC = () => {
                       placeholder="Describe your responsibilities (max 100 chars)"
                       maxLength={100}
                     />
-
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         type="date"
@@ -458,7 +429,7 @@ const WHVWorkExperience: React.FC = () => {
                         onChange={() => toggleLicense(license.id)}
                         className="w-4 h-4 text-orange-500 border-gray-300 rounded"
                       />
-                      <Label className="text-sm text-gray-700 cursor-pointer">{license.name}</Label>
+                      <Label className="text-sm text-gray-700">{license.name}</Label>
                     </div>
                   ))}
                 </div>
@@ -540,7 +511,7 @@ const WHVWorkExperience: React.FC = () => {
             </form>
           </div>
 
-          {/* Fixed Continue Button */}
+          {/* Continue Button */}
           <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t rounded-b-[54px]">
             <Button
               type="submit"
