@@ -358,29 +358,31 @@ const WHVWorkPreferences: React.FC = () => {
   // Render
   // ==========================
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative">
-        <div className="w-full h-full bg-white rounded-[48px] overflow-hidden flex flex-col relative">
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50"></div>
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* Outer frame */}
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
+        {/* Inner screen */}
+        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
 
           {/* Header */}
-          <div className="px-6 pt-8 pb-6 border-b bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/whv/profile-setup")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
+          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between flex-shrink-0 bg-white z-10">
+            <button
+              onClick={() => navigate("/whv/profile-setup")}
+              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
+            </button>
+            <div className="flex-1 text-center">
               <h1 className="text-lg font-semibold text-gray-900">Work Preferences</h1>
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                <span className="text-sm font-medium text-gray-600">4/6</span>
-              </div>
+              {visaLabel && <p className="mt-1 text-xs text-gray-500">Visa: {visaLabel}</p>}
             </div>
-            {visaLabel && <p className="mt-3 text-sm text-gray-500">Visa: {visaLabel}</p>}
+            <span className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-full text-sm">4/6</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 pb-32 mt-2">
+          {/* Scrollable Form */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
             {/* Tagline + Date Available */}
             <div className="border rounded-lg">
               <button
@@ -562,8 +564,8 @@ const WHVWorkPreferences: React.FC = () => {
             </div>
           </div>
 
-          {/* Fixed Continue */}
-          <div className="absolute bottom-0 left-0 w-full bg-white border-t px-6 py-5">
+          {/* Fixed Continue Button */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t z-20 rounded-b-[54px]">
             <Button
               type="button"
               onClick={handleContinue}
@@ -574,7 +576,7 @@ const WHVWorkPreferences: React.FC = () => {
                 preferredStates.length === 0 ||
                 preferredAreas.length === 0
               }
-              className="w-full h-16 text-lg rounded-xl bg-orange-500 text-white"
+              className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl"
             >
               Continue →
             </Button>

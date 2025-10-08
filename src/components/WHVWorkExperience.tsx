@@ -330,30 +330,29 @@ const WHVWorkExperience: React.FC = () => {
   // Render
   // ==========================
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-[48px] flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
+      {/* Outer frame */}
+      <div className="w-[430px] h-[932px] bg-black rounded-[60px] p-2 shadow-2xl relative overflow-hidden">
+        {/* Inner screen */}
+        <div className="w-full h-full bg-white rounded-[54px] overflow-hidden flex flex-col relative">
+          {/* Dynamic Island */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-20"></div>
+
           {/* Header */}
-          <div className="px-4 py-5 border-b bg-white flex-shrink-0 mb-4">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate("/whv/work-preferences")}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <ArrowLeft size={20} className="text-gray-600" />
-              </button>
-              <h1 className="text-lg font-medium text-gray-900">
-                Work Experience
-              </h1>
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-gray-600">5/6</span>
-              </div>
-            </div>
+          <div className="px-6 pt-16 pb-6 border-b flex items-center justify-between flex-shrink-0 bg-white z-10">
+            <button
+              onClick={() => navigate("/whv/work-preferences")}
+              className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">Work Experience</h1>
+            <span className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-full text-sm">5/6</span>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-10">
-            <form onSubmit={handleSubmit} className="space-y-10 pb-20">
+          {/* Scrollable Form */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-10 pb-40">
               {/* Work Experience Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -622,17 +621,18 @@ const WHVWorkExperience: React.FC = () => {
                   </div>
                 ))}
               </div>
-
-              {/* Continue Button */}
-              <div className="pt-10 pb-6">
-                <Button
-                  type="submit"
-                  className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
-                >
-                  Continue →
-                </Button>
-              </div>
             </form>
+          </div>
+
+          {/* Fixed Continue Button */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-6 py-4 border-t z-20 rounded-b-[54px]">
+            <Button
+              type="submit"
+              onClick={handleSubmit}
+              className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl"
+            >
+              Continue →
+            </Button>
           </div>
         </div>
       </div>
