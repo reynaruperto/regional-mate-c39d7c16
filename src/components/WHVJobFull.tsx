@@ -391,12 +391,15 @@ const WHVJobFull: React.FC = () => {
 
               {/* Licenses */}
               {jobDetails.licenses.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {jobDetails.licenses.map((l, i) => (
-                    <span key={i} className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
-                      {l}
-                    </span>
-                  ))}
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <h4 className="font-semibold mb-2">Licenses Required</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {jobDetails.licenses.map((l, i) => (
+                      <span key={i} className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
+                        {l}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 

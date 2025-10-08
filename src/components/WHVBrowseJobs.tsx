@@ -82,6 +82,13 @@ const WHVBrowseJobs: React.FC = () => {
     if (!whvId) return;
 
     const fetchJobs = async () => {
+      console.log("🔍 Applying filters:", {
+        state: filters.state,
+        licenseId: filters.licenseId,
+        licenseLabel: filters.licenseLabel,
+        allFilters: filters
+      });
+
       const { data: jobsData, error } = await (supabase as any).rpc("filter_jobs_for_maker", {
         p_maker_id: whvId,
         p_filter_state: filters.state || null,
@@ -92,6 +99,8 @@ const WHVBrowseJobs: React.FC = () => {
         p_filter_facility_ids: filters.facilityId ? [filters.facilityId] : null,
         p_filter_license_ids: filters.licenseId ? [filters.licenseId] : null,
       });
+
+      console.log("📊 Jobs returned:", jobsData?.length, jobsData);
 
       if (error) {
         console.error("Error fetching jobs:", error);
