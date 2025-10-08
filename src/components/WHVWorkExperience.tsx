@@ -4,6 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -427,24 +434,27 @@ const WHVWorkExperience: React.FC = () => {
                       <Label className="text-sm font-medium text-gray-700">
                         Industry <span className="text-red-500">*</span>
                       </Label>
-                      <select
-                        value={exp.industryId || ""}
-                        onChange={(e) =>
+                      <Select
+                        value={exp.industryId?.toString() || ""}
+                        onValueChange={(value) =>
                           updateWorkExperience(
                             exp.id,
                             "industryId",
-                            Number(e.target.value)
+                            Number(value)
                           )
                         }
-                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
                       >
-                        <option value="">Select industry</option>
-                        {industries.map((ind) => (
-                          <option key={ind.id} value={ind.id}>
-                            {ind.name}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="w-full h-10 bg-gray-100 border rounded px-2 text-sm">
+                          <SelectValue placeholder="Select industry" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" sideOffset={4} className="max-h-[200px] z-50">
+                          {industries.map((ind) => (
+                            <SelectItem key={ind.id} value={ind.id.toString()}>
+                              {ind.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Role / Position */}
@@ -452,26 +462,29 @@ const WHVWorkExperience: React.FC = () => {
                       <Label className="text-sm font-medium text-gray-700">
                         Position <span className="text-red-500">*</span>
                       </Label>
-                      <select
-                        value={exp.roleId || ""}
-                        onChange={(e) =>
+                      <Select
+                        value={exp.roleId?.toString() || ""}
+                        onValueChange={(value) =>
                           updateWorkExperience(
                             exp.id,
                             "roleId",
-                            Number(e.target.value)
+                            Number(value)
                           )
                         }
-                        className="w-full h-10 bg-gray-100 border rounded px-2 text-sm"
                       >
-                        <option value="">Select position</option>
-                        {roles
-                          .filter((r) => r.industryId === exp.industryId)
-                          .map((role) => (
-                            <option key={role.id} value={role.id}>
-                              {role.name}
-                            </option>
-                          ))}
-                      </select>
+                        <SelectTrigger className="w-full h-10 bg-gray-100 border rounded px-2 text-sm">
+                          <SelectValue placeholder="Select position" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" sideOffset={4} className="max-h-[200px] z-50">
+                          {roles
+                            .filter((r) => r.industryId === exp.industryId)
+                            .map((role) => (
+                              <SelectItem key={role.id} value={role.id.toString()}>
+                                {role.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Company */}
