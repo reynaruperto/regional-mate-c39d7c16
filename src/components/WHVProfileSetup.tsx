@@ -4,8 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const australianStates = [
   "Australian Capital Territory",
@@ -37,6 +42,7 @@ interface CountryEligibility {
 
 const WHVProfileSetup: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     givenName: "",
@@ -82,7 +88,11 @@ const WHVProfileSetup: React.FC = () => {
   };
 
   // Validation helpers
-  const isValidAUPhone = (phone: string) => /^(\+614\d{8}|04\d{8})$/.test(phone);
+  const isValidAUPhone = (phone: string) => {
+    // Remove spaces and check if it's exactly 10 digits starting with 04
+    const cleaned = phone.replace(/\s/g, '');
+    return /^04\d{8}$/.test(cleaned);
+  };
 
   const isValidDOB = (dob: string) => {
     if (!dob) return false;
@@ -125,10 +135,10 @@ const WHVProfileSetup: React.FC = () => {
       newErrors.dateOfBirth = "Must be between 18–35 years old";
     }
     if (!formData.visaExpiry || !isValidExpiry(formData.visaExpiry)) {
-      newErrors.visaExpiry = "Must be a future date";
+      newErrors.visaExpiry = "Visa expiry date cannot be in the past";
     }
     if (!formData.phone || !isValidAUPhone(formData.phone)) {
-      newErrors.phone = "Invalid Australian phone number";
+      newErrors.phone = "Phone number must be 10 digits (e.g., 0412345678)";
     }
     if (!formData.address1) newErrors.address1 = "Required";
     if (!formData.suburb) newErrors.suburb = "Required";
@@ -307,8 +317,49 @@ const WHVProfileSetup: React.FC = () => {
                 <Label>
                   Visa Expiry <span className="text-red-500">*</span>
                 </Label>
-                <Input name="visaExpiry" type="date" value={formData.visaExpiry} onChange={handleChange} />
-                {errors.visaExpiry && <p className="text-red-500">{errors.visaExpiry}</p>}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal h-10 px-3 text-sm mt-1",
+                        !formData.visaExpiry && "text-muted-foreground",
+                        errors.visaExpiry && "border-red-500"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.visaExpiry ? format(new Date(formData.visaExpiry), "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.visaExpiry ? new Date(formData.visaExpiry) : undefined}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (date < today) {
+                          toast({
+                            title: "Invalid Date",
+                            description: "Visa expiry date cannot be in the past.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        handleSelect("visaExpiry", format(date, "yyyy-MM-dd"));
+                      }}
+                      disabled={(date) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return date < today;
+                      }}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {errors.visaExpiry && <p className="text-red-500 text-sm mt-1">{errors.visaExpiry}</p>}
               </div>
 
               <div>
@@ -319,9 +370,10 @@ const WHVProfileSetup: React.FC = () => {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  placeholder="04xxxxxxxx or +614xxxxxxxx"
+                  placeholder="0412345678"
+                  maxLength={10}
                 />
-                {errors.phone && <p className="text-red-500">{errors.phone}</p>}
+                {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
               </div>
 
               <div>

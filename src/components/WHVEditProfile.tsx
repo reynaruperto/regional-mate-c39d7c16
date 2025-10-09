@@ -18,7 +18,12 @@ import {
   Plus,
   X,
   Check,
+  CalendarIcon,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -173,9 +178,17 @@ const WHVEditProfile: React.FC = () => {
 
   const [allIndustries, setAllIndustries] = useState<Industry[]>([]);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
+  
+  // Validation error states
+  const [phoneError, setPhoneError] = useState("");
+  const [visaExpiryError, setVisaExpiryError] = useState("");
 
   // ============= Validation helpers =============
-  const isValidAUPhone = (p: string) => /^(\+614\d{8}|04\d{8})$/.test(p);
+  const isValidAUPhone = (p: string) => {
+    // Remove spaces and check if it's exactly 10 digits starting with 04
+    const cleaned = p.replace(/\s/g, '');
+    return /^04\d{8}$/.test(cleaned);
+  };
   const isValidExpiry = (date: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
     const expiryDate = new Date(date);
@@ -949,11 +962,51 @@ const WHVEditProfile: React.FC = () => {
                 {/* Visa Expiry */}
                 <div>
                   <Label>Visa Expiry *</Label>
-                  <Input
-                    type="date"
-                    value={visaExpiry}
-                    onChange={(e) => setVisaExpiry(e.target.value)}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal h-10 px-3 text-sm mt-1",
+                          !visaExpiry && "text-muted-foreground",
+                          visaExpiryError && "border-red-500"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {visaExpiry ? format(new Date(visaExpiry), "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={visaExpiry ? new Date(visaExpiry) : undefined}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          if (date < today) {
+                            setVisaExpiryError("Visa expiry date cannot be in the past");
+                            toast({
+                              title: "Invalid Date",
+                              description: "Visa expiry date cannot be in the past.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          setVisaExpiryError("");
+                          setVisaExpiry(format(date, "yyyy-MM-dd"));
+                        }}
+                        disabled={(date) => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          return date < today;
+                        }}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {visaExpiryError && <p className="text-red-500 text-sm mt-1">{visaExpiryError}</p>}
                 </div>
 
                 {/* Phone */}
@@ -961,9 +1014,19 @@ const WHVEditProfile: React.FC = () => {
                   <Label>Phone *</Label>
                   <Input
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="04xxxxxxxx or +614xxxxxxxx"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setPhone(value);
+                      if (value && !isValidAUPhone(value)) {
+                        setPhoneError("Phone number must be 10 digits (e.g., 0412345678)");
+                      } else {
+                        setPhoneError("");
+                      }
+                    }}
+                    placeholder="0412345678"
+                    maxLength={10}
                   />
+                  {phoneError && <p className="text-red-500 text-sm mt-1">{phoneError}</p>}
                 </div>
 
                 {/* Address */}
