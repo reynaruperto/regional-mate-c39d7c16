@@ -50,23 +50,56 @@ const EmployerAboutBusiness: React.FC = () => {
 
   const watchedFacilities = watch("facilitiesAndExtras") || [];
 
-  // ✅ Load options from Supabase
+  // ✅ Load options and existing data from Supabase
   useEffect(() => {
-    const loadOptions = async () => {
-      // Industries
-      const { data: indData } = await supabase.from("industry").select("industry_id, name");
-      if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
+    const loadData = async () => {
+      try {
+        // Load dropdown options
+        const { data: indData } = await supabase.from("industry").select("industry_id, name");
+        if (indData) setIndustries(indData.map(i => ({ id: i.industry_id, name: i.name })));
 
-      // Facilities
-      const { data: facData } = await supabase.from("facility").select("facility_id, name");
-      if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
+        const { data: facData } = await supabase.from("facility").select("facility_id, name");
+        if (facData) setFacilities(facData.map(f => ({ id: f.facility_id, name: f.name })));
 
-      // Enums — use exactly what DB accepts
-      setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const);
-      setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const);
+        setYearsOptions(["<1", "1", "2", "3", "4", "5", "6-10", "11-15", "16-20", "20+"] as const);
+        setEmployeeOptions(["1", "2-5", "6-10", "11-20", "21-50", "51-100", "100+"] as const);
+
+        // Load existing employer data
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: employerData } = await supabase
+          .from("employer")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (employerData) {
+          // Pre-populate form fields
+          if (employerData.tagline) setValue("businessTagline", employerData.tagline);
+          if (employerData.business_tenure) setValue("yearsInBusiness", employerData.business_tenure);
+          if (employerData.employee_count) setValue("employeeCount", employerData.employee_count);
+          if (employerData.industry_id) setValue("industryId", String(employerData.industry_id));
+
+          // Load existing facilities
+          const { data: existingFacilities } = await supabase
+            .from("employer_facility")
+            .select("facility_id")
+            .eq("user_id", user.id);
+
+          if (existingFacilities && facData) {
+            const facilityNames = existingFacilities
+              .map(ef => facData.find(f => f.facility_id === ef.facility_id)?.name)
+              .filter(Boolean) as string[];
+            setValue("facilitiesAndExtras", facilityNames);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading data:", err);
+      }
     };
-    loadOptions();
-  }, []);
+    loadData();
+  }, [setValue]);
 
   const onSubmit = async (data: FormData) => {
     try {

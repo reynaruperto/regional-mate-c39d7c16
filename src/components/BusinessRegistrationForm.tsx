@@ -47,10 +47,8 @@ const formSchema = z.object({
     .or(z.literal("")),
   businessPhone: z
     .string()
-    .min(10, { message: "Please enter a valid phone number." })
-    .regex(/^[\d\s\+\-\(\)]+$/, {
-      message: "Please enter a valid phone number.",
-    }),
+    .length(11, { message: "Business phone number must be exactly 11 digits." })
+    .regex(/^\d+$/, { message: "Phone number must contain only digits." }),
   addressLine1: z.string().min(2, { message: "Address line 1 is required." }),
   addressLine2: z.string().optional(),
   suburbCity: z.string().min(2, { message: "Suburb / City is required." }),
@@ -92,10 +90,53 @@ const BusinessRegistrationForm: React.FC = () => {
     register,
     handleSubmit,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
   });
+
+  // Load existing employer data on mount
+  React.useEffect(() => {
+    const loadExistingData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: employerData, error } = await supabase
+          .from("employer")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error loading employer data:", error);
+          return;
+        }
+
+        if (employerData) {
+          reset({
+            givenName: employerData.given_name || "",
+            middleName: employerData.middle_name || "",
+            familyName: employerData.family_name || "",
+            abn: employerData.abn || "",
+            companyName: employerData.company_name || "",
+            website: employerData.website || "",
+            businessPhone: employerData.mobile_num || "",
+            addressLine1: employerData.address_line1 || "",
+            addressLine2: employerData.address_line2 || "",
+            suburbCity: employerData.suburb_city || "",
+            state: employerData.state as Database["public"]["Enums"]["state"],
+            postCode: employerData.postcode || "",
+          });
+        }
+      } catch (err) {
+        console.error("Unexpected error loading data:", err);
+      }
+    };
+
+    loadExistingData();
+  }, [reset]);
 
   // ✅ Save to Supabase (basic details only)
   const onSubmit = async (data: FormData) => {
@@ -341,14 +382,24 @@ const BusinessRegistrationForm: React.FC = () => {
                   <Input
                     id="businessPhone"
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="04123456789"
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("businessPhone")}
+                    onChange={(e) => {
+                      e.target.value = e.target.value.replace(/\D/g, "");
+                      register("businessPhone").onChange(e);
+                    }}
                   />
                   {errors.businessPhone && (
                     <p className="text-red-500 text-sm mt-1">
                       {errors.businessPhone.message}
                     </p>
                   )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter 11-digit Australian phone number (e.g., 04123456789)
+                  </p>
                 </div>
 
                 {/* Address Line 1 */}
