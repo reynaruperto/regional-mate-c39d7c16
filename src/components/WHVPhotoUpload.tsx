@@ -148,8 +148,6 @@ const WHVPhotoUpload: React.FC = () => {
     }
   };
 
-  const handleSkip = () => navigate("/whv/account-confirmation");
-
   // ==========================
   // Render
   // ==========================
@@ -214,16 +212,13 @@ const WHVPhotoUpload: React.FC = () => {
             </div>
           </div>
 
-          {/* Continue + Skip - Fixed Bottom */}
-          <div className="absolute bottom-0 left-0 w-full bg-white px-4 pb-8 pt-4 border-t rounded-b-[54px] space-y-3 z-20">
+          {/* Continue - Fixed Bottom */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-4 pb-8 pt-4 border-t rounded-b-[54px] z-20">
             <Button
               onClick={handleSubmit}
               className="w-full h-14 text-lg rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"
             >
               Continue →
-            </Button>
-            <Button onClick={handleSkip} variant="ghost" className="w-full h-12 text-gray-600 hover:text-gray-800">
-              Skip for now
             </Button>
           </div>
         </div>

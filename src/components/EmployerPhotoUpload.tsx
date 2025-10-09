@@ -151,8 +151,6 @@ const EmployerPhotoUpload: React.FC = () => {
     }
   };
 
-  const handleSkip = () => navigate("/employer/account-confirmation");
-
   // ==========================
   // Render
   // ==========================
@@ -217,16 +215,13 @@ const EmployerPhotoUpload: React.FC = () => {
             </div>
           </div>
 
-          {/* Continue + Skip - Fixed Bottom */}
-          <div className="absolute bottom-0 left-0 w-full bg-white px-4 pb-8 pt-4 border-t rounded-b-[54px] space-y-3 z-20">
+          {/* Continue - Fixed Bottom */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-4 pb-8 pt-4 border-t rounded-b-[54px] z-20">
             <Button
               onClick={handleSubmit}
               className="w-full h-14 text-lg rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium"
             >
               Continue →
-            </Button>
-            <Button onClick={handleSkip} variant="ghost" className="w-full h-12 text-gray-600 hover:text-gray-800">
-              Skip for now
             </Button>
           </div>
         </div>
