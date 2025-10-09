@@ -7,6 +7,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import FilterPage from "@/components/FilterPage";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveProfilePhoto } from "@/utils/profilePhoto";
 import {
   Select,
   SelectContent,
@@ -47,12 +48,6 @@ const BrowseCandidates: React.FC = () => {
 
   const [industriesMap, setIndustriesMap] = useState<Record<number, string>>({});
   const [licensesMap, setLicensesMap] = useState<Record<number, string>>({});
-
-  const resolvePhoto = (val?: string | null) => {
-    if (!val) return "/default-avatar.png";
-    if (val.startsWith("http")) return val;
-    return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
-  };
 
   const normalizeWorkExp = (we: unknown): WorkExpItem[] => {
     if (!we) return [];
@@ -140,16 +135,16 @@ const BrowseCandidates: React.FC = () => {
 
     const likedIds = likes?.map((l) => l.liked_whv_id) || [];
 
-    const mapped: Candidate[] = (makers || []).map((row: any) => ({
+    const mapped: Candidate[] = await Promise.all((makers || []).map(async (row: any) => ({
       maker_id: row.maker_id,
       given_name: row.given_name,
-      profile_photo: resolvePhoto(row.profile_photo),
+      profile_photo: await resolveProfilePhoto(row.profile_photo),
       work_experience: normalizeWorkExp(row.work_experience),
       maker_states: row.maker_states || [],
       pref_industries: row.pref_industries || [],
       licenses: row.licenses || [],
       isLiked: likedIds.includes(row.maker_id),
-    }));
+    })));
     setCandidates(mapped);
     setAllCandidates(mapped);
     setSelectedFilters(filters);

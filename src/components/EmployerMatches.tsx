@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import BottomNavigation from "@/components/BottomNavigation";
 import LikeConfirmationModal from "@/components/LikeConfirmationModal";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveProfilePhoto } from "@/utils/profilePhoto";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MatchCandidate {
@@ -35,17 +36,7 @@ const EmployerMatches: React.FC = () => {
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
 
-  // ✅ Fixed image resolver
-  const resolvePhoto = (val?: string | null) => {
-    if (!val || val.trim() === "") return "/default-avatar.png";
-
-    // Already a full Supabase or external URL
-    if (val.startsWith("http")) return val;
-
-    // Generate public URL from Supabase bucket
-    const { data } = supabase.storage.from("profile_photo").getPublicUrl(val);
-    return data?.publicUrl || "/default-avatar.png";
-  };
+  const [photoCache, setPhotoCache] = useState<Record<string, string>>({});
 
   // ---------- Auth ----------
   useEffect(() => {
@@ -95,10 +86,11 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching matches:", error);
         return;
       }
-      const formatted = (data || []).map((m: any) => ({
+      
+      const formatted = await Promise.all((data || []).map(async (m: any) => ({
         id: m.maker_id || m.whv_id,
         name: m.given_name,
-        profileImage: resolvePhoto(m.profile_photo),
+        profileImage: await resolveProfilePhoto(m.profile_photo),
         preferredLocations: m.state_pref || [],
         preferredIndustries: m.industry_pref || [],
         experiences: m.work_experience
@@ -106,7 +98,8 @@ const EmployerMatches: React.FC = () => {
           : "No experience listed",
         licenses: m.licenses || [],
         isMutualMatch: true,
-      }));
+      })));
+      
       setMatches(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
@@ -122,10 +115,11 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching recommendations:", error);
         return;
       }
-      const formatted = (data || []).map((r: any) => ({
+      
+      const formatted = await Promise.all((data || []).map(async (r: any) => ({
         id: r.maker_id || r.whv_id,
         name: r.given_name,
-        profileImage: resolvePhoto(r.profile_photo),
+        profileImage: await resolveProfilePhoto(r.profile_photo),
         preferredLocations: r.state_pref || [],
         preferredIndustries: r.industry_pref || [],
         experiences: r.work_experience
@@ -133,7 +127,8 @@ const EmployerMatches: React.FC = () => {
           : "No experience listed",
         licenses: r.licenses || [],
         matchPercentage: Math.round(r.match_score),
-      }));
+      })));
+      
       setTopRecommended(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);

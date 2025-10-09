@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveProfilePhoto } from "@/utils/profilePhoto";
 
 interface JobDetails {
   job_id: number;
@@ -125,15 +126,7 @@ const WHVJobFull: React.FC = () => {
           .maybeSingle();
 
         // ---------------- Company photo ----------------
-        let companyPhoto: string | null = null;
-        if (employerData?.profile_photo) {
-          let photoPath = employerData.profile_photo;
-          if (photoPath.includes("/profile_photo/")) {
-            photoPath = photoPath.split("/profile_photo/")[1];
-          }
-          const { data: signed } = await supabase.storage.from("profile_photo").createSignedUrl(photoPath, 3600);
-          companyPhoto = signed?.signedUrl || null;
-        }
+        const companyPhoto = await resolveProfilePhoto(employerData?.profile_photo);
 
         // ---------------- Facilities ----------------
         const { data: facilityRows } = await supabase
