@@ -248,6 +248,32 @@ const EditBusinessProfile: React.FC = () => {
                       ABN cannot be changed. Please contact the RegionalMate team if you need to update it.
                     </p>
                   </div>
+                  {/* Industry */}
+                  <div>
+                    <Label>Industry *</Label>
+                    <Controller
+                      name="industryId"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value} disabled>
+                          <SelectTrigger className="h-12 rounded-xl bg-gray-100">
+                            <SelectValue placeholder="Select industry" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {industries.map((i) => (
+                              <SelectItem key={i.industry_id} value={String(i.industry_id)}>
+                                {i.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.industryId && <p className="text-red-500 text-sm">{errors.industryId.message}</p>}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Industry cannot be changed. Please contact the RegionalMate team if you need to update it.
+                    </p>
+                  </div>
                   {/* Website */}
                   <div>
                     <Label>Website</Label>
@@ -342,28 +368,6 @@ const EditBusinessProfile: React.FC = () => {
                           <SelectContent>
                             {EMPLOYEE_OPTIONS.map((opt) => (
                               <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-                  {/* Industry */}
-                  <div>
-                    <Label>Industry *</Label>
-                    <Controller
-                      name="industryId"
-                      control={control}
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue placeholder="Select industry" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {industries.map((i) => (
-                              <SelectItem key={i.industry_id} value={String(i.industry_id)}>
-                                {i.name}
-                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
