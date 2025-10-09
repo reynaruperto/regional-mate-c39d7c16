@@ -6,13 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,28 +34,27 @@ const formSchema = z.object({
     .max(11, { message: "ABN must be 11 digits." })
     .regex(/^\d+$/, { message: "ABN must contain only numbers." }),
   companyName: z.string().min(2, { message: "Company name is required." }),
-  website: z
-    .string()
-    .url({ message: "Please enter a valid website URL." })
-    .optional()
-    .or(z.literal("")),
+  website: z.string().url({ message: "Please enter a valid website URL." }).optional().or(z.literal("")),
   businessPhone: z
     .string()
-    .length(11, { message: "Business phone number must be exactly 11 digits." })
+    .length(10, { message: "Business phone number must be exactly 10 digits." })
     .regex(/^\d+$/, { message: "Phone number must contain only digits." }),
   addressLine1: z.string().min(2, { message: "Address line 1 is required." }),
   addressLine2: z.string().optional(),
   suburbCity: z.string().min(2, { message: "Suburb / City is required." }),
-  state: z.enum([
-    "Australian Capital Territory",
-    "New South Wales", 
-    "Northern Territory",
-    "Queensland",
-    "South Australia",
-    "Tasmania",
-    "Victoria",
-    "Western Australia"
-  ], { message: "Please select a state." }),
+  state: z.enum(
+    [
+      "Australian Capital Territory",
+      "New South Wales",
+      "Northern Territory",
+      "Queensland",
+      "South Australia",
+      "Tasmania",
+      "Victoria",
+      "Western Australia",
+    ],
+    { message: "Please select a state." },
+  ),
   postCode: z
     .string()
     .min(4, { message: "Please enter a valid post code." })
@@ -100,7 +93,9 @@ const BusinessRegistrationForm: React.FC = () => {
   React.useEffect(() => {
     const loadExistingData = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) return;
 
         const { data: employerData, error } = await supabase
@@ -243,13 +238,9 @@ const BusinessRegistrationForm: React.FC = () => {
               {/* Progress */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-6">
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    Business Registration
-                  </h1>
+                  <h1 className="text-2xl font-bold text-gray-900">Business Registration</h1>
                   <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
-                    <span className="text-sm font-medium text-gray-600">
-                      3/5
-                    </span>
+                    <span className="text-sm font-medium text-gray-600">3/5</span>
                   </div>
                 </div>
               </div>
@@ -258,12 +249,8 @@ const BusinessRegistrationForm: React.FC = () => {
             {/* Form */}
             <div className="flex-1 overflow-y-auto px-6 pb-20">
               <div className="mb-8">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                  Register your business
-                </h2>
-                <p className="text-gray-600">
-                  We need your personal details and business information.
-                </p>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Register your business</h2>
+                <p className="text-gray-600">We need your personal details and business information.</p>
               </div>
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -277,11 +264,7 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("givenName")}
                   />
-                  {errors.givenName && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.givenName.message}
-                    </p>
-                  )}
+                  {errors.givenName && <p className="text-red-500 text-sm mt-1">{errors.givenName.message}</p>}
                 </div>
 
                 {/* Middle Name */}
@@ -292,11 +275,7 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("middleName")}
                   />
-                  {errors.middleName && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.middleName.message}
-                    </p>
-                  )}
+                  {errors.middleName && <p className="text-red-500 text-sm mt-1">{errors.middleName.message}</p>}
                 </div>
 
                 {/* Family Name */}
@@ -309,18 +288,13 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("familyName")}
                   />
-                  {errors.familyName && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.familyName.message}
-                    </p>
-                  )}
+                  {errors.familyName && <p className="text-red-500 text-sm mt-1">{errors.familyName.message}</p>}
                 </div>
 
                 {/* ABN */}
                 <div>
                   <Label htmlFor="abn">
-                    Australian Business Number (ABN){" "}
-                    <span className="text-red-500">*</span>
+                    Australian Business Number (ABN) <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="abn"
@@ -334,11 +308,7 @@ const BusinessRegistrationForm: React.FC = () => {
                       register("abn").onChange(e);
                     }}
                   />
-                  {errors.abn && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.abn.message}
-                    </p>
-                  )}
+                  {errors.abn && <p className="text-red-500 text-sm mt-1">{errors.abn.message}</p>}
                 </div>
 
                 {/* Company Name */}
@@ -351,11 +321,7 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("companyName")}
                   />
-                  {errors.companyName && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.companyName.message}
-                    </p>
-                  )}
+                  {errors.companyName && <p className="text-red-500 text-sm mt-1">{errors.companyName.message}</p>}
                 </div>
 
                 {/* Website */}
@@ -367,11 +333,7 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("website")}
                   />
-                  {errors.website && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.website.message}
-                    </p>
-                  )}
+                  {errors.website && <p className="text-red-500 text-sm mt-1">{errors.website.message}</p>}
                 </div>
 
                 {/* Business Phone */}
@@ -392,11 +354,7 @@ const BusinessRegistrationForm: React.FC = () => {
                       register("businessPhone").onChange(e);
                     }}
                   />
-                  {errors.businessPhone && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.businessPhone.message}
-                    </p>
-                  )}
+                  {errors.businessPhone && <p className="text-red-500 text-sm mt-1">{errors.businessPhone.message}</p>}
                   <p className="text-xs text-gray-500 mt-1">
                     Enter 11-digit Australian phone number (e.g., 04123456789)
                   </p>
@@ -405,19 +363,14 @@ const BusinessRegistrationForm: React.FC = () => {
                 {/* Address Line 1 */}
                 <div>
                   <Label htmlFor="addressLine1">
-                    Business Address Line 1{" "}
-                    <span className="text-red-500">*</span>
+                    Business Address Line 1 <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="addressLine1"
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("addressLine1")}
                   />
-                  {errors.addressLine1 && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.addressLine1.message}
-                    </p>
-                  )}
+                  {errors.addressLine1 && <p className="text-red-500 text-sm mt-1">{errors.addressLine1.message}</p>}
                 </div>
 
                 {/* Address Line 2 */}
@@ -440,11 +393,7 @@ const BusinessRegistrationForm: React.FC = () => {
                     className="h-14 text-base bg-gray-100 border-0 rounded-xl"
                     {...register("suburbCity")}
                   />
-                  {errors.suburbCity && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.suburbCity.message}
-                    </p>
-                  )}
+                  {errors.suburbCity && <p className="text-red-500 text-sm mt-1">{errors.suburbCity.message}</p>}
                 </div>
 
                 {/* State */}
@@ -452,23 +401,19 @@ const BusinessRegistrationForm: React.FC = () => {
                   <Label htmlFor="state">
                     State <span className="text-red-500">*</span>
                   </Label>
-                   <Select onValueChange={(value) => setValue("state", value as Database["public"]["Enums"]["state"])}>
-                     <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
-                       <SelectValue placeholder="Select a state" />
-                     </SelectTrigger>
-                     <SelectContent>
-                       {AUSTRALIAN_STATES.map((state) => (
-                         <SelectItem key={state} value={state}>
-                           {state}
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
-                  {errors.state && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.state.message}
-                    </p>
-                  )}
+                  <Select onValueChange={(value) => setValue("state", value as Database["public"]["Enums"]["state"])}>
+                    <SelectTrigger className="h-14 text-base bg-gray-100 border-0 rounded-xl">
+                      <SelectValue placeholder="Select a state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AUSTRALIAN_STATES.map((state) => (
+                        <SelectItem key={state} value={state}>
+                          {state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.state && <p className="text-red-500 text-sm mt-1">{errors.state.message}</p>}
                 </div>
 
                 {/* Post Code */}
@@ -486,11 +431,7 @@ const BusinessRegistrationForm: React.FC = () => {
                       register("postCode").onChange(e);
                     }}
                   />
-                  {errors.postCode && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.postCode.message}
-                    </p>
-                  )}
+                  {errors.postCode && <p className="text-red-500 text-sm mt-1">{errors.postCode.message}</p>}
                 </div>
 
                 {/* Continue */}
