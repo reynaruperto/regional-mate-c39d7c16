@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 // Inline Select (no portal)
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select-inline";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type JobStatus = "active" | "inactive" | "draft";
 
@@ -45,6 +49,7 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
   });
 
   const [selectedLicenses, setSelectedLicenses] = useState<number[]>((editingJob?.licenses as number[]) || []);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const handle = (k: keyof typeof form, v: string) => {
     setForm((prev) => {
@@ -54,23 +59,51 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
     });
   };
 
+  const handleDateChange = (date: Date | undefined) => {
+    if (!date) {
+      setDateError("Please select a start date");
+      return;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (date < today) {
+      setDateError("Start date cannot be in the past");
+      toast({
+        title: "Invalid Date",
+        description: "Start date cannot be in the past. Please select today or a future date.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setDateError(null);
+    const formattedDate = format(date, "yyyy-MM-dd");
+    handle("startDate", formattedDate);
+  };
+
   const autosave = async (draft: any) => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isValidDate = draft.startDate && new Date(draft.startDate) >= today;
 
     const payload = {
       user_id: uid,
       job_status: draft.status,
       industry_role_id: draft.industryRoleId ? Number(draft.industryRoleId) : null,
       description: draft.description,
-      employment_type: draft.employmentType,
-      salary_range: draft.salaryRange,
-      req_experience: draft.experienceRange,
+      employment_type: draft.employmentType || null,
+      salary_range: draft.salaryRange || null,
+      req_experience: draft.experienceRange || null,
       state: draft.state,
       suburb_city: draft.suburbValue ? draft.suburbValue.split(" (")[0] : "",
       postcode: draft.postcode,
-      start_date: draft.startDate && draft.startDate.trim() !== "" ? draft.startDate : null,
+      start_date: isValidDate ? draft.startDate : null,
     };
 
     let jobId = draft.job_id;
@@ -146,6 +179,19 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
       toast({
         title: "Missing Start Date",
         description: "Please select a start date.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const selectedDate = new Date(form.startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      toast({
+        title: "Invalid Start Date",
+        description: "Start date cannot be in the past. Please select today or a future date.",
         variant: "destructive",
       });
       return;
@@ -382,13 +428,38 @@ const PostJobForm: React.FC<PostJobFormProps> = ({ onBack, editingJob }) => {
             {/* Start Date */}
             <div className="bg-white rounded-2xl p-3 mb-3 shadow-sm">
               <h2 className="text-sm font-semibold mb-2">Start Date *</h2>
-              <input
-                type="date"
-                className="w-full border rounded-lg p-2 text-sm"
-                value={form.startDate}
-                onChange={(e) => handle("startDate", e.target.value)}
-                required
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-10 px-3 text-sm",
+                      !form.startDate && "text-muted-foreground",
+                      dateError && "border-red-500"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.startDate ? format(new Date(form.startDate), "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={form.startDate ? new Date(form.startDate) : undefined}
+                    onSelect={handleDateChange}
+                    disabled={(date) => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      return date < today;
+                    }}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateError && (
+                <p className="text-red-500 text-xs mt-1">{dateError}</p>
+              )}
             </div>
 
             {/* Licenses */}
