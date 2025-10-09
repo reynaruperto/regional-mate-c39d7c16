@@ -20,7 +20,15 @@ export const resolveProfilePhoto = async (
     return photoValue;
   }
 
-  // Case 3: UUID folder name - need to list files inside
+  // Case 3: Full path (uuid/filename.jpg) - contains a slash
+  if (photoValue.includes("/")) {
+    const { data } = supabase.storage
+      .from("profile_photo")
+      .getPublicUrl(photoValue);
+    return data?.publicUrl || "/default-avatar.png";
+  }
+
+  // Case 4: UUID folder name - need to list files inside
   try {
     const { data: fileList } = await supabase.storage
       .from("profile_photo")
@@ -37,9 +45,6 @@ export const resolveProfilePhoto = async (
     console.error("Error resolving photo from folder:", photoValue, error);
   }
 
-  // Fallback: try as direct path (legacy support)
-  const { data } = supabase.storage
-    .from("profile_photo")
-    .getPublicUrl(photoValue);
-  return data?.publicUrl || "/default-avatar.png";
+  // Fallback
+  return "/default-avatar.png";
 };
