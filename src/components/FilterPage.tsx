@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 
 // ✅ Only this one export — remove the duplicate one at the bottom
@@ -23,7 +24,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     p_filter_work_industry_id: "",
     p_filter_work_years_experience: "",
     p_filter_industry_ids: "",
-    p_filter_license_ids: "",
+    p_filter_license_ids: [] as number[], // Changed to array for multiple selection
   });
 
   const [states, setStates] = useState<string[]>([]);
@@ -104,9 +105,14 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
   };
 
   const applyFilters = () => {
-    const cleaned = Object.fromEntries(
-      Object.entries(selectedFilters).filter(([_, v]) => v && v.toString().trim() !== "")
-    );
+    const cleaned: any = {};
+    Object.entries(selectedFilters).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        if (value.length > 0) cleaned[key] = value;
+      } else if (value && value.toString().trim() !== "") {
+        cleaned[key] = value;
+      }
+    });
     onApplyFilters(cleaned);
     onClose();
   };
@@ -118,8 +124,19 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
       p_filter_work_industry_id: "",
       p_filter_work_years_experience: "",
       p_filter_industry_ids: "",
-      p_filter_license_ids: "",
+      p_filter_license_ids: [],
     });
+
+  const handleLicenseToggle = (licenseId: number) => {
+    setSelectedFilters((prev) => {
+      const current = prev.p_filter_license_ids;
+      if (current.includes(licenseId)) {
+        return { ...prev, p_filter_license_ids: current.filter((id) => id !== licenseId) };
+      } else {
+        return { ...prev, p_filter_license_ids: [...current, licenseId] };
+      }
+    });
+  };
 
   // ---------- reusable dropdown ----------
   const DropdownSection = ({
@@ -134,46 +151,51 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
     category: string;
     placeholder: string;
     isObject?: boolean;
-  }) => (
-    <div className="mb-6">
-      <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
-      <Select
-        value={selectedFilters[category as keyof typeof selectedFilters]}
-        onValueChange={(value) => handleSelectChange(category, value)}
-      >
-        <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
-          {items.length > 0 ? (
-            items.map((item) =>
-              isObject ? (
-                <SelectItem
-                  key={item.id}
-                  value={String(item.id)}
-                  className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
-                >
-                  {item.name}
-                </SelectItem>
-              ) : (
-                <SelectItem
-                  key={item}
-                  value={item}
-                  className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
-                >
-                  {item}
-                </SelectItem>
+  }) => {
+    const value = selectedFilters[category as keyof typeof selectedFilters];
+    const stringValue = Array.isArray(value) ? "" : value;
+    
+    return (
+      <div className="mb-6">
+        <h3 className="font-semibold text-gray-900 mb-3">{title}</h3>
+        <Select
+          value={stringValue}
+          onValueChange={(value) => handleSelectChange(category, value)}
+        >
+          <SelectTrigger className="w-full bg-white border border-gray-300 z-50">
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+          <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto rounded-xl border bg-white shadow-lg text-sm">
+            {items.length > 0 ? (
+              items.map((item) =>
+                isObject ? (
+                  <SelectItem
+                    key={item.id}
+                    value={String(item.id)}
+                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                  >
+                    {item.name}
+                  </SelectItem>
+                ) : (
+                  <SelectItem
+                    key={item}
+                    value={item}
+                    className="py-2 px-3 whitespace-normal break-words leading-snug text-sm"
+                  >
+                    {item}
+                  </SelectItem>
+                )
               )
-            )
-          ) : (
-            <SelectItem value="none" disabled>
-              No options available
-            </SelectItem>
-          )}
-        </SelectContent>
-      </Select>
-    </div>
-  );
+            ) : (
+              <SelectItem value="none" disabled>
+                No options available
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
@@ -220,13 +242,52 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
               category="p_filter_suburb_city_postcode"
               placeholder="Any suburb & postcode"
             />
-            <DropdownSection
-              title="Candidate License"
-              items={licenses}
-              category="p_filter_license_ids"
-              placeholder="Any license"
-              isObject
-            />
+            {/* Multiple License Selection */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">Candidate License</h3>
+              <div className="bg-white border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto">
+                {licenses.length > 0 ? (
+                  licenses.map((license) => (
+                    <div key={license.id} className="flex items-center space-x-2 py-2">
+                      <Checkbox
+                        id={`license-${license.id}`}
+                        checked={selectedFilters.p_filter_license_ids.includes(license.id)}
+                        onCheckedChange={() => handleLicenseToggle(license.id)}
+                      />
+                      <label
+                        htmlFor={`license-${license.id}`}
+                        className="text-sm text-gray-700 cursor-pointer"
+                      >
+                        {license.name}
+                      </label>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No licenses available</p>
+                )}
+              </div>
+              {selectedFilters.p_filter_license_ids.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedFilters.p_filter_license_ids.map((id) => {
+                    const license = licenses.find((l) => l.id === id);
+                    return license ? (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-800 rounded-full text-xs"
+                      >
+                        {license.name}
+                        <button
+                          onClick={() => handleLicenseToggle(id)}
+                          className="hover:text-slate-900"
+                        >
+                          <X size={14} />
+                        </button>
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
             <DropdownSection
               title="Years of Work Experience"
               items={experienceLevels}

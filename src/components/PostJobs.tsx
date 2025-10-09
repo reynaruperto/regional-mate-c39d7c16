@@ -33,7 +33,7 @@ const PostJobs: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "draft">("all");
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  // ✅ Fetch current user's jobs (with licenses)
+  // ✅ Fetch current user's jobs (with licenses) + real-time updates
   useEffect(() => {
     const fetchJobs = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -70,6 +70,26 @@ const PostJobs: React.FC = () => {
     };
 
     fetchJobs();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('job-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'job'
+        },
+        () => {
+          fetchJobs(); // Refetch when any change occurs
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [toast]);
 
   const handlePostJobs = () => {
