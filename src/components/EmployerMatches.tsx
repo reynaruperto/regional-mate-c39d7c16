@@ -14,8 +14,8 @@ interface MatchCandidate {
   profileImage: string;
   preferredLocations: string[];
   preferredIndustries: string[];
-  licenses: string[];
   experiences: string;
+  licenses?: string[];
   isMutualMatch?: boolean;
   matchPercentage?: number;
   isLiked?: boolean;
@@ -35,10 +35,16 @@ const EmployerMatches: React.FC = () => {
   const [matches, setMatches] = useState<MatchCandidate[]>([]);
   const [topRecommended, setTopRecommended] = useState<MatchCandidate[]>([]);
 
+  // ✅ Fixed image resolver
   const resolvePhoto = (val?: string | null) => {
-    if (!val) return "/default-avatar.png";
+    if (!val || val.trim() === "") return "/default-avatar.png";
+
+    // Already a full Supabase or external URL
     if (val.startsWith("http")) return val;
-    return supabase.storage.from("profile_photo").getPublicUrl(val).data.publicUrl;
+
+    // Generate public URL from Supabase bucket
+    const { data } = supabase.storage.from("profile_photo").getPublicUrl(val);
+    return data?.publicUrl || "/default-avatar.png";
   };
 
   // ---------- Auth ----------
@@ -89,20 +95,18 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching matches:", error);
         return;
       }
-
       const formatted = (data || []).map((m: any) => ({
         id: m.maker_id || m.whv_id,
         name: m.given_name,
         profileImage: resolvePhoto(m.profile_photo),
         preferredLocations: m.state_pref || [],
         preferredIndustries: m.industry_pref || [],
-        licenses: m.licenses || [],
         experiences: m.work_experience
-          ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} year${we.years > 1 ? "s" : ""}`).join(", ")
+          ? m.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
           : "No experience listed",
+        licenses: m.licenses || [],
         isMutualMatch: true,
       }));
-
       setMatches(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
@@ -118,25 +122,23 @@ const EmployerMatches: React.FC = () => {
         console.error("Error fetching recommendations:", error);
         return;
       }
-
       const formatted = (data || []).map((r: any) => ({
         id: r.maker_id || r.whv_id,
         name: r.given_name,
         profileImage: resolvePhoto(r.profile_photo),
         preferredLocations: r.state_pref || [],
         preferredIndustries: r.industry_pref || [],
-        licenses: r.licenses || [],
         experiences: r.work_experience
-          ? r.work_experience.map((we: any) => `${we.industry}: ${we.years} year${we.years > 1 ? "s" : ""}`).join(", ")
+          ? r.work_experience.map((we: any) => `${we.industry}: ${we.years} yrs`).join(", ")
           : "No experience listed",
+        licenses: r.licenses || [],
         matchPercentage: Math.round(r.match_score),
       }));
-
       setTopRecommended(await mergeLikes(formatted));
     })();
   }, [selectedJobId]);
 
-  // ---------- Like/Unlike ----------
+  // ---------- Like / Unlike ----------
   const handleLike = async (candidate: MatchCandidate) => {
     if (!employerId || !selectedJobId) return;
     try {
@@ -148,8 +150,12 @@ const EmployerMatches: React.FC = () => {
           .eq("liker_type", "employer")
           .eq("liked_whv_id", candidate.id)
           .eq("liked_job_post_id", selectedJobId);
-        setMatches((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c)));
-        setTopRecommended((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c)));
+
+        if (activeTab === "matches") {
+          setMatches((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c)));
+        } else {
+          setTopRecommended((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: false } : c)));
+        }
       } else {
         await supabase.from("likes").insert({
           liker_id: employerId,
@@ -157,8 +163,13 @@ const EmployerMatches: React.FC = () => {
           liked_whv_id: candidate.id,
           liked_job_post_id: selectedJobId,
         });
-        setMatches((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c)));
-        setTopRecommended((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c)));
+
+        if (activeTab === "matches") {
+          setMatches((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c)));
+        } else {
+          setTopRecommended((prev) => prev.map((c) => (c.id === candidate.id ? { ...c, isLiked: true } : c)));
+        }
+
         setLikedCandidateName(candidate.name);
         setShowLikeModal(true);
       }
@@ -167,6 +178,7 @@ const EmployerMatches: React.FC = () => {
     }
   };
 
+  // ---------- View Profile ----------
   const handleViewProfile = (id: string, isMutualMatch?: boolean) => {
     if (!id) return;
     const route = isMutualMatch ? `/full-candidate-profile/${id}` : `/short-candidate-profile/${id}`;
@@ -181,6 +193,7 @@ const EmployerMatches: React.FC = () => {
 
   const currentList = activeTab === "matches" ? matches : topRecommended;
 
+  // ---------- UI ----------
   const dropdownClasses =
     "w-[var(--radix-select-trigger-width)] max-w-full max-h-40 overflow-y-auto text-sm rounded-xl border bg-white shadow-lg";
   const itemClasses = "py-2 px-3 whitespace-normal break-words leading-snug text-sm";
@@ -202,7 +215,7 @@ const EmployerMatches: React.FC = () => {
             <h1 className="text-lg font-semibold text-gray-900">Matches & Recommendations</h1>
           </div>
 
-          {/* Job Post Selector */}
+          {/* Job Selector */}
           <div className="px-6 mb-4">
             <Select
               onValueChange={(value) => setSelectedJobId(Number(value))}
@@ -241,16 +254,12 @@ const EmployerMatches: React.FC = () => {
             </button>
           </div>
 
-          {/* Candidate list */}
-          <div className="flex-1 px-6 overflow-y-auto" style={{ paddingBottom: "100px" }}>
+          {/* Candidate Cards */}
+          <div className="flex-1 px-6 overflow-y-auto pb-24">
             {!selectedJobId ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>Please select a job post above to view candidates.</p>
-              </div>
+              <p className="text-center text-gray-600 mt-10">Please select a job post above to view candidates.</p>
             ) : currentList.length === 0 ? (
-              <div className="text-center text-gray-600 mt-10">
-                <p>No candidates found for this job yet.</p>
-              </div>
+              <p className="text-center text-gray-600 mt-10">No candidates found for this job yet.</p>
             ) : (
               currentList.map((c) => (
                 <div key={c.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
@@ -259,9 +268,7 @@ const EmployerMatches: React.FC = () => {
                       src={c.profileImage}
                       alt={c.name}
                       className="w-14 h-14 rounded-lg object-cover flex-shrink-0 mt-1 border"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = "/default-avatar.png";
-                      }}
+                      onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/default-avatar.png")}
                     />
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900 text-lg truncate">{c.name}</h3>
@@ -272,7 +279,7 @@ const EmployerMatches: React.FC = () => {
                         <strong>Preferred Industries:</strong> {c.preferredIndustries.join(", ") || "No preferences"}
                       </p>
                       <p className="text-sm text-gray-600">
-                        <strong>Licenses:</strong> {c.licenses.join(", ") || "None"}
+                        <strong>Licenses:</strong> {c.licenses?.join(", ") || "None"}
                       </p>
                       <p className="text-sm text-gray-600">
                         <strong>Experience:</strong> {c.experiences}
@@ -310,7 +317,7 @@ const EmployerMatches: React.FC = () => {
             )}
           </div>
 
-          {/* Bottom Navigation */}
+          {/* Bottom Nav */}
           <div className="bg-white border-t border-gray-200 rounded-b-[48px] flex-shrink-0">
             <BottomNavigation />
           </div>
