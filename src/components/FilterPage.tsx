@@ -270,12 +270,12 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
                 <div className="flex flex-wrap gap-2 mt-2">
                   {selectedFilters.p_filter_license_ids.map((id) => {
                     const license = licenses.find((l) => l.id === id);
-                    return license ? (
+                    return (
                       <span
                         key={id}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-800 rounded-full text-xs"
                       >
-                        {license.name}
+                        {license?.name || `License ${id}`}
                         <button
                           onClick={() => handleLicenseToggle(id)}
                           className="hover:text-slate-900"
@@ -283,7 +283,7 @@ const FilterPage: React.FC<FilterPageProps> = ({ onClose, onApplyFilters }) => {
                           <X size={14} />
                         </button>
                       </span>
-                    ) : null;
+                    );
                   })}
                 </div>
               )}
