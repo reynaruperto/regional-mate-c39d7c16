@@ -142,7 +142,7 @@ const EMPCandidateFull: React.FC = () => {
   };
 
   const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading…</div>;

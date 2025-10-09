@@ -61,7 +61,7 @@ const WHVPreviewMatchCard: React.FC = () => {
     if (!d) return "Not set";
     const parsed = new Date(d);
     if (isNaN(parsed.getTime())) return "Not set";
-    return parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    return parsed.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
   };
 
   useEffect(() => {
