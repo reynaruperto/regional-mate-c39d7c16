@@ -385,6 +385,20 @@ export type Database = {
             referencedRelation: "vw_maker_match_scores"
             referencedColumns: ["emp_id"]
           },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["emp_id"]
+          },
         ]
       }
       job_license: {
@@ -458,6 +472,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_license_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_license_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["job_id"]
           },
           {
@@ -567,6 +595,20 @@ export type Database = {
             referencedColumns: ["job_id"]
           },
           {
+            foreignKeyName: "likes_liked_job_post_id_fkey"
+            columns: ["liked_job_post_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "likes_liked_job_post_id_fkey"
+            columns: ["liked_job_post_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["job_id"]
+          },
+          {
             foreignKeyName: "likes_liked_whv_id_fkey"
             columns: ["liked_whv_id"]
             isOneToOne: false
@@ -585,6 +627,27 @@ export type Database = {
             columns: ["liked_whv_id"]
             isOneToOne: false
             referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "likes_liked_whv_id_fkey"
+            columns: ["liked_whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "likes_liked_whv_id_fkey"
+            columns: ["liked_whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "likes_liked_whv_id_fkey"
+            columns: ["liked_whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["maker_id"]
           },
           {
@@ -666,6 +729,27 @@ export type Database = {
             foreignKeyName: "maker_license_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_license_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_license_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_license_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "whv_maker"
             referencedColumns: ["user_id"]
           },
@@ -707,6 +791,27 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_availability_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_availability_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_availability_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["maker_id"]
           },
           {
@@ -787,6 +892,27 @@ export type Database = {
             foreignKeyName: "maker_pref_industry_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_industry_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_industry_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_industry_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "whv_maker"
             referencedColumns: ["user_id"]
           },
@@ -798,21 +924,21 @@ export type Database = {
           id: string
           industry_role_id: number | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           industry_role_id?: number | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           industry_role_id?: number | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -855,6 +981,27 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_industry_role_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_industry_role_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_industry_role_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["maker_id"]
           },
           {
@@ -915,6 +1062,122 @@ export type Database = {
           },
           {
             foreignKeyName: "maker_pref_location_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_location_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_location_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_pref_location_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "whv_maker"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      maker_preference: {
+        Row: {
+          created_at: string
+          industry_role_id: number
+          preference_id: number
+          region_rules_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          industry_role_id: number
+          preference_id?: number
+          region_rules_id: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          industry_role_id?: number
+          preference_id?: number
+          region_rules_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maker_preference_industry_role_id_fkey"
+            columns: ["industry_role_id"]
+            isOneToOne: false
+            referencedRelation: "industry_role"
+            referencedColumns: ["industry_role_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_industry_role_id_fkey"
+            columns: ["industry_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_eligible_visa_country_industry_role"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_industry_role_id_fkey"
+            columns: ["industry_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_industry_roles"
+            referencedColumns: ["industry_role_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "maker_preference_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "whv_maker"
@@ -1145,6 +1408,20 @@ export type Database = {
             referencedColumns: ["emp_id"]
           },
           {
+            foreignKeyName: "matches_employer_id_fkey"
+            columns: ["employer_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "matches_employer_id_fkey"
+            columns: ["employer_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["emp_id"]
+          },
+          {
             foreignKeyName: "matches_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
@@ -1201,6 +1478,20 @@ export type Database = {
             referencedColumns: ["job_id"]
           },
           {
+            foreignKeyName: "matches_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matches_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["job_id"]
+          },
+          {
             foreignKeyName: "matches_whv_id_fkey"
             columns: ["whv_id"]
             isOneToOne: false
@@ -1225,6 +1516,180 @@ export type Database = {
             foreignKeyName: "matches_whv_id_fkey"
             columns: ["whv_id"]
             isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matches_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matches_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matches_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "whv_maker"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      matching_score: {
+        Row: {
+          calculated_at: string | null
+          industry_score: number | null
+          job_id: number
+          license_score: number | null
+          location_score: number | null
+          match_score: number
+          whv_id: string
+          work_experience_score: number | null
+        }
+        Insert: {
+          calculated_at?: string | null
+          industry_score?: number | null
+          job_id: number
+          license_score?: number | null
+          location_score?: number | null
+          match_score: number
+          whv_id: string
+          work_experience_score?: number | null
+        }
+        Update: {
+          calculated_at?: string | null
+          industry_score?: number | null
+          job_id?: number
+          license_score?: number | null
+          location_score?: number | null
+          match_score?: number
+          whv_id?: string
+          work_experience_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_private_active_jobs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_private_all_jobs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_private_inactive_jobs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_emp_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["maker_id"]
+          },
+          {
+            foreignKeyName: "matching_score_whv_id_fkey"
+            columns: ["whv_id"]
+            isOneToOne: false
             referencedRelation: "whv_maker"
             referencedColumns: ["user_id"]
           },
@@ -1233,7 +1698,6 @@ export type Database = {
       notification_setting: {
         Row: {
           created_at: string | null
-          id: number
           notifications_enabled: boolean | null
           updated_at: string | null
           user_id: string
@@ -1241,7 +1705,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          id?: number
           notifications_enabled?: boolean | null
           updated_at?: string | null
           user_id: string
@@ -1249,7 +1712,6 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          id?: number
           notifications_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
@@ -1360,6 +1822,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["job_id"]
           },
           {
@@ -1766,6 +2242,20 @@ export type Database = {
             referencedColumns: ["emp_id"]
           },
           {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["emp_id"]
+          },
+          {
             foreignKeyName: "whv_maker_user_id_fkey"
             columns: ["maker_id"]
             isOneToOne: true
@@ -1804,6 +2294,20 @@ export type Database = {
             columns: ["emp_id"]
             isOneToOne: false
             referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["emp_id"]
           },
           {
@@ -1848,6 +2352,20 @@ export type Database = {
             referencedColumns: ["emp_id"]
           },
           {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["emp_id"]
+          },
+          {
             foreignKeyName: "whv_maker_user_id_fkey"
             columns: ["maker_id"]
             isOneToOne: true
@@ -1881,6 +2399,20 @@ export type Database = {
             referencedRelation: "vw_maker_match_scores"
             referencedColumns: ["emp_id"]
           },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["emp_id"]
+          },
         ]
       }
       vw_emp_private_all_jobs: {
@@ -1906,6 +2438,20 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "vw_maker_match_scores"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
             referencedColumns: ["emp_id"]
           },
         ]
@@ -1935,6 +2481,20 @@ export type Database = {
             referencedRelation: "vw_maker_match_scores"
             referencedColumns: ["emp_id"]
           },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top10"
+            referencedColumns: ["emp_id"]
+          },
+          {
+            foreignKeyName: "job_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_maker_match_scores_top5"
+            referencedColumns: ["emp_id"]
+          },
         ]
       }
       vw_industry_roles: {
@@ -1948,19 +2508,22 @@ export type Database = {
       }
       vw_maker_match_scores: {
         Row: {
-          company_name: string | null
+          company: string | null
+          description: string | null
           emp_id: string | null
+          employment_type: string | null
           industry: string | null
           industry_score: number | null
           job_id: number | null
           license_score: number | null
           location: string | null
           location_score: number | null
+          maker_id: string | null
           match_score: number | null
           matching_rank: number | null
+          profile_photo: string | null
           role: string | null
-          start_date: string | null
-          user_id: string | null
+          salary_range: string | null
           work_experience_score: number | null
         }
         Relationships: [
@@ -1971,7 +2534,95 @@ export type Database = {
             referencedRelation: "profile"
             referencedColumns: ["user_id"]
           },
+          {
+            foreignKeyName: "whv_maker_user_id_fkey"
+            columns: ["maker_id"]
+            isOneToOne: true
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
         ]
+      }
+      vw_maker_match_scores_top10: {
+        Row: {
+          company: string | null
+          description: string | null
+          emp_id: string | null
+          employment_type: string | null
+          industry: string | null
+          industry_score: number | null
+          job_id: number | null
+          license_score: number | null
+          location: string | null
+          location_score: number | null
+          maker_id: string | null
+          match_score: number | null
+          matching_rank: number | null
+          profile_photo: string | null
+          role: string | null
+          salary_range: string | null
+          work_experience_score: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employer_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: true
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "whv_maker_user_id_fkey"
+            columns: ["maker_id"]
+            isOneToOne: true
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      vw_maker_match_scores_top5: {
+        Row: {
+          company: string | null
+          description: string | null
+          emp_id: string | null
+          employment_type: string | null
+          industry: string | null
+          industry_score: number | null
+          job_id: number | null
+          license_score: number | null
+          location: string | null
+          location_score: number | null
+          maker_id: string | null
+          match_score: number | null
+          matching_rank: number | null
+          profile_photo: string | null
+          role: string | null
+          salary_range: string | null
+          work_experience_score: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employer_user_id_fkey"
+            columns: ["emp_id"]
+            isOneToOne: true
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "whv_maker_user_id_fkey"
+            columns: ["maker_id"]
+            isOneToOne: true
+            referencedRelation: "profile"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      vw_maker_preference_industry_role: {
+        Row: {
+          industry: string | null
+          role: string | null
+        }
+        Relationships: []
       }
       vw_maker_preview_licenses: {
         Row: {
@@ -1979,128 +2630,33 @@ export type Database = {
         }
         Relationships: []
       }
-      vw_maker_preview_pref_availability: {
-        Row: {
-          available_from: string | null
-        }
-        Insert: {
-          available_from?: string | null
-        }
-        Update: {
-          available_from?: string | null
-        }
-        Relationships: []
-      }
-      vw_maker_preview_pref_industry: {
-        Row: {
-          industry: string | null
-          industry_id: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "maker_pref_industry_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "industry"
-            referencedColumns: ["industry_id"]
-          },
-          {
-            foreignKeyName: "maker_pref_industry_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "vw_eligible_visa_country_industry_role"
-            referencedColumns: ["industry_id"]
-          },
-          {
-            foreignKeyName: "maker_pref_industry_industry_id_fkey"
-            columns: ["industry_id"]
-            isOneToOne: false
-            referencedRelation: "vw_industry_roles"
-            referencedColumns: ["industry_id"]
-          },
-        ]
-      }
-      vw_maker_preview_pref_industry_role: {
-        Row: {
-          industry: string | null
-          role: string | null
-          role_id: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "maker_pref_industry_role_industry_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "industry_role"
-            referencedColumns: ["industry_role_id"]
-          },
-          {
-            foreignKeyName: "maker_pref_industry_role_industry_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "vw_eligible_visa_country_industry_role"
-            referencedColumns: ["role_id"]
-          },
-          {
-            foreignKeyName: "maker_pref_industry_role_industry_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "vw_industry_roles"
-            referencedColumns: ["industry_role_id"]
-          },
-        ]
-      }
-      vw_maker_preview_pref_location: {
-        Row: {
-          postcode: string | null
-          state: Database["public"]["Enums"]["state"] | null
-          suburb_city: string | null
-        }
-        Insert: {
-          postcode?: string | null
-          state?: Database["public"]["Enums"]["state"] | null
-          suburb_city?: string | null
-        }
-        Update: {
-          postcode?: string | null
-          state?: Database["public"]["Enums"]["state"] | null
-          suburb_city?: string | null
-        }
-        Relationships: []
-      }
       vw_maker_preview_work_history: {
         Row: {
           company: string | null
-          end_date: string | null
-          industry: string | null
-          job_description: string | null
           location: string | null
           position: string | null
-          start_date: string | null
+          years_of_experience: unknown | null
+        }
+        Insert: {
+          company?: string | null
+          location?: string | null
+          position?: string | null
+          years_of_experience?: never
+        }
+        Update: {
+          company?: string | null
+          location?: string | null
+          position?: string | null
+          years_of_experience?: never
         }
         Relationships: []
       }
-      vw_maker_visa: {
+      vw_maker_work_preference_industry_role: {
         Row: {
-          stage_id: number | null
-          visa: string | null
+          industry: string | null
+          role: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "maker_visa_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "visa_stage"
-            referencedColumns: ["stage_id"]
-          },
-          {
-            foreignKeyName: "maker_visa_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "vw_stage_eligible_countries"
-            referencedColumns: ["stage_id"]
-          },
-        ]
+        Relationships: []
       }
       vw_regional_rules_base: {
         Row: {
@@ -2174,26 +2730,25 @@ export type Database = {
           work_experience_score: number
         }[]
       }
-      check_nationality_visa_eligiblity: {
-        Args: { p_nationality: string }
-        Returns: string[]
-      }
       fetch_job_matches: {
         Args: { p_job_id: number }
         Returns: {
           availability: string
           country: string
-          employer_id: string
           given_name: string
           industry_pref: string[]
+          industry_score: number
           job_id: number
-          licenses: string[]
+          license_score: number
           location: string
-          matched_at: string
+          location_score: number
+          maker_id: string
+          match_score: number
+          matching_rank: number
           profile_photo: string
           state_pref: string[]
-          whv_id: string
           work_experience: Json
+          work_experience_score: number
         }[]
       }
       fetch_job_recommendations: {
@@ -2206,7 +2761,6 @@ export type Database = {
           industry_score: number
           job_id: number
           license_score: number
-          licenses: string[]
           location: string
           location_score: number
           maker_id: string
@@ -2324,11 +2878,9 @@ export type Database = {
       }
       filter_jobs_for_maker: {
         Args: {
-          p_filter_custom_license?: string
           p_filter_facility_ids?: number[]
           p_filter_industry_ids?: number[]
           p_filter_job_type?: string
-          p_filter_license_ids?: number[]
           p_filter_salary_range?: string
           p_filter_state?: string
           p_filter_suburb_city_postcode?: string
@@ -2341,7 +2893,6 @@ export type Database = {
           job_description: string
           job_id: number
           job_type: string
-          licenses: string[]
           location: string
           profile_photo: string
           role: string
@@ -2361,30 +2912,7 @@ export type Database = {
         }
         Returns: {
           given_name: string
-          licenses: string[]
-          maker_id: string
-          maker_states: string[]
-          pref_industries: string[]
-          profile_photo: string
-          work_experience: string
-        }[]
-      }
-      filter_makers_for_employer_v2: {
-        Args: {
-          p_emp_id: string
-          p_filter_custom_license?: string
-          p_filter_industry_ids?: number[]
-          p_filter_license_ids?: number[]
-          p_filter_state?: string
-          p_filter_suburb_city_postcode?: string
-          p_filter_work_industry_id?: number
-          p_filter_work_years_experience?: string
-          p_job_id?: number
-        }
-        Returns: {
-          given_name: string
           industry_pref: string[]
-          license: string[]
           maker_id: string
           profile_photo: string
           state_pref: string[]
@@ -2519,10 +3047,6 @@ export type Database = {
           maker_tagline: string
         }[]
       }
-      get_maker_visa: {
-        Args: { p_maker_id: string }
-        Returns: string[]
-      }
       get_maker_work_experience: {
         Args: { p_user_id: string }
         Returns: {
@@ -2554,10 +3078,6 @@ export type Database = {
       get_years_experience_enum: {
         Args: Record<PropertyKey, never>
         Returns: string[]
-      }
-      is_matched_with_maker: {
-        Args: { p_maker_id: string; p_viewer_id: string }
-        Returns: boolean
       }
       mark_notification_read: {
         Args: { p_notification_id: number }
